@@ -249,6 +249,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   cerrar y abrir la pestaña, quedarse sin internet, sesión cerrada, "Actualizar", cambiar de pestaña
   o de sección y Realtime; el borrador (seguir, descartar, no pisarlo, se borra al guardar) y
   "Vaciar"; fichas y registro de sitting que preguntan antes de cerrar y se recuperan al recargar.
+- `tests/borrador-en-base.spec.js`: la copia del borrador de la entrevista en la base (al salir de
+  un campo, cada 5 s como mucho, desde otro dispositivo, el más nuevo gana, se borra al guardar,
+  base sin la tabla y base que falla). En la base: `supabase/pruebas/borradores.sql`.
 - `tests/entrevista-en-curso.spec.js`: guardar la entrevista a medias, retomarla desde
   Candidatas guardadas o desde la candidata, completarla en la misma fila, base sin migrar.
 - `tests/sin-aviso-itau.spec.js`: sin aviso del extracto (Finanzas, campanita, puntito y preferencias)
@@ -426,7 +429,9 @@ reporte.
   abrirlos, preguntan antes de ponerlo. Un modal largo nuevo llama a `protegerModal(clave)` después
   de abrirse y precargarse; así también pregunta antes de cerrarse con cambios (fondo, ×,
   "Cancelar"). Toda recarga que dispare la app pregunta si `hayCambiosSinGuardar()`. `signOut`
-  siempre con `{ scope: 'local' }`: sin eso cierra la cuenta en todos los dispositivos.
+  siempre con `{ scope: 'local' }`: sin eso cierra la cuenta en todos los dispositivos. La
+  entrevista además copia el borrador en la base (tabla `borradores`, una fila por usuaria y por
+  clave, `programarBorradorEnBase`): es una red de seguridad, sin avisos si falla o no está.
 - Realtime tampoco repinta lo que se está escribiendo: RR.HH. en Entrevista y Finanzas usan
   recarga liviana (`RT_RECARGA_LIVIANA`, agenda.js); con un modal abierto el cambio se aplica al
   cerrarlo.
@@ -706,9 +711,6 @@ descartado (19/10/2026): no proponerlo de nuevo.
   reescribir el texto del mail.
 - Web pública: sumar reseñas de padres e historias de influencers y sacar "Somos Paulina y
   Delfina". Confirmar con Diego dónde vive la web antes de tocar nada.
-- Borrador de la entrevista en la base (21/10/2026): el del dispositivo ya está; falta el de la
-  base (cada pocos segundos y al salir de cada campo, una fila por candidata y por usuaria, para
-  seguir desde otro dispositivo). Migración propuesta aparte, espera el OK de Diego.
 - Modo offline (hoy no hay): pendiente aparte, sin fecha.
 
 ### Cierre

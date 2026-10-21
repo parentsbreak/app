@@ -245,7 +245,7 @@ async function abrirApp(page, opciones = {}) {
       const simular = estado.rpc[tabla.slice(4)];
       return route.fulfill({ json: simular ? simular(cuerpo, db) : [] });
     }
-    if (baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio'].includes(tabla)) {
+    if (baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores'].includes(tabla)) {
       return route.fulfill({ status: 404, json: { code: 'PGRST205', message: `Could not find the table 'public.${tabla}' in the schema cache` } });
     }
     // Términos y condiciones (20/10/2026): sin la migración, familias no tiene la columna.
