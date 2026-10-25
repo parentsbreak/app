@@ -53,12 +53,12 @@ test.describe('registro de un sitting', () => {
     verificarLimpio(e);
   });
 
-  test('"Usar estos montos" vuelve a la tarifa y saca el motivo', async ({ page }) => {
+  test('"Usar el nuevo monto" vuelve a la tarifa y saca el motivo', async ({ page }) => {
     const e = await abrirApp(page);
     await nuevoRegistro(page);
     await page.fill('#sit-cobro', '2000');
     await page.selectOption('#sit-precio-motivo', 'extra');
-    await page.locator('#sit-precio-sugerido button', { hasText: 'Usar estos montos' }).click();
+    await page.locator('#sit-precio-sugerido button', { hasText: 'Usar el nuevo monto ($1.140)' }).click();
     await expect(page.locator('#sit-precio-motivo')).toHaveCount(0);
     await guardar(page);
     await expect(page.locator('#editmodal')).toHaveCount(0);

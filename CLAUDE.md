@@ -298,6 +298,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/precio-a-mano.spec.js`: precio puesto a mano con motivo en el registro (pide el motivo, lo
   conserva, "Usar estos montos" lo saca, editar lo muestra, base sin migrar) y en "Editar
   movimiento"; "Revisar meses" no marca los que tienen motivo. En la base: `supabase/pruebas/precio_a_mano.sql`.
+- `tests/precio-a-mano-horario.spec.js`: cambio de horario con precio a mano ("Usar el nuevo monto ($X)" /
+  "Mantener el precio a mano", sin elegir no guarda), casillas de 24 px en el celular y el texto de los
+  botones de confirmar ("Sí, no fue", "Quitar la pausa").
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -389,7 +392,13 @@ reporte.
 - Precio de un sitting (21/10/2026): lo tipeado a mano no se pisa al cambiar la hora o la familia;
   se muestra el calculado con "Usar estos montos" (`precioSegunHorario`, sittings.js). Al editar,
   un precio igual a horas × tarifa se sigue recalculando. Un pedido sin hora de fin no tiene total
-  (`cobro_familia` vacío) y su registro va en $0 hasta que se carga la hora de fin.
+  (`cobro_familia` vacío) y su registro va en $0 hasta que se carga la hora de fin. Al cambiar el
+  horario o la familia con un precio a mano, primero se elige (25/10/2026): "Usar el nuevo monto ($X)"
+  (aplica cobro y pago y saca la marca) o "Mantener el precio a mano" (recién ahí pide el motivo);
+  sin elegir no se guarda (`pintarSugerenciaPrecioSit`, sittings.js).
+- Celular (25/10/2026, regla de Paulina y Delfina): toda casilla mide 24 px (regla global en
+  `index.html`, `@media (max-width:760px)`); nada de `width:auto` inline en un checkbox. El botón
+  de `confirmarAccion` dice lo que hace: el 'Eliminar' por defecto solo si de verdad borra.
 - Fijos: nunca se borran. "Terminar desde [fecha]" completa `vigente_hasta` con el día
   anterior (`abrirModalTerminarFijo`, agenda.js).
 - Registro cancelado (25/10/2026): "Reactivar" (modal del registro en la Agenda) lo deja como
