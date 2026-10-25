@@ -1687,12 +1687,55 @@ function abrirModalRegistroDesdeAgenda(s){
     <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${horario} · ${s._esPrevisto ? 'previsto (se confirma solo ese día)' : 'ya registrado en Sittings &amp; traslados'}</div>
     <div style="margin:14px 0;">
       <div class="agenda-ninerarow"><div><b>${escaparHtml(s.ninieras[0].ninera_nombre)}</b></div></div>
-      ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>` : ''}
+      ${s.cancelado
+        ? `<div class="helper"><span class="badge warn" style="font-size:10.5px;padding:3px 8px;">Cancelado</span> Sin cargo: no se cobra ni se paga.</div>`
+        : (s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>` : '')}
     </div>
-    ${s._esPrevisto ? '' : `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="editarRegistroDesdeAgenda(${argJs(s._regId)})">Editar este registro</button>`}
+    ${s.cancelado ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="conGuardado(this, ()=>reactivarRegistroDesdeAgenda(${argJs(s._regId)}))">Reactivar este registro</button>` : ''}
+    ${s._esPrevisto ? '' : `<button class="btn ${s.cancelado ? '' : 'primary'}" style="width:100%;margin-bottom:8px;" onclick="editarRegistroDesdeAgenda(${argJs(s._regId)})">Editar este registro</button>`}
     <button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>eliminarRegistroDesdeAgenda(${argJs(s._regId)}))">Eliminar este registro</button>
   `;
   abrirModal(cuerpo);
+}
+/* Reactivar un registro cancelado (25/10/2026): vuelve a quedar como estaba antes de
+   cancelarlo. Lo que cambió al cancelar (montos, cobrado / pagado, notas, si era automático)
+   sale del historial de cambios: la fila del trigger en la que `cancelado` pasó a true, y de
+   ella solo los valores de "antes". Sin esa fila (nació cancelado con "No fue nadie ese día",
+   cancelación anterior al trigger o base sin la tabla) queda en $0 y se abre el registro para
+   cargar los montos: no se inventa un precio. */
+async function estadoAntesDeCancelar(regId){
+  const { data, error } = await sb.from('sittings_historial').select('cambios')
+    .eq('sitting_id', regId).eq('accion', 'cambio').order('cuando', {ascending:false}).limit(50);
+  if(error || !data) return null;
+  const fila = data.find(h=>h.cambios?.cancelado?.despues===true);
+  if(!fila) return null;
+  const antes = {};
+  for(const [campo, c] of Object.entries(fila.cambios)) antes[campo] = c.antes;
+  return antes;
+}
+async function reactivarRegistroDesdeAgenda(regId){
+  const s = agendaSolicitudes.find(x=>x._regId===regId);
+  const antes = await estadoAntesDeCancelar(regId);
+  const plata = n => '$'+(Number(n)||0).toLocaleString('es-UY');
+  const msg = antes
+    ? `¿Reactivar este registro? Vuelve a quedar como estaba antes de cancelarlo: cobro ${plata(antes.cobro_familia)} y pago ${plata(antes.pago_ninera)}.`
+    : '¿Reactivar este registro? No hay registro de cómo estaba antes de cancelarlo: queda con cobro $0 y pago $0, y se abre para que cargues los montos.';
+  if(!(await confirmarAccion(msg, 'Reactivar'))) return;
+  const cambios = antes ? { ...antes, cancelado: false } : { cancelado: false, cobrado: false, pagado: false };
+  // Si otra admin lo reactivó o lo corrigió mientras tanto, no se pisa nada (regla del 21/10/2026).
+  const { data, error } = await sb.from('sittings_traslados').update(cambios).eq('id', regId).eq('cancelado', true).select('id');
+  if(error){ toast('No se pudo reactivar: '+error.message, 'bad'); return; }
+  if(!data || !data.length){
+    toast('Ese registro ya no estaba cancelado: lo cambió alguien más hace un momento. No se cambió nada.', 'bad');
+    cerrarModal();
+    await cargarAgendaSolicitudes();
+    return;
+  }
+  cerrarModal();
+  toast(antes ? 'Registro reactivado.' : 'Registro reactivado en $0: cargá los montos.');
+  await cargarAgendaSolicitudes();
+  actualizarAgendaBadge();
+  if(!antes && !s?._esPrevisto) await editarRegistroDesdeAgenda(regId);
 }
 async function eliminarRegistroDesdeAgenda(regId){
   // Con gastos extra: mismo cuidado que en Sittings (gastosDelRegistroABorrar, sittings.js).

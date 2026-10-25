@@ -34,7 +34,7 @@ test.describe('estático', () => {
     // 05/10/2026: un doble toque en Guardar disparaba dos inserts. Las funciones de abajo
     // escriben en la base; un <button> que las llama tiene que hacerlo con
     // conGuardado(this, ()=>...). Login y contraseñas manejan su botón por su cuenta.
-    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones)$/;
+    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|reactivarRegistroDesdeAgenda|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones)$/;
     const PROPIOS = new Set(['guardarNuevaContrasena']);
     const malos = [];
     for (const archivo of ORDEN_SCRIPTS) {

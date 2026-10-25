@@ -552,8 +552,8 @@ function sitFormHTML(){
         ${['L','M','X','J','V','S','D'].map(d=>`<button type="button" class="daybtn" data-dia="${d}" onclick="this.classList.toggle('selected')">${DIAS_CORTO[d]}</button>`).join('')}
       </div>
     </div>
-    <label class="chk" style="margin:0 0 10px;${sitEsRegistroConocido ? '' : 'display:none;'}">
-      <input type="checkbox" id="sit-cancelado" onchange="onSitCanceladoChange()" style="width:auto;">
+    <label class="chk chk-largo" style="margin:0 0 10px;${sitEsRegistroConocido ? '' : 'display:none;'}">
+      <input type="checkbox" id="sit-cancelado" onchange="onSitCanceladoChange()">
       Este día no hubo servicio (canceló la familia o faltó la niñera sin reemplazo) — sin cargo
     </label>
     <div class="grid2">
@@ -2094,7 +2094,10 @@ function renderSitListaTabla(){
     <tbody>${itemsMostrados.map(r=>{
       const margen = (Number(r.cobro_familia)||0) - (Number(r.pago_ninera)||0);
       const fechaFmt = r.fecha ? new Date(r.fecha+'T00:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'short'}) : '—';
-      return `<tr><td>${fechaFmt}</td><td><span class="badge ${r.tipo==='sitting'?'brand':'warn'}" style="font-size:10px;padding:2px 8px;">${r.tipo==='sitting'?'Sitting':'Traslado'}</span></td><td>${escaparHtml(r.familia_nombre)}${r.cancelado?' <span class="badge warn" style="font-size:9.5px;padding:2px 6px;">Cancelado</span>':''}</td><td>${escaparHtml(r.ninera_nombre)}</td><td>${plataFin(r.cobro_familia)}${sitGastosFamiliaPorRegistro[r.id] ? `<div class="helper sit-total-fila" style="margin:2px 0 0;white-space:nowrap;">+ gastos ${plataFin(sitGastosFamiliaPorRegistro[r.id])} = ${plataFin((Number(r.cobro_familia)||0)+sitGastosFamiliaPorRegistro[r.id])}</div>` : ''}</td><td>${plataFin(r.pago_ninera)}</td><td class="${margen>=0?'margenpos':'margenneg'}">${plataFin(margen)}</td><td><div class="tablecell-btns"><button class="smallbtn" onclick="abrirModalSitForm(${argJs(r.id)})">Editar</button><button class="smallbtn" onclick="abrirModalIncidente(${argJs({sitting_id:r.id, ninera_id:r.ninera_id, ninera_nombre:r.ninera_nombre, familia_id:r.familia_id, familia_nombre:r.familia_nombre, fecha:r.fecha})})">Incidente</button><button class="smallbtn danger" onclick="conGuardado(this, ()=>eliminarSitting(${argJs(r.id)}))">Eliminar</button></div></td></tr>`;
+      // La fila se toca para editar, como en el historial (25/10/2026): en el celular la tabla
+      // es más ancha que la pantalla y el botón "Editar" quedaba fuera de la vista, así que no
+      // se podía cancelar un traslado sin deslizar la tabla al costado.
+      return `<tr style="cursor:pointer;" onclick="abrirModalSitForm(${argJs(r.id)})" title="Tocar para editar"><td>${fechaFmt}</td><td><span class="badge ${r.tipo==='sitting'?'brand':'warn'}" style="font-size:10px;padding:2px 8px;">${r.tipo==='sitting'?'Sitting':'Traslado'}</span></td><td>${escaparHtml(r.familia_nombre)}${r.cancelado?' <span class="badge warn" style="font-size:9.5px;padding:2px 6px;">Cancelado</span>':''}</td><td>${escaparHtml(r.ninera_nombre)}</td><td>${plataFin(r.cobro_familia)}${sitGastosFamiliaPorRegistro[r.id] ? `<div class="helper sit-total-fila" style="margin:2px 0 0;white-space:nowrap;">+ gastos ${plataFin(sitGastosFamiliaPorRegistro[r.id])} = ${plataFin((Number(r.cobro_familia)||0)+sitGastosFamiliaPorRegistro[r.id])}</div>` : ''}</td><td>${plataFin(r.pago_ninera)}</td><td class="${margen>=0?'margenpos':'margenneg'}">${plataFin(margen)}</td><td onclick="event.stopPropagation()"><div class="tablecell-btns"><button class="smallbtn" onclick="abrirModalSitForm(${argJs(r.id)})">Editar</button><button class="smallbtn" onclick="abrirModalIncidente(${argJs({sitting_id:r.id, ninera_id:r.ninera_id, ninera_nombre:r.ninera_nombre, familia_id:r.familia_id, familia_nombre:r.familia_nombre, fecha:r.fecha})})">Incidente</button><button class="smallbtn danger" onclick="conGuardado(this, ()=>eliminarSitting(${argJs(r.id)}))">Eliminar</button></div></td></tr>`;
     }).join('')}</tbody></table></div>
     ${hayMas ? `<button class="smallbtn" onclick="sitListaMostrar+=15;renderSitListaTabla();" style="margin-top:10px;">Mostrar más</button>` : ''}
   `;
