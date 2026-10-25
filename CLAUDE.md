@@ -392,6 +392,11 @@ reporte.
   (`cobro_familia` vacío) y su registro va en $0 hasta que se carga la hora de fin.
 - Fijos: nunca se borran. "Terminar desde [fecha]" completa `vigente_hasta` con el día
   anterior (`abrirModalTerminarFijo`, agenda.js).
+- Registro cancelado (25/10/2026): "Reactivar" (modal del registro en la Agenda) lo deja como
+  estaba antes de cancelarlo leyendo `sittings_historial` (`estadoAntesDeCancelar`, agenda.js):
+  cancelar es siempre un UPDATE de la misma fila, nunca borrar y volver a crear. Sin historial
+  queda en $0 y abre el registro para cargar los montos. Las filas de la lista de Sittings se
+  tocan para editar, como las del historial: en el celular los botones quedan fuera de la vista.
 - No repintar la app entera ante eventos de auth ni al volver de segundo plano: ya causó
   pérdida de entrevistas (ver comentarios en auth.js y bootstrap.js).
 - Que no se pierda lo escrito (21/10/2026): la entrevista y los modales largos guardan un borrador

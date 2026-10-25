@@ -153,6 +153,11 @@ textarea{resize:vertical;min-height:54px;}
 .zona-detalle summary{cursor:pointer;font-size:12px;}
 .zona-detalle b{color:var(--ink);font-weight:600;}
 .refrow .chk{gap:6px;}
+/* Casilla con texto largo (25/10/2026, "Este día no hubo servicio…" del registro): el texto se
+   acomoda en varias líneas y la cajita es grande para tocarla en el celular. Con .chk a secas
+   (nowrap) se cortaba en "canceló la familia" y el modal hacía scroll de costado. */
+.chk.chk-largo{white-space:normal;align-items:flex-start;line-height:1.35;}
+.chk.chk-largo input[type=checkbox]{width:24px;height:24px;flex:none;margin:-3px 0 0;accent-color:var(--accent);}
 .smallbtn{background:none;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--ink-soft);font-family:'Inter',sans-serif;}
 .smallbtn:hover{border-color:var(--accent);color:var(--accent);}
 .smallbtn.danger:hover{border-color:var(--bad);color:var(--bad);}
