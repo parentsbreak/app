@@ -1421,6 +1421,8 @@ $function$;
 -- La niñera de la sesión: su ficha si está activa, o null (admin, cuenta sin ficha, dada de baja
 -- o sin sesión). Mismo patrón que es_usuaria_autorizada(): security definer para leer ninieras
 -- sin abrirle la tabla, y ejecutable por anon para que una política "to public" no falle.
+-- Una cuenta nunca tiene los dos roles (26/10/2026): si una admin quedara vinculada a una ficha
+-- por error, sigue siendo admin y no entra como niñera (null).
 create or replace function public.ninera_actual()
 returns uuid
 language sql
@@ -1428,7 +1430,10 @@ stable
 security definer
 set search_path to 'public'
 as $function$
-  select id from public.ninieras where user_id = auth.uid() and activa limit 1
+  select id from public.ninieras
+   where user_id = auth.uid() and activa
+     and not coalesce((select public.es_usuaria_autorizada()), false)
+   limit 1
 $function$;
 revoke execute on function public.ninera_actual() from public;
 grant execute on function public.ninera_actual() to authenticated, anon;
@@ -1602,6 +1607,14 @@ declare
   n_actualizados integer;
   n_creados integer;
 begin
+  -- Solo una admin o la tarea programada (26/10/2026). Desde las cuentas de niñeras, un JWT
+  -- "authenticated" ya no es siempre de una admin, y esta función es security definer: sin esto,
+  -- una niñera podría llamarla y escribir previstos en sittings_traslados. pg_cron (la corrida de
+  -- las 03:00) y la clave de servicio no traen 'sub' (auth.uid() es null) y pasan; la sesión de
+  -- una niñera sí lo trae y no está en usuarias_autorizadas.
+  if (select auth.uid()) is not null and not coalesce((select public.es_usuaria_autorizada()), false) then
+    raise exception 'no_autorizada';
+  end if;
   if p_dias is null or p_dias < 1 or p_dias > 60 then
     raise exception 'p_dias tiene que estar entre 1 y 60 (vino %)', p_dias;
   end if;

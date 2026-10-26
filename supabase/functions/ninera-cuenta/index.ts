@@ -9,7 +9,7 @@
 // Opcional (Supabase > Edge Functions > Secrets): ORIGENES_PERMITIDOS (separados por coma) si la
 // app se publica en otro dominio.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { type Deps, type Invitacion, procesarCuenta } from "./cuenta.ts";
+import { type Deps, ERROR_PASSWORD_DEBIL, type Invitacion, procesarCuenta } from "./cuenta.ts";
 
 // Solo la app publicada, como pedido-whatsapp (Diego, 21/10/2026).
 const ORIGENES = (Deno.env.get("ORIGENES_PERMITIDOS") || "https://diegomarin28.github.io")
@@ -45,6 +45,15 @@ function conRegistro<A extends unknown[], R>(paso: string, f: (...args: A) => Pr
   };
 }
 
+// Auth rechaza la contraseña (más corta o más simple de lo que pide su configuración): se avisa
+// con ERROR_PASSWORD_DEBIL para que cuenta.ts responda 400 password_corta y no 500.
+function errorDeAuth(error: { code?: unknown; message?: unknown }): Error {
+  if (error.code === "weak_password" || (typeof error.message === "string" && error.message.includes("Password should be"))) {
+    return new Error(ERROR_PASSWORD_DEBIL);
+  }
+  return error as Error;
+}
+
 Deno.serve(async (req: Request) => {
   const h = encabezados(req.headers.get("origin"));
   const responder = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo), { status, headers: h });
@@ -76,7 +85,7 @@ Deno.serve(async (req: Request) => {
     }),
     crearUsuario: conRegistro("crearUsuario", async (email: string, password: string, nineraId: string, nombre: string) => {
       const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { ninera_id: nineraId, nombre } });
-      if (error) throw error;
+      if (error) throw errorDeAuth(error);
       if (!data.user) throw new Error("Auth no devolvió la cuenta creada");
       return data.user.id;
     }),
@@ -84,12 +93,18 @@ Deno.serve(async (req: Request) => {
       const { error } = await sb.auth.admin.updateUserById(userId, {
         password: cambios.password, email: cambios.email, user_metadata: { ninera_id: cambios.nineraId, nombre: cambios.nombre },
       });
-      if (error) throw error;
+      if (error) throw errorDeAuth(error);
     }),
     vincular: conRegistro("vincular", async (nineraId: string, userId: string) => {
       const { data, error } = await sb.from("ninieras").update({ user_id: userId }).eq("id", nineraId).select("id");
       if (error) throw error;
       if (!data || !data.length) throw new Error("No se encontró la ficha para vincular la cuenta");
+    }),
+    // Si falla queda anotado acá (conRegistro): la cuenta huérfana hay que borrarla a mano desde
+    // Authentication, o el próximo intento con el link da email_exists.
+    borrarUsuario: conRegistro("borrarUsuario", async (userId: string) => {
+      const { error } = await sb.auth.admin.deleteUser(userId);
+      if (error) throw error;
     }),
     // Con la condición del valor de antes (CLAUDE.md, "Lo que dos admins pueden cambiar a la vez"):
     // dos pedidos con el mismo link al mismo tiempo pasan los dos el chequeo de vigencia, pero

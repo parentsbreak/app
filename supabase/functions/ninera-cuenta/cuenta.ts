@@ -15,6 +15,10 @@ export const MAIL_DOMINIO_NINERA = "ninieras.parentsbreak.invalid";
 export const MIN_PASSWORD = 8;
 
 const ERROR_INTERNO = "No se pudo crear la cuenta: avisale a Diego";
+// Mensaje con el que crearUsuario / actualizarUsuario rechazan cuando Auth no acepta la contraseña
+// (26/10/2026): Auth puede pedir más que MIN_PASSWORD (por ejemplo, si se sube el mínimo en el
+// panel de Supabase). Es culpa de la contraseña, no del sistema: 400 password_corta, no 500.
+export const ERROR_PASSWORD_DEBIL = "weak_password";
 
 // Celular uruguayo normalizado a '598' + 8 dígitos que empiezan en 9, o null. La misma regla que
 // normalizar_celular() en la base y normalizarCelular() en js/comun.js, con los mismos 11 casos de
@@ -54,6 +58,9 @@ export type Deps = {
   // nombre en user_metadata, por si lo corrigió.
   actualizarUsuario(userId: string, cambios: { password: string; email: string; nineraId: string; nombre: string }): Promise<void>;
   vincular(nineraId: string, userId: string): Promise<void>;
+  // Borra la cuenta de Auth recién creada si no se pudo vincular a la ficha (26/10/2026): si
+  // quedara, el próximo intento con el mismo link chocaría con el mail ya usado (email_exists).
+  borrarUsuario(userId: string): Promise<void>;
   // Marca el link usado solo si nadie lo marcó antes; false si ya estaba usado (otro pedido con el
   // mismo link llegó al mismo tiempo y ganó).
   marcarUsada(invitacionId: string): Promise<boolean>;
@@ -97,7 +104,15 @@ export async function procesarCuenta(deps: Deps, entrada: { token?: unknown; pas
     const nombre = (inv.nombre || "").trim();
     if (inv.user_id === null) {
       const userId = await deps.crearUsuario(email, password, inv.ninera_id, nombre);
-      await deps.vincular(inv.ninera_id, userId);
+      try {
+        await deps.vincular(inv.ninera_id, userId);
+      } catch (e) {
+        // Sin vincular, la cuenta no sirve y deja el mail ocupado: se borra para que el link
+        // (que sigue sin usar) sirva para reintentar. Si borrarla también falla, lo anota
+        // index.ts y se responde el 500 de siempre.
+        await deps.borrarUsuario(userId).catch(() => {});
+        throw e;
+      }
     } else {
       await deps.actualizarUsuario(inv.user_id, { password, email, nineraId: inv.ninera_id, nombre });
     }
@@ -106,7 +121,8 @@ export async function procesarCuenta(deps: Deps, entrada: { token?: unknown; pas
     // (la misma alta o el mismo cambio de contraseña): este responde como link usado.
     if (!(await deps.marcarUsada(inv.id))) return { status: 410, cuerpo: { error: "vencido" } };
     return { status: 200, cuerpo: { celular } };
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message === ERROR_PASSWORD_DEBIL) return { status: 400, cuerpo: { error: "password_corta" } };
     // El detalle lo anota index.ts (console.error), sin la contraseña.
     return { status: 500, cuerpo: { error: ERROR_INTERNO } };
   }

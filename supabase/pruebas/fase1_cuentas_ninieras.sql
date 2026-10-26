@@ -1,7 +1,9 @@
 -- ============================================================================
 -- Prueba de 20261026_cuentas_ninieras.sql en un Postgres LOCAL (nunca en producción): celular
 -- normalizado y mail sintético, ninera_actual() y la RLS vista desde la cuenta de una niñera,
--- ninera_activar_app(), crear_invitacion_ninera() y push_subscriptions propias. Datos inventados.
+-- ninera_activar_app(), crear_invitacion_ninera(), push_subscriptions propias, la guardia de admin
+-- de generar_previstos_fijos() y una cuenta con un solo rol. Datos inventados. La lista permitida
+-- de funciones security definer está aparte, en catalogo_seguridad.sql.
 -- Uso: PGLITE_DIR=<carpeta con pglite> node scripts/probar-sql.mjs supabase/pruebas/fase1_cuentas_ninieras.sql
 -- Sobre el schema de main con la migración, y aplicar → deshacer → aplicar (tiene que quedar igual):
 --   PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema <schema de main> \
@@ -277,6 +279,53 @@ reset role;
 select pg_temp.verificar('push_subscriptions: las dos políticas',
   (select count(*) = 2 from pg_policies where tablename = 'push_subscriptions'
     and policyname in ('push_subscriptions_authenticated_all', 'push_propias')));
+
+-- ---------------------------------------------------------------------------
+-- generar_previstos_fijos (security definer, escribe en sittings_traslados): solo una admin o
+-- la tarea programada, que corre sin sesión (26/10/2026). Un fijo de todos los días para Ana.
+-- ---------------------------------------------------------------------------
+insert into familias (id, nombre, cobro_hora, pago_hora) values ('c3000000-0000-4000-8000-000000000001', 'Familia Prueba Dos', 300, 200);
+insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_inicio, hora_fin, vigente_desde, tipo) values
+  ('c4000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000001', 'Ana Ficticia',
+   '["L","M","X","J","V","S","D"]', '16:00', '19:00', (now() at time zone 'America/Montevideo')::date - 1, 'sitting');
+create temp table previstos_corrida (quien text, resultado jsonb);
+grant all on previstos_corrida to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "c1000000-0000-4000-8000-000000000002", "email": "59899000002@ninieras.parentsbreak.invalid"}';
+select pg_temp.verificar('es la sesión de una niñera (Beatriz)', public.es_ninera() and not public.es_usuaria_autorizada());
+select pg_temp.verificar('una niñera no puede generar previstos (no_autorizada)',
+  pg_temp.error_de('select public.generar_previstos_fijos(1)') like '%no_autorizada%');
+reset role;
+select pg_temp.verificar('la corrida de la niñera no escribió nada',
+  not exists (select 1 from sittings_traslados where asignacion_id = 'c4000000-0000-4000-8000-000000000001'));
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "c1000000-0000-4000-8000-0000000000a1", "email": "admin.prueba@ejemplo.invalid"}';
+insert into previstos_corrida select 'admin', public.generar_previstos_fijos(1);
+reset role;
+select pg_temp.verificar('la admin sí: carga el previsto de mañana',
+  (select (resultado ->> 'creados')::int = 1 from previstos_corrida where quien = 'admin')
+  and (select count(*) = 1 from sittings_traslados where asignacion_id = 'c4000000-0000-4000-8000-000000000001' and estado = 'previsto'));
+-- La tarea programada: sin claims (auth.uid() null), como pg_cron.
+set local request.jwt.claims = '';
+insert into previstos_corrida select 'cron', public.generar_previstos_fijos(2);
+select pg_temp.verificar('sin sesión (cron) también: carga el de pasado mañana',
+  (select (resultado ->> 'creados')::int = 1 from previstos_corrida where quien = 'cron')
+  and (select count(*) = 2 from sittings_traslados where asignacion_id = 'c4000000-0000-4000-8000-000000000001' and estado = 'previsto'));
+
+-- ---------------------------------------------------------------------------
+-- Una cuenta, un rol: una admin vinculada por error a una ficha sigue siendo solo admin
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email) values ('c1000000-0000-4000-8000-0000000000a2', 'admin.dos@ejemplo.invalid');
+insert into usuarias_autorizadas (user_id, rol) values ('c1000000-0000-4000-8000-0000000000a2', 'desarrollo');
+update ninieras set user_id = 'c1000000-0000-4000-8000-0000000000a2' where id = 'c2000000-0000-4000-8000-000000000003';
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "c1000000-0000-4000-8000-0000000000a2", "email": "admin.dos@ejemplo.invalid"}';
+select pg_temp.verificar('admin con ficha vinculada: ninera_actual() null, es_ninera() false, sigue admin',
+  public.ninera_actual() is null and not public.es_ninera() and public.es_usuaria_autorizada());
+select pg_temp.verificar('admin con ficha vinculada: activar la app devuelve null', public.ninera_activar_app() is null);
+reset role;
+select pg_temp.verificar('y no le anotó el ingreso a la ficha',
+  (select app_activada_en is null from ninieras where id = 'c2000000-0000-4000-8000-000000000003'));
 
 -- ---------------------------------------------------------------------------
 -- Borrar la cuenta: la ficha queda sin vínculo y sus suscripciones se van

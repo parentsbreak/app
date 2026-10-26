@@ -331,8 +331,10 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   errores, doble toque), estado de la app, link para cambiar la contraseña, aviso de celular cambiado
   y login del panel con una cuenta de niñera o sin acceso.
 - `supabase/pruebas/fase1_cuentas_ninieras.sql`: celular normalizado y mail sintético, invitaciones
-  (solo la última sirve, una vez), `ninera_actual()`, RLS y push como niñera, e ida y vuelta de la
-  migración (aplicar, deshacer, aplicar).
+  (solo la última sirve, una vez), `ninera_actual()` (una admin nunca es niñera), RLS y push como
+  niñera, `generar_previstos_fijos` solo para admins y el cron, e ida y vuelta de la migración
+  (aplicar, deshacer, aplicar). `supabase/pruebas/catalogo_seguridad.sql`: la lista permitida de
+  funciones `security definer` que pueden ejecutar `authenticated` y `anon`.
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -406,8 +408,10 @@ reporte.
   credencial), CORS solo al origen publicado. `POST {token}` → bienvenida (nombre, celular
   enmascarado, `es_reset`); `POST {token, password}` → crea o resetea la cuenta con la clave de
   servicio y la vincula. Errores: 400 `token`, 404 `no_existe`, 410 `vencido`, 403 `inactiva`, 400
-  `password_corta`, 409 `celular_invalido`. Nunca devuelve el celular entero ni loguea la
-  contraseña. La lógica en `cuenta.ts`, con tests de Deno (`cuenta_test.ts`).
+  `password_corta` (también si Auth no acepta la contraseña, `weak_password`), 409
+  `celular_invalido`. Si vincular la cuenta nueva falla, la borra de Auth (sin huérfanas) y da 500.
+  Nunca devuelve el celular entero ni loguea la contraseña. La lógica en `cuenta.ts`, con tests de
+  Deno (`cuenta_test.ts`).
 - `enviar-push-urgentes` V11 (26/10/2026) manda solo a `push_subscriptions` con `user_id` nulo
   (admins). Se publica después de la migración `cuentas_ninieras` y antes de `ninera-cuenta`.
 
@@ -493,7 +497,9 @@ reporte.
   5.3). Lo garantiza la base: nada de políticas nuevas sobre tablas compartidas; la niñera lee por
   funciones `security definer` que filtran por `ninera_actual()` y devuelven solo columnas
   permitidas; sus tablas propias llevan RLS por `ninera_actual()`. Cada función nueva trae su
-  prueba SQL como niñera.
+  prueba SQL como niñera. Toda función `security definer` ejecutable por `authenticated` está en la
+  lista permitida de `supabase/pruebas/catalogo_seguridad.sql` con su guardia de admin o de niñera:
+  `authenticated` ya no significa admin.
 - Login del panel con cuenta de niñera (26/10/2026): `login()` consulta `es_usuaria_autorizada()`;
   solo si devuelve exactamente `false` mira `ninera_actual()` y cierra la sesión local: si es
   niñera, muestra el link a `ninera/`; si no, que la cuenta no tiene acceso
@@ -659,9 +665,18 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `plan-implementacion.md`. Etapa 1 hecha (puerta `ninera/`, cuentas, invitación, instalar, avisos);
 etapas 2 a 11 pendientes, cada una se detalla antes de arrancarla. Los textos provisorios para las
 dueñas están en `textos-provisorios.md`.
-- `ninera-cuenta`: un alta a medias (la cuenta de Auth se crea y falla vincularla) deja un usuario
-  huérfano y el link da 500 en cada reintento; tratar el error `email_exists` buscando el usuario
-  por mail y vinculándolo.
+- `ninera-cuenta`: con `email_exists` (cuenta huérfana de un alta anterior, por ejemplo si falló
+  borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
+- `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene
+  marcar el link usado antes de actuar y liberarlo si falla.
+- Push al cerrar sesión (antes de la etapa 3, que manda avisos): al cerrar sesión en la app de
+  niñeras, borrar la suscripción de ese dispositivo (`push_subscriptions` por `endpoint`) y
+  desuscribirlo. Hoy un celular compartido por dos niñeras deja la fila con el `user_id` de la
+  primera y la segunda ve un error de conexión engañoso.
+- Un reset de contraseña no cierra las sesiones viejas de la niñera en otros dispositivos.
+- `eliminarNinera` con cuenta deja el usuario de Auth y sus suscripciones push.
+- Simulador: las llamadas de auth (`/auth/v1/token`, `/logout`) van a `estado.escrituras` y pasan
+  por `estado.fallar`; separarlas en `estado.auth` cuando moleste.
 - `resolverCambioTelefono` (celular aceptado desde la página de temporada) no avisa que una niñera
   con app necesita un link nuevo ni refresca la fila "App" de la ficha.
 - `copiarAlPortapapeles` en el panel: si el portapapeles falla, el modal de copia a mano reemplaza

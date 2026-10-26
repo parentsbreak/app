@@ -3,7 +3,7 @@
 // ejemplo: npx deno@2 test --allow-env <carpeta>/ninera-cuenta/
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1.0.13";
 import {
-  MAIL_DOMINIO_NINERA, mailSintetico, MIN_PASSWORD, normalizarCelular, procesarCuenta,
+  ERROR_PASSWORD_DEBIL, MAIL_DOMINIO_NINERA, mailSintetico, MIN_PASSWORD, normalizarCelular, procesarCuenta,
   type Deps, type Invitacion,
 } from "./cuenta.ts";
 
@@ -22,14 +22,18 @@ function invitacion(cambios: Partial<Invitacion> = {}): Invitacion {
 // Base y Auth de mentira: anotan qué se les pidió, cada una en su lista y todas en `orden`.
 // marcarUsada pone usada_en en la invitación, como la base, para probar el mismo link dos veces;
 // con yaMarcada devuelve false, como cuando otro pedido con el mismo link lo marcó antes.
-function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">, yaMarcada = false) {
+// `falla` puede ser una lista (por ejemplo, vincular y también borrarUsuario) y `mensaje` cambia
+// el error simulado (ERROR_PASSWORD_DEBIL, como cuando Auth no acepta la contraseña).
+type Paso = keyof Omit<Deps, "ahora">;
+function simulado(inv: Invitacion | null, falla?: Paso | Paso[], yaMarcada = false, mensaje?: string) {
   const llamadas = {
     buscar: [] as string[], crear: [] as unknown[][], actualizar: [] as unknown[][],
-    vincular: [] as unknown[][], usada: [] as string[], orden: [] as string[],
+    vincular: [] as unknown[][], borrar: [] as string[], usada: [] as string[], orden: [] as string[],
   };
+  const fallas: string[] = falla === undefined ? [] : Array.isArray(falla) ? falla : [falla];
   const fallar = (nombre: string) => {
     llamadas.orden.push(nombre);
-    if (falla === nombre) throw new Error(`falla simulada en ${nombre}`);
+    if (fallas.includes(nombre)) throw new Error(mensaje ?? `falla simulada en ${nombre}`);
   };
   const deps: Deps = {
     buscarInvitacion: async (token) => { llamadas.buscar.push(token); fallar("buscarInvitacion"); return inv ? { ...inv } : null; },
@@ -39,6 +43,7 @@ function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">, yaM
     },
     actualizarUsuario: async (userId, cambios) => { llamadas.actualizar.push([userId, cambios]); fallar("actualizarUsuario"); },
     vincular: async (nineraId, userId) => { llamadas.vincular.push([nineraId, userId]); fallar("vincular"); },
+    borrarUsuario: async (userId) => { llamadas.borrar.push(userId); fallar("borrarUsuario"); },
     marcarUsada: async (id) => {
       fallar("marcarUsada");
       if (yaMarcada) return false;
@@ -224,4 +229,42 @@ Deno.test("ninguna respuesta lleva el celular completo de la ficha", async () =>
   assertFalse(texto.includes("59899000001"));
   assertFalse(texto.includes("099 000 001"));
   assert(texto.includes("••• 001"));
+});
+
+// ------------------------------------------------------------ cuenta huérfana y contraseña débil (26/10/2026)
+Deno.test("alta: si falla vincular, borra la cuenta recién creada, 500 y el link sigue sin usar", async () => {
+  const { deps, llamadas } = simulado(invitacion(), "vincular");
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 500, cuerpo: { error: ERROR_500 } });
+  assertEquals(llamadas.borrar, ["40000000-0000-4000-8000-000000000001"]);
+  assertEquals(llamadas.orden, ["buscarInvitacion", "crearUsuario", "vincular", "borrarUsuario"]);
+  assertEquals(llamadas.usada, []);
+});
+
+Deno.test("alta: si falla vincular y también borrar la cuenta, igual 500 con el aviso de siempre", async () => {
+  const { deps, llamadas } = simulado(invitacion(), ["vincular", "borrarUsuario"]);
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 500, cuerpo: { error: ERROR_500 } });
+  assertEquals(llamadas.borrar, ["40000000-0000-4000-8000-000000000001"]);
+  assertEquals(llamadas.usada, []);
+});
+
+Deno.test("nunca borra una cuenta que no creó: ni si falla crearla, ni en un reset, ni si falla marcar el link", async () => {
+  for (const [inv, falla] of [
+    [invitacion(), "crearUsuario"],
+    [invitacion(), "marcarUsada"],
+    [invitacion({ user_id: "40000000-0000-4000-8000-000000000009" }), "actualizarUsuario"],
+  ] as const) {
+    const { deps, llamadas } = simulado(inv, falla);
+    assertEquals((await procesarCuenta(deps, { token: TOKEN, password: "clave1234" })).status, 500, falla);
+    assertEquals(llamadas.borrar, [], falla);
+  }
+});
+
+Deno.test("Auth no acepta la contraseña (weak_password): 400 password_corta, en el alta y en el reset", async () => {
+  const alta = simulado(invitacion(), "crearUsuario", false, ERROR_PASSWORD_DEBIL);
+  assertEquals(await procesarCuenta(alta.deps, { token: TOKEN, password: "clave1234" }), { status: 400, cuerpo: { error: "password_corta" } });
+  assertEquals(alta.llamadas.vincular, []);
+  assertEquals(alta.llamadas.usada, []);
+  const reset = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009" }), "actualizarUsuario", false, ERROR_PASSWORD_DEBIL);
+  assertEquals(await procesarCuenta(reset.deps, { token: TOKEN, password: "clave1234" }), { status: 400, cuerpo: { error: "password_corta" } });
+  assertEquals(reset.llamadas.usada, []);
 });

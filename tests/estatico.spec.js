@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { RAIZ, leer, ORDEN_SCRIPTS, ORDEN_SCRIPTS_NINERA, TODOS_LOS_SCRIPTS, scriptsDeIndex, scriptsDeIndexNinera, declaracionesTopLevel, emojisPorArchivo } = require('./support/fuentes');
+const { RAIZ, leer, ORDEN_SCRIPTS, ORDEN_SCRIPTS_NINERA, TODOS_LOS_SCRIPTS, scriptsDeIndex, scriptsDeIndexNinera, declaracionesTopLevel, funcionesLlamadasPorHandlers, emojisPorArchivo } = require('./support/fuentes');
 
 test.describe('estático', () => {
   for (const archivo of [...TODOS_LOS_SCRIPTS, 'sw.js', 'ninera/sw.js']) {
@@ -77,6 +77,17 @@ test.describe('estático', () => {
     }
     const duplicadas = [...porNombre].filter(([, lugares]) => lugares.length > 1).map(([n, l]) => `${n} -> ${l.join(', ')}`);
     expect(duplicadas).toEqual([]);
+  });
+
+  test('app de niñeras: toda función que llama un handler inline está declarada en sus scripts', () => {
+    // 26/10/2026: el panel lo controla en el navegador (humo.spec.js); la app de niñeras, acá sin
+    // abrirla. Un onclick que llama una función de otro archivo del panel (o mal escrita) no
+    // existe en /ninera/ y el botón no hace nada, sin error a la vista.
+    const declaradas = new Set(declaracionesTopLevel(ORDEN_SCRIPTS_NINERA).map(d => d.nombre));
+    const llamadas = [...funcionesLlamadasPorHandlers(ORDEN_SCRIPTS_NINERA)];
+    expect(llamadas.length).toBeGreaterThan(0);
+    const faltan = llamadas.filter(([n]) => !declaradas.has(n)).map(([n, donde]) => `${n} (${donde})`);
+    expect(faltan).toEqual([]);
   });
 
   test('no se agregan emojis nuevos (los que ya existían quedan, ✕ ✓ ★ permitidos)', () => {
