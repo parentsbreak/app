@@ -13,6 +13,8 @@ const ID = {
   nCarla: '30000000-0000-4000-8000-000000000003',
   aFijo: '40000000-0000-4000-8000-000000000001',
   cIntake: '50000000-0000-4000-8000-000000000001',
+  // Cuenta de la niñera en los tests de la app de niñeras (abrirAppNinera la ata a una niñera).
+  uNinera: '00000000-0000-4000-8000-000000000002',
 };
 
 function sitting(id, fecha, extra = {}) {
@@ -39,9 +41,9 @@ function datosBase() {
     ],
     hijos_familia: [],
     ninieras: [
-      { id: ID.nAna, candidata_id: null, nombre: 'Ana Ficticia', telefono: '098000001', zona: 'Pocitos', tipo: 'Niñera', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: ['0099887766'], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000001', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null },
-      { id: ID.nBruno, candidata_id: null, nombre: 'Bruno Inventado', telefono: '098000002', zona: 'Carrasco', tipo: 'Traslados', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000002', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null },
-      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null },
+      { id: ID.nAna, candidata_id: null, nombre: 'Ana Ficticia', telefono: '098000001', zona: 'Pocitos', tipo: 'Niñera', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: ['0099887766'], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000001', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null },
+      { id: ID.nBruno, candidata_id: null, nombre: 'Bruno Inventado', telefono: '098000002', zona: 'Carrasco', tipo: 'Traslados', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000002', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null },
+      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null },
     ],
     asignaciones: [
       { id: ID.aFijo, familia_id: ID.fUno, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', cobro_hora: null, pago_hora: null, created_at: '2026-09-01T00:00:00Z', dias: ['L', 'X'], hora_inicio: '16:00:00', hora_fin: '19:00:00', vigente_desde: '2026-09-01', vigente_hasta: null, tipo: 'sitting' },
@@ -79,7 +81,10 @@ function datosBase() {
     tarifas_traslado_config: [
       { id: '92000000-0000-4000-8000-000000000001', tarifa_base: 200, precio_km: 20, rec1_desde: null, rec1_hasta: null, rec1_mult: 1, rec2_desde: null, rec2_hasta: null, rec2_mult: 1, margen_premium: 1, updated_at: '2026-09-01T00:00:00Z', margen_ninera: 0.15 },
     ],
-    app_config: [],
+    // Configuración de la app de niñeras (fase 1): días que dura un link de invitación.
+    app_config: [
+      { id: 'ninieras_app', valor: { vigencia_dias: 7 }, actualizado_at: '2026-10-01T00:00:00Z' },
+    ],
     notificaciones_leidas: [],
     notif_push_preferencias: [],
     push_subscriptions: [],
@@ -88,6 +93,7 @@ function datosBase() {
     intermediaciones_eventos: [],
     intermediaciones_eventos_ninieras: [],
     variantes_precio: [],
+    ninera_invitaciones: [],
   };
 }
 

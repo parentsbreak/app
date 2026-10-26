@@ -12,8 +12,9 @@
 const fs = require('fs');
 const path = require('path');
 const { expect } = require('@playwright/test');
-const { datosBase } = require('./datos');
+const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
+const { rpcNinera } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 
@@ -21,13 +22,18 @@ const USUARIO = {
   id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated',
   email: 'prueba@ejemplo.test', user_metadata: { nombre: 'Prueba' }, app_metadata: {},
 };
+// La cuenta de una niñera (fase 1): mail sintético armado con el celular, nunca uno real.
+const USUARIO_NINERA = {
+  id: ID.uNinera, aud: 'authenticated', role: 'authenticated',
+  email: '59900000001@ninieras.parentsbreak.invalid', user_metadata: {}, app_metadata: {},
+};
 
 function base64url(obj) { return Buffer.from(JSON.stringify(obj)).toString('base64url'); }
-function sesionFalsa() {
+function sesionFalsa(usuario = USUARIO) {
   const exp = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
   const token = base64url({ alg: 'HS256', typ: 'JWT' }) + '.' +
-    base64url({ sub: USUARIO.id, email: USUARIO.email, role: 'authenticated', aud: 'authenticated', exp }) + '.firma-falsa';
-  return { access_token: token, refresh_token: 'refresh-falso', token_type: 'bearer', expires_in: 30 * 24 * 3600, expires_at: exp, user: USUARIO };
+    base64url({ sub: usuario.id, email: usuario.email, role: 'authenticated', aud: 'authenticated', exp }) + '.firma-falsa';
+  return { access_token: token, refresh_token: 'refresh-falso', token_type: 'bearer', expires_in: 30 * 24 * 3600, expires_at: exp, user: usuario };
 }
 
 /* ---------- Mini PostgREST sobre arrays en memoria ---------- */
@@ -153,16 +159,79 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  */
 async function abrirApp(page, opciones = {}) {
   const { datos = {}, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/', baseSinMigrar = false } = opciones;
+  const estado = crearEstado(datos);
+  if (baseSinMigrar) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
+  await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora, baseSinMigrar });
+
+  await page.goto(ruta);
+  if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
+  else await expect(page.locator('#login-mail')).toBeVisible();
+  await esperarQuieta(page);
+  return estado;
+}
+
+/**
+ * Abre la app de niñeras (ninera/, fase 1) con Supabase simulado. Devuelve el mismo `estado`
+ * que abrirApp, con las RPC de la niñera ya simuladas (rpc-ninera.js; un test puede pisarlas).
+ *   datos, ahora: como en abrirApp
+ *   ninera: id de la niñera de la sesión (su fila queda con user_id = USUARIO_NINERA.id)
+ *   sesion: false para entrar sin sesión (invitación, login)
+ *   ruta, consulta: path y query a abrir (consulta: '?i=<token>' para un link de invitación)
+ *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
+ *     y navigator.standalone del iPhone); false, abierta en el navegador
+ */
+async function abrirAppNinera(page, opciones = {}) {
+  const { datos = {}, ninera = ID.nAna, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/ninera/', instalada = true, consulta = '' } = opciones;
+  const estado = crearEstado(datos);
+  if (sesion) {
+    const fila = (estado.db.ninieras || []).find(n => n.id === ninera);
+    if (fila) fila.user_id = USUARIO_NINERA.id;
+  }
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera));
+  // Clave propia de la sesión (storageKey 'sb-ninera-auth'): el panel y la app de niñeras nunca
+  // comparten sesión en el mismo navegador.
+  await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora });
+
+  // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
+  // navigator.standalone (el que mira Safari del iPhone).
+  await page.addInitScript(instalada => {
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = consulta => {
+      if (/display-mode:\s*standalone/.test(String(consulta))) {
+        return { matches: instalada, media: String(consulta), addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} };
+      }
+      return original(consulta);
+    };
+    Object.defineProperty(navigator, 'standalone', { value: instalada, configurable: true });
+  }, instalada);
+
+  await page.goto(ruta + consulta);
+  await esperarQuieta(page);
+  return estado;
+}
+
+// El estado que ve cada test: la base ficticia y lo que pasó (escrituras, errores, pedidos sin
+// simular).
+function crearEstado(datos) {
   const db = structuredClone({ ...datosBase(), ...datos });
-  if (baseSinMigrar) (db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
   // demoraEscrituras (ms) y fallar(pedido) se pueden cambiar en medio del test: sirven para
   // simular una base lenta (doble toque) o que falle un guardado. fallar recibe
   // {tabla, metodo, cuerpo} y devuelve undefined (anda), 'red' (se corta la conexión) o
   // {status, message} (Supabase responde con error).
   // maxFilas: como Supabase (max rows del proyecto), ninguna lectura devuelve más de 1.000
   // filas aunque haya más; quien necesita todo tiene que pedir de a tandas (leerTodasLasFilas).
-  const estado = { escrituras: [], errores: [], noSimulados: [], db, demoraEscrituras: 0, demoraLecturas: 0, fallar: null, rpc: {}, maxFilas: 1000 };
+  // rpc[nombre] y funciones[nombre] simulan una función de la base o una Edge Function.
+  return { escrituras: [], errores: [], noSimulados: [], db, demoraEscrituras: 0, demoraLecturas: 0, fallar: null, rpc: {}, funciones: {}, maxFilas: 1000 };
+}
 
+/**
+ * Lo común a las dos puertas (panel y app de niñeras): reloj, CDNs, Realtime, el Supabase
+ * simulado y la sesión. Cada puerta navega y espera lo suyo después.
+ *   usuario: el que responden /auth/v1/user y /auth/v1/token
+ *   claveSesion: dónde guarda supabase-js la sesión (la storageKey de cada puerta)
+ */
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false }) {
+  const { db } = estado;
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
   page.on('pageerror', e => estado.errores.push('excepción: ' + e.message));
 
@@ -220,14 +289,22 @@ async function abrirApp(page, opciones = {}) {
     if (!url.hostname.startsWith(REF_PROD + '.')) { estado.noSimulados.push(metodo + ' ' + req.url()); return route.abort(); }
 
     if (url.pathname.startsWith('/auth/v1/')) {
-      if (url.pathname === '/auth/v1/user') return route.fulfill({ json: USUARIO });
+      if (url.pathname === '/auth/v1/user') return route.fulfill({ json: usuario });
       if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
-      if (url.pathname === '/auth/v1/token') return route.fulfill({ json: sesionFalsa() });
+      if (url.pathname === '/auth/v1/token') return route.fulfill({ json: sesionFalsa(usuario) });
       estado.noSimulados.push(metodo + ' ' + url.pathname);
       return route.fulfill({ status: 400, json: { message: 'no simulado en tests' } });
     }
     if (url.pathname.startsWith('/storage/v1/') || url.pathname.startsWith('/functions/v1/')) {
       estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData() });
+      // estado.funciones[nombre] = (cuerpo, req) => ({ status, json }) simula una Edge Function
+      // por nombre; sin eso, la respuesta genérica de siempre.
+      const funcion = url.pathname.startsWith('/functions/v1/') && estado.funciones[url.pathname.split('/')[3]];
+      if (typeof funcion === 'function') {
+        let cuerpo; try { cuerpo = req.postDataJSON(); } catch { cuerpo = req.postData(); }
+        const { status = 200, json } = (await funcion(cuerpo, req)) || {};
+        return route.fulfill({ status, json });
+      }
       return route.fulfill({ json: { Key: 'ficticio', path: 'ficticio' } });
     }
     if (!url.pathname.startsWith('/rest/v1/')) {
@@ -336,14 +413,8 @@ async function abrirApp(page, opciones = {}) {
         localStorage.setItem(clave, valor);
         sessionStorage.setItem('__tests_sesion_puesta', '1');
       }
-    }, [`sb-${REF_PROD}-auth-token`, JSON.stringify(sesionFalsa())]);
+    }, [claveSesion, JSON.stringify(sesionFalsa(usuario))]);
   }
-
-  await page.goto(ruta);
-  if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
-  else await expect(page.locator('#login-mail')).toBeVisible();
-  await esperarQuieta(page);
-  return estado;
 }
 
 // Espera a que no queden spinners de "Cargando…" en pantalla.
@@ -364,4 +435,4 @@ function verificarLimpio(estado, { ignorar = [] } = {}) {
   expect(errores, 'errores en consola o excepciones').toEqual([]);
 }
 
-module.exports = { abrirApp, irAModulo, esperarQuieta, verificarLimpio, REF_PROD };
+module.exports = { abrirApp, abrirAppNinera, irAModulo, esperarQuieta, verificarLimpio, REF_PROD, USUARIO_NINERA };
