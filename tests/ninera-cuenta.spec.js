@@ -4,7 +4,7 @@
 // Edge Functions y las RPC de la niñera se simulen por nombre. Abajo, los de la invitación, el
 // login, instalar, los avisos y el inicio (tarea 1.5).
 const { test, expect } = require('@playwright/test');
-const { abrirAppNinera, verificarLimpio, REF_PROD, USUARIO_NINERA } = require('./support/app');
+const { abrirApp, abrirAppNinera, verificarLimpio, REF_PROD, USUARIO_NINERA } = require('./support/app');
 const { ID } = require('./support/datos');
 
 const BASE = `https://${REF_PROD}.supabase.co`;
@@ -702,5 +702,68 @@ test.describe('inicio vacío, celular y textos', () => {
     expect(textos).toHaveLength(5);
     for (const t of textos) expect(t).not.toMatch(/\$\s?\d/);
     verificarLimpio(e);
+  });
+});
+
+// Una socia puede tener cuenta de admin y de niñera en el mismo navegador (tarea 1.6): cada puerta
+// guarda su sesión bajo su propia clave y nunca entra con la de la otra, ni la borra.
+test.describe('las dos puertas no comparten sesión', () => {
+  const CLAVE_PANEL = `sb-${REF_PROD}-auth-token`;
+  const sesiones = page => page.evaluate(clave => ({
+    panel: localStorage.getItem(clave),
+    niniera: localStorage.getItem('sb-ninera-auth'),
+  }), CLAVE_PANEL);
+
+  test('con la sesión del panel, /ninera/ pide el login de la niñera y deja la del panel intacta', async ({ page }) => {
+    const e = await abrirApp(page);
+    const antes = (await sesiones(page)).panel;
+    expect(JSON.parse(antes).user.email).toBe('prueba@ejemplo.test'); // la admin ficticia de abrirApp
+
+    await page.goto('/ninera/');
+    await expect(page.locator('#login-celular')).toBeVisible();
+    await expect(page.locator('#app')).not.toContainText('Hola,');
+    const { panel, niniera } = await sesiones(page);
+    expect(niniera).toBeNull();
+    expect(panel).toBe(antes);
+    // La puerta de la niñera no le preguntó nada a la base con la sesión de la admin.
+    expect(rpcLlamadas(e)).toEqual([]);
+    verificarLimpio(e);
+  });
+
+  test('con la sesión de la niñera, / pide el login del panel y deja la de la niñera intacta', async ({ page }) => {
+    const e = await abrir(page); // con los avisos activos, entra directo al inicio
+    await expect(page.locator('h1')).toHaveText('Hola, Ana');
+    const antes = (await sesiones(page)).niniera;
+    expect(JSON.parse(antes).user.id).toBe(USUARIO_NINERA.id);
+
+    await page.goto('/');
+    await expect(page.locator('#login-mail')).toBeVisible();
+    await expect(page.locator('#modcontent')).toHaveCount(0);
+    const { panel, niniera } = await sesiones(page);
+    expect(panel).toBeNull();
+    expect(niniera).toBe(antes);
+    verificarLimpio(e);
+  });
+
+  test('el simulador abre sin sesión sin llamar a la base, y con consulta abre el link de invitación', async ({ page, browser }) => {
+    const e = await abrirAppNinera(page, { sesion: false });
+    await expect(page.locator('#login-celular')).toBeVisible();
+    expect(rpcLlamadas(e)).toEqual([]);
+    expect(await sesiones(page)).toEqual({ panel: null, niniera: null });
+    verificarLimpio(e);
+
+    const otra = await browser.newPage();
+    let recibido = null;
+    const e2 = await abrirAppNinera(otra, {
+      sesion: false,
+      consulta: '?i=' + 'a'.repeat(64),
+      funciones: { 'ninera-cuenta': cuerpo => { recibido = cuerpo; return { json: { nombre: 'Ana', celular_mascarado: '••• 001', es_reset: false } }; } },
+    });
+    await expect(otra.locator('#app')).toContainText("Te invitamos a Parents' Break");
+    await expect(otra.locator('#app')).toContainText('Crea una contraseña');
+    expect(recibido).toEqual({ token: 'a'.repeat(64) });
+    expect(llamadasFuncion(e2)).toEqual([{ token: 'a'.repeat(64) }]);
+    verificarLimpio(e2);
+    await otra.close();
   });
 });

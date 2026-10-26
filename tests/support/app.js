@@ -178,12 +178,15 @@ async function abrirApp(page, opciones = {}) {
  *   ninera: id de la niñera de la sesión (su fila queda con user_id = USUARIO_NINERA.id)
  *   sesion: false para entrar sin sesión (invitación, login)
  *   ruta, consulta: path y query a abrir (consulta: '?i=<token>' para un link de invitación)
+ *   funciones: Edge Functions simuladas por nombre desde el primer pedido (como estado.funciones,
+ *     pero antes de navegar: con consulta, la app llama a la función apenas abre)
  *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
  *     y navigator.standalone del iPhone); false, abierta en el navegador
  */
 async function abrirAppNinera(page, opciones = {}) {
-  const { datos = {}, ninera = ID.nAna, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/ninera/', instalada = true, consulta = '' } = opciones;
+  const { datos = {}, ninera = ID.nAna, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/ninera/', instalada = true, consulta = '', funciones = {} } = opciones;
   const estado = crearEstado(datos);
+  Object.assign(estado.funciones, funciones);
   if (sesion) {
     const fila = (estado.db.ninieras || []).find(n => n.id === ninera);
     if (fila) fila.user_id = USUARIO_NINERA.id;
