@@ -104,11 +104,12 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
         extranjero: estadoAppNinera({ ...n, telefono: '+54 11 5555 0000' }, null, 0),
       };
     }, [AHORA_MS, DIA]);
-    expect(r.sin).toEqual({ texto: 'Sin app', puedeInvitar: true, motivo: '', esReset: false });
-    expect(r.vigente.texto).toBe('Invitada el 03/10, el link vence el 10/10');
+    expect(r.sin).toEqual({ texto: 'Sin app', puedeInvitar: true, motivo: '', esReset: false, linkVigente: false });
+    expect(r.vigente).toMatchObject({ texto: 'Invitada el 03/10, el link vence el 10/10', linkVigente: true });
+    expect(r.vencida.linkVigente).toBe(false);
     expect(r.vencida.texto).toBe('Link vencido el 02/10');
     expect(r.usada.texto).toBe('Sin app');
-    expect(r.activa).toEqual({ texto: 'App activa desde 01/10 · avisos activados', puedeInvitar: true, motivo: '', esReset: true });
+    expect(r.activa).toEqual({ texto: 'App activa desde 01/10 · avisos activados', puedeInvitar: true, motivo: '', esReset: true, linkVigente: false });
     expect(r.inactiva).toMatchObject({ puedeInvitar: false, motivo: 'Está inactiva' });
     expect(r.sinCel).toMatchObject({ puedeInvitar: false, motivo: 'Cargá un celular uruguayo válido para invitarla' });
     expect(r.extranjero).toMatchObject({ puedeInvitar: false });
@@ -156,6 +157,43 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
     verificarLimpio(e);
   });
 
+  test('con un link vigente, pregunta antes de crear otro (el anterior deja de servir)', async ({ page }) => {
+    const d = datos();
+    d.ninera_invitaciones = [INV(2, { creada_en: enDias(-1), vence_en: enDias(6) })];
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'ninieras');
+    await page.evaluate(id => verNinera(id), ID.nAna);
+    await expect(filaApp(page)).toContainText('Invitada el 03/10');
+    e.rpc.crear_invitacion_ninera = invitacionOk();
+    // Cancelar: no se crea nada.
+    await botonApp(page).click();
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('Ya tiene un link vigente, que deja de servir si creás otro. ¿Crear otro?');
+    await expect(page.locator('#confirm-si')).toHaveText('Crear otro link');
+    await page.locator('#confirm-no').click();
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveCount(0);
+    await expect(botonApp(page)).toBeEnabled();
+    expect(llamadasInvitar(e)).toEqual([]);
+    await expect(modalInv(page)).toHaveCount(0);
+    // "Crear otro link": una sola RPC y el modal con el mensaje.
+    await botonApp(page).click();
+    await page.locator('#confirm-si').click();
+    await expect(modalInv(page)).toBeVisible();
+    expect(llamadasInvitar(e)).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('"Vale por 1 día" y "Vale por 3 días": los días salen de cuándo vence', async ({ page }) => {
+    const e = await abrirFichaAna(page);
+    for (const [dias, texto] of [[1, 'Vale por 1 día.'], [3, 'Vale por 3 días.']]) {
+      e.rpc.crear_invitacion_ninera = () => [{ token: TOKEN, vence_en: enDias(dias), es_reset: false }];
+      await botonApp(page).click();
+      await expect(modalInv(page).locator('#invitar-mensaje')).toContainText(`?i=${TOKEN}. ${texto}`);
+      await modalInv(page).locator('button', { hasText: 'Cerrar' }).click();
+      await expect(modalInv(page)).toHaveCount(0);
+    }
+    verificarLimpio(e);
+  });
+
   test('invitación vencida sin usar: "Link vencido el …"', async ({ page }) => {
     const d = datos();
     d.ninera_invitaciones = [INV(1, { creada_en: enDias(-9), vence_en: enDias(-2) })];
@@ -178,9 +216,26 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
     await page.unroute(/rest\/v1\/rpc\/crear_invitacion_ninera/);
     await page.route(/rest\/v1\/rpc\/crear_invitacion_ninera/, r => r.abort('failed'));
     await botonApp(page).click();
-    await expect(toasts(page).last()).toContainText('No se pudo crear el link');
+    await expect(toasts(page).last()).toHaveText('No se pudo crear el link: revisá la conexión e intentá de nuevo.');
     await expect(modalInv(page)).toHaveCount(0);
     verificarLimpio(e, { ignorar: [/status of 400|Failed to load resource|ERR_FAILED/] });
+  });
+
+  test('cada error de la base se traduce; uno desconocido se muestra con su mensaje', async ({ page }) => {
+    const e = await abrirFichaAna(page);
+    const casos = [
+      ['celular_invalido', 'No se pudo crear el link: el celular no es válido'],
+      ['no_autorizada', 'No se pudo crear el link: tu cuenta no tiene permiso'],
+      ['otra cosa rara', 'No se pudo crear el link: otra cosa rara'],
+    ];
+    for (const [mensaje, aviso] of casos) {
+      await page.unroute(/rest\/v1\/rpc\/crear_invitacion_ninera/);
+      await page.route(/rest\/v1\/rpc\/crear_invitacion_ninera/, r => r.fulfill({ status: 400, json: { code: 'P0001', message: mensaje } }));
+      await botonApp(page).click();
+      await expect(toasts(page).last()).toHaveText(aviso);
+      await expect(modalInv(page)).toHaveCount(0);
+    }
+    verificarLimpio(e, { ignorar: [/status of 400/] });
   });
 
   test('doble toque en "Invitar a la app": una sola invitación', async ({ page }) => {
@@ -214,6 +269,18 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
     verificarLimpio(e);
   });
 
+  test('con app, cambiar solo el formato del celular no avisa (es la misma cuenta)', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datos({ telefono: '098 000 001', user_id: USER_ANA, app_activada_en: '2026-10-01T15:00:00Z' }) });
+    await irAModulo(page, 'ninieras');
+    await page.evaluate(id => { ninTempOmitidas.add(id); editarNinera(id); }, ID.nAna);
+    await page.fill('#ed-telefono', '098000001');
+    await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
+    await expect(toasts(page).last()).toContainText('Cambios guardados');
+    await page.waitForTimeout(200);
+    expect((await toasts(page).allInnerTexts()).join(' | ')).not.toContain('Cambió el celular');
+    verificarLimpio(e);
+  });
+
   test('sin app, cambiar el celular no avisa nada de la app', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
     await irAModulo(page, 'ninieras');
@@ -221,7 +288,8 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
     await page.fill('#ed-telefono', '098000077');
     await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
     await expect(toasts(page).last()).toContainText('Cambios guardados');
-    await expect(toasts(page)).not.toContainText(['Cambió el celular']);
+    await page.waitForTimeout(200);
+    expect((await toasts(page).allInnerTexts()).join(' | ')).not.toContain('Cambió el celular');
     verificarLimpio(e);
   });
 

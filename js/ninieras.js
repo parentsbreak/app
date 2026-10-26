@@ -498,19 +498,20 @@ function fechaCortaApp(iso){
 // Pura (sin DOM): n es la fila de ninieras, invitacion la última de ninera_invitaciones (o null)
 // y pushs cuántos dispositivos de esa cuenta tienen los avisos prendidos.
 function estadoAppNinera(n, invitacion, pushs){
-  let texto = 'Sin app';
+  let texto = 'Sin app', linkVigente = false;
   if(n.user_id){
     texto = (n.app_activada_en ? `App activa desde ${fechaCortaApp(n.app_activada_en)}` : 'App activa')
       + (pushs > 0 ? ' · avisos activados' : ' · sin avisos');
   } else if(invitacion && !invitacion.usada_en && !invitacion.reemplazada_en && invitacion.vence_en){
-    texto = new Date(invitacion.vence_en).getTime() > Date.now()
+    linkVigente = new Date(invitacion.vence_en).getTime() > Date.now();
+    texto = linkVigente
       ? `Invitada el ${fechaCortaApp(invitacion.creada_en)}, el link vence el ${fechaCortaApp(invitacion.vence_en)}`
       : `Link vencido el ${fechaCortaApp(invitacion.vence_en)}`;
   }
   let motivo = '';
   if(!n.activa) motivo = 'Está inactiva';
   else if(!normalizarCelular(n.telefono)) motivo = 'Cargá un celular uruguayo válido para invitarla';
-  return { texto, puedeInvitar: !motivo, motivo, esReset: !!n.user_id };
+  return { texto, puedeInvitar: !motivo, motivo, esReset: !!n.user_id, linkVigente };
 }
 async function cargarEstadoAppNinera(id){
   const n = ninierasItems.find(x=>x.id===id);
@@ -528,7 +529,7 @@ async function cargarEstadoAppNinera(id){
   const etiqueta = est.esReset ? 'Link para cambiar la contraseña' : 'Invitar a la app';
   cont.innerHTML = `<span>${escaparHtml(est.texto)}</span> `
     + (est.puedeInvitar
-      ? `<button class="smallbtn" onclick="conGuardado(this, ()=>abrirInvitacionApp(${argJs(id)}))">${etiqueta}</button>`
+      ? `<button class="smallbtn" onclick="conGuardado(this, ()=>abrirInvitacionApp(${argJs(id)}, ${est.linkVigente}))">${etiqueta}</button>`
       : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`);
 }
 const ERRORES_INVITACION = {
@@ -538,13 +539,18 @@ const ERRORES_INVITACION = {
   ninera_no_encontrada: 'no se encontró la niñera',
 };
 let invitacionAppMensaje = '';
-async function abrirInvitacionApp(id){
+async function abrirInvitacionApp(id, linkVigente=false){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n) return;
-  const { data, error } = await sb.rpc('crear_invitacion_ninera', { p_ninera_id: id });
+  // Cada link nuevo invalida el anterior: si ya le mandaron uno que todavía sirve, se pregunta antes.
+  if(linkVigente && !(await confirmarAccion('Ya tiene un link vigente, que deja de servir si creás otro. ¿Crear otro?', 'Crear otro link'))) return;
+  const { data, error, status } = await sb.rpc('crear_invitacion_ninera', { p_ninera_id: id });
   const fila = Array.isArray(data) ? data[0] : data;
   if(error || !fila || !fila.token){
-    const msg = error ? (ERRORES_INVITACION[error.message] || error.message) : 'la base no devolvió el link';
+    // Sin respuesta de la base (status 0) es la conexión: no se muestra el "TypeError: Failed to fetch".
+    const msg = !error ? 'la base no devolvió el link'
+      : !status ? 'revisá la conexión e intentá de nuevo.'
+      : (ERRORES_INVITACION[error.message] || error.message);
     toast('No se pudo crear el link: ' + msg, 'bad');
     return;
   }
@@ -847,7 +853,8 @@ async function guardarEdicionNinera(id){
   const nAntes = ninierasItems.find(x=>x.id===id);
   // Con la app activa, la cuenta está atada al celular (el mail de la cuenta sale de él): si cambia,
   // la niñera ya no entra con el número nuevo hasta que le manden un link (26/10/2026).
-  const cambioCelularConApp = !!(nAntes?.user_id && (nAntes.telefono||'') !== (cambios.telefono||''));
+  // Se compara el número normalizado: '098 000 001' y '098000001' son la misma cuenta.
+  const cambioCelularConApp = !!(nAntes?.user_id && normalizarCelular(nAntes.telefono) !== normalizarCelular(cambios.telefono));
   const { error } = await sb.from('ninieras').update(cambios).eq('id', id);
   if(error){ toast('No se pudo guardar: '+error.message,'bad'); return; }
   const extraInputs = [...document.querySelectorAll('#ed-extra-fields [data-campo]')];
