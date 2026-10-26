@@ -3,6 +3,14 @@
 -- normalizado y mail sintético, ninera_actual() y la RLS vista desde la cuenta de una niñera,
 -- ninera_activar_app(), crear_invitacion_ninera() y push_subscriptions propias. Datos inventados.
 -- Uso: PGLITE_DIR=<carpeta con pglite> node scripts/probar-sql.mjs supabase/pruebas/fase1_cuentas_ninieras.sql
+-- Sobre el schema de main con la migración, y aplicar → deshacer → aplicar (tiene que quedar igual):
+--   PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema <schema de main> \
+--     --migracion supabase/migraciones/20261026_cuentas_ninieras.sql supabase/pruebas/fase1_cuentas_ninieras.sql
+--   PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema <schema de main> \
+--     --migracion supabase/migraciones/20261026_cuentas_ninieras.sql \
+--     --migracion supabase/migraciones/20261026_cuentas_ninieras_DESHACER.sql \
+--     --migracion supabase/migraciones/20261026_cuentas_ninieras.sql supabase/pruebas/fase1_cuentas_ninieras.sql
+-- (<schema de main>: git show origin/main:supabase/schema.sql guardado en una carpeta temporal.)
 -- Para "ser" una cuenta: set local role authenticated + set local request.jwt.claims (el
 -- auth.uid() de mentira de scripts/probar-sql.mjs lee el 'sub' de ahí). reset role vuelve a
 -- postgres. Todo termina en rollback.
@@ -24,11 +32,29 @@ exception when others then
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- Todo lo de la migración está (también después de aplicar → deshacer → aplicar)
+-- ---------------------------------------------------------------------------
+select pg_temp.verificar('columnas nuevas en ninieras y push_subscriptions',
+  (select count(*) = 3 from information_schema.columns where table_schema = 'public'
+    and ((table_name = 'ninieras' and column_name in ('user_id', 'app_activada_en'))
+      or (table_name = 'push_subscriptions' and column_name = 'user_id'))));
+select pg_temp.verificar('tabla ninera_invitaciones con RLS', (select relrowsecurity from pg_class where oid = to_regclass('public.ninera_invitaciones')));
+select pg_temp.verificar('las seis funciones',
+  (select count(*) = 6 from pg_proc where pronamespace = 'public'::regnamespace
+    and proname in ('normalizar_celular', 'mail_sintetico_ninera', 'ninera_actual', 'es_ninera', 'ninera_activar_app', 'crear_invitacion_ninera')));
+select pg_temp.verificar('políticas push_propias y de invitaciones, una sola vez cada una',
+  (select count(*) = 1 from pg_policies where tablename = 'push_subscriptions' and policyname = 'push_propias')
+  and (select count(*) = 1 from pg_policies where tablename = 'ninera_invitaciones'));
+select pg_temp.verificar('fila ninieras_app en app_config', exists (select 1 from app_config where id = 'ninieras_app'));
+
+-- ---------------------------------------------------------------------------
 -- Celular normalizado y mail sintético (la misma regla que comun.js y ninera-cuenta)
 -- ---------------------------------------------------------------------------
-select pg_temp.verificar('celular escrito de cinco formas: siempre 59899123456',
-  (select bool_and(public.normalizar_celular(c) = '59899123456')
-     from unnest(array['+598 99 123 456', '099123456', '99123456', '099-123-456', '59899123456']) c));
+select pg_temp.verificar('celular escrito de siete formas: siempre 59899123456',
+  -- "is not distinct from": un null tiene que contar como falla (bool_and ignora los null).
+  (select count(*) = 7 and bool_and(public.normalizar_celular(c) is not distinct from '59899123456')
+     from unnest(array['+598 99 123 456', '099123456', '99123456', '099-123-456', '59899123456',
+                       '00598 99 123 456', '+598 099 123 456']) c));
 select pg_temp.verificar('celular corto, de otro país, vacío o null: null',
   (select bool_and(public.normalizar_celular(c) is null)
      from unnest(array['123', '+54 11 5555 5555', '', null]) c));
@@ -163,15 +189,40 @@ select pg_temp.verificar('el link de otra niñera no reemplaza los de Dora',
     where ninera_id = 'c2000000-0000-4000-8000-000000000004' and reemplazada_en is null));
 select pg_temp.verificar('niñera con celular que no normaliza: celular_invalido',
   pg_temp.error_de($$select * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000003')$$) like '%celular_invalido%');
-select pg_temp.verificar('niñera que no existe: error',
-  pg_temp.error_de($$select * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-0000000000ff')$$) is not null);
+select pg_temp.verificar('niñera que no existe: ninera_no_encontrada',
+  pg_temp.error_de($$select * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-0000000000ff')$$) like '%ninera_no_encontrada%');
 reset role;
+-- Dada de baja: no se invita, y no queda ningún link suyo.
+update ninieras set activa = false where id = 'c2000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select pg_temp.verificar('niñera dada de baja: ninera_inactiva',
+  pg_temp.error_de($$select * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000002')$$) like '%ninera_inactiva%');
+select pg_temp.verificar('niñera dada de baja: sin invitación creada',
+  not exists (select 1 from ninera_invitaciones where ninera_id = 'c2000000-0000-4000-8000-000000000002'));
+reset role;
+update ninieras set activa = true where id = 'c2000000-0000-4000-8000-000000000002';
 -- La vigencia sale de app_config.
 update app_config set valor = '{"vigencia_dias": 3}' where id = 'ninieras_app';
 set local role authenticated;
 insert into inv select 4, * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000004');
 select pg_temp.verificar('con vigencia_dias 3 en app_config, vence en 3 días',
   (select vence_en between now() + interval '3 days' - interval '1 minute' and now() + interval '3 days' + interval '1 minute' from inv where n = 4));
+reset role;
+-- Un valor mal cargado (texto, 0, negativo) no frena las invitaciones ni crea links vencidos: 7 días.
+update app_config set valor = '{"vigencia_dias": "siete"}' where id = 'ninieras_app';
+set local role authenticated;
+insert into inv select 6, * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000004');
+reset role;
+update app_config set valor = '{"vigencia_dias": 0}' where id = 'ninieras_app';
+set local role authenticated;
+insert into inv select 7, * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000004');
+reset role;
+update app_config set valor = '{"vigencia_dias": -2}' where id = 'ninieras_app';
+set local role authenticated;
+insert into inv select 8, * from public.crear_invitacion_ninera('c2000000-0000-4000-8000-000000000004');
+select pg_temp.verificar('vigencia_dias "siete", 0 o -2 en app_config: 7 días',
+  (select count(*) = 3 and bool_and(vence_en between now() + interval '7 days' - interval '1 minute' and now() + interval '7 days' + interval '1 minute')
+     from inv where n in (6, 7, 8)));
 reset role;
 delete from app_config where id = 'ninieras_app';
 set local role authenticated;

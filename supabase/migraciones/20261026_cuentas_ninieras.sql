@@ -54,10 +54,13 @@ alter table public.ninera_invitaciones enable row level security;
 create policy solo_autorizadas_todo on public.ninera_invitaciones as permissive for all to public
   using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
 
--- Celular normalizado: solo dígitos; se quita un 0 inicial; 8 dígitos que empiezan en 9 → se
--- antepone 598; 11 dígitos que empiezan en 5989 quedan igual; cualquier otra cosa → null (no se
--- puede invitar: la admin corrige el celular). Así '+598 99 123 456', '099123456', '99123456',
--- '099-123-456' y '59899123456' dan siempre '59899123456', y un número de otro país da null.
+-- Celular normalizado (regla del 26/10/2026): solo dígitos; se quita un 00 inicial (prefijo
+-- internacional); si empieza en 598, el número local es el resto, si no, todo; del número local
+-- se quita un 0 inicial (el 0 de larga distancia); el número local tiene que ser de 8 dígitos y
+-- empezar en 9 → '598' || local; cualquier otra cosa → null (no se puede invitar: la admin
+-- corrige el celular). Así '+598 99 123 456', '099123456', '99123456', '099-123-456',
+-- '59899123456', '00598 99 123 456' y '+598 099 123 456' dan siempre '59899123456', y un número
+-- de otro país, un fijo o uno incompleto da null.
 -- Tiene que dar lo mismo que normalizarCelular() en js/comun.js y en ninera-cuenta.
 create or replace function public.normalizar_celular(p text)
 returns text
@@ -65,11 +68,9 @@ language sql
 immutable
 set search_path to ''
 as $function$
-  select case
-           when d ~ '^9[0-9]{7}$' then '598' || d
-           when d ~ '^5989[0-9]{7}$' then d
-         end
-    from (select regexp_replace(regexp_replace(coalesce(p, ''), '[^0-9]', '', 'g'), '^0', '') as d) x
+  select case when l ~ '^9[0-9]{7}$' then '598' || l end
+    from (select regexp_replace(case when d like '598%' then substr(d, 4) else d end, '^0', '') as l
+            from (select regexp_replace(regexp_replace(coalesce(p, ''), '[^0-9]', '', 'g'), '^00', '') as d) x) y
 $function$;
 
 -- Mail sintético de la cuenta de una niñera; null si el celular no normaliza. El dominio vive
@@ -140,7 +141,8 @@ grant execute on function public.ninera_activar_app() to authenticated;
 -- Link de invitación (o de cambio de contraseña, si ya tiene cuenta) para una niñera. Lo llama
 -- la admin desde la ficha, con su sesión. Un link nuevo invalida los anteriores de esa niñera
 -- que no se usaron. Token: dos gen_random_uuid() pegados sin guiones (64 hex; sin pgcrypto),
--- como cron_push_secret. La vigencia sale de app_config 'ninieras_app' (7 días si no está).
+-- como cron_push_secret. La vigencia sale de app_config 'ninieras_app' (7 días si no está o no
+-- sirve). No se invita a una niñera dada de baja ni a una con un celular que no normaliza.
 create or replace function public.crear_invitacion_ninera(p_ninera_id uuid)
 returns table (token text, vence_en timestamp with time zone, es_reset boolean)
 language plpgsql
@@ -151,6 +153,8 @@ as $function$
 declare
   v_telefono text;
   v_user_id uuid;
+  v_activa boolean;
+  v_dias text;
   v_token text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
   v_vence timestamp with time zone;
 begin
@@ -159,16 +163,24 @@ begin
   end if;
   -- for update: si dos admins generan el link a la vez, la segunda espera y reemplaza el de la
   -- primera; nunca quedan dos vigentes.
-  select n.telefono, n.user_id into v_telefono, v_user_id
+  select n.telefono, n.user_id, n.activa into v_telefono, v_user_id, v_activa
     from public.ninieras n where n.id = p_ninera_id for update;
   if not found then
     raise exception 'ninera_no_encontrada';
   end if;
+  -- Dada de baja: no se invita (igual no vería nada: ninera_actual() pide activa).
+  if not v_activa then
+    raise exception 'ninera_inactiva';
+  end if;
   if public.mail_sintetico_ninera(v_telefono) is null then
     raise exception 'celular_invalido';
   end if;
-  v_vence := now() + make_interval(days => coalesce(
-    (select (c.valor ->> 'vigencia_dias')::int from public.app_config c where c.id = 'ninieras_app'), 7));
+  -- Vigencia en días: si app_config trae algo que no es un entero positivo (texto, 0, negativo),
+  -- 7. Así un valor mal cargado no frena todas las invitaciones ni crea links ya vencidos. El
+  -- cast va solo cuando la expresión regular ya dijo que es un entero de 1 a 9999.
+  v_dias := (select c.valor ->> 'vigencia_dias' from public.app_config c where c.id = 'ninieras_app');
+  v_vence := now() + make_interval(days =>
+    case when v_dias ~ '^[1-9][0-9]{0,3}$' then v_dias::int else 7 end);
 
   update public.ninera_invitaciones i set reemplazada_en = now()
    where i.ninera_id = p_ninera_id and i.usada_en is null and i.reemplazada_en is null;

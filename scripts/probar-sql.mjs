@@ -10,6 +10,9 @@
 //   PGLITE_DIR=/tmp/pglite node scripts/probar-sql.mjs supabase/pruebas/*.sql
 // Con --migracion <archivo> aplica antes esa migración (para probarla sobre el schema de main,
 // por ejemplo con git show origin/main:supabase/schema.sql > /tmp/schema-main.sql y --schema).
+// --migracion se puede repetir: los archivos se aplican en el orden en que se pasan. Sirve para
+// probar que el DESHACER deja todo como estaba (aplicar, deshacer y volver a aplicar):
+//   --schema /tmp/schema-main.sql --migracion <mig>.sql --migracion <mig>_DESHACER.sql --migracion <mig>.sql
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -17,7 +20,8 @@ import { pathToFileURL } from 'url';
 const args = process.argv.slice(2);
 const opcion = n => { const i = args.indexOf(n); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
 const schema = opcion('--schema') || 'supabase/schema.sql';
-const migracion = opcion('--migracion');
+const migraciones = [];
+for (let m = opcion('--migracion'); m; m = opcion('--migracion')) migraciones.push(m);
 const dir = process.env.PGLITE_DIR;
 if (!dir) { console.error('Falta PGLITE_DIR (la carpeta donde se instaló @electric-sql/pglite).'); process.exit(2); }
 if (!args.length) { console.error('Pasá al menos un archivo .sql de supabase/pruebas/.'); process.exit(2); }
@@ -59,7 +63,7 @@ for (const archivo of args) {
   try {
     await db.exec(SUPABASE_DE_MENTIRA);
     await db.exec(textoSchema);
-    if (migracion) await db.exec(fs.readFileSync(migracion, 'utf8'));
+    for (const m of migraciones) await db.exec(fs.readFileSync(m, 'utf8'));
     await db.exec(fs.readFileSync(archivo, 'utf8'));
     console.log(`OK     ${archivo}`);
   } catch (e) {
