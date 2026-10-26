@@ -1,0 +1,187 @@
+// Tests de ninera-cuenta con la base y Auth SIMULADAS: nunca llaman a Supabase. Datos inventados.
+// Se corren desde una carpeta fuera del repo (el package.json de la raíz confunde a Deno), por
+// ejemplo: npx deno@2 test --allow-env <carpeta>/ninera-cuenta/
+import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1.0.13";
+import {
+  MAIL_DOMINIO_NINERA, mailSintetico, MIN_PASSWORD, normalizarCelular, procesarCuenta,
+  type Deps, type Invitacion,
+} from "./cuenta.ts";
+
+const TOKEN = "a".repeat(32) + "0123456789abcdef0123456789abcdef";
+const AHORA = new Date("2026-10-26T15:00:00Z");
+const ERROR_500 = "No se pudo crear la cuenta: avisale a Diego";
+
+function invitacion(cambios: Partial<Invitacion> = {}): Invitacion {
+  return {
+    id: "c0000000-0000-4000-8000-000000000001", ninera_id: "30000000-0000-4000-8000-000000000001",
+    nombre: "Ana Ficticia", telefono: "099 000 001", user_id: null, activa: true,
+    vence_en: "2026-11-02T15:00:00Z", usada_en: null, reemplazada_en: null, ...cambios,
+  };
+}
+
+// Base y Auth de mentira: anotan qué se les pidió. marcarUsada pone usada_en en la invitación,
+// como la base, para probar el mismo link dos veces.
+function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">) {
+  const llamadas = {
+    buscar: [] as string[], crear: [] as unknown[][], actualizar: [] as unknown[][],
+    vincular: [] as unknown[][], usada: [] as string[],
+  };
+  const fallar = (nombre: string) => { if (falla === nombre) throw new Error(`falla simulada en ${nombre}`); };
+  const deps: Deps = {
+    buscarInvitacion: async (token) => { llamadas.buscar.push(token); fallar("buscarInvitacion"); return inv ? { ...inv } : null; },
+    crearUsuario: async (email, password, nineraId) => {
+      llamadas.crear.push([email, password, nineraId]); fallar("crearUsuario");
+      return "40000000-0000-4000-8000-000000000001";
+    },
+    actualizarUsuario: async (userId, cambios) => { llamadas.actualizar.push([userId, cambios]); fallar("actualizarUsuario"); },
+    vincular: async (nineraId, userId) => { llamadas.vincular.push([nineraId, userId]); fallar("vincular"); },
+    marcarUsada: async (id) => { llamadas.usada.push(id); fallar("marcarUsada"); if (inv) inv.usada_en = AHORA.toISOString(); },
+    ahora: () => AHORA,
+  };
+  return { deps, llamadas };
+}
+
+// ------------------------------------------------------------ normalización (los 11 casos de la SQL)
+Deno.test("normalizarCelular: los 11 casos de la prueba SQL", () => {
+  const casos: [unknown, string | null][] = [
+    ["+598 99 123 456", "59899123456"],
+    ["099123456", "59899123456"],
+    ["99123456", "59899123456"],
+    ["099-123-456", "59899123456"],
+    ["59899123456", "59899123456"],
+    ["00598 99 123 456", "59899123456"],
+    ["+598 099 123 456", "59899123456"],
+    ["123", null],
+    ["+54 11 5555 5555", null],
+    ["", null],
+    [null, null],
+  ];
+  for (const [entrada, esperado] of casos) assertEquals(normalizarCelular(entrada), esperado, String(entrada));
+});
+
+Deno.test("mailSintetico: celular normalizado y el dominio de siempre", () => {
+  assertEquals(MAIL_DOMINIO_NINERA, "ninieras.parentsbreak.invalid");
+  assertEquals(mailSintetico("099123456"), "59899123456@ninieras.parentsbreak.invalid");
+  assertEquals(mailSintetico("123"), null);
+  assertEquals(MIN_PASSWORD, 8);
+});
+
+// ------------------------------------------------------------ procesarCuenta, en el orden de los chequeos
+Deno.test("sin token o con un token que no es de 64 hex: 400 y no busca nada", async () => {
+  for (const token of [undefined, "", 123, "corto", "g".repeat(64), TOKEN + "a"]) {
+    const { deps, llamadas } = simulado(invitacion());
+    const r = await procesarCuenta(deps, { token });
+    assertEquals(r, { status: 400, cuerpo: { error: "token" } }, String(token));
+    assertEquals(llamadas.buscar, []);
+  }
+});
+
+Deno.test("token que no existe: 404", async () => {
+  const { deps, llamadas } = simulado(null);
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), { status: 404, cuerpo: { error: "no_existe" } });
+  assertEquals(llamadas.buscar, [TOKEN]);
+});
+
+Deno.test("link ya usado: 410", async () => {
+  const { deps } = simulado(invitacion({ usada_en: "2026-10-25T12:00:00Z" }));
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), { status: 410, cuerpo: { error: "vencido" } });
+});
+
+Deno.test("link reemplazado por uno más nuevo: 410", async () => {
+  const { deps } = simulado(invitacion({ reemplazada_en: "2026-10-25T12:00:00Z" }));
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), { status: 410, cuerpo: { error: "vencido" } });
+});
+
+Deno.test("link vencido (vence_en justo ahora o antes): 410 y no crea nada", async () => {
+  for (const vence_en of [AHORA.toISOString(), "2026-10-20T00:00:00Z"]) {
+    const { deps, llamadas } = simulado(invitacion({ vence_en }));
+    assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 410, cuerpo: { error: "vencido" } });
+    assertEquals(llamadas.crear, []);
+  }
+});
+
+Deno.test("niñera dada de baja: 403 y no crea la cuenta", async () => {
+  const { deps, llamadas } = simulado(invitacion({ activa: false }));
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 403, cuerpo: { error: "inactiva" } });
+  assertEquals(llamadas.crear, []);
+});
+
+Deno.test("sin contraseña: bienvenida con el primer nombre y el celular tapado, sin tocar nada", async () => {
+  const { deps, llamadas } = simulado(invitacion());
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), {
+    status: 200, cuerpo: { nombre: "Ana", celular_mascarado: "••• 001", es_reset: false },
+  });
+  assertEquals([llamadas.crear, llamadas.actualizar, llamadas.vincular, llamadas.usada], [[], [], [], []]);
+});
+
+Deno.test("sin contraseña, con cuenta (reset) y celular que no normaliza: es_reset y '•••'", async () => {
+  const { deps } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009", telefono: "123", nombre: "  María José Ficticia " }));
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), {
+    status: 200, cuerpo: { nombre: "María", celular_mascarado: "•••", es_reset: true },
+  });
+});
+
+Deno.test("contraseña corta o que no es texto: 400 y no crea nada", async () => {
+  for (const password of ["1234567", "", 12345678, null]) {
+    const { deps, llamadas } = simulado(invitacion());
+    assertEquals(await procesarCuenta(deps, { token: TOKEN, password }), { status: 400, cuerpo: { error: "password_corta" } }, String(password));
+    assertEquals(llamadas.crear, []);
+  }
+});
+
+Deno.test("celular de la ficha que no normaliza: 409 y no crea nada", async () => {
+  const { deps, llamadas } = simulado(invitacion({ telefono: "+54 11 5555 5555" }));
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 409, cuerpo: { error: "celular_invalido" } });
+  assertEquals(llamadas.crear, []);
+  assertEquals(llamadas.usada, []);
+});
+
+Deno.test("alta: crea la cuenta con el mail sintético, la vincula y marca el link usado", async () => {
+  const { deps, llamadas } = simulado(invitacion());
+  const r = await procesarCuenta(deps, { token: TOKEN, password: "clave1234" });
+  assertEquals(r, { status: 200, cuerpo: { celular: "59899000001" } });
+  assertEquals(llamadas.crear, [["59899000001@ninieras.parentsbreak.invalid", "clave1234", "30000000-0000-4000-8000-000000000001"]]);
+  assertEquals(llamadas.vincular, [["30000000-0000-4000-8000-000000000001", "40000000-0000-4000-8000-000000000001"]]);
+  assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
+  assertEquals(llamadas.actualizar, []);
+  // La respuesta no lleva la contraseña ni el mail (solo el celular normalizado, que es su usuario).
+  const texto = JSON.stringify(r);
+  assertFalse(texto.includes("clave1234"));
+  assertFalse(texto.includes("@"));
+});
+
+Deno.test("reset: cambia la contraseña y el mail de la cuenta que ya existe, sin crear otra", async () => {
+  const { deps, llamadas } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009", telefono: "+598 99 000 002" }));
+  const r = await procesarCuenta(deps, { token: TOKEN, password: "otraclave99" });
+  assertEquals(r, { status: 200, cuerpo: { celular: "59899000002" } });
+  assertEquals(llamadas.actualizar, [["40000000-0000-4000-8000-000000000009", { password: "otraclave99", email: "59899000002@ninieras.parentsbreak.invalid" }]]);
+  assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
+  assertEquals([llamadas.crear, llamadas.vincular], [[], []]);
+  assertFalse(JSON.stringify(r).includes("otraclave99"));
+});
+
+Deno.test("el mismo link dos veces: la segunda vez 410 y no crea otra cuenta", async () => {
+  const { deps, llamadas } = simulado(invitacion());
+  assertEquals((await procesarCuenta(deps, { token: TOKEN, password: "clave1234" })).status, 200);
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 410, cuerpo: { error: "vencido" } });
+  assertEquals(await procesarCuenta(deps, { token: TOKEN }), { status: 410, cuerpo: { error: "vencido" } });
+  assertEquals(llamadas.crear.length, 1);
+});
+
+Deno.test("si falla la base o Auth: 500 con el aviso, sin la contraseña", async () => {
+  for (const falla of ["buscarInvitacion", "crearUsuario", "vincular", "marcarUsada"] as const) {
+    const { deps } = simulado(invitacion(), falla);
+    const r = await procesarCuenta(deps, { token: TOKEN, password: "clave1234" });
+    assertEquals(r, { status: 500, cuerpo: { error: ERROR_500 } }, falla);
+  }
+  const { deps } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009" }), "actualizarUsuario");
+  assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 500, cuerpo: { error: ERROR_500 } });
+});
+
+Deno.test("ninguna respuesta lleva el celular completo de la ficha", async () => {
+  const { deps } = simulado(invitacion());
+  const texto = JSON.stringify(await procesarCuenta(deps, { token: TOKEN }));
+  assertFalse(texto.includes("59899000001"));
+  assertFalse(texto.includes("099 000 001"));
+  assert(texto.includes("••• 001"));
+});
