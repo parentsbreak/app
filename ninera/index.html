@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parents’ Break</title>
+<!-- App de niñeras (fase 1, 26/10/2026): la segunda puerta del sistema, con su propio manifest y
+     service worker (alcance ninera/). Íconos y logo, los de la raíz. -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<meta name="theme-color" content="#757CBB">
+<!-- Siempre clara, como el panel (21/10/2026): fondo blanco aunque el celular esté en modo oscuro. -->
+<meta name="color-scheme" content="only light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div id="app">
+  <!-- Pantalla de carga: la misma del panel. Se ve desde el primer instante hasta que el JS pinta
+       la app (que reemplaza todo el contenido de #app). -->
+  <div class="pantallacarga" id="pantalla-carga" role="status" aria-live="polite">
+    <img src="../logo-simbolo.png" alt="Parents’ Break" class="pantallacarga-simbolo simbolo-latido">
+    <div class="pantallacarga-msg" id="pantallacarga-msg">Cargando…</div>
+  </div>
+</div>
+
+<!-- Scripts clásicos, en este orden (tests/estatico.spec.js lo controla): supabase-js del repo,
+     los helpers compartidos con el panel (../js/comun.js) y los de la app de niñeras. Cada etapa
+     suma su archivo antes de arranque.js, que va siempre último. -->
+<script src="../vendor/supabase-js-2.117.2.umd.js"></script>
+<script src="../js/comun.js"></script>
+<script src="js/base.js"></script>
+<script src="js/cuenta.js"></script>
+<script src="js/inicio.js"></script>
+<script src="js/arranque.js"></script>
+</body>
+</html>

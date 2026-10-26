@@ -2,10 +2,10 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { RAIZ, leer, ORDEN_SCRIPTS, scriptsDeIndex, declaracionesTopLevel, emojisPorArchivo } = require('./support/fuentes');
+const { RAIZ, leer, ORDEN_SCRIPTS, ORDEN_SCRIPTS_NINERA, TODOS_LOS_SCRIPTS, scriptsDeIndex, scriptsDeIndexNinera, declaracionesTopLevel, emojisPorArchivo } = require('./support/fuentes');
 
 test.describe('estático', () => {
-  for (const archivo of [...ORDEN_SCRIPTS, 'sw.js']) {
+  for (const archivo of [...TODOS_LOS_SCRIPTS, 'sw.js', 'ninera/sw.js']) {
     test(`node --check ${archivo}`, () => {
       execFileSync(process.execPath, ['--check', path.join(RAIZ, archivo)], { stdio: 'pipe' });
     });
@@ -14,13 +14,16 @@ test.describe('estático', () => {
   test('manifest.json es JSON válido', () => {
     const m = JSON.parse(leer('manifest.json'));
     expect(m.start_url).toBe('./');
+    // El de la app de niñeras (fase 1): ./ es su carpeta, ninera/.
+    const n = JSON.parse(leer('ninera/manifest.json'));
+    expect(n.start_url).toBe('./');
   });
 
   test('los handlers inline reciben los datos con argJs(), nunca entre comillas a mano', () => {
     // 05/10/2026: onclick="f('${nombre}')" se rompía con D'Alessandro y dejaba inyectar código.
-    // El dato va como onclick="f(${argJs(nombre)})" (ver core.js, "Escape de datos").
+    // El dato va como onclick="f(${argJs(nombre)})" (ver comun.js, "Escape de datos").
     const malos = [];
-    for (const archivo of ORDEN_SCRIPTS) {
+    for (const archivo of TODOS_LOS_SCRIPTS) {
       leer(archivo).split('\n').forEach((l, i) => {
         for (const m of l.matchAll(/\bon[a-z]+=(["'])(.*?)\1/g)) {
           if (/\\?'\$\{|"\$\{/.test(m[2]) || (m[1] === "'" && m[2].includes('${'))) malos.push(`${archivo}:${i + 1}: ${m[0].slice(0, 90)}`);
@@ -34,10 +37,11 @@ test.describe('estático', () => {
     // 05/10/2026: un doble toque en Guardar disparaba dos inserts. Las funciones de abajo
     // escriben en la base; un <button> que las llama tiene que hacerlo con
     // conGuardado(this, ()=>...). Login y contraseñas manejan su botón por su cuenta.
-    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|reactivarRegistroDesdeAgenda|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones)$/;
+    // Vale para las dos puertas (panel y app de niñeras).
+    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|reactivarRegistroDesdeAgenda|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones|crearCuentaDesdeInvitacion|activarAvisosNinera)$/;
     const PROPIOS = new Set(['guardarNuevaContrasena']);
     const malos = [];
-    for (const archivo of ORDEN_SCRIPTS) {
+    for (const archivo of TODOS_LOS_SCRIPTS) {
       leer(archivo).split('\n').forEach((l, i) => {
         for (const m of l.matchAll(/<button\b[^<>]*?\bonclick="([^"]*)"/g)) {
           const llamadas = [...m[1].matchAll(/(?<![\w.])([A-Za-z_]\w*)\(/g)].map(x => x[1]);
@@ -51,7 +55,18 @@ test.describe('estático', () => {
 
   test('index.html carga los scripts en el orden acordado (bootstrap.js último)', () => {
     expect(scriptsDeIndex()).toEqual(ORDEN_SCRIPTS);
+    expect(ORDEN_SCRIPTS[0]).toBe('js/comun.js');
     expect(leer('index.html')).not.toMatch(/type=["']module["']/);
+  });
+
+  test('ninera/index.html carga los scripts en el orden acordado (arranque.js último)', () => {
+    // Fase 1 (26/10/2026): la app de niñeras comparte js/comun.js con el panel y suma sus
+    // propios archivos; supabase-js va antes que todo, como en index.html.
+    expect(scriptsDeIndexNinera()).toEqual(ORDEN_SCRIPTS_NINERA);
+    const html = leer('ninera/index.html');
+    expect(html).toContain('<script src="../vendor/supabase-js-2.117.2.umd.js"></script>');
+    expect(html.indexOf('<script src="../vendor/supabase-js-2.117.2.umd.js"')).toBeLessThan(html.indexOf('<script src="../js/comun.js"'));
+    expect(html).not.toMatch(/type=["']module["']/);
   });
 
   test('ninguna función o variable global está definida dos veces', () => {
@@ -78,7 +93,7 @@ test.describe('estático', () => {
     // Única excepción: el id de la notificación del extracto, que no se muestra (cambiarlo
     // haría reaparecer avisos ya leídos).
     const usos = [];
-    for (const archivo of ORDEN_SCRIPTS) {
+    for (const archivo of TODOS_LOS_SCRIPTS) {
       leer(archivo).split('\n').forEach((l, i) => {
         if (/toISOString\(\)\.slice\(0, ?10\)/.test(l) && !l.includes("id: 'extracto:'")) usos.push(`${archivo}:${i + 1}`);
       });

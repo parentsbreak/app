@@ -27,7 +27,9 @@ sistema o se para?
 ## Stack
 - HTML/CSS/JS vanilla, sin build ni framework. GitHub Pages publica desde `main`.
 - `index.html` = head + CSS + `<div id="app">` (con la pantalla de carga inicial) + scripts.
-  Todo el HTML de la app lo genera JS. supabase-js se carga de `vendor/`, justo antes de core.js.
+  Todo el HTML de la app lo genera JS. supabase-js se carga de `vendor/`, justo antes de comun.js.
+- App de niñeras (fase 1, 26/10/2026): segunda puerta en `ninera/` (`index.html`, `estilos.css`,
+  `manifest.json`, `sw.js` con alcance `ninera/`, `js/`). Comparte `js/comun.js` con el panel.
 - Supabase (proyecto "Parents-break", ref `wvewzamdohrpfhpccvcz`): Postgres + Auth (contraseña
   y passkeys) + RLS + Realtime + Storage + Edge Functions.
 - Acceso (11/10/2026): el registro público está apagado y las políticas RLS solo dejan entrar a
@@ -41,17 +43,23 @@ sistema o se para?
 - Estructura de la base (sin datos): `supabase/schema.sql`. Si un PR cambia la estructura,
   actualizarlo en el mismo PR.
 
-## Scripts y orden de carga (index.html)
-14 archivos en `js/`: core → auth → app-shell → finanzas → juguetes → agenda → contratos →
+## Scripts y orden de carga (index.html y ninera/index.html)
+15 archivos en `js/`: comun → core → auth → app-shell → finanzas → juguetes → agenda → contratos →
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → bootstrap
 (último).
+- `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
+  `inicio` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
+- `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
+  `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
+  `normaliza`, `calcularEdad`, `toast`, `conGuardado`, `sbGuardar`, `copiarAlPortapapeles`. El
+  cliente `sb` lo crea cada puerta (core.js en el panel).
 - Son scripts clásicos, NO `type="module"`: hay ~335 handlers inline (onclick, onchange,
   oninput...) dentro del HTML que arma el JS, y llaman funciones globales por nombre.
 - Utilidades que viven fuera de lugar y se usan desde otros archivos: `renderModulo()` y la
   capa Realtime están en `agenda.js`; `shiftMes()` y `monthLabel()` están en `sittings.js`.
   Solo se pueden llamar en tiempo de ejecución, nunca desde el nivel superior de un archivo
-  que carga antes. Las fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`) están en
-  `core.js` desde el 05/10/2026.
+  que carga antes.
 
 ## Reglas fijas
 1. Nunca hacer commit directo a `main`. Cada tarea va en su propio worktree, con una rama
@@ -119,7 +127,7 @@ worktree), la regla es: **un worktree = una tarea = una rama = un PR**.
   nueva desde `origin/main`.
 - Trabajá solo dentro de tu worktree. No edites, borres ni hagas checkout en las carpetas de
   otros worktrees.
-- Archivos compartidos: antes de cambiar `core.js`, `sittings.js`, `finanzas.js`,
+- Archivos compartidos: antes de cambiar `comun.js`, `core.js`, `sittings.js`, `finanzas.js`,
   `agenda.js`, `index.html`, `supabase/schema.sql` o este `CLAUDE.md`, mirá si hay otro PR
   abierto que los toque (`gh pr list` y `gh pr diff <n> --name-only`; si no tenés `gh`,
   `git fetch origin` y `git diff --name-only origin/main...origin/<rama>` para cada rama
@@ -185,7 +193,7 @@ npx playwright install chromium   # una vez
 npm test                          # todo
 npm run test:static               # solo los chequeos estáticos (segundos)
 ```
-- `tests/estatico.spec.js`: `node --check`, orden de scripts, globales duplicadas, emojis,
+- `tests/estatico.spec.js`: `node --check`, orden de scripts de las dos puertas, globales duplicadas, emojis,
   redirección de temporada.html.
 - `tests/humo.spec.js`: Chromium headless; login, todos los módulos, modales, formularios
   principales (verifica lo que se manda a la base).
@@ -379,13 +387,13 @@ reporte.
   fechan los incidentes reales; mantener ese estilo.
 - Todo texto que venga de datos (nombres, notas, URLs) y vaya a innerHTML o a un handler
   inline se tiene que escapar. Las candidatas llegan desde un formulario público.
-- Fechas: Montevideo es UTC-3. "Hoy" sale siempre de `todayISO()` (core.js, fijado a
+- Fechas: Montevideo es UTC-3. "Hoy" sale siempre de `todayISO()` (comun.js, fijado a
   America/Montevideo aunque el celular tenga otra zona). Nunca `toISOString().slice(0,10)`
   para una fecha: es UTC y de 21:00 a 24:00 ya da mañana. Para sumar días a "AAAA-MM-DD",
   `sumarDiasISO()`; para el mes siguiente, `shiftMes()`.
 - Guardados: usar `sbGuardar()` o chequear `error`; nunca mostrar éxito sin verificarlo (si
   un paso secundario falla, el aviso dice qué faltó). Todo botón que escribe en la base va
-  con `conGuardado(this, ()=>guardarX())` (core.js): deshabilitado y con ruedita mientras
+  con `conGuardado(this, ()=>guardarX())` (comun.js): deshabilitado y con ruedita mientras
   guarda, sin doble insert por doble toque. Lo controla `tests/estatico.spec.js`.
 - Lo que dos admins pueden cambiar a la vez (21/10/2026): el estado de un pedido y las marcas de
   cobrado / pagado se escriben con la condición del valor que tenían al abrir (`.eq(campo, antes)`
@@ -435,12 +443,14 @@ reporte.
 - Realtime tampoco repinta lo que se está escribiendo: RR.HH. en Entrevista y Finanzas usan
   recarga liviana (`RT_RECARGA_LIVIANA`, agenda.js); con un modal abierto el cambio se aplica al
   cerrarlo.
-- Una función global nueva no puede repetir el nombre de otra en ningún archivo.
+- Una función global nueva no puede repetir el nombre de otra en ningún archivo, de ninguna de las
+  dos puertas. Una función de `js/comun.js` no se redefine en ningún otro archivo; `comun.js` no
+  lleva nada de plata.
 - Buscadores (25/10/2026): nunca `<datalist>` nativo (en el iPhone no ignora tildes): siempre
   `attachAutocomplete` (sittings.js), que compara con `normaliza()`; con `{sinCoincidencias:''}` no
   avisa nada cuando el nombre es libre. "Entrevistó" viene con `registradoPorUsuario()` y sugiere los
   ya usados (`cargarEntrevistadores`, postulantes.js): nada de nombres reales en el código.
-- Escape (05/10/2026): helpers únicos en core.js. `escaparHtml()` para texto y atributos,
+- Escape (05/10/2026): helpers únicos en comun.js. `escaparHtml()` para texto y atributos,
   `argJs()` para pasar un dato a un handler inline (`f(${argJs(x)})`, nunca `'${x}'`) y
   `urlSegura()` para href/src. `tests/escape.spec.js` recorre todo con datos tramposos y
   `estatico.spec.js` controla los handlers.
@@ -543,7 +553,7 @@ reporte.
   El gasto va con su sitting; el saldo a favor se aplica a lo que se marca (`totalParcial`, finanzas.js)
   y lo que sobra queda para lo pendiente. "¿Cuánto pagó?" (solo Por cobrar) tilda la combinación exacta
   que usa los más viejos (`combinacionExacta`) o avisa y no deja nada tildado. El detalle se lee al
-  abrirlo. Después de marcar, `toast(msg, tipo, {deshacer})` (core.js) muestra "Deshacer" 8 s:
+  abrirlo. Después de marcar, `toast(msg, tipo, {deshacer})` (comun.js) muestra "Deshacer" 8 s:
   desmarca solo lo que marcó ese toque y devuelve el saldo usado (`deshacerMarca`).
 - Variantes de precio (23/10/2026): los casos especiales de una familia ya no van en las notas. Al
   registrar (y en el Cierre de los fijos) hay botones con las variantes de esa familia y un ajuste
@@ -565,7 +575,7 @@ reporte.
   cobro semanal de una familia sigue de lunes a domingo. El "Por pagar a niñeras" del resumen tampoco la cuenta: va
   aparte ("Más $X de semanas que todavía no cierran"), y en el mes actual se aclara cuánto de la
   lista es de meses anteriores (21/10/2026). Pagan de a una desde el celular: cada fila tiene
-  "Copiar" (la cuenta) y "Copiar monto" (`copiarAlPortapapeles`, core.js).
+  "Copiar" (la cuenta) y "Copiar monto" (`copiarAlPortapapeles`, comun.js).
 
 ## Pendientes
 Esta lista es la fuente de verdad de lo que falta en el sistema, para todas las sesiones y
