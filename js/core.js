@@ -1946,6 +1946,58 @@ function escribirBorrador(clave, datos){
 function borrarBorrador(clave){
   cancelarBorradorPendiente(clave);
   try{ localStorage.removeItem(claveLocalBorrador(clave)); }catch(e){}
+  borrarBorradorEnBase(clave);
+}
+// Pone un borrador tal cual (con su fecha), por ejemplo uno traído de la base.
+function guardarBorradorTal(clave, datos){
+  try{ localStorage.setItem(claveLocalBorrador(clave), JSON.stringify(datos)); }catch(e){}
+}
+/* Copia en la base (tabla borradores, 21/10/2026): cada 5 segundos como mucho mientras se
+   escribe y al salir de cada campo. Sirve para seguir desde otro dispositivo, o si se borran los
+   datos del navegador. Solo la entrevista. Sin la tabla (base sin migrar) queda solo el del
+   dispositivo, sin avisos: es una red de seguridad, no un guardado. */
+let borradoresEnBase = true;
+const BORRADOR_BASE_CADA_MS = 5000;
+const vaABase = clave => clave.startsWith('entrevista:') && !clave.includes('~');
+const subidasBorrador = new Map(); // clave -> { timer, ultima }
+const faltaTablaBorradores = error => !!error && (error.code==='PGRST205' || error.code==='42P01');
+function programarBorradorEnBase(clave, armar, ahora=false){
+  if(!borradoresEnBase || !vaABase(clave) || !session?.user?.id) return;
+  const previa = subidasBorrador.get(clave) || {};
+  clearTimeout(previa.timer);
+  const subir = async ()=>{
+    subidasBorrador.set(clave, { ultima: Date.now() });
+    const datos = armar();
+    if(!datos || !session?.user?.id) return;
+    try{
+      const { error } = await sb.from('borradores').upsert({ usuaria: session.user.id, clave, datos, actualizado_at: new Date().toISOString() }, { onConflict: 'usuaria,clave' });
+      if(faltaTablaBorradores(error)) borradoresEnBase = false;
+      else if(error) console.warn('[borrador] no se pudo copiar en la base:', error.message);
+    }catch(e){ console.warn('[borrador] no se pudo copiar en la base:', e?.message || e); }
+  };
+  const espera = ahora ? 0 : Math.max(0, BORRADOR_BASE_CADA_MS - (Date.now() - (previa.ultima || 0)));
+  subidasBorrador.set(clave, { ...previa, timer: setTimeout(subir, espera) });
+}
+function borrarBorradorEnBase(clave){
+  const previa = subidasBorrador.get(clave);
+  if(previa){ clearTimeout(previa.timer); subidasBorrador.delete(clave); }
+  if(!borradoresEnBase || !vaABase(clave) || !session?.user?.id) return;
+  sb.from('borradores').delete().eq('usuaria', session.user.id).eq('clave', clave)
+    .then(({ error })=>{ if(faltaTablaBorradores(error)) borradoresEnBase = false; else if(error) console.warn('[borrador] no se pudo borrar en la base:', error.message); },
+          e=>console.warn('[borrador] no se pudo borrar en la base:', e?.message || e));
+}
+// El borrador de la base de una clave, o el más nuevo cuyas claves empiecen con `prefijo`, como
+// {clave, datos} con la fecha en datos.guardadoEl. null si no hay o no se puede leer.
+async function traerBorradorDeLaBase({ clave, prefijo }){
+  if(!borradoresEnBase || !session?.user?.id) return null;
+  let q = sb.from('borradores').select('clave,datos,actualizado_at').eq('usuaria', session.user.id);
+  q = clave ? q.eq('clave', clave) : q.like('clave', prefijo + '%').order('actualizado_at', { ascending:false }).limit(1);
+  try{
+    const { data, error } = await q;
+    if(error){ if(faltaTablaBorradores(error)) borradoresEnBase = false; return null; }
+    const f = (data||[])[0];
+    return f ? { clave: f.clave, datos: { ...(f.datos||{}), guardadoEl: f.actualizado_at } } : null;
+  }catch(e){ return null; }
 }
 // Si se empieza a escribir sin contestar "¿Recuperar?" / "¿Seguir?", lo nuevo no pisa el
 // borrador que se está ofreciendo: ese se aparta a otra clave (con la misma fecha) y el aviso

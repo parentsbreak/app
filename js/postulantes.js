@@ -416,9 +416,15 @@ function escucharCambiosEntrevista(body){
     if(aviso && aviso.dataset.clave===claveBorradorEntrevista()) aviso.dataset.clave = apartarBorrador(aviso.dataset.clave) || aviso.dataset.clave;
     marcarConCambios('entrevista');
     programarBorrador(claveBorradorEntrevista(), armarBorradorEntrevista);
+    programarBorradorEnBase(claveBorradorEntrevista(), armarBorradorEntrevista); // cada 5 s como mucho
   };
   body.addEventListener('input', alCambiar);
   body.addEventListener('change', alCambiar);
+  // Al salir de un campo con cambios, la copia en la base va enseguida.
+  body.addEventListener('focusout', (e)=>{
+    if(rrhhTab!=='entrevista' || !formulariosConCambios.has('entrevista') || e.target.closest('#entrevista-borrador-aviso')) return;
+    if(e.target.matches('input, textarea, select')) programarBorradorEnBase(claveBorradorEntrevista(), armarBorradorEntrevista, true);
+  });
   // Puntajes, "¿le explicaste los juegos?" y agregar / quitar referencias son toques, no texto.
   body.addEventListener('click', (e)=>{
     const boton = e.target.closest('button');
@@ -444,18 +450,31 @@ function hayBorradorEntrevistaReciente(){
 }
 // baseActualizadaEl: cuándo se guardó a medias en la base la entrevista que se abrió; un
 // borrador más viejo que eso no se ofrece.
-function ofrecerBorradorEntrevista(baseActualizadaEl){
+// Primero el del dispositivo (al toque); después se mira la base, y si allá hay uno más nuevo
+// (de otro dispositivo) se ofrece ese.
+let ofrecerBorradorSec = 0;
+async function ofrecerBorradorEntrevista(baseActualizadaEl){
+  const sec = ++ofrecerBorradorSec;
+  const elegir = ()=>{
+    if(entrevistaState.candidataId){
+      const clave = 'entrevista:' + entrevistaState.candidataId;
+      const datos = leerBorrador(clave);
+      return datos && !(baseActualizadaEl && new Date(datos.guardadoEl) <= new Date(baseActualizadaEl)) ? { clave, datos } : null;
+    }
+    return borradoresQueEmpiezanCon('entrevista:')[0] || null;
+  };
+  mostrarAvisoBorradorEntrevista(elegir());
+  const enBase = await traerBorradorDeLaBase(entrevistaState.candidataId ? { clave: 'entrevista:' + entrevistaState.candidataId } : { prefijo: 'entrevista:' });
+  if(sec !== ofrecerBorradorSec || !enBase) return; // se volvió a pedir mientras tanto, o no hay
+  const local = leerBorrador(enBase.clave);
+  if(local && new Date(local.guardadoEl) >= new Date(enBase.datos.guardadoEl)) return; // el del dispositivo es igual o más nuevo
+  guardarBorradorTal(enBase.clave, enBase.datos);
+  mostrarAvisoBorradorEntrevista(elegir());
+}
+function mostrarAvisoBorradorEntrevista(elegido){
   const body = document.getElementById('rrhh-body');
   document.getElementById('entrevista-borrador-aviso')?.remove();
   if(!body || rrhhTab!=='entrevista' || formulariosConCambios.has('entrevista')) return;
-  let elegido = null;
-  if(entrevistaState.candidataId){
-    const clave = 'entrevista:' + entrevistaState.candidataId;
-    const datos = leerBorrador(clave);
-    if(datos && !(baseActualizadaEl && new Date(datos.guardadoEl) <= new Date(baseActualizadaEl))) elegido = { clave, datos };
-  } else {
-    elegido = borradoresQueEmpiezanCon('entrevista:')[0] || null;
-  }
   if(!elegido) return;
   const quien = elegido.datos.nombre ? ` de ${escaparHtml(elegido.datos.nombre)}` : '';
   const aviso = document.createElement('div');

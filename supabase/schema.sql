@@ -70,6 +70,20 @@ create table public.asignaciones (
   constraint asignaciones_vigencia_check CHECK (((vigente_hasta IS NULL) OR (vigente_desde IS NULL) OR (vigente_hasta >= vigente_desde)))
 );
 
+-- Borradores de lo que se está escribiendo (21/10/2026): una fila por usuaria y por formulario
+-- ('entrevista:<id de la candidata>'). Copia en la base del borrador del dispositivo.
+create table public.borradores (
+  id uuid default gen_random_uuid() not null,
+  usuaria uuid default auth.uid() not null,
+  clave text not null,
+  datos jsonb not null,
+  actualizado_at timestamp with time zone default now() not null,
+  constraint borradores_pkey PRIMARY KEY (id),
+  constraint borradores_usuaria_clave_key UNIQUE (usuaria, clave),
+  constraint borradores_clave_check CHECK ((char_length(clave) between 1 and 200)),
+  constraint borradores_datos_check CHECK ((pg_column_size(datos) <= 500000))
+);
+
 create table public.candidatas (
   id uuid default gen_random_uuid() not null,
   nombre text not null,
@@ -753,6 +767,7 @@ create table public.zonas_confirmadas (
 -- Claves foráneas
 -- ----------------------------------------------------------------------------
 
+alter table public.borradores add constraint borradores_usuaria_fkey FOREIGN KEY (usuaria) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.asignaciones add constraint asignaciones_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id) ON DELETE CASCADE;
 alter table public.asignaciones add constraint asignaciones_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
 alter table public.carsitting_datos add constraint carsitting_datos_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
@@ -841,6 +856,7 @@ CREATE INDEX pedidos_whatsapp_uso_creado_el_idx ON public.pedidos_whatsapp_uso U
 alter table public.app_config enable row level security;
 alter table public.app_secrets enable row level security;
 alter table public.asignaciones enable row level security;
+alter table public.borradores enable row level security;
 alter table public.candidatas enable row level security;
 alter table public.carsitting_datos enable row level security;
 alter table public.contratos enable row level security;
@@ -917,6 +933,9 @@ grant execute on function public.es_usuaria_autorizada() to authenticated, anon;
 create policy app_config_authenticated_all on public.app_config as permissive for all to public
   using (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada))
   with check (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada));
+create policy borradores_propios on public.borradores as permissive for all to authenticated
+  using ((select public.es_usuaria_autorizada()) and usuaria = (select auth.uid()))
+  with check ((select public.es_usuaria_autorizada()) and usuaria = (select auth.uid()));
 create policy solo_autenticados_todo on public.asignaciones as permissive for all to public
   using (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada))
   with check (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada));
