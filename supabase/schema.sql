@@ -384,7 +384,29 @@ create table public.ninieras (
   telefono_pendiente text,
   telefono_pendiente_en timestamp with time zone,
   cedula text, -- 21/10/2026: la de la ficha (antes solo en carsitting_datos)
-  constraint ninieras_pkey PRIMARY KEY (id)
+  -- Cuenta de la niñera en su app (26/10/2026, fase 1): una cuenta, una ficha. La crea la Edge
+  -- Function ninera-cuenta con un mail sintético (mail_sintetico_ninera). app_activada_en: primer
+  -- ingreso (ninera_activar_app).
+  user_id uuid,
+  app_activada_en timestamp with time zone,
+  constraint ninieras_pkey PRIMARY KEY (id),
+  constraint ninieras_user_id_key UNIQUE (user_id)
+);
+
+-- Links de invitación y de cambio de contraseña de las niñeras (26/10/2026, fase 1). Los crea
+-- crear_invitacion_ninera(); solo sirve el último vigente de cada niñera (reemplazada_en) y una
+-- sola vez (usada_en, lo marca ninera-cuenta). Solo admins.
+create table public.ninera_invitaciones (
+  id uuid default gen_random_uuid() not null,
+  ninera_id uuid not null,
+  token text not null,
+  creada_por text,
+  creada_en timestamp with time zone default now() not null,
+  vence_en timestamp with time zone not null,
+  usada_en timestamp with time zone,
+  reemplazada_en timestamp with time zone,
+  constraint ninera_invitaciones_pkey PRIMARY KEY (id),
+  constraint ninera_invitaciones_token_key UNIQUE (token)
 );
 
 create table public.notif_push_enviadas (
@@ -460,6 +482,7 @@ create table public.push_subscriptions (
   p256dh text not null,
   auth_key text not null,
   creado_en timestamp with time zone default now() not null,
+  user_id uuid, -- 26/10/2026: la cuenta de la niñera (las admins van por usuario, el mail)
   constraint push_subscriptions_endpoint_key UNIQUE (endpoint),
   constraint push_subscriptions_pkey PRIMARY KEY (id)
 );
@@ -783,6 +806,9 @@ alter table public.intermediaciones_eventos_ninieras add constraint intermediaci
 alter table public.juguetes add constraint juguetes_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
 alter table public.juguetes_movimientos add constraint juguetes_movimientos_juguete_id_fkey FOREIGN KEY (juguete_id) REFERENCES juguetes(id) ON DELETE CASCADE;
 alter table public.ninieras add constraint ninieras_candidata_id_fkey FOREIGN KEY (candidata_id) REFERENCES candidatas(id) ON DELETE SET NULL;
+alter table public.ninieras add constraint ninieras_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+alter table public.ninera_invitaciones add constraint ninera_invitaciones_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE CASCADE;
+alter table public.push_subscriptions add constraint push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.resenas_ninieras add constraint resenas_ninieras_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
 alter table public.asignaciones_pausas add constraint asignaciones_pausas_asignacion_id_fkey FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE CASCADE;
 alter table public.ajustes_saldo add constraint ajustes_saldo_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id);
@@ -817,6 +843,8 @@ CREATE INDEX idx_hijos_familia_familia_id ON public.hijos_familia USING btree (f
 CREATE INDEX idx_ninieras_activa ON public.ninieras USING btree (activa);
 CREATE INDEX ninieras_candidata_id_idx ON public.ninieras USING btree (candidata_id);
 CREATE UNIQUE INDEX ninieras_temporada_token_key ON public.ninieras USING btree (temporada_token);
+CREATE INDEX ninera_invitaciones_ninera_id_idx ON public.ninera_invitaciones USING btree (ninera_id);
+CREATE INDEX push_subscriptions_user_id_idx ON public.push_subscriptions USING btree (user_id);
 CREATE INDEX idx_resenas_ninera_id ON public.resenas_ninieras USING btree (ninera_id);
 CREATE INDEX idx_resenas_ninera_nombre ON public.resenas_ninieras USING btree (ninera_nombre);
 CREATE INDEX idx_asignaciones_pausas ON public.asignaciones_pausas USING btree (asignacion_id, desde, hasta);
@@ -875,6 +903,7 @@ alter table public.intermediaciones_eventos_ninieras enable row level security;
 alter table public.juguetes enable row level security;
 alter table public.juguetes_movimientos enable row level security;
 alter table public.ninieras enable row level security;
+alter table public.ninera_invitaciones enable row level security;
 alter table public.notif_push_enviadas enable row level security;
 alter table public.notif_push_preferencias enable row level security;
 alter table public.notificaciones_leidas enable row level security;
@@ -993,6 +1022,8 @@ create policy solo_autenticados_todo on public.juguetes_movimientos as permissiv
 create policy solo_autenticados_todo on public.ninieras as permissive for all to public
   using (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada))
   with check (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada));
+create policy solo_autorizadas_todo on public.ninera_invitaciones as permissive for all to public
+  using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
 create policy notif_push_enviadas_authenticated_all on public.notif_push_enviadas as permissive for all to authenticated
   using ((select public.es_usuaria_autorizada()))
   with check ((select public.es_usuaria_autorizada()));
@@ -1009,6 +1040,9 @@ create policy solo_autorizadas_leer on public.pedidos_whatsapp_uso as permissive
 create policy push_subscriptions_authenticated_all on public.push_subscriptions as permissive for all to authenticated
   using ((select public.es_usuaria_autorizada()))
   with check ((select public.es_usuaria_autorizada()));
+-- Niñeras (26/10/2026): cada cuenta lee, escribe y borra solo sus suscripciones.
+create policy push_propias on public.push_subscriptions as permissive for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 create policy resenas_ninieras_authenticated_all on public.resenas_ninieras as permissive for all to public
   using (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada))
   with check (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada));
@@ -1351,6 +1385,139 @@ begin
 end
 $function$;
 revoke execute on function public.reservar_llamada_pedido(text, boolean, integer) from public, anon, authenticated;
+
+-- Cuentas de las niñeras (26/10/2026, fase 1; ver 20261026_cuentas_ninieras.sql).
+-- Celular normalizado: solo dígitos; se quita un 0 inicial; 8 dígitos que empiezan en 9 → se
+-- antepone 598; 11 dígitos que empiezan en 5989 quedan igual; cualquier otra cosa → null (no se
+-- puede invitar: la admin corrige el celular). Así '+598 99 123 456', '099123456', '99123456',
+-- '099-123-456' y '59899123456' dan siempre '59899123456', y un número de otro país da null.
+-- Tiene que dar lo mismo que normalizarCelular() en js/comun.js y en ninera-cuenta.
+create or replace function public.normalizar_celular(p text)
+returns text
+language sql
+immutable
+set search_path to ''
+as $function$
+  select case
+           when d ~ '^9[0-9]{7}$' then '598' || d
+           when d ~ '^5989[0-9]{7}$' then d
+         end
+    from (select regexp_replace(regexp_replace(coalesce(p, ''), '[^0-9]', '', 'g'), '^0', '') as d) x
+$function$;
+
+-- Mail sintético de la cuenta de una niñera; null si el celular no normaliza. El dominio vive
+-- solo acá en la base: tiene que ser igual a MAIL_DOMINIO_NINERA en js/comun.js y en la Edge
+-- Function ninera-cuenta.
+create or replace function public.mail_sintetico_ninera(p_celular text)
+returns text
+language sql
+immutable
+set search_path to ''
+as $function$
+  select public.normalizar_celular(p_celular) || '@ninieras.parentsbreak.invalid'
+$function$;
+
+-- La niñera de la sesión: su ficha si está activa, o null (admin, cuenta sin ficha, dada de baja
+-- o sin sesión). Mismo patrón que es_usuaria_autorizada(): security definer para leer ninieras
+-- sin abrirle la tabla, y ejecutable por anon para que una política "to public" no falle.
+create or replace function public.ninera_actual()
+returns uuid
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  select id from public.ninieras where user_id = auth.uid() and activa limit 1
+$function$;
+revoke execute on function public.ninera_actual() from public;
+grant execute on function public.ninera_actual() to authenticated, anon;
+
+create or replace function public.es_ninera()
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  select public.ninera_actual() is not null
+$function$;
+revoke execute on function public.es_ninera() from public;
+grant execute on function public.es_ninera() to authenticated, anon;
+
+-- Primer ingreso a la app: anota la fecha una sola vez (nunca la pisa) y la devuelve; null si la
+-- sesión no es de una niñera activa. Solo actualiza si estaba vacía, para no disparar un cambio
+-- de Realtime en ninieras en cada ingreso.
+create or replace function public.ninera_activar_app()
+returns timestamp with time zone
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_id uuid := public.ninera_actual();
+  v_fecha timestamp with time zone;
+begin
+  if v_id is null then
+    return null;
+  end if;
+  update public.ninieras set app_activada_en = now() where id = v_id and app_activada_en is null;
+  select app_activada_en into v_fecha from public.ninieras where id = v_id;
+  return v_fecha;
+end
+$function$;
+-- En Supabase anon tiene execute por defecto en public: se le saca a mano.
+revoke execute on function public.ninera_activar_app() from public, anon;
+grant execute on function public.ninera_activar_app() to authenticated;
+
+-- Link de invitación (o de cambio de contraseña, si ya tiene cuenta) para una niñera. Lo llama
+-- la admin desde la ficha, con su sesión. Un link nuevo invalida los anteriores de esa niñera
+-- que no se usaron. Token: dos gen_random_uuid() pegados sin guiones (64 hex; sin pgcrypto),
+-- como cron_push_secret. La vigencia sale de app_config 'ninieras_app' (7 días si no está).
+create or replace function public.crear_invitacion_ninera(p_ninera_id uuid)
+returns table (token text, vence_en timestamp with time zone, es_reset boolean)
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_telefono text;
+  v_user_id uuid;
+  v_token text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+  v_vence timestamp with time zone;
+begin
+  if not coalesce((select public.es_usuaria_autorizada()), false) then
+    raise exception 'no_autorizada';
+  end if;
+  -- for update: si dos admins generan el link a la vez, la segunda espera y reemplaza el de la
+  -- primera; nunca quedan dos vigentes.
+  select n.telefono, n.user_id into v_telefono, v_user_id
+    from public.ninieras n where n.id = p_ninera_id for update;
+  if not found then
+    raise exception 'ninera_no_encontrada';
+  end if;
+  if public.mail_sintetico_ninera(v_telefono) is null then
+    raise exception 'celular_invalido';
+  end if;
+  v_vence := now() + make_interval(days => coalesce(
+    (select (c.valor ->> 'vigencia_dias')::int from public.app_config c where c.id = 'ninieras_app'), 7));
+
+  update public.ninera_invitaciones i set reemplazada_en = now()
+   where i.ninera_id = p_ninera_id and i.usada_en is null and i.reemplazada_en is null;
+  insert into public.ninera_invitaciones (ninera_id, token, creada_por, vence_en)
+  values (p_ninera_id, v_token, coalesce(auth.email(), auth.uid()::text), v_vence);
+
+  return query select v_token, v_vence, v_user_id is not null;
+end
+$function$;
+revoke execute on function public.crear_invitacion_ninera(uuid) from public, anon;
+grant execute on function public.crear_invitacion_ninera(uuid) to authenticated;
+
+-- Configuración de la app de niñeras (como los buckets, va con la estructura): vigencia del
+-- link de invitación en días. Sin la fila, crear_invitacion_ninera usa 7.
+insert into public.app_config (id, valor) values ('ninieras_app', '{"vigencia_dias": 7}')
+on conflict (id) do nothing;
 
 
 -- Fijos automáticos (06/10/2026). El proceso. Lo corre pg_cron todos los días a las 03:00 de Montevideo (lo programa
