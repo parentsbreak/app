@@ -49,8 +49,10 @@ function mostrarCargaNinera(msg = 'Cargando…'){
   if(el) el.textContent = msg;
 }
 
-// Error que no deja seguir: el título y el detalle, y "Reintentar" vuelve a cargar todo.
+// Error que no deja seguir: el título y el detalle, y "Reintentar" vuelve a cargar todo. Con su
+// propia ruta (#error), como cada pantalla.
 function mostrarErrorNinera(titulo, detalle){
+  marcarRuta('#error');
   pintar(`<div class="pantallacarga" id="pantalla-error" role="alert">
     <img src="../logo.png" alt="Parents’ Break" class="pantallacarga-logo">
     <div class="pantallacarga-msg"><b>${escaparHtml(titulo)}</b> ${escaparHtml(detalle)}</div>
@@ -67,7 +69,7 @@ function pintarMensajeNinera(texto, acciones = ''){
   </main>`);
 }
 
-/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos ----
+/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #inactiva, #error ----
    La URL dice en qué pantalla está. Se cambia con replaceState, sin sumar pasos al historial:
    "Atrás" en el celular no tiene que volver a una pantalla vieja (el login después de entrar). */
 function marcarRuta(hash){

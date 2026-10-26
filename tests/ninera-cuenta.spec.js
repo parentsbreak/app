@@ -199,7 +199,7 @@ test.describe('invitación: crear la contraseña desde el link', () => {
     expect(url.hash).toBe('#inicio');
     expect(await page.evaluate(() => [!!localStorage.getItem('sb-ninera-auth'), localStorage.getItem('sb-wvewzamdohrpfhpccvcz-auth-token')])).toEqual([true, null]);
     expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app']);
-    // Al volver a abrir la app, el nombre sigue (lo guarda este celular para esta cuenta).
+    // Al volver a abrir la app, el nombre sigue (viene en la cuenta, user_metadata).
     await page.reload();
     await expect(page.locator('h1')).toHaveText('Hola, Ana');
     verificarLimpio(e);
@@ -303,6 +303,24 @@ test.describe('invitación: crear la contraseña desde el link', () => {
     await expect(page.locator('#app img[src="x"]')).toHaveCount(0);
     verificarLimpio(e);
   });
+
+  test('link para cambiar la contraseña (es_reset): otro título y otro texto, y entra igual', async ({ page }) => {
+    const e = await abrirInvitacion(page, e => {
+      e.funciones['ninera-cuenta'] = cuerpo => (cuerpo.password === undefined
+        ? { json: { nombre: 'Ana', celular_mascarado: '••• 001', es_reset: true } }
+        : { json: { celular: '59900000001' } });
+    });
+    await expect(page.locator('h1')).toHaveText('Crea una contraseña nueva');
+    await expect(page.locator('#app')).toContainText("Ana, con esta contraseña vas a entrar a la app de Parents' Break.");
+    await expect(page.locator('#app')).not.toContainText('Te invitamos');
+    await expect(page.locator('#inv-btn')).toHaveText('Guardar contraseña');
+    await page.fill('#inv-pass', 'clave-ficticia-9');
+    await page.fill('#inv-pass2', 'clave-ficticia-9');
+    await page.click('#inv-btn');
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    expect(llamadasFuncion(e)).toEqual([{ token: TOKEN }, { token: TOKEN, password: 'clave-ficticia-9' }]);
+    verificarLimpio(e);
+  });
 });
 
 test.describe('login con el celular', () => {
@@ -315,6 +333,8 @@ test.describe('login con el celular', () => {
       await page.fill('#login-pass', 'clave-ficticia-1');
       await page.click('#login-btn');
       await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+      // El nombre viene en la cuenta: saluda también después de un login sin invitación.
+      await expect(page.locator('h1')).toHaveText('Hola, Ana');
       await page.getByRole('button', { name: 'Mi cuenta' }).click();
       await page.locator('#modal-ninera').getByRole('button', { name: 'Cerrar sesión' }).click();
       await expect(page.locator('#login-celular')).toBeVisible();
@@ -343,6 +363,12 @@ test.describe('login con el celular', () => {
     await expect(page.locator('#login-error')).toHaveText('El celular o la contraseña no son correctos');
     await expect(page.locator('#login-btn')).toBeEnabled();
     await expect(page.locator('#login-btn')).toHaveText('Entrar');
+
+    // Muchos intentos seguidos (Supabase responde 429): no es la contraseña.
+    e.fallar = p => (p.tabla === '/auth/v1/token' ? { status: 429, message: 'rate limit' } : undefined);
+    await page.click('#login-btn');
+    await expect(page.locator('#login-error')).toHaveText('Demasiados intentos. Espera un minuto y vuelve a intentar.');
+    await expect(page.locator('#login-btn')).toBeEnabled();
 
     e.fallar = () => 'red';
     await page.locator('#login-pass').press('Enter');
@@ -389,10 +415,26 @@ test.describe('instalar la app', () => {
       "Abre Parents' Break desde el ícono.",
     ]);
     await expect(page.locator('#app')).toContainText('Con Android alcanza con tocar "Instalar" cuando aparezca.');
+    // La app instalada del iPhone no comparte la sesión con Safari: hay que volver a entrar.
+    await expect(page.locator('#app')).toContainText('Después de instalarla, entra con tu celular y la contraseña que creaste.');
     // ninera_activar_app ya corrió antes de esta pantalla.
     expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app']);
     await page.getByRole('button', { name: 'Ya la instalé' }).click();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    verificarLimpio(e);
+  });
+
+  test('en el navegador del iPhone (sin avisos): el inicio pide instalarla en vez de "Avisos apagados"', async ({ page }) => {
+    // Safari sin instalar no tiene PushManager.
+    await page.addInitScript(() => { delete window.PushManager; });
+    const e = await abrir(page, { instalada: false });
+    await page.getByRole('button', { name: 'Ya la instalé' }).click();
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await expect(page.locator('#inicio-avisos')).toContainText('Instala la app para recibir los pedidos.');
+    await expect(page.locator('#app')).not.toContainText('Avisos apagados');
+    await page.locator('#inicio-avisos').getByRole('button', { name: 'Ver cómo' }).click();
+    await expect(page.locator('ol.pasos')).toBeVisible();
+    expect(new URL(page.url()).hash).toBe('#instalar');
     verificarLimpio(e);
   });
 
@@ -449,7 +491,8 @@ test.describe('avisos', () => {
     expect(e.escrituras.filter(w => w.tabla === 'push_subscriptions')).toHaveLength(0);
     await page.reload();
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
-    await expect(page.locator('#app')).not.toContainText('Activa los avisos.');
+    await expect(page.locator('h1')).toHaveText('Hola, Ana');
+    expect(new URL(page.url()).hash).toBe('#inicio'); // no #avisos
     verificarLimpio(e);
   });
 
@@ -509,6 +552,42 @@ test.describe('arranque con sesión', () => {
     await expect(page.locator('#login-celular')).toBeVisible();
     expect(e.escrituras.filter(w => w.tabla === '/auth/v1/logout')).toHaveLength(1);
     expect(rpcLlamadas(e).filter(n => n === 'ninera_activar_app').length).toBe(activadas);
+    verificarLimpio(e);
+  });
+
+  test('cuenta dada de baja después de un login: "Cerrar sesión" vuelve al login sin recargar', async ({ page }) => {
+    // Antes la URL quedaba en #login y cerrar sesión no pintaba nada (revisión del 27/10/2026).
+    const e = await abrir(page, { sesion: false });
+    e.rpc.ninera_actual = () => null;
+    await page.fill('#login-celular', '099000001');
+    await page.fill('#login-pass', 'clave-ficticia-1');
+    await page.click('#login-btn');
+    await expect(page.locator('#app')).toContainText('Tu cuenta no está activa. Escríbenos por WhatsApp.');
+    expect(new URL(page.url()).hash).toBe('#inactiva');
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await expect(page.locator('#login-celular')).toBeVisible();
+    await expect(page.locator('#app')).not.toContainText('no está activa');
+    expect(await page.evaluate(() => localStorage.getItem('sb-ninera-auth'))).toBeNull();
+    expect(e.escrituras.filter(w => w.tabla === '/auth/v1/logout')).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('el saludo usa el nombre de la cuenta al arrancar con la sesión guardada; escapado y sin nombre', async ({ page }) => {
+    const e = await abrir(page);
+    await expect(page.locator('h1')).toHaveText('Hola, Ana');
+    // Un nombre con HTML se muestra como texto (se toca la sesión guardada: no hay red al arrancar).
+    const cambiarNombre = nombre => page.evaluate(nombre => {
+      const s = JSON.parse(localStorage.getItem('sb-ninera-auth'));
+      if (nombre === null) delete s.user.user_metadata.nombre; else s.user.user_metadata.nombre = nombre;
+      localStorage.setItem('sb-ninera-auth', JSON.stringify(s));
+    }, nombre);
+    await cambiarNombre('<img src=x onerror="window.__xss=1"> Ficticia');
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('Hola, <img');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await cambiarNombre(null);
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('Hola');
     verificarLimpio(e);
   });
 

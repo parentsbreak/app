@@ -46,10 +46,13 @@ export type Invitacion = {
 
 export type Deps = {
   buscarInvitacion(token: string): Promise<Invitacion | null>;
-  // Crea la cuenta de Auth ya confirmada y devuelve su id.
-  crearUsuario(email: string, password: string, nineraId: string): Promise<string>;
-  // Cambio de contraseña: también el mail, por si la admin le cambió el celular en la ficha.
-  actualizarUsuario(userId: string, cambios: { password: string; email: string }): Promise<void>;
+  // Crea la cuenta de Auth ya confirmada y devuelve su id. El nombre (el de la ficha) va en
+  // user_metadata con el ninera_id: la app lo lee de la sesión para saludar (27/10/2026), en
+  // cualquier celular y en la app instalada, sin leer la ficha.
+  crearUsuario(email: string, password: string, nineraId: string, nombre: string): Promise<string>;
+  // Cambio de contraseña: también el mail, por si la admin le cambió el celular en la ficha, y el
+  // nombre en user_metadata, por si lo corrigió.
+  actualizarUsuario(userId: string, cambios: { password: string; email: string; nineraId: string; nombre: string }): Promise<void>;
   vincular(nineraId: string, userId: string): Promise<void>;
   // Marca el link usado solo si nadie lo marcó antes; false si ya estaba usado (otro pedido con el
   // mismo link llegó al mismo tiempo y ganó).
@@ -91,11 +94,12 @@ export async function procesarCuenta(deps: Deps, entrada: { token?: unknown; pas
     if (!celular) return { status: 409, cuerpo: { error: "celular_invalido" } };
     const email = `${celular}@${MAIL_DOMINIO_NINERA}`;
 
+    const nombre = (inv.nombre || "").trim();
     if (inv.user_id === null) {
-      const userId = await deps.crearUsuario(email, password, inv.ninera_id);
+      const userId = await deps.crearUsuario(email, password, inv.ninera_id, nombre);
       await deps.vincular(inv.ninera_id, userId);
     } else {
-      await deps.actualizarUsuario(inv.user_id, { password, email });
+      await deps.actualizarUsuario(inv.user_id, { password, email, nineraId: inv.ninera_id, nombre });
     }
     // Primero la cuenta y después la marca: si la marca falla, el link sigue sirviendo para
     // reintentar. Si otro pedido con el mismo link lo marcó en el medio, ese ya hizo lo mismo

@@ -7,8 +7,6 @@ const NINERA_CUENTA_URL = `${SUPABASE_URL}/functions/v1/ninera-cuenta`;
 const MIN_PASSWORD_NINERA = 8;
 const TEXTO_SIN_CONEXION_CUENTA = 'No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.';
 const TEXTO_SIN_CONEXION_LOGIN = 'No pudimos entrar. Revisa tu conexión a internet y vuelve a intentar.';
-// El primer nombre que llegó con la invitación, para el saludo del inicio.
-let nombreInvitacionNinera = '';
 
 /* ---- Invitación: /ninera/?i=<token> ---- */
 
@@ -43,14 +41,19 @@ async function pantallaInvitacion(token){
   mostrarCargaNinera();
   const r = await llamarNineraCuenta({ token });
   if(r.status !== 200 || typeof r.json.nombre !== 'string'){ pantallaErrorInvitacion(r); return; }
-  nombreInvitacionNinera = r.json.nombre;
-  const saludo = r.json.nombre ? `${escaparHtml(r.json.nombre)}, desde ahora` : 'Desde ahora';
+  const nombre = escaparHtml(r.json.nombre);
+  // Link para cambiar la contraseña (la cuenta ya existe): otro título y otro texto. Textos
+  // provisorios (27/10/2026), a confirmar por Paulina y Delfina.
+  const titulo = r.json.es_reset ? 'Crea una contraseña nueva' : "Te invitamos a Parents' Break";
+  const texto = r.json.es_reset
+    ? `${nombre ? `${nombre}, con` : 'Con'} esta contraseña vas a entrar a la app de Parents' Break.`
+    : `${nombre ? `${nombre}, desde ahora` : 'Desde ahora'} los pedidos te llegarán por aquí en vez de por WhatsApp.`;
   const celular = r.json.celular_mascarado
     ? `<p class="helper">Entrarás con tu celular ${escaparHtml(r.json.celular_mascarado)} y esta contraseña.</p>` : '';
   pintar(`<main class="pantalla">
     <img src="../logo.png" alt="Parents’ Break" class="pantalla-logo">
-    <h1>Te invitamos a Parents' Break</h1>
-    <p class="intro">${saludo} los pedidos te llegarán por aquí en vez de por WhatsApp.</p>
+    <h1>${titulo}</h1>
+    <p class="intro">${texto}</p>
     <div class="field">
       <label for="inv-pass">Crea una contraseña</label>
       <input type="password" id="inv-pass" autocomplete="new-password">
@@ -112,21 +115,7 @@ async function crearCuentaDesdeInvitacion(token){
     return;
   }
   sesionNinera = data.session;
-  guardarNombreNinera(sesionNinera.user.id, nombreInvitacionNinera);
   await seguirConSesionNinera();
-}
-
-// El primer nombre llega solo con la invitación: la niñera todavía no puede leer su ficha (eso
-// llega con el perfil, etapa 2). Se guarda en este celular junto con el id de la cuenta, para no
-// saludar con otro nombre si después entra otra cuenta.
-function guardarNombreNinera(uid, nombre){
-  if(uid && nombre) guardarLocalNinera('pb-ninera-nombre', JSON.stringify({ uid, nombre }));
-}
-function nombreNineraGuardado(){
-  try{
-    const d = JSON.parse(leerLocalNinera('pb-ninera-nombre') || 'null');
-    return d && sesionNinera && d.uid === sesionNinera.user.id ? String(d.nombre || '') : '';
-  }catch(e){ return ''; }
 }
 
 /* ---- Login con el celular (decisiones.md 5.2) ----
@@ -158,6 +147,8 @@ function mostrarErrorLogin(texto){
   if(el) el.textContent = texto;
 }
 function textoErrorLogin(error){
+  // 429: Supabase frena los logins seguidos desde el mismo lugar; no es la contraseña.
+  if(error && error.status === 429) return 'Demasiados intentos. Espera un minuto y vuelve a intentar.';
   return esErrorDeRedAuth(error) ? TEXTO_SIN_CONEXION_LOGIN : 'El celular o la contraseña no son correctos';
 }
 
@@ -193,13 +184,16 @@ function olvideContrasena(){
   if(el) el.textContent = 'Pídele un link nuevo al equipo por WhatsApp.';
 }
 
+// Con su propia ruta: si quedaba la de antes (#login), cerrar sesión no volvía a pintar el login.
 function pantallaCuentaInactiva(){
+  marcarRuta('#inactiva');
   pintarMensajeNinera('Tu cuenta no está activa. Escríbenos por WhatsApp.',
     '<button class="btn ghost ancho" onclick="conGuardado(this, ()=>cerrarSesionNinera())">Cerrar sesión</button>');
 }
 
 // scope 'local' (regla del panel, 21/10/2026): cierra solo este celular. Si no se pudo (sin
 // conexión), supabase-js deja la sesión abierta: se avisa y no se muestra el login como si nada.
+// Si se cerró, el login se pinta siempre, aunque el aviso de SIGNED_OUT ya lo haya hecho.
 async function cerrarSesionNinera(){
   let error = null;
   try{ ({ error } = await sbn.auth.signOut({ scope: 'local' })); }catch(e){ error = e; }
@@ -210,7 +204,7 @@ async function cerrarSesionNinera(){
   }
   sesionNinera = null;
   cerrarModalNinera();
-  if(rutaActual() !== '#login') pantallaLogin();
+  pantallaLogin();
 }
 
 /* ---- Instalar la app ---- */
@@ -220,7 +214,8 @@ function esAppInstalada(){
 }
 
 // En el iPhone los avisos solo llegan con la app agregada a la pantalla de inicio. "Copiar el link"
-// es para cuando el link se abrió dentro de WhatsApp y hay que pasarlo a Safari.
+// es para cuando el link se abrió dentro de WhatsApp y hay que pasarlo a Safari. La app instalada
+// no comparte la sesión con Safari: ahí hay que volver a entrar (27/10/2026).
 function pantallaInstalar(){
   marcarRuta('#instalar');
   pintar(`<main class="pantalla">
@@ -232,6 +227,7 @@ function pantallaInstalar(){
       <li>Agregar a pantalla de inicio.</li>
       <li>Abre Parents' Break desde el ícono.</li>
     </ol>
+    <p class="intro">Después de instalarla, entra con tu celular y la contraseña que creaste.</p>
     <button class="btn ghost ancho" onclick="copiarAlPortapapeles(${argJs(NINERA_URL_BASE)}, 'Link copiado.')">Copiar el link</button>
     <p class="helper">Con Android alcanza con tocar "Instalar" cuando aparezca.</p>
     <button class="btn primary ancho" onclick="continuarDespuesDeInstalar()">Ya la instalé</button>

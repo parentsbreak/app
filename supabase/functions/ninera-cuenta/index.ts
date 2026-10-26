@@ -74,14 +74,16 @@ Deno.serve(async (req: Request) => {
         reemplazada_en: fila.reemplazada_en,
       };
     }),
-    crearUsuario: conRegistro("crearUsuario", async (email: string, password: string, nineraId: string) => {
-      const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { ninera_id: nineraId } });
+    crearUsuario: conRegistro("crearUsuario", async (email: string, password: string, nineraId: string, nombre: string) => {
+      const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { ninera_id: nineraId, nombre } });
       if (error) throw error;
       if (!data.user) throw new Error("Auth no devolvió la cuenta creada");
       return data.user.id;
     }),
-    actualizarUsuario: conRegistro("actualizarUsuario", async (userId: string, cambios: { password: string; email: string }) => {
-      const { error } = await sb.auth.admin.updateUserById(userId, { password: cambios.password, email: cambios.email });
+    actualizarUsuario: conRegistro("actualizarUsuario", async (userId: string, cambios: { password: string; email: string; nineraId: string; nombre: string }) => {
+      const { error } = await sb.auth.admin.updateUserById(userId, {
+        password: cambios.password, email: cambios.email, user_metadata: { ninera_id: cambios.nineraId, nombre: cambios.nombre },
+      });
       if (error) throw error;
     }),
     vincular: conRegistro("vincular", async (nineraId: string, userId: string) => {

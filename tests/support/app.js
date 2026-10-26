@@ -22,10 +22,11 @@ const USUARIO = {
   id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated',
   email: 'prueba@ejemplo.test', user_metadata: { nombre: 'Prueba' }, app_metadata: {},
 };
-// La cuenta de una niñera (fase 1): mail sintético armado con el celular, nunca uno real.
+// La cuenta de una niñera (fase 1): mail sintético armado con el celular, nunca uno real. El
+// nombre de la ficha va en user_metadata, como lo deja la Edge Function ninera-cuenta (27/10/2026).
 const USUARIO_NINERA = {
   id: ID.uNinera, aud: 'authenticated', role: 'authenticated',
-  email: '59900000001@ninieras.parentsbreak.invalid', user_metadata: {}, app_metadata: {},
+  email: '59900000001@ninieras.parentsbreak.invalid', user_metadata: { nombre: 'Ana Ficticia', ninera_id: ID.nAna }, app_metadata: {},
 };
 
 function base64url(obj) { return Buffer.from(JSON.stringify(obj)).toString('base64url'); }

@@ -33,8 +33,8 @@ function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">, yaM
   };
   const deps: Deps = {
     buscarInvitacion: async (token) => { llamadas.buscar.push(token); fallar("buscarInvitacion"); return inv ? { ...inv } : null; },
-    crearUsuario: async (email, password, nineraId) => {
-      llamadas.crear.push([email, password, nineraId]); fallar("crearUsuario");
+    crearUsuario: async (email, password, nineraId, nombre) => {
+      llamadas.crear.push([email, password, nineraId, nombre]); fallar("crearUsuario");
       return "40000000-0000-4000-8000-000000000001";
     },
     actualizarUsuario: async (userId, cambios) => { llamadas.actualizar.push([userId, cambios]); fallar("actualizarUsuario"); },
@@ -150,7 +150,8 @@ Deno.test("alta: crea la cuenta con el mail sintético, la vincula y marca el li
   const { deps, llamadas } = simulado(invitacion());
   const r = await procesarCuenta(deps, { token: TOKEN, password: "clave1234" });
   assertEquals(r, { status: 200, cuerpo: { celular: "59899000001" } });
-  assertEquals(llamadas.crear, [["59899000001@ninieras.parentsbreak.invalid", "clave1234", "30000000-0000-4000-8000-000000000001"]]);
+  // El nombre de la ficha va a user_metadata (la app saluda con el primero).
+  assertEquals(llamadas.crear, [["59899000001@ninieras.parentsbreak.invalid", "clave1234", "30000000-0000-4000-8000-000000000001", "Ana Ficticia"]]);
   assertEquals(llamadas.vincular, [["30000000-0000-4000-8000-000000000001", "40000000-0000-4000-8000-000000000001"]]);
   assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
   assertEquals(llamadas.actualizar, []);
@@ -163,10 +164,14 @@ Deno.test("alta: crea la cuenta con el mail sintético, la vincula y marca el li
 });
 
 Deno.test("reset: cambia la contraseña y el mail de la cuenta que ya existe, sin crear otra", async () => {
-  const { deps, llamadas } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009", telefono: "+598 99 000 002" }));
+  const { deps, llamadas } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009", telefono: "+598 99 000 002", nombre: " Bea Ficticia " }));
   const r = await procesarCuenta(deps, { token: TOKEN, password: "otraclave99" });
   assertEquals(r, { status: 200, cuerpo: { celular: "59899000002" } });
-  assertEquals(llamadas.actualizar, [["40000000-0000-4000-8000-000000000009", { password: "otraclave99", email: "59899000002@ninieras.parentsbreak.invalid" }]]);
+  // También el nombre (sin espacios alrededor) y el ninera_id, por si la admin corrigió la ficha.
+  assertEquals(llamadas.actualizar, [["40000000-0000-4000-8000-000000000009", {
+    password: "otraclave99", email: "59899000002@ninieras.parentsbreak.invalid",
+    nineraId: "30000000-0000-4000-8000-000000000001", nombre: "Bea Ficticia",
+  }]]);
   assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
   assertEquals([llamadas.crear, llamadas.vincular], [[], []]);
   assertEquals(llamadas.orden, ["buscarInvitacion", "actualizarUsuario", "marcarUsada"]);

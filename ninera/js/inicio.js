@@ -3,9 +3,16 @@
 // fechas de pago, nunca (textos.md, sección 3). Los pedidos y los próximos sittings llegan en las
 // etapas 5 y 6.
 
+// El nombre viene en la cuenta (user_metadata, lo pone ninera-cuenta al crearla o al cambiar la
+// contraseña): sirve en cualquier celular y en la app instalada. Se saluda con el primero.
+function primerNombreNinera(){
+  const nombre = sesionNinera && sesionNinera.user && sesionNinera.user.user_metadata && sesionNinera.user.user_metadata.nombre;
+  return typeof nombre === 'string' ? (nombre.trim().split(/\s+/)[0] || '') : '';
+}
+
 async function renderInicio(){
   marcarRuta('#inicio');
-  const nombre = nombreNineraGuardado();
+  const nombre = primerNombreNinera();
   pintar(`<main class="pantalla">
     <header class="cabecera">
       <img src="../logo-simbolo.png" alt="" class="cabecera-simbolo">
@@ -17,10 +24,18 @@ async function renderInicio(){
       <button type="button" class="link-boton" onclick="abrirMiCuentaNinera()">Mi cuenta</button>
     </footer>
   </main>`);
+  const cont = document.getElementById('inicio-avisos');
+  // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
+  if(!esAppInstalada() && !avisosSoportados()){
+    cont.innerHTML = `<div class="aviso-apagado" role="alert">
+      <p>Instala la app para recibir los pedidos.</p>
+      <button class="btn primary ancho" onclick="irA('#instalar')">Ver cómo</button>
+    </div>`;
+    return;
+  }
   // Se pinta primero y el aviso se suma después: mirar la suscripción puede tardar un momento.
   if(avisosSoportados() && !(await avisosActivados())){
-    const cont = document.getElementById('inicio-avisos');
-    if(cont) cont.innerHTML = `<div class="aviso-apagado" role="alert">
+    if(cont.isConnected) cont.innerHTML = `<div class="aviso-apagado" role="alert">
       <p>Avisos apagados. No te van a llegar los pedidos. Actívalos en Ajustes.</p>
       <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosNinera('#inicio'))">Activar avisos</button>
     </div>`;
