@@ -1,0 +1,1354 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Guía de niñeras Parents' Break</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+
+/* Layout: guía con barra lateral fija (secciones numeradas) y una sección por pantalla en el área principal; en celular la barra se abre como panel */
+:root{
+  --bg:#F6F5FB; --paper:#FFFFFF; --ink:#2A2A3D; --muted:#6B6B82; --line:#E4E2F0;
+  --clay:#DF8386; --clay-soft:#F8E3E4; --accent:#757CBB; --accent-soft:#E7E8F5;
+  --ok:#3E8E6A; --ok-soft:#E1F2EA; --warn:#B4532A; --warn-soft:#FBEADF;
+  --display:'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  --body:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --g:20px; --side:#EFEDF7; --hover:#E6E3F2;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#17161F; --paper:#211F2C; --ink:#ECEAF6; --muted:#A3A1B8; --line:#353347;
+  --clay:#E99A9D; --clay-soft:#3A2829; --accent:#9CA2DD; --accent-soft:#2B2C45;
+  --ok:#6CC59B; --ok-soft:#1F3A2E; --warn:#F0A07A; --warn-soft:#3D2A1F; --side:#1C1B26; --hover:#2A2838; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17161F; --paper:#211F2C; --ink:#ECEAF6; --muted:#A3A1B8; --line:#353347;
+  --clay:#E99A9D; --clay-soft:#3A2829; --accent:#9CA2DD; --accent-soft:#2B2C45;
+  --ok:#6CC59B; --ok-soft:#1F3A2E; --warn:#F0A07A; --warn-soft:#3D2A1F; --side:#1C1B26; --hover:#2A2838; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,6vw,2.8rem);color:var(--accent)}
+h2{font-size:1.7rem}
+h3{font-size:1.2rem}
+p{margin:0}
+a{color:var(--accent)}
+.lead{color:var(--muted);max-width:60ch}
+
+/* índice */
+.module.act .mhead{border-top-color:var(--ok)}
+.module.act .mhead .age{color:var(--ok)}
+.total{font-size:.9rem;color:var(--muted)}
+.total strong{font-family:var(--mono);color:var(--ink)}
+.notice{background:var(--accent-soft);border-radius:12px;padding:14px 16px;font-size:.92rem}
+
+/* módulos */
+.module{display:flex;flex-direction:column;gap:var(--g);scroll-margin-top:16px}
+.mhead{display:flex;flex-direction:column;gap:4px;border-top:2px solid var(--clay);padding-top:14px}
+.module.need .mhead{border-top-color:var(--accent)}
+.mhead .age{font-family:var(--mono);font-size:.8rem;color:var(--clay)}
+.module.need .mhead .age{color:var(--accent)}
+.mhead p{color:var(--muted);font-size:.95rem;max-width:60ch}
+.lesson{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.lesson summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:center;padding:16px}
+.lesson summary::-webkit-details-marker{display:none}
+.lesson summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dot{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+.lesson.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.stitle{flex:1;min-width:0;display:flex;flex-direction:column}
+.stitle b{font-weight:600;line-height:1.3}
+.stitle small{color:var(--muted);font-size:.82rem}
+.chev{flex:none;color:var(--muted);transition:transform .2s}
+.lesson[open] .chev{transform:rotate(90deg)}
+.lbody{padding:0 16px 18px 56px;display:flex;flex-direction:column;gap:14px}
+.lbody ul,.lbody ol{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
+.key{background:var(--clay-soft);border-radius:10px;padding:12px 14px}
+.key b{color:var(--clay)}
+.alarm{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:6px;padding:12px 14px}
+.alarm b{color:var(--warn)}
+.table{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.82rem}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.src{font-size:.8rem;color:var(--muted)}
+.src a{color:var(--muted)}
+.mark{align-self:flex-start;font:inherit;font-weight:600;font-size:.9rem;border:1.5px solid var(--accent);background:transparent;color:var(--accent);border-radius:999px;padding:8px 16px;cursor:pointer}
+.lesson.done .mark{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.mark:focus-visible,.opt:focus-visible,.seg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* repaso */
+.quiz{background:var(--paper);border:1px dashed var(--accent);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.q{display:flex;flex-direction:column;gap:8px}
+.q p{font-weight:600}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{font:inherit;text-align:left;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.opt.right{background:var(--ok-soft);border-color:var(--ok)}
+.opt.wrong{background:var(--warn-soft);border-color:var(--warn)}
+.fb{font-size:.9rem;color:var(--muted)}
+.emerg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.num{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column}
+.num b{font-family:var(--mono);font-size:1.5rem;color:var(--clay);user-select:all}
+.num small{color:var(--muted);font-size:.82rem}
+
+/* kit */
+.sheet{border:1.5px solid var(--accent);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--paper)}
+.sh-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sh-head h3{color:var(--accent);font-size:1.5rem}
+.sh-head small{font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+.sh-sub{color:var(--muted);font-size:.92rem}
+.sh-win{font-family:var(--display);font-weight:600;font-size:1.2rem;color:var(--clay);min-height:1.4em}
+.chk{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.chk button,.words button{font:inherit;text-align:left;display:flex;gap:10px;align-items:center;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer}
+.chk button::before,.words button::before{content:"";flex:none;width:20px;height:20px;border:2px solid var(--accent);border-radius:5px}
+.chk button.on::before,.words button.on::before{background:var(--accent);box-shadow:inset 0 0 0 3px var(--paper)}
+.words button.on{text-decoration:line-through;color:var(--muted)}
+.bingo{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.bingo button{font:inherit;font-weight:600;font-size:.85rem;line-height:1.2;aspect-ratio:1;min-width:0;border:1.5px solid var(--accent);background:var(--paper);color:var(--ink);border-radius:8px;padding:4px;cursor:pointer;position:relative;overflow:hidden}
+.bingo button.on{background:var(--clay-soft);color:var(--muted)}
+.bingo button.on::after{content:"";position:absolute;inset:18%;border:3px solid var(--clay);border-radius:50%}
+.sopa{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;max-width:420px}
+.sopa button{font-family:var(--mono);font-weight:500;font-size:1rem;aspect-ratio:1;min-width:0;padding:0;border:none;border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer}
+.sopa button.on{background:var(--clay);color:#fff}
+.words{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
+#maze{width:100%;max-width:400px;height:auto;touch-action:none;background:var(--bg);border-radius:10px}
+.mini{align-self:flex-start;font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.emos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.emos button,.dfeel button{font:inherit;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--bg);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;padding:10px 4px;cursor:pointer;min-width:0}
+.emos button.on,.dfeel button.on{border-color:var(--clay);background:var(--clay-soft)}
+.emos svg{width:64px;height:64px}
+.dfeel{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.dfeel svg{width:36px;height:36px}
+.dfeel button{font-size:.78rem}
+.ttt{display:grid;grid-template-columns:repeat(3,72px);gap:6px}
+.ttt button{width:72px;height:72px;font-family:var(--display);font-size:2.2rem;font-weight:700;border:1.5px solid var(--accent);background:var(--paper);border-radius:10px;cursor:pointer;color:var(--accent)}
+.ttt button.o{color:var(--clay)}
+.diary{display:grid;grid-template-columns:1fr;gap:6px}
+.diary label,.dlabel{font-size:.85rem;font-weight:600;color:var(--muted);margin-top:6px}
+.diary input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-width:0}
+.diary input:focus-visible,.kitnav button:focus-visible,.sheet button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+footer{font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+@media (max-width:480px){.lbody{padding-left:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* shell */
+body{padding:0}
+.shell{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:18px;padding-block:24px 20px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:18px}
+.sbrand{display:flex;flex-direction:column;text-decoration:none;color:var(--ink)}
+.sbrand span,.brand{font-family:var(--display);font-weight:600;color:var(--clay);font-size:.95rem}
+.sbrand b{font-family:var(--display);font-size:1.5rem;line-height:1.1;color:var(--accent)}
+#sidenav{display:flex;flex-direction:column;gap:16px;flex:1}
+.sgroup{display:flex;flex-direction:column;gap:2px}
+.sglabel{font-size:.78rem;font-weight:600;color:var(--muted);padding:0 10px 4px;display:flex;gap:8px;align-items:baseline}
+.sglabel i{font-style:normal;font-family:var(--mono);color:var(--clay)}
+.slink{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);padding:8px 10px;border-radius:10px;font-size:.93rem;line-height:1.25}
+.slink:hover{background:var(--hover)}
+.slink[aria-current="page"]{background:var(--paper);box-shadow:inset 3px 0 0 var(--clay);font-weight:600}
+.slink .meta{display:flex;flex-direction:column;flex:1;min-width:0}
+.slink small{font-size:.74rem;color:var(--muted);font-weight:400}
+.ring{flex:none;width:22px;height:22px}
+.ring circle{fill:none;stroke-width:3}
+.ring .bgc{stroke:var(--line)}
+.ring .fgc{stroke:var(--ok);stroke-linecap:round;transform:rotate(-90deg);transform-origin:center}
+.sos{border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;font-size:.8rem;color:var(--muted)}
+.sos > b{font-family:var(--mono);font-size:1.6rem;color:var(--clay);line-height:1.2}
+.sos small b{font-family:var(--mono);color:var(--ink)}
+.main{min-width:0;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.main > *{max-width:720px;margin-left:auto;margin-right:auto}
+.module{display:flex;flex-direction:column;gap:var(--g)}
+.module.adm .mhead{border-top-color:var(--ok)}
+.module.adm .mhead .age{color:var(--ok)}
+.topbar{display:none}
+.scrim{display:none}
+footer{margin-top:48px}
+.hero{display:flex;flex-direction:column;gap:12px}
+.parts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;counter-reset:p}
+.parts li{counter-increment:p}
+.parts a{display:grid;grid-template-columns:auto 1fr;column-gap:14px;text-decoration:none;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px}
+.parts a::before{content:counter(p);grid-row:span 2;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1;color:var(--clay)}
+.parts b{font-family:var(--display);font-size:1.25rem}
+.parts span{color:var(--muted);font-size:.92rem}
+.next{display:flex;justify-content:flex-end}
+.next a{font-weight:600;color:var(--accent);text-decoration:none;border:1.5px solid var(--accent);border-radius:999px;padding:8px 16px}
+
+/* ficha */
+.ficha{display:flex;flex-direction:column;gap:16px}
+.ficha fieldset{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:14px 16px 16px;margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ficha legend{font-family:var(--display);font-weight:600;font-size:1.1rem;padding:0 6px;color:var(--accent)}
+.ficha label{font-size:.85rem;font-weight:600;color:var(--muted);margin-top:6px}
+.ficha input[type=text],.ficha input[type=tel],.ficha input[type=date],.ficha textarea,.search{font:inherit;font-size:1rem;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-width:0;width:100%}
+.ficha textarea{resize:vertical}
+.ficha .req::after{content:" (obligatorio)";color:var(--clay);font-weight:400}
+.checks{display:flex;flex-direction:column;gap:6px}
+.ck{display:flex!important;gap:10px;align-items:flex-start;font-weight:500!important;color:var(--ink)!important;font-size:.95rem!important;margin:0!important}
+.ck input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin-top:2px}
+.factions{display:flex;flex-wrap:wrap;gap:8px}
+.solid,.ghost{font:inherit;font-weight:600;border-radius:999px;padding:10px 18px;cursor:pointer;border:1.5px solid var(--accent)}
+.solid{background:var(--accent);color:#fff}
+.ghost{background:transparent;color:var(--accent)}
+.solid:disabled{opacity:.6;cursor:default}
+.fstatus{font-size:.92rem;min-height:1.3em}
+.fstatus.ok{color:var(--ok)} .fstatus.err{color:var(--warn)}
+.copybox{font:inherit;font-size:.85rem;width:100%;min-height:160px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+.mine ul{margin:0;padding-left:1.2em;font-size:.92rem;color:var(--muted)}
+.rlist{display:flex;flex-direction:column;gap:10px}
+.rcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.rtop{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.rtop b{font-family:var(--display);font-size:1.15rem}
+.rtop small{font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+.pill{font-size:.75rem;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--warn-soft);color:var(--warn)}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+.rcard dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr);gap:2px;font-size:.9rem}
+.rcard dt{font-weight:600;color:var(--muted);font-size:.78rem;margin-top:6px}
+.rcard dd{margin:0;white-space:pre-wrap}
+.rcard .alert dd{color:var(--warn);font-weight:600}
+.racts{display:flex;gap:8px;flex-wrap:wrap}
+.empty{color:var(--muted);font-size:.92rem;background:var(--paper);border:1px dashed var(--line);border-radius:12px;padding:16px}
+
+/* kit embebido */
+.kit{display:flex;flex-direction:column;gap:10px}
+.kitnav{display:flex;flex-wrap:wrap;gap:6px}
+.kitnav button{font:inherit;font-size:.85rem;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.kitnav button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.maze{width:100%;max-width:400px;height:auto;touch-action:none;background:var(--bg);border-radius:10px}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .topbar{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;align-items:center;gap:12px;background:var(--side);border-bottom:1px solid var(--line);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--side)}
+  .menubtn{font:inherit;font-weight:600;border:1.5px solid var(--accent);color:var(--accent);background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer}
+  .tb-title{font-family:var(--display);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .side{position:fixed;z-index:30;top:0;left:0;bottom:0;width:min(300px,86vw);height:auto;transform:translateX(-105%);transition:transform .25s;padding-top:calc(24px + env(safe-area-inset-top,0px));padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  .side.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.25)}
+  .scrim{display:block;position:fixed;inset:0;z-index:25;background:rgba(20,18,30,.4)}
+  .scrim[hidden]{display:none}
+  .main{padding-top:20px}
+}
+[hidden]{display:none!important}
+
+</style>
+<div class="topbar"><button type="button" id="menubtn" class="menubtn" aria-expanded="false" aria-controls="side">Secciones</button><span class="tb-title" id="tbtitle">Guía de niñeras</span></div>
+<div class="shell">
+<aside class="side" id="side" aria-label="Secciones de la guía">
+  <a class="sbrand" href="#inicio"><span>Parents' Break</span><b>Guía de niñeras</b></a>
+  <nav id="sidenav"></nav>
+  <div class="sos"><span>Emergencias</span><b>911</b><small>CIAT intoxicaciones <b>1722</b></small></div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+<main class="main" id="main">
+<section class="module home" id="inicio" data-group="" data-name="Inicio" data-age="" hidden>
+  <div class="hero">
+    <span class="brand">Parents' Break</span>
+    <h1>Guía de niñeras</h1>
+    <p class="lead">Todo lo que necesitás para cuidar bien a cada chico. Está dividida en tres partes: leé la primera antes de tu primer sitting y volvé a la que corresponda según la edad del chico que vas a cuidar.</p>
+  </div>
+  <ol class="parts">
+    <li><a href="#ficha"><b>Antes de ir</b><span>La ficha para completar con los padres, los protocolos y RCP y primeros auxilios.</span></a></li>
+    <li><a href="#recien"><b>Por edad</b><span>De recién nacidos a preadolescentes: qué esperar, cómo cuidarlos y actividades para cada edad.</span></a></li>
+    <li><a href="#autismo"><b>Necesidades especiales</b><span>Autismo, TDAH y discapacidad.</span></a></li>
+  </ol>
+  <p class="total">Llevás <strong id="tot">0 de 0</strong> lecciones leídas. Tu avance se guarda en este celular.</p>
+  <p class="notice">Esta guía no reemplaza un curso presencial de RCP y primeros auxilios. Ante cualquier duda durante un sitting, primero la seguridad del chico, después avisás a la familia y a Parents' Break.</p>
+</section>
+<section class="module" id="ficha" data-group="Antes de ir" data-name="Ficha de la familia" data-age="completar en cada sitting" hidden>
+  <div class="mhead"><span class="age">Completar en cada sitting</span><h2>Ficha de la familia</h2><p>Repasala con los padres antes de que se vayan. Al enviarla nos llega a Parents' Break, y se la pasamos a la próxima niñera que vaya a esa casa.</p></div>
+  <form id="fichaform" class="ficha" novalidate>
+<fieldset><legend>Del sitting</legend>
+<label for="f_familia">Familia (nombre de la madre o el padre)</label><input id="f_familia" name="f_familia" type="text">
+<label for="f_fecha">Fecha del sitting</label><input id="f_fecha" name="f_fecha" type="date">
+<label for="f_ninera">Tu nombre</label><input id="f_ninera" name="f_ninera" type="text">
+<label for="f_dir">Dirección exacta de la casa</label><input id="f_dir" name="f_dir" type="text" placeholder="Calle, número, apartamento y esquina, para dar al 911">
+</fieldset>
+<fieldset><legend>Los chicos</legend>
+<label for="f_chicos">Nombre y edad de cada chico</label><textarea id="f_chicos" name="f_chicos" rows="2" placeholder="Ej.: Juana, 4 años. Felipe, 10 meses."></textarea>
+</fieldset>
+<fieldset><legend>Contactos</legend>
+<label for="f_tel1">Teléfono de la madre</label><input id="f_tel1" name="f_tel1" type="tel">
+<label for="f_tel2">Teléfono del padre</label><input id="f_tel2" name="f_tel2" type="tel">
+<label for="f_tel3">Otro adulto de confianza (nombre y teléfono)</label><input id="f_tel3" name="f_tel3" type="text">
+<label for="f_movil">Emergencia móvil (nombre y número de socio)</label><input id="f_movil" name="f_movil" type="text">
+<label for="f_mutua">Mutualista o prestador de salud</label><input id="f_mutua" name="f_mutua" type="text">
+</fieldset>
+<fieldset><legend>Salud</legend>
+<label for="f_alergias">Alergias (alimentos, remedios, picaduras) y qué hacer si hay una reacción</label><textarea id="f_alergias" name="f_alergias" rows="2" placeholder="Si no tiene, escribí: no tiene"></textarea>
+<label for="f_medic">Medicación: cuál, dosis y horario</label><textarea id="f_medic" name="f_medic" rows="2"></textarea>
+<label for="f_salud">Problemas de salud, autismo, TDAH o discapacidad, y cómo acompañarlo</label><textarea id="f_salud" name="f_salud" rows="2" placeholder="Cómo se comunica, qué lo calma, qué lo altera"></textarea>
+</fieldset>
+<fieldset><legend>Rutina y reglas</legend>
+<label for="f_comida">Comidas: qué come, qué no puede comer, horarios</label><textarea id="f_comida" name="f_comida" rows="2"></textarea>
+<label for="f_sueno">Siesta y sueño: horario y cómo se duerme</label><textarea id="f_sueno" name="f_sueno" rows="2"></textarea>
+<label for="f_reglas">Pantallas, golosinas, salidas y otras reglas</label><textarea id="f_reglas" name="f_reglas" rows="2"></textarea>
+<label for="f_retira">Quién puede retirar a los chicos</label><input id="f_retira" name="f_retira" type="text">
+<label for="f_otros">Mascotas y otras indicaciones</label><textarea id="f_otros" name="f_otros" rows="2"></textarea>
+</fieldset>
+<fieldset><legend>Antes de que se vayan los padres</legend><div class="checks">
+<label class="ck" for="c0"><input type="checkbox" id="c0" name="c0"><span>Sé dónde está el botiquín</span></label>
+<label class="ck" for="c1"><input type="checkbox" id="c1" name="c1"><span>Sé dónde están las llaves y la salida</span></label>
+<label class="ck" for="c2"><input type="checkbox" id="c2" name="c2"><span>Tengo ubicada una linterna</span></label>
+<label class="ck" for="c3"><input type="checkbox" id="c3" name="c3"><span>Guardé los teléfonos en mi celular</span></label>
+<label class="ck" for="c4"><input type="checkbox" id="c4" name="c4"><span>Si hay medicación, me la dejaron indicada por escrito</span></label>
+<label class="ck" for="c5"><input type="checkbox" id="c5" name="c5"><span>Si hay autoinyector de adrenalina, me mostraron cómo se usa</span></label>
+</div></fieldset>
+    <div class="factions">
+      <button class="solid" type="submit" id="fsend">Enviar a Parents' Break</button>
+      <button class="ghost" type="button" id="fcopy">Copiar para WhatsApp</button>
+      <button class="ghost" type="button" id="fclear">Empezar una ficha nueva</button>
+    </div>
+    <p class="fstatus" id="fstatus" aria-live="polite"></p>
+    <textarea id="fcopybox" class="copybox" readonly hidden aria-label="Texto de la ficha para copiar"></textarea>
+  </form>
+  <div class="mine" id="mine" hidden><h3>Tus fichas enviadas</h3><ul id="minelist"></ul></div>
+  <nav class="next"></nav>
+</section><section class="module " id="protocolos" data-group="Antes de ir" data-name="Protocolos" data-age="qué hacer si pasa algo" hidden>
+  <div class="mhead"><span class="age">qué hacer si pasa algo</span><h2>Protocolos</h2><p>Qué hacer frente a cada situación que no es médica. Leelos antes de tu primer sitting y repasalos cada tanto.</p></div>
+  <details class="lesson" data-id="pr1"><summary><span class="dot">1</span><span class="stitle"><b>Antes de salir de tu casa</b><small>Lista para revisar cada vez</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Confirmá dirección, horario de entrada y de salida con Parents' Break.</li>
+      <li>Revisá los datos del chico: edad, alergias, medicación, si tiene alguna necesidad especial.</li>
+      <li>Celular cargado y con datos. Si podés, un cargador.</li>
+      <li>Guardá en el celular el número de la familia y el de Parents' Break.</li>
+      <li>Ropa cómoda para jugar en el piso y salir a la plaza.</li>
+      <li>Si estás enferma (fiebre, vómitos, diarrea, conjuntivitis), avisá a Parents' Break y no vayas.</li>
+      <li>Nunca vayas habiendo tomado alcohol o algo que te afecte.</li>
+      <li>Llegá 5 minutos antes para que la familia te explique todo con tiempo (lección "Al llegar a la casa").</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr2"><summary><span class="dot">2</span><span class="stitle"><b>Durante el sitting</b><small>Las reglas que valen siempre</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Los ojos en los chicos. El celular, solo para comunicarte con la familia o con Parents' Break.</li>
+      <li>No abras la puerta a nadie que la familia no te haya avisado.</li>
+      <li>No invites a nadie a la casa.</li>
+      <li>No saques fotos ni videos de los chicos, ni los subas a redes, salvo que la familia lo pida.</li>
+      <li>No des remedios ni comida distinta a la que te indicó la familia.</li>
+      <li>No salgas de la casa con los chicos sin avisar a la familia a dónde van.</li>
+      <li>En la calle, de la mano y del lado de adentro de la vereda. En el auto, siempre con su silla o alzador, bien abrochado.</li>
+      <li>Si algo pasó, aunque sea chico y aunque haya sido un descuido tuyo, se cuenta. Siempre.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="b2"><summary><span class="dot">2</span><span class="stitle"><b>Higiene y cambio de pañales</b><small>Manos, cambiador, cola sana</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Lavate las manos con agua y jabón al llegar, antes de preparar comida o mamaderas y después de cada pañal.</li>
+      <li>Tené todo a mano antes de acostarlo en el cambiador: pañal, toallitas o algodón con agua, crema si la usan. Una mano siempre sobre el bebé.</li>
+      <li>A las nenas se las limpia de adelante hacia atrás.</li>
+      <li>En recién nacidos, el ombligo se mantiene limpio y seco y el pañal se dobla por debajo para no taparlo.</li>
+      <li>Si ves la cola muy roja, con granitos o lastimada, contale a la familia al volver.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr3"><summary><span class="dot">3</span><span class="stitle"><b>Si un chico se pierde</b><small>En la plaza, un shopping o la calle</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p class="key"><b>Prevenir:</b> al salir, sacale una foto mental de la ropa que tiene. Acordá con él un lugar de encuentro y enseñale que si se pierde, se queda quieto y le pide ayuda a una mamá con chicos o a un empleado.</p>
+    <ol>
+      <li>Gritá su nombre y mirá alrededor durante un minuto, sin alejarte del lugar donde lo viste por última vez.</li>
+      <li>Si no aparece, pedí ayuda a la gente que está cerca y a seguridad del lugar. Describilo: edad, ropa, pelo.</li>
+      <li>Si no aparece en pocos minutos, llamá al 911.</li>
+      <li>Avisá a la familia y a Parents' Break.</li>
+      <li>Si estás con otros chicos, que no se separen de vos.</li>
+    </ol>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr4"><summary><span class="dot">4</span><span class="stitle"><b>Quién puede retirar al chico</b><small>Y qué hacer si nadie vuelve</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>El chico se entrega solo a sus padres o a quien ellos te hayan avisado antes, con nombre.</li>
+      <li>Si viene otra persona que no estaba avisada, aunque diga que es familiar, no lo entregues. Llamá a los padres y esperá a que te confirmen ellos.</li>
+      <li>Si un adulto llega en un estado en que no puede cuidarlo (por ejemplo, alcoholizado), no te vayas. Llamá a Parents' Break enseguida.</li>
+      <li>Si pasó el horario y la familia no vuelve ni contesta, quedate con el chico. Escribí y llamá a la familia y avisá a Parents' Break. Nunca dejes al chico solo para irte.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr5"><summary><span class="dot">5</span><span class="stitle"><b>Incendio, olor a gas o corte de luz</b><small>Primero salir, después llamar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p><b>Incendio o mucho humo:</b> sacá a los chicos de la casa sin volver a buscar nada. Si hay humo, agachados. Cerrá las puertas detrás tuyo. Afuera, llamá al 911 y avisá a la familia.</p>
+    <p><b>Olor a gas:</b> no prendas ni apagues luces ni nada eléctrico, ni enciendas fósforos. Abrí ventanas si es rápido, salí con los chicos y llamá desde afuera.</p>
+    <p><b>Corte de luz:</b> tené ubicada una linterna al llegar. Mantené a los chicos con vos, lejos de velas encendidas y de la cocina. Avisá a la familia.</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr6"><summary><span class="dot">6</span><span class="stitle"><b>Si algo te preocupa del chico</b><small>Lo que ves, lo que te cuenta</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>A veces una niñera ve o escucha algo que la deja preocupada: marcas o golpes que no se explican, un chico que te cuenta algo que le pasa, cambios muy fuertes en cómo está.</p>
+    <ul>
+      <li>Escuchalo con calma, creele y decile que hizo bien en contarte.</li>
+      <li>No le hagas muchas preguntas ni lo presiones.</li>
+      <li>No le prometas guardar el secreto.</li>
+      <li>Anotá lo que viste o te dijo, con sus palabras, la fecha y la hora.</li>
+      <li>Contáselo a Parents' Break ese mismo día. No lo hables con la familia por tu cuenta.</li>
+    </ul>
+    <p class="alarm"><b>Si el chico está en peligro en ese momento,</b> llamá al 911. Parents' Break te acompaña en los pasos siguientes, incluida la Línea Azul del INAU (0800 5050) si corresponde.</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="pr7"><summary><span class="dot">7</span><span class="stitle"><b>Al terminar</b><small>Cómo dejar la casa y contar el sitting</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Dejá la casa como la encontraste: juguetes guardados, cocina limpia si la usaste.</li>
+      <li>Contale a la familia cómo fue: qué comió, si durmió, qué hicieron, si pasó algo.</li>
+      <li>Cualquier golpe, fiebre o situación rara se cuenta aunque ya esté todo bien.</li>
+      <li>Avisá a Parents' Break a qué hora terminaste.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="protocolos"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="auxilios" data-group="Antes de ir" data-name="RCP y primeros auxilios" data-age="emergencias médicas" hidden>
+  <div class="mhead"><span class="age">emergencias médicas</span><h2>RCP y primeros auxilios</h2><p>Leer no alcanza para hacer RCP bien: hay que practicarlo con un muñeco en un curso presencial. Esto te sirve para repasar.</p></div>
+  <div class="emerg">
+    <div class="num"><b>911</b><small>Emergencias en Uruguay</small></div>
+    <div class="num"><b>1722</b><small>CIAT, intoxicaciones</small></div>
+    <div class="num"><b>Emergencia móvil</b><small>La de la familia, anotada en la ficha</small></div>
+  </div><details class="lesson" data-id="x3"><summary><span class="dot">1</span><span class="stitle"><b>A quién avisar y en qué orden</b><small>Lo primero que tenés que saber</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ol>
+      <li><b>Peligro de vida</b> (no respira, no responde, convulsiona, sangra mucho, le cuesta respirar): 911 primero.</li>
+      <li><b>La familia</b>, enseguida después.</li>
+      <li><b>Parents' Break</b>, en cuanto puedas.</li>
+    </ol>
+    <p>Para cosas que no son urgentes (un golpe chico, que no quiso comer, un berrinche fuerte), se lo contás a la familia al volver y lo dejás en tu reporte del sitting. Anotá la hora y qué hiciste: ayuda mucho a la familia y al médico.</p>
+    <p class="key"><b>Al llamar al 911,</b> decí la dirección exacta primero, después qué pasó y la edad del chico. Poné el celular en altavoz para tener las manos libres.</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x4"><summary><span class="dot">2</span><span class="stitle"><b>RCP en bebés (menos de 1 año)</b><small>Paso a paso</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ol>
+      <li><b>¿Responde?</b> Tocale la planta del pie y llamalo fuerte por su nombre.</li>
+      <li><b>Si no responde,</b> gritá pidiendo ayuda. Si hay alguien, que llame al 911 y busque un desfibrilador (DEA).</li>
+      <li><b>¿Respira?</b> Mirá si el pecho sube y baja, no más de 10 segundos. Boquear de a ratos no es respirar.</li>
+      <li><b>Si no respira, 30 compresiones.</b> Acostado boca arriba sobre algo firme. En el centro del pecho, justo debajo de la línea de los pezones, con los dos pulgares rodeándole el pecho con las manos, o con el talón de una mano. Hundí más o menos un tercio del pecho (unos 4 cm), rápido: 100 a 120 por minuto. Dejá que el pecho vuelva entre cada una.</li>
+      <li><b>2 respiraciones.</b> Cabeza derecha, sin tirarla para atrás. Cubrí con tu boca su boca y su nariz y soplá suave, apenas para que el pecho se levante, un segundo cada una.</li>
+      <li><b>Seguí 30 y 2</b> sin parar. Si estás sola y nadie llamó, después de 2 minutos llamá al 911 en altavoz y seguí.</li>
+      <li><b>Hasta cuándo:</b> hasta que llegue la ayuda, el bebé empiece a respirar o se mueva, o no puedas más.</li>
+    </ol>
+    <p class="key"><b>Desde 2025 las guías ya no recomiendan hacer las compresiones con dos dedos</b>, porque no alcanzan la profundidad necesaria. Se usan los dos pulgares o el talón de una mano.</p>
+    <p class="src">Fuentes: guías 2025 de la American Heart Association y la AAP, resumidas en <a href="https://www.contemporarypediatrics.com/view/aap-aha-update-pediatric-cardiopulmonary-resuscitation-emergency-cardiovascular-care-guidelines" target="_blank" rel="noopener">Contemporary Pediatrics</a> y <a href="https://journalfeed.org/article-a-day/2025/new-aha-2025-pediatric-bls-big-changes-for-little-patients/" target="_blank" rel="noopener">JournalFeed</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x5"><summary><span class="dot">3</span><span class="stitle"><b>RCP en niños (1 año en adelante)</b><small>Paso a paso y uso del desfibrilador</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ol>
+      <li><b>¿Responde?</b> Tocale los hombros y llamalo fuerte.</li>
+      <li><b>Si no responde,</b> gritá pidiendo ayuda: que alguien llame al 911 y traiga un DEA.</li>
+      <li><b>¿Respira?</b> No más de 10 segundos.</li>
+      <li><b>Si no respira, 30 compresiones</b> en el centro del pecho, con el talón de una mano (o las dos si es grande). Unos 5 cm de profundidad, 100 a 120 por minuto.</li>
+      <li><b>2 respiraciones:</b> inclinale la cabeza hacia atrás y levantale el mentón, tapale la nariz y soplá en su boca hasta que el pecho se levante.</li>
+      <li><b>Seguí 30 y 2.</b> Si estás sola y nadie llamó, a los 2 minutos llamá al 911 en altavoz y seguí.</li>
+      <li><b>DEA:</b> apenas llegue, prendelo y seguí lo que dice. Usá parches de niño si tiene; si no, los de adulto.</li>
+    </ol>
+    <p>Si no te animás a dar respiraciones, hacé solo compresiones: es mucho mejor que no hacer nada.</p>
+    <p class="key"><b>Si aprendiste otra secuencia en tu curso</b> (por ejemplo, empezar con 5 respiraciones, como enseña el Consejo Europeo de Resucitación), está bien: hacé la que practicaste.</p>
+    <p class="src">Fuentes: guías 2025 de la American Heart Association, resumidas en <a href="https://blog.protrainings.com/whats-new-in-cpr-and-first-aid-understanding-the-2025-guideline-updates/" target="_blank" rel="noopener">ProTrainings</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x1"><summary><span class="dot">4</span><span class="stitle"><b>Atragantamiento en menores de 1 año</b><small>Golpes en la espalda y compresiones en el pecho</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p><b>Si tose, llora o hace ruido, le pasa aire:</b> no le pegues ni le metas los dedos. Dejalo toser y no te despegues.</p>
+    <p><b>Si no puede toser, llorar ni respirar:</b></p>
+    <ol>
+      <li>Pedí que alguien llame al 911. Si estás sola, primero empezás las maniobras.</li>
+      <li>Ponelo boca abajo sobre tu antebrazo, con la cabeza más baja que el cuerpo, sosteniéndole la mandíbula.</li>
+      <li>Dale 5 golpes firmes con el talón de la mano entre los omóplatos.</li>
+      <li>Dalo vuelta boca arriba sobre tu otro brazo, cabeza más baja, y hacé 5 compresiones en el centro del pecho con el talón de la mano.</li>
+      <li>Mirale la boca: si ves el objeto, sacalo. Si no lo ves, no metas los dedos a ciegas.</li>
+      <li>Repetí 5 y 5 hasta que salga o llegue la ayuda. Si deja de responder, empezá RCP.</li>
+    </ol>
+    <p class="alarm"><b>En menores de 1 año no se hacen compresiones en la panza</b> (maniobra de Heimlich): puede lastimarle los órganos.</p>
+    <p>Aunque salga el objeto y quede bien, lo tiene que ver un médico ese día.</p>
+    <p class="src">Fuentes: <a href="https://www.msdmanuals.com/es/hogar/traumatismos-y-envenenamientos/primeros-auxilios/atragantamiento" target="_blank" rel="noopener">Manual MSD</a> y guías 2025 de la American Heart Association</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x2"><summary><span class="dot">5</span><span class="stitle"><b>Atragantamiento de 1 año en adelante</b><small>Espalda y panza</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ol>
+      <li>Si tose con fuerza, dejalo toser.</li>
+      <li>Si no puede toser ni hablar, dale 5 golpes en la espalda entre los omóplatos, con el chico inclinado hacia adelante.</li>
+      <li>Después ponete detrás, arrodillada si es chico, puño entre el ombligo y el esternón, la otra mano encima, y 5 compresiones hacia adentro y hacia arriba, con menos fuerza que en un adulto.</li>
+      <li>Alterná 5 y 5 hasta que salga o llegue el 911. Si pierde el conocimiento, RCP.</li>
+    </ol>
+    <p class="src">Fuentes: <a href="https://www.msdmanuals.com/es/hogar/traumatismos-y-envenenamientos/primeros-auxilios/atragantamiento" target="_blank" rel="noopener">Manual MSD</a> y guías 2025 de la American Heart Association</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x6"><summary><span class="dot">6</span><span class="stitle"><b>Golpes en la cabeza y caídas</b><small>Qué vigilar después</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>La mayoría de los golpes son leves. Poné frío envuelto en un trapo (nunca hielo directo) unos 15 a 20 minutos, consolalo y quedate mirándolo las horas siguientes. Avisá a la familia siempre.</p>
+    <p class="alarm"><b>Llamá al 911 y a la familia si:</b> perdió el conocimiento aunque sea un momento, vomita más de una vez, está muy dormido o confundido, convulsiona, le sale sangre o líquido por la nariz o los oídos, llora sin consuelo, no mueve bien un brazo o una pierna, o es un bebé de menos de 1 año con un chichón grande.</p>
+    <p><b>Si cayó de altura y le duele el cuello o la espalda,</b> no lo muevas. Llamá al 911.</p>
+    <p><b>Si creés que se quebró algo</b> (dolor fuerte, hinchazón, forma rara), no lo muevas de esa parte, poné frío envuelto y avisá a la familia para que lo lleven a consultar.</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x7"><summary><span class="dot">7</span><span class="stitle"><b>Cortes, sangrado y nariz</b><small>Presión firme</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Cortes:</b> lavate las manos, apretá firme con una gasa o un trapo limpio durante 10 minutos sin levantar para mirar. Si se puede, levantá la parte lastimada. Después lavá con agua y tapá.</li>
+      <li><b>Corte profundo, que no para de sangrar o en la cara:</b> seguí apretando y avisá a la familia para que lo vea un médico. Si sangra mucho, 911.</li>
+      <li><b>Algo clavado:</b> no lo saques. Apretá alrededor y llamá.</li>
+      <li><b>Sangrado de nariz:</b> sentado e inclinado hacia adelante (no para atrás), apretale la parte blanda de la nariz 10 minutos seguidos. Si no para en 20 minutos, consulta.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x8"><summary><span class="dot">8</span><span class="stitle"><b>Quemaduras</b><small>Agua fresca, nada más</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ol>
+      <li>Poné la zona bajo agua fresca de la canilla, al menos 5 minutos y mejor hasta 20.</li>
+      <li>Sacale la ropa o pulseras de la zona si no están pegadas a la piel.</li>
+      <li>Tapá con una gasa o un paño limpio que no se pegue.</li>
+    </ol>
+    <p><b>Nunca:</b> hielo, manteca, pasta de dientes ni cremas caseras. No revientes las ampollas.</p>
+    <p class="alarm"><b>Consulta urgente si:</b> es más grande que la palma de su mano, está en la cara, manos, pies, genitales o una articulación, es por electricidad, o la piel se ve blanca, dura o negra.</p>
+    <p class="src">Fuente: <a href="https://www.healthychildren.org/spanish/safety-prevention/all-around/paginas/First-Aid-For-Burns.aspx" target="_blank" rel="noopener">HealthyChildren.org (AAP), primeros auxilios para quemaduras</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x9"><summary><span class="dot">9</span><span class="stitle"><b>Convulsiones</b><small>Proteger y mirar el reloj</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Algunos chicos chicos tienen convulsiones con la fiebre alta. Asustan mucho, pero en general duran poco.</p>
+    <ol>
+      <li>Mantené la calma. Ponelo en el piso y sacá lo que tenga cerca para que no se golpee.</li>
+      <li>Acostalo de costado.</li>
+      <li>Aflojale la ropa del cuello.</li>
+      <li>Mirá la hora: cuánto dura es un dato clave.</li>
+      <li>No le metas nada en la boca ni lo sujetes fuerte.</li>
+    </ol>
+    <p class="alarm"><b>Llamá al 911 si:</b> dura más de 5 minutos, es la primera vez, le cuesta respirar o se pone azul, no vuelve a responder normal después, o se mueve solo una parte del cuerpo. Avisá a la familia siempre: lo tiene que ver un médico.</p>
+    <p class="src">Fuente: <a href="https://www.childrensmn.org/educationmaterials/parents/article/19302/primeros-auxilios-convulsiones-febriles/" target="_blank" rel="noopener">Children's Minnesota, primeros auxilios en convulsiones febriles</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x10"><summary><span class="dot">10</span><span class="stitle"><b>Alergia grave</b><small>Cuándo es una emergencia</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Si la familia te dice que el chico tiene una alergia, preguntá a qué, cómo se ve una reacción y qué hacer. Si tiene un autoinyector de adrenalina, pedí que te muestren cómo se usa y dónde está.</p>
+    <p class="alarm"><b>Llamá al 911 si, después de comer algo o una picadura,</b> se le hinchan la cara, los labios o la lengua, le cuesta respirar o tragar, tose o silba al respirar, se pone pálido y flojito, o tiene ronchas en todo el cuerpo con vómitos. Si tiene autoinyector, usalo enseguida y después llamá.</p>
+    <p>Acostalo; si le cuesta respirar, dejalo sentado. No lo hagas caminar ni pararse.</p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x11"><summary><span class="dot">11</span><span class="stitle"><b>Se tragó algo que no debía</b><small>Remedios, productos, pilas</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Sacale de la boca lo que quede y guardá el envase.</li>
+      <li>No lo hagas vomitar ni le des leche ni nada sin que te indiquen.</li>
+      <li>Llamá al CIAT (1722): te dicen qué hacer según el producto. Si le cuesta respirar, convulsiona o no responde, 911.</li>
+      <li><b>Pilas de botón e imanes</b> son una urgencia aunque el chico se vea bien: consulta ya mismo.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x12"><summary><span class="dot">12</span><span class="stitle"><b>Agua y piletas</b><small>Prevenir y actuar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p class="key"><b>Un chico se puede ahogar en silencio y en segundos,</b> en una pileta, una bañera o un balde. Cerca del agua tu mirada no se despega, sin celular, aunque haya otros adultos.</p>
+    <ol>
+      <li>Sacalo del agua sin ponerte en peligro.</li>
+      <li>Si no responde o no respira, gritá para que llamen al 911 y empezá RCP con respiraciones.</li>
+      <li>Aunque se recupere enseguida, lo tiene que ver un médico.</li>
+    </ol>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="x13"><summary><span class="dot">13</span><span class="stitle"><b>Picaduras, mordeduras y dientes</b><small>Lo más común en la plaza</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Abeja:</b> sacá el aguijón raspando con una tarjeta, sin apretar. Frío envuelto. Mirá las señales de alergia grave.</li>
+      <li><b>Mordedura de perro o gato:</b> lavá bien con agua y jabón, apretá si sangra, tapá y avisá a la familia: siempre la tiene que ver un médico.</li>
+      <li><b>Se le salió un diente de leche:</b> apretá con una gasa si sangra. No se vuelve a poner.</li>
+      <li><b>Se le salió un diente definitivo</b> (chicos de 6 años en adelante): agarralo de la parte blanca, sin tocar la raíz ni frotarlo, guardalo en leche y consulta urgente con la familia.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="emergencias"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="recien" data-group="Por edad" data-name="Recién nacidos" data-age="0 a 3 meses" hidden>
+  <div class="mhead"><span class="age">0 a 3 meses</span><h2>Recién nacidos</h2></div>
+  <details class="lesson" data-id="r1"><summary><span class="dot">1</span><span class="stitle"><b>Sueño seguro</b><small>La lección más importante del curso</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>La Academia Americana de Pediatría actualizó sus recomendaciones en 2022. Valen para todos los bebés hasta el año, en cada siesta y cada noche.</p>
+    <ul>
+      <li><b>Boca arriba, siempre.</b> Aunque la familia diga que de costado duerme mejor, vos lo acostás boca arriba.</li>
+      <li><b>Superficie firme y plana:</b> cuna, moisés o practicuna con una sábana ajustada.</li>
+      <li><b>Cuna vacía:</b> sin almohada, peluches, chichoneras, mantas sueltas ni posicionadores.</li>
+      <li><b>No dormir en superficies inclinadas.</b> Si se duerme en la silla del auto, el cochecito, la hamaca o el sillón, lo pasás a la cuna.</li>
+      <li><b>Nunca te duermas con el bebé encima</b>, ni en la cama ni en el sillón.</li>
+      <li><b>Sin calor de más:</b> una capa más de ropa que la que tenés vos, y la cabeza descubierta para dormir.</li>
+    </ul>
+    <p class="key"><b>Si la familia te pide algo distinto</b> (dormir boca abajo, con almohada), hacelo con calma: "Prefiero acostarlo boca arriba, es lo que nos piden en Parents' Break". Y lo comentás con las chicas.</p>
+    <p class="src">Fuente: <a href="https://www.healthychildren.org/Spanish/ages-stages/baby/sleep/Paginas/A-Parents-Guide-to-Safe-Sleep.aspx" target="_blank" rel="noopener">HealthyChildren.org (AAP)</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="r2"><summary><span class="dot">2</span><span class="stitle"><b>El llanto y qué hacer</b><small>Por qué llora, cómo calmarlo, cómo calmarte vos</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Entre las 2 semanas y los 3 a 5 meses muchos bebés lloran mucho, aunque estén sanos. El programa "Period of PURPLE Crying" lo resume así:</p>
+    <ul>
+      <li>El llanto va subiendo y tiene su pico alrededor del segundo mes.</li>
+      <li>Aparece y se va sin motivo claro.</li>
+      <li>A veces no se calma con nada de lo que pruebes.</li>
+      <li>Puede poner cara de dolor aunque no le duela nada.</li>
+      <li>Puede durar varias horas por día, y suele ser peor a la tarde y a la noche.</li>
+    </ul>
+    <p><b>Orden para revisar:</b> ¿hambre? ¿pañal? ¿frío o calor? ¿gases (probá ponerlo a provechar)? ¿sueño? Después, upa, balanceo suave, caminar, un ruido de fondo parejo, cantarle bajito.</p>
+    <p class="alarm"><b>Nunca sacudas a un bebé.</b> Si sentís que te desbordás, acostalo boca arriba en la cuna, salí del cuarto un par de minutos, respirá y escribile a Parents' Break. Un bebé llorando en su cuna está seguro.</p>
+    <p class="src">Fuente: <a href="https://www.dontshake.org/purple-crying" target="_blank" rel="noopener">National Center on Shaken Baby Syndrome</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="r3"><summary><span class="dot">3</span><span class="stitle"><b>Mamaderas: leche materna y fórmula</b><small>Preparar, conservar, dar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p><b>Leche materna extraída.</b> Usá la que la familia te deja, primero la más vieja. Tiempos que da el CDC para un bebé sano:</p>
+    <div class="table"><table>
+      <thead><tr><th>Dónde está</th><th>Recién extraída</th><th>Descongelada</th></tr></thead>
+      <tbody>
+        <tr><td>Afuera, ambiente (hasta 25 °C)</td><td class="n">hasta 4 h</td><td class="n">1 a 2 h</td></tr>
+        <tr><td>Heladera</td><td class="n">hasta 4 días</td><td class="n">hasta 24 h</td></tr>
+        <tr><td>Freezer</td><td class="n">6 a 12 meses</td><td class="n">no recongelar</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Fórmula en polvo</b> (según la OMS):</p>
+    <ol>
+      <li>Lavate las manos y usá una mamadera limpia.</li>
+      <li>Hervís el agua y la dejás enfriar menos de 30 minutos, que siga caliente (unos 70 °C).</li>
+      <li>Primero el agua, después las medidas exactas que dice la lata o la familia. Ni más ni menos.</li>
+      <li>Enfriala bajo la canilla y probá unas gotas en la cara interna de la muñeca: tibia, no caliente.</li>
+      <li>Nunca la calientes en el microondas: hace zonas que queman.</li>
+      <li>Lo que sobra de una toma se tira a las 2 horas.</li>
+    </ol>
+    <p>Dale la mamadera con el bebé semi sentado en tus brazos, nunca acostado ni con la mamadera apoyada sola.</p>
+    <p class="src">Fuentes: <a href="https://www.who.int/publications/i/item/9789241595414" target="_blank" rel="noopener">OMS</a> y <a href="https://www.cdc.gov/breastfeeding/media/pdfs/preparacion-de-la-leche-materna-508.pdf" target="_blank" rel="noopener">CDC</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="r5"><summary><span class="dot">5</span><span class="stitle"><b>Fiebre y señales de alarma</b><small>Cuándo avisar ya mismo</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p class="alarm"><b>Bebé menor de 3 meses con 38 °C o más:</b> llamás a la familia de inmediato, aunque el bebé se vea bien. A esta edad siempre lo tiene que ver un médico.</p>
+    <p>Llamás a la familia también si el bebé, a cualquier edad:</p>
+    <ul>
+      <li>Respira con esfuerzo, se le hunden las costillas o se pone azulado.</li>
+      <li>Está muy dormido, flojito o no reacciona como siempre.</li>
+      <li>No quiere comer en varias tomas o moja muchos menos pañales.</li>
+      <li>Vomita con fuerza una y otra vez, o tiene diarrea con sangre.</li>
+      <li>Llora de una forma que no se parece a su llanto de siempre y no hay forma de calmarlo.</li>
+    </ul>
+    <p>Si no respira o no responde, llamás al 911 primero y a la familia después.</p>
+    <p class="src">Fuente: <a href="https://www.healthychildren.org/Spanish/health-issues/conditions/fever/Paginas/When-to-Call-the-Pediatrician.aspx" target="_blank" rel="noopener">HealthyChildren.org (AAP)</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="r4"><summary><span class="dot">4</span><span class="stitle"><b>Actividades y juego</b><small>Qué proponer a un recién nacido</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <h3>Por qué importa el juego</h3>
+    <p>El juego ayuda al desarrollo cognitivo del recién nacido: su capacidad de pensar, entender, comunicarse, recordar, imaginar y anticipar lo que va a pasar.</p>
+    <p>A esta edad jugar es interactuar con el bebé y responder a sus señales. Cada vez que le contestás, su cerebro arma millones de conexiones nuevas.</p>
+    <p>En esos intercambios también aprende cómo es el mundo: si es un lugar seguro, si lo quieren y quiénes lo quieren. Un bebé que se siente seguro y querido se anima a seguir explorando, y eso le hace bien a su cerebro.</p>
+    <p>El vínculo cálido con las personas que lo cuidan es la base de todo lo que va a aprender. Mientras estás con él, vos sos parte de ese vínculo.</p>
+    <h3>Qué esperar a esta edad</h3>
+    <ul>
+      <li>Aprende muchísimo y muy rápido.</li>
+      <li>Desde que nace empieza a reconocer voces y a reaccionar a ellas.</li>
+      <li>Le fascinan las caras: te mira fijo, sobre todo cuando le hablás. Así aprende a recordar cómo son y cómo suenan las personas.</li>
+      <li>Puede quedarse mucho rato mirando un móvil de colores arriba de la cuna. Parece simple, pero está aprendiendo qué es el movimiento y qué son los colores.</li>
+      <li>Quiere conocer el mundo, pero de a poco. Mucha gente, mucho ruido o muchas actividades juntas lo agotan, y a veces queda tan cansado que no se puede dormir. Estate atenta a las señales de cansancio: bostezos, frotarse los ojos, dar vuelta la cara, ponerse molesto.</li>
+    </ul>
+    <h3>Ideas de juego</h3>
+    <p>Conviene probar actividades variadas: cada una le da una forma distinta de aprender sobre el mundo.</p>
+    <ul>
+      <li>Hablale seguido, tenelo en brazos y miralo a los ojos.</li>
+      <li>Leele, decile versitos o cantale. Repetir la misma canción, rima o cuento está muy bien: la repetición es una de las formas en que aprenden los bebés.</li>
+      <li>Hacé caras. Se juega desde que nace: si sacás la lengua o hacés una "O" con la boca, algunos bebés te imitan.</li>
+      <li>Mostrale cosas para mirar a unos 20 a 30 cm de su cara, por ejemplo libros o un gimnasio de bebé con colores y formas distintas.</li>
+      <li>Cuando ya tiene unas semanas, ofrecele un peluche blandito o un sonajero para que intente alcanzarlo y tocarlo.</li>
+      <li>Hamacalo suave, acaricialo o hacele masajitos. Podés tocarle los dedos de las manos y los pies y jugar a nombrarlos.</li>
+      <li>Escuchen juntos sonidos distintos: campanitas de viento, pájaros, distintos tipos de música.</li>
+      <li>Salgan a explorar: una vuelta o una plaza con el bebé en el cochecito.</li>
+    </ul>
+    <h3>Dejá que el bebé guíe</h3>
+    <p>Seguí lo que a él le interesa. Si está fascinado tocando un osito de peluche, sumate: "Sí, el osito es suave". Si no le interesa lo que le proponés o está muy cansado para jugar, cambiá de actividad.</p>
+    <p class="key"><b>Cada bebé tiene su temperamento.</b> Con algunos hay que presentar las cosas nuevas despacio y con suavidad, para que no se abrumen.</p>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/newborns/play-learning/play-ideas/thinking-play-newborns" target="_blank" rel="noopener">Raising Children Network, juego y desarrollo en recién nacidos</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="recien"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="bebes" data-group="Por edad" data-name="Bebés" data-age="3 a 12 meses" hidden>
+  <div class="mhead"><span class="age">3 a 12 meses</span><h2>Bebés</h2></div>
+  <details class="lesson" data-id="e1"><summary><span class="dot">1</span><span class="stitle"><b>Qué hace un bebé en cada etapa</b><small>Para saber qué esperar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <div class="table"><table>
+      <thead><tr><th>Edad</th><th>Lo que suele hacer</th></tr></thead>
+      <tbody>
+        <tr><td class="n">3 a 6 m</td><td>Hace ruiditos y te responde cuando le hablás, le sonríe a su reflejo en el espejo, agarra cosas y se las lleva a la boca.</td></tr>
+        <tr><td class="n">6 a 9 m</td><td>Dice "mamá" o "papá" sin saber a quién, imita sonidos como "ma", "ba" y "da", reacciona a su nombre, sostiene la mamadera o come con la mano. Desde los 8 meses mira lo que le nombrás.</td></tr>
+        <tr><td class="n">9 a 12 m</td><td>Dice "mamá" y "papá" a la persona correcta, entiende pedidos simples ("dame el auto"), hace caras o ruidos para hacerte reír, le encantan los juegos y cuentos que se repiten.</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>De 8 a 12 meses experimenta:</b> tira cosas para ver cómo caen, empuja todo fuera de la mesa y prueba todo lo que alcanza, incluidas tazas, platos y mascotas. Así aprende causa y efecto. Necesita lugares seguros para explorar y que vos lo mires todo el tiempo.</p>
+    <p class="key"><b>Vos no evaluás ni diagnosticás.</b> Cada bebé tiene su ritmo. Si algo te llama la atención, se lo contás a Parents' Break, no a la familia directamente.</p>
+    <p class="src">Fuentes: <a href="https://raisingchildren.net.au/babies/play-learning/play-baby-development/thinking-play-babies" target="_blank" rel="noopener">Raising Children Network</a> y <a href="https://www.cdc.gov/ncbddd/actearly/milestones/" target="_blank" rel="noopener">CDC</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="e2"><summary><span class="dot">3</span><span class="stitle"><b>La casa cuando empieza a moverse</b><small>Gatear, pararse, llevarse todo a la boca</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li>Un bebé que se da vuelta puede caerse de la cama o el cambiador en un segundo: lo cambiás en el piso si tenés que soltarlo.</li>
+      <li>Antes de dejarlo en el piso, mirá a su altura: monedas, botones, pilas, imanes, bolsitas, cables, enchufes.</li>
+      <li>Las pilas de botón y los imanes son especialmente peligrosos si se tragan. Si creés que tragó uno, avisás en el momento.</li>
+      <li>Puertas de escaleras cerradas. Bebidas calientes lejos y nunca con el bebé en brazos.</li>
+      <li>Cuidado con las mascotas: a esta edad las agarra y las prueba como a todo lo demás.</li>
+      <li>En el agua: nunca solo, ni en la bañera ni en un balde. Alcanza con pocos centímetros.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="e3"><summary><span class="dot">4</span><span class="stitle"><b>Las primeras comidas</b><small>Cómo dar de comer sin riesgos</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Las comidas empiezan alrededor de los 6 meses y cada familia sigue lo que indica su pediatra. Vos seguís sus instrucciones.</p>
+    <ul>
+      <li>Siempre sentado y derecho, en la silla alta con el arnés puesto, y vos al lado mirándolo.</li>
+      <li>Nada de comer caminando, acostado ni en el auto.</li>
+      <li>Uvas, tomates cherry y salchichas, siempre cortados a lo largo en cuartos.</li>
+      <li>Ni maníes, ni frutos secos enteros, ni caramelos duros, ni pochoclo en menores de 4 o 5 años.</li>
+      <li>Toser y hacer arcadas es normal mientras aprende. Si tose, dejalo toser. Si no puede toser ni llorar, ver la lección de atragantamiento.</li>
+    </ul>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="e4"><summary><span class="dot">2</span><span class="stitle"><b>Actividades y juego</b><small>Ideas de 3 a 12 meses</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>El juego de ida y vuelta le enseña cómo funciona el mundo. Jugar a "¿dónde está? ¡acá está!" le muestra que alguien que desaparece vuelve. Jugar con él también le dice que es importante, y eso le da confianza para seguir explorando.</p>
+    <h3>De 3 a 6 meses</h3>
+    <ul>
+      <li>Libros, canciones y versitos. Los libros de tela con texturas, solapas o títeres son ideales.</li>
+      <li>Pelotas de distintos tipos para agarrar, soltar y hacer rodar.</li>
+      <li>Sonajeros, campanitas y juguetes que hacen ruido.</li>
+      <li>Juguetes alrededor suyo para que se estire y se mueva a buscarlos.</li>
+    </ul>
+    <h3>De 6 a 12 meses</h3>
+    <ul>
+      <li>En el baño: juguetes para hundir, llenar, flotar y vaciar. Sirven envases de plástico limpios.</li>
+      <li>Juguetes con botones para apretar, cosas para sacudir y golpear.</li>
+      <li>Bloques para apilar y juguetes para empujar o hacer rodar por el piso.</li>
+      <li>Al leer, poné voces distintas a los personajes o hacé ruidos de animales.</li>
+    </ul>
+    <h3>Cómo acompañar</h3>
+    <ul>
+      <li>Ofrecé pocas opciones a la vez: muchas lo abruman.</li>
+      <li>Dejá que elija qué jugar y cómo. Seguilo.</li>
+      <li>A veces correte un poco para que lo resuelva solo.</li>
+      <li>Contale lo que pasa: "¡Qué fuerte suena la olla!".</li>
+      <li>Festejá cada descubrimiento, por chico que sea.</li>
+    </ul>
+    <h3>Para calmar</h3>
+    <ul><li>Canciones de cuna, mecerlo en brazos, luz baja y un ruido de fondo parejo.</li><li>El mismo cuento corto de siempre antes de la siesta.</li></ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/babies/play-learning/play-baby-development/thinking-play-babies" target="_blank" rel="noopener">Raising Children Network, juego y aprendizaje en bebés</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="bebes"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="toddlers" data-group="Por edad" data-name="Toddlers" data-age="1 a 3 años" hidden>
+  <div class="mhead"><span class="age">1 a 3 años</span><h2>Toddlers</h2></div>
+  <details class="lesson" data-id="t1"><summary><span class="dot">1</span><span class="stitle"><b>Cómo es un chico de 2 a 3 años</b><small>Emociones, lenguaje, movimiento</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Emociones:</b> siente todo muy fuerte y todavía no tiene palabras para la frustración, el enojo o la vergüenza. Los berrinches son comunes. Está aprendiendo que lo que hace afecta a otros y necesita mucha cercanía, sobre todo cuando está cansado o con miedo.</li>
+      <li><b>Juego:</b> le gusta jugar con otros chicos, disfrazarse, jugar a tomar el té, pintar y juegos de correr y luchar. Cada vez espera mejor su turno.</li>
+      <li><b>Lenguaje:</b> a los 2 años arma frases de 2 o 3 palabras y usa "yo", "vos" y "mí". A los 3 dice frases de 3 a 5 palabras, puede tener una charla corta e inventar cuentos simples. Entiende muchas más palabras de las que dice.</li>
+      <li><b>Pensamiento:</b> entiende la idea de tiempo y de opuestos, clasifica cosas, junta formas y colores, nombra objetos y resuelve problemas probando.</li>
+      <li><b>Movimiento:</b> corre más firme, sube escaleras agarrado de la baranda, patea la pelota, se para un ratito en un pie, salta en el lugar y quiere andar en triciclo.</li>
+      <li><b>Cuidado diario:</b> quiere hacer todo solo (lavarse las manos, comer, vestirse) aunque todavía necesita ayuda. Muchos están listos para dejar el pañal.</li>
+    </ul>
+    <h3>Qué le hace bien</h3>
+    <ul>
+      <li>Jugar con otros chicos con un adulto cerca que lo ayude a compartir y resolver peleas.</li>
+      <li>Jugar afuera, cuidando el sol, el agua y las mascotas.</li>
+      <li>Hablarle de lo que están haciendo y agregarle palabras a lo que dice: si dice "auto", vos decís "auto rojo".</li>
+      <li>Cuentos, canciones y rimas todos los días.</li>
+      <li>Practicar cosas de todos los días: usar la cuchara, ponerse los zapatos.</li>
+      <li>Cocinar juntos algo simple, como mezclar una ensalada.</li>
+      <li>Felicitarlo cuando logra algo nuevo.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/toddlers/development/development-tracker-1-3-years/2-3-years" target="_blank" rel="noopener">Raising Children Network, desarrollo de 2 a 3 años</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="n1"><summary><span class="dot">2</span><span class="stitle"><b>Berrinches</b><small>Son normales y se pueden acompañar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Entre el año y los 4 años casi todos los chicos tienen berrinches. Sienten emociones grandes y todavía no tienen palabras para decirlas ni la forma de calmarse solos. A medida que hablan más, bajan.</p>
+    <p><b>Para que pasen menos:</b> respetá horarios de comida y siesta, avisá antes de cada cambio ("en cinco minutos guardamos"), dale opciones chicas ("¿la remera roja o la azul?"). Enseñarle palabras como "enojado" o "hambre", o señalarlas en dibujos, lo ayuda hasta que las pueda decir.</p>
+    <p><b>Cuando pasa:</b></p>
+    <ul>
+      <li>Vos tranquila: sos el ejemplo de cómo se maneja el enojo.</li>
+      <li>Que esté seguro, sin cosas cerca con las que se pueda golpear.</li>
+      <li>Ponele nombre a lo que siente: "Estás enojado porque querías seguir en la plaza".</li>
+      <li>Quedate cerca, sin sermones. Cuando se calme, un abrazo y seguir.</li>
+      <li>No cambies la regla para que pare: si aprende que gritando consigue, va a gritar más.</li>
+      <li>Elogiá lo que hace bien, en concreto: "Qué bien que esperaste tu turno".</li>
+    </ul>
+    <p class="key"><b>En Parents' Break no se castiga, no se grita y no se amenaza.</b> Si un chico te cuesta mucho, lo hablás con nosotras.</p>
+    <p class="src">Fuentes: <a href="https://raisingchildren.net.au/toddlers/behaviour/crying-tantrums/tantrums" target="_blank" rel="noopener">Raising Children Network</a> y <a href="https://www.nhs.uk/baby/babys-development/behaviour/temper-tantrums/" target="_blank" rel="noopener">NHS</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="t2"><summary><span class="dot">3</span><span class="stitle"><b>Dejar el pañal</b><small>Cómo acompañar si la familia ya empezó</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>La decisión de empezar es de la familia. Vos seguís lo que ellos hacen en casa: qué palabras usan, si usan pelela o inodoro, si tienen una tabla de premios.</p>
+    <p><b>Señales de que está listo</b> (suelen aparecer desde los 2 años): camina y se sienta un rato, está más independiente, mira cómo otros van al baño, se mantiene seco 2 horas o más, avisa cuando hace pis o caca, le molesta el pañal sucio, se puede subir y bajar el pantalón y sigue instrucciones simples.</p>
+    <h3>Cómo ayudar</h3>
+    <ul>
+      <li>Llevalo al baño en momentos fijos, por ejemplo unos 30 minutos después de comer, y cuando veas señales de que tiene ganas.</li>
+      <li>Si en 3 a 5 minutos no pasa nada, que se levante.</li>
+      <li>Felicitalo por intentarlo, no solo cuando sale.</li>
+      <li>Ropa fácil de sacar.</li>
+      <li>Limpiar de adelante hacia atrás y lavarse las manos después, siempre.</li>
+      <li>Recordale ir si pasó un rato largo: jugando se olvidan.</li>
+    </ul>
+    <h3>Los accidentes son parte</h3>
+    <p>Van a pasar. Decile que no importa, limpiá con calma y sin comentarios, y llevalo enseguida cuando te dice que tiene ganas. Mojar la cama de noche es común hasta en chicos de edad escolar.</p>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/preschoolers/health-daily-care/toileting/toilet-training-guide" target="_blank" rel="noopener">Raising Children Network, guía para dejar el pañal</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="act-t"><summary><span class="dot"></span><span class="stitle"><b>Actividades para 1 a 3 años</b><small>Ideas para la casa, la plaza y para calmar</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <h3>Sin materiales</h3>
+    <ul>
+      <li><b>¿Dónde está? ¡Acá está!</b> Te tapás la cara y aparecés.</li>
+      <li><b>Adiviná el animal:</b> imitás un animal con el cuerpo y el ruido.</li>
+      <li><b>Bailar y frenar</b> cuando para la música.</li>
+      <li><b>Canciones con gestos</b>, como las de las manitos.</li>
+    </ul>
+    <h3>Con cosas de la casa</h3>
+    <ul>
+      <li>Meter y sacar cosas de una caja o un balde.</li>
+      <li>Torres de bloques o vasos de plástico para tirar.</li>
+      <li>Cuentos con dibujos grandes: señalá y nombrá lo que ven.</li>
+      <li>Cocinita o comidita de juguete.</li>
+      <li>Crayones gruesos en una hoja grande pegada a la mesa.</li>
+      <li>Una caja de cartón que se convierte en auto o casa.</li>
+      <li>Bolos con botellas de plástico vacías.</li>
+      <li>Masa casera (2 tazas de harina, 1 de sal, 1 de agua, un chorrito de aceite), si la familia está de acuerdo.</li>
+    </ul>
+    <h3>Afuera</h3>
+    <ul><li>Burbujas, mirar hormigas y bichos bolita, juntar hojas y piedras.</li></ul>
+    <h3>Para calmar</h3>
+    <ul><li>Cuento con la luz baja, una canción suave, upa tranquila.</li></ul>
+    <p class="key"><b>Seguridad:</b> nada de piezas chicas, botones ni cuentas con menores de 3 años, y la cocina siempre con vos al lado.</p>
+    <h3>Para jugar acá</h3>
+    <p>Tocá "Emociones" y que el chico elija cómo se siente.</p>
+<div class="kit" data-games="emociones"></div>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="toddlers"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="preescolares" data-group="Por edad" data-name="Preescolares" data-age="3 a 5 años" hidden>
+  <div class="mhead"><span class="age">3 a 5 años</span><h2>Preescolares</h2></div>
+  <details class="lesson" data-id="p1"><summary><span class="dot">1</span><span class="stitle"><b>Cómo es un chico de 3 a 4 años</b><small>Preguntas, amigos, juego de roles</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Emociones:</b> distingue cuando está contento, triste, asustado o enojado. Puede tenerle miedo a cosas imaginarias. Empieza a mostrar cariño y a preocuparse por cómo se sienten los demás.</li>
+      <li><b>Lenguaje y pensamiento:</b> pregunta todo. Sabe su edad, algunos colores y formas, y opuestos como grande y chico. Cuenta hasta unas 4 cosas y repite canciones. A los 4 arma frases de 5 o 6 palabras y sigue instrucciones de 2 o 3 pasos.</li>
+      <li><b>Juego y amigos:</b> le interesa más jugar con otros y hacer amigos. Entiende "mío" y "tuyo", así que compartir se vuelve más fácil, y empieza a seguir reglas. Juega mucho a "hacer de cuenta" y puede tener amigos imaginarios. A los 4 le encanta hacer bromas y engañar, y le preocupa que lo engañen a él.</li>
+      <li><b>Movimiento:</b> sube escaleras, anda en triciclo, tira, ataja y patea la pelota, salta en un pie. Dibuja círculos y cuadrados, arma torres altas y usa tijera de punta redonda.</li>
+      <li><b>Cuidado diario:</b> come solo, se viste y se desviste, y en general ya va al baño solo, aunque puede mojar la cama de noche. Todavía necesita ayuda para lavarse los dientes.</li>
+    </ul>
+    <h3>Qué le hace bien</h3>
+    <ul>
+      <li>Juego de roles, aventuras al aire libre, actividades creativas y juegos de turnos.</li>
+      <li>Pantallas en equilibrio con juego, movimiento y cuentos.</li>
+      <li>Leer, contar cuentos, cantar.</li>
+      <li>Ayudar con tareas simples de la casa y cocinar juntos.</li>
+      <li>Felicitarlo por cada cosa nueva que aprende.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/preschoolers/development/development-tracker/3-4-years" target="_blank" rel="noopener">Raising Children Network, desarrollo de 3 a 4 años</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="act-p"><summary><span class="dot"></span><span class="stitle"><b>Actividades para 3 a 5 años</b><small>Ideas y juegos para usar desde el celular</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <h3>Sin materiales</h3>
+    <ul>
+      <li><b>Simón dice:</b> solo se hace lo que empieza con "Simón dice".</li>
+      <li><b>Estatuas:</b> bailan con música y cuando para, todos quietos.</li>
+      <li><b>Veo veo</b> con colores, desde los 4 años.</li>
+      <li><b>Adiviná el animal.</b></li>
+      <li><b>El cuento encadenado:</b> cada uno agrega una frase.</li>
+    </ul>
+    <h3>Día de lluvia</h3>
+    <ul>
+      <li>Cueva con sillas, sábanas y almohadones, y cuentos con linterna adentro.</li>
+      <li>Circuito de obstáculos: almohadones para saltar, una mesa para pasar por abajo, una cinta en el piso.</li>
+      <li>Títeres con medias viejas o dibujos en palitos.</li>
+      <li>Disfraces y juego de roles: el médico, el almacén, la maestra.</li>
+      <li>Rompecabezas simples y recortar con tijera de punta redonda.</li>
+      <li>Cocinar algo simple: ensalada de frutas o decorar galletitas.</li>
+    </ul>
+    <h3>En la plaza</h3>
+    <ul><li>Bingo de la plaza, colección de tesoros, la mancha con límites claros, tiza en la vereda si la familia deja, burbujas.</li></ul>
+    <h3>Para calmar y antes de dormir</h3>
+    <ul>
+      <li><b>Respirar como globo:</b> inflar la panza despacio y desinflarla, juntos.</li>
+      <li><b>Oler la flor y soplar la vela</b> con los dedos.</li>
+      <li>El cuento de siempre, con la luz baja. Una hora antes de dormir, sin pantallas.</li>
+    </ul>
+    <h3>Para jugar acá</h3>
+<div class="kit" data-games="tesoro,emociones,laberinto,bingo,diario"></div>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="preescolares"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="escolar" data-group="Por edad" data-name="Edad escolar" data-age="5 a 8 años" hidden>
+  <div class="mhead"><span class="age">5 a 8 años</span><h2>Edad escolar</h2></div>
+  <details class="lesson" data-id="s1"><summary><span class="dot">1</span><span class="stitle"><b>Por qué el juego sigue siendo clave</b><small>Aunque ya vayan a la escuela</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Aunque en la escuela ya aprende de forma más formal, el juego sigue armando su capacidad de resolver problemas, entender, recordar, imaginar y anticipar. Jugar con un adulto también le hace practicar lo de la escuela, por ejemplo sumando puntos en un juego de mesa. Y como el pensamiento y la autoestima van juntos, el miedo a equivocarse le puede trabar el aprendizaje: en el juego se equivoca sin presión.</p>
+    <h3>Ideas</h3>
+    <ul>
+      <li>Juegos de mesa, cartas (la mosca, memoria, veo veo), sopas de letras y crucigramas simples.</li>
+      <li>Rompecabezas que pueda armar solo.</li>
+      <li>Leer juntos, cantar, adivinanzas, chistes, inventar palabras y rimas.</li>
+      <li>Construir con bloques o con cajas de cartón.</li>
+      <li>Cocinar juntos midiendo y pesando ingredientes.</li>
+      <li>Hacer la lista de compras o planear algo juntos.</li>
+      <li>Pelota afuera, arenero, juegos con barro o con pintura.</li>
+      <li>Seguir lo que le gusta: si le encantan los dinosaurios, hablen, dibujen o lean de dinosaurios. Que guíe el juego.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/school-age/play-media-technology/play-school-age-development/thinking-play-school-age" target="_blank" rel="noopener">Raising Children Network, juego en edad escolar</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="s2"><summary><span class="dot">2</span><span class="stitle"><b>Pantallas durante el sitting</b><small>Seguir las reglas de la casa y ofrecer otra cosa</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Cada familia tiene sus reglas de pantallas: cuánto tiempo, dónde y qué ven. Preguntalas al llegar y respetalas aunque el chico insista.</p>
+    <ul>
+      <li>Ratos cortos, con pausas. Un temporizador o un corte natural (terminar el capítulo, pasar el nivel) ayudan a apagar sin pelea.</li>
+      <li>Después de la pantalla, algo de movimiento: salir afuera, bailar, la pelota.</li>
+      <li>Proponé juego cara a cara: es lo que le arma las habilidades para hacer amigos.</li>
+      <li>Nada de pantallas en la hora antes de dormir: le cuesta más dormirse. A esta edad necesitan entre 9 y 11 horas de sueño.</li>
+      <li>Fijate que lo que mira sea para su edad.</li>
+      <li>Vos también: el celular guardado mientras cuidás. El chico copia lo que ve.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/school-age/media-technology/screen-time-healthy-screen-use/healthy-screen-time-6-11-years" target="_blank" rel="noopener">Raising Children Network, pantallas de 6 a 11 años</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="act-s"><summary><span class="dot"></span><span class="stitle"><b>Actividades para 5 a 8 años</b><small>Ideas y juegos para usar desde el celular</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <h3>Sin materiales</h3>
+    <ul>
+      <li>Simón dice, veo veo, el cuento encadenado, adivinanzas y chistes.</li>
+      <li><b>20 preguntas</b>, desde los 7: pensás en algo y adivina con preguntas de sí o no.</li>
+    </ul>
+    <h3>Con cosas de la casa</h3>
+    <ul>
+      <li>Juegos de mesa y cartas (la mosca, memoria), rompecabezas.</li>
+      <li>Construir con bloques o con cajas de cartón.</li>
+      <li>Cocinar juntos midiendo y pesando ingredientes.</li>
+      <li>Hacer la lista de compras o planear algo juntos.</li>
+      <li>Circuito de obstáculos o una cueva de almohadones.</li>
+      <li>Seguir lo que le gusta: si le encantan los dinosaurios, dibujen, lean o inventen un cuento de dinosaurios.</li>
+    </ul>
+    <h3>Afuera</h3>
+    <ul><li>Pelota, la mancha, arenero, juegos con barro o pintura, bingo de la plaza.</li></ul>
+    <h3>Para calmar</h3>
+    <ul><li>Respirar como globo, dibujar con colores tranquilos, leer juntos.</li></ul>
+    <h3>Para jugar acá</h3>
+<div class="kit" data-games="tesoro,bingo,sopa,laberinto,tateti,diario"></div>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="escolar"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module " id="preteens" data-group="Por edad" data-name="Preadolescentes" data-age="9 a 12 años" hidden>
+  <div class="mhead"><span class="age">9 a 12 años</span><h2>Preadolescentes</h2></div>
+  <details class="lesson" data-id="y1"><summary><span class="dot">1</span><span class="stitle"><b>Qué les está pasando</b><small>Cambios sociales y emocionales</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Identidad:</b> prueban quiénes son a través de la ropa, la música, lo que les gusta y su grupo de amigos.</li>
+      <li><b>Independencia:</b> quieren decidir más: con quién están, cómo usan el tiempo, cómo se mueven.</li>
+      <li><b>Cosas nuevas:</b> buscan experiencias nuevas, a veces riesgosas. Su cerebro todavía está aprendiendo a medir consecuencias.</li>
+      <li><b>Amigos:</b> los amigos pesan mucho en cómo se ven y cómo se sienten, aunque los adultos siguen influyendo en sus valores.</li>
+      <li><b>Humor:</b> emociones fuertes y a veces impredecibles. Pueden malinterpretar caras o gestos de los demás y preocuparse mucho por cómo se ven.</li>
+      <li><b>Pantallas:</b> se comunican y aprenden mucho por internet, con cosas buenas y riesgos.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/pre-teens/development/social-emotional-development/social-emotional-changes-9-15-years" target="_blank" rel="noopener">Raising Children Network, cambios de 9 a 15 años</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="y2"><summary><span class="dot">2</span><span class="stitle"><b>Cómo llevarte bien con un preadolescente</b><small>Respeto, escucha y límites claros</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>A esta edad no quieren "una niñera". Te va mejor si te ven como una persona grande de confianza que los respeta.</p>
+    <ul>
+      <li><b>Escuchá de verdad:</b> dejá lo que estás haciendo, respetá lo que siente y opina aunque no estés de acuerdo.</li>
+      <li><b>Sé el ejemplo:</b> trato respetuoso, calma en las discusiones, nombrar lo que te pasa ("ahora estoy cansada, hablemos en un rato").</li>
+      <li><b>Mirá lo bueno:</b> en los momentos tensos, valorá lo que hace bien: que es buen amigo, que se esfuerza, lo que le gusta.</li>
+      <li><b>Ayudalo con las peleas:</b> con hermanos o amigos, enseñale a calmarse primero y después a resolver.</li>
+      <li><b>Reglas de la familia, claras:</b> horarios, celular, salidas, quién puede venir. Si duda, "le pregunto a tus papás".</li>
+    </ul>
+    <p class="alarm"><b>Si te cuenta algo que te preocupa</b> (que alguien lo molesta, algo que vio o le escribieron en internet, que se siente muy mal), escuchalo con calma, no prometas guardar el secreto y contáselo a Parents' Break ese mismo día. Nosotras vemos con la familia cómo seguir.</p>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/pre-teens/development/social-emotional-development/social-emotional-changes-9-15-years" target="_blank" rel="noopener">Raising Children Network</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="act-y"><summary><span class="dot"></span><span class="stitle"><b>Actividades para 9 a 12 años</b><small>Proponer, no imponer</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>A esta edad funciona mejor proponer dos o tres opciones y que elijan. Si los dejás decidir, se enganchan.</p>
+    <ul>
+      <li>Juegos de cartas y de mesa, o que te enseñen uno que les guste.</li>
+      <li>Cocinar una receta entera ellos, con vos al lado para el horno y los cuchillos.</li>
+      <li>Manualidades: pulseras, origami, un cómic dibujado entre los dos.</li>
+      <li>Deporte en la plaza: fútbol, básquet, patines con casco.</li>
+      <li>20 preguntas, el cuento encadenado, adivinanzas.</li>
+      <li>Si hay deberes, acompañalos sin hacérselos.</li>
+    </ul>
+    <p>Las pantallas, según las reglas de la casa.</p>
+    <h3>Para jugar acá</h3>
+<div class="kit" data-games="tateti,sopa"></div>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="preteens"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module need" id="autismo" data-group="Necesidades especiales" data-name="Autismo" data-age="todas las edades" hidden>
+  <div class="mhead"><span class="age">todas las edades</span><h2>Autismo</h2><p>Cada chico autista es distinto. La mejor guía siempre es su familia: preguntá cómo se comunica, qué lo calma y qué lo altera antes de quedarte sola.</p></div>
+  <details class="lesson" data-id="a1"><summary><span class="dot">1</span><span class="stitle"><b>Cómo se comunican</b><small>Entender lo que te quiere decir</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Los chicos autistas tienen capacidades de comunicación muy distintas. Algunos hablan muy bien, a otros les cuesta más y algunos no hablan.</p>
+    <h3>Lo que podés ver</h3>
+    <ul>
+      <li>Repetir palabras o frases que escuchó en otro lado, a veces sin entenderlas (se llama ecolalia). Puede ser una forma de pedir: si repite "¿querés un caramelo?", quizás quiere un caramelo.</li>
+      <li>Usar palabras inventadas o repetir la misma palabra muchas veces.</li>
+      <li>Hablar de forma muy directa o con un tono más formal.</li>
+      <li>Quedarse sin poder hablar cuando está desbordado.</li>
+      <li>Llevarte de la mano hacia lo que quiere, señalar, o darte un objeto para que lo ayudes.</li>
+      <li>Mirarte menos a los ojos o hacer movimientos repetidos, como aletear las manos, cuando está contento o nervioso.</li>
+    </ul>
+    <p class="key"><b>La conducta también comunica.</b> Negarse, tener un berrinche o pegar puede querer decir que necesita algo, que está incómodo, confundido o con miedo. Preguntate qué te está queriendo decir.</p>
+    <h3>Cómo comunicarte vos</h3>
+    <ul>
+      <li>Prestá atención y respondé a cualquier intento de comunicarse: palabras, gestos o conducta.</li>
+      <li>Frases cortas, remarcando la palabra importante.</li>
+      <li>Dale tiempo para entender y contestar.</li>
+      <li>Ofrecé dos opciones mostrándolas: "¿manzana o banana?" con una en cada mano.</li>
+      <li>Mostrá el objeto mientras decís el nombre.</li>
+      <li>Cambiá preguntas por comentarios: "¡Es una cuchara!" en vez de "¿Qué es esto?".</li>
+      <li>Repetí lo que dice y agregá una palabra: si dice "zapato", vos "zapato grande".</li>
+      <li>Hablá de lo que a él le interesa.</li>
+      <li>Si la familia usa señas, pictogramas o una tablet para comunicarse, pediles que te enseñen lo básico.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/autism/communicating-relationships/communicating/communication-asd" target="_blank" rel="noopener">Raising Children Network, comunicación en chicos autistas</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="a2"><summary><span class="dot">2</span><span class="stitle"><b>Rutinas, sentidos y conducta</b><small>Cómo hacer que el sitting sea tranquilo</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Rutinas:</b> lo predecible calma. Seguí la rutina de la familia al pie de la letra y sumá sus intereses especiales al día.</li>
+      <li><b>Avisá los cambios:</b> con anticipación y, si la familia los usa, con dibujos o pictogramas ("primero baño, después cuento").</li>
+      <li><b>Apoyos visuales:</b> una imagen de lavarse las manos ayuda más que la frase sola.</li>
+      <li><b>Sentidos:</b> muchos chicos se saturan con ruido, luz o mucha gente. Un lugar tranquilo, luz más baja, auriculares o un juguete para apretar los ayudan a calmarse.</li>
+      <li><b>Stimming:</b> aletear, balancearse o repetir sonidos los ayuda a regularse. No lo frenes si no es peligroso.</li>
+      <li><b>Pedidos:</b> una sola instrucción por vez, y esperá unos 10 segundos para que la procese. Decí lo que tiene que hacer ("caminamos") en vez de lo que no ("no corras").</li>
+      <li><b>Elogios concretos:</b> nombrá exactamente lo que hizo bien. Si habla poco, sirven un choque de manos o un pulgar arriba.</li>
+    </ul>
+    <p class="key"><b>No lo presiones para que actúe "como los demás".</b> Pedirle que mire a los ojos o que deje de moverse para encajar lo cansa y lo estresa.</p>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/autism/behaviour/understanding-behaviour/positive-behaviour-autistic-children-teenagers" target="_blank" rel="noopener">Raising Children Network, conducta positiva en chicos autistas</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="autismo"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module need" id="tdah" data-group="Necesidades especiales" data-name="TDAH" data-age="todas las edades" hidden>
+  <div class="mhead"><span class="age">todas las edades</span><h2>TDAH</h2><p>El trastorno por déficit de atención con hiperactividad hace que al chico le cueste concentrarse, quedarse quieto, esperar o manejar sus emociones. No es falta de ganas ni mala conducta.</p></div>
+  <details class="lesson" data-id="h1"><summary><span class="dot">1</span><span class="stitle"><b>Cómo ayudar a un chico con TDAH</b><small>Instrucciones, rutinas y energía</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Apoyate en lo que le sale bien.</b> Los chicos con TDAH tienen fortalezas: energía, creatividad, entusiasmo. Usalas.</li>
+      <li><b>Instrucciones cortas y claras,</b> de a una. Si le cuesta, mostrale cómo se hace o dibujalo.</li>
+      <li><b>Rutina previsible,</b> sobre todo en los momentos movidos (baño, cena, ir a dormir). Si la familia tiene un cronograma con dibujos, usalo.</li>
+      <li><b>Más tiempo para cada cosa:</b> se distrae fácil, así que todo le lleva más.</li>
+      <li><b>Pausas con movimiento</b> entre actividades quietas, como los deberes o la lectura.</li>
+      <li><b>Un temporizador visible:</b> "jugamos 10 minutos y después guardamos".</li>
+      <li><b>Tiempo para descargar energía</b> y después algo tranquilo.</li>
+      <li><b>Sin pantallas la hora antes de dormir</b> y horarios de sueño regulares.</li>
+    </ul>
+    <p class="alarm"><b>Medicación:</b> muchos chicos con TDAH toman medicación indicada por su médico. Si te toca darla, seguí exactamente lo que dice la familia (hora y dosis), por escrito.</p>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/adhd/social-emotional-wellbeing/adhd-wellbeing/managing-adhd-5-11-years" target="_blank" rel="noopener">Raising Children Network, cómo ayudar a un chico con TDAH</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="h2"><summary><span class="dot">2</span><span class="stitle"><b>Ayudarlo a regularse</b><small>Concentración, impulsos y emociones</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Nombrá lo que siente:</b> preguntale cómo se siente en el cuerpo y en el ánimo, y contale lo que te pasa a vos en voz alta, así aprende.</li>
+      <li><b>Lo difícil primero,</b> cuando está más fresco. Terminarlo lo motiva.</li>
+      <li><b>Temporizador de a poco:</b> empezá con 2 a 5 minutos de tarea, quedate cerca y alargalo de a poco.</li>
+      <li><b>Pausas cortas,</b> de unos 5 minutos, moviéndose.</li>
+      <li><b>Menos distracciones:</b> tele apagada, hermanos jugando en otro lado.</li>
+      <li><b>Dejalo moverse:</b> balancear las piernas o apretar algo en la mano muchas veces lo ayuda a concentrarse.</li>
+      <li><b>Frenar antes de actuar:</b> enseñale cuatro pasos: parar, pensar qué va a hacer, hacerlo y ver cómo salió.</li>
+      <li><b>Para calmarse:</b> una caminata, una pausa o respirar juntos. Descubran qué le funciona a él.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/adhd/social-emotional-wellbeing/adhd-emotions/self-regulation-child-with-adhd" target="_blank" rel="noopener">Raising Children Network, autorregulación y TDAH</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="tdah"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section><section class="module need" id="discapacidad" data-group="Necesidades especiales" data-name="Discapacidad" data-age="todas las edades" hidden>
+  <div class="mhead"><span class="age">todas las edades</span><h2>Discapacidad</h2><p>Cada discapacidad es distinta: física, intelectual, sensorial o varias juntas. Antes del sitting pedile a la familia que te explique cuidados específicos (cómo moverlo, cómo come, qué aparatos usa) y que te muestre cómo hacerlo.</p></div>
+  <details class="lesson" data-id="d1"><summary><span class="dot">1</span><span class="stitle"><b>Jugar con un chico con discapacidad</b><small>Que disfrute y se sienta capaz</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <ul>
+      <li><b>Elegí actividades que le salen bien,</b> así se siente seguro. Pintar, bloques, instrumentos, disfraces o jugar afuera permiten jugar solo, al lado de otro o juntos.</li>
+      <li><b>Prepará el espacio con él:</b> un lugar sin mucha gente ni ruido, con algunas opciones a mano.</li>
+      <li><b>Arrancá el juego vos:</b> proponé una idea o empezá la actividad para que se sume.</li>
+      <li><b>Juegos de turnos:</b> los juegos de mesa enseñan a esperar y compartir. Podés usar una seña para "esperá", como levantar la mano.</li>
+      <li><b>Mostrá cómo se juega con otros:</b> escuchar, compartir, ceder. "Sí, hagámoslo así".</li>
+      <li><b>Ponele palabras:</b> "Parece que estás enojado", y frases para pedir: "Yo también quiero jugar con eso".</li>
+      <li><b>Elogios concretos</b> de lo que hizo bien.</li>
+      <li><b>Sin presión:</b> jugar cansa mucho. Después, un rato tranquilo.</li>
+      <li><b>Si con otros chicos lo dejan de lado o lo molestan,</b> intervení y contáselo a la familia y a Parents' Break.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/disability/school-play-work/play-friends/play-friendship-disability" target="_blank" rel="noopener">Raising Children Network, juego y discapacidad</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details><details class="lesson" data-id="d2"><summary><span class="dot">2</span><span class="stitle"><b>Ayudarlo a hacer cosas solo</b><small>Paso a paso, con apoyo que se va retirando</small></span><span class="chev">›</span></summary>
+  <div class="lbody">
+    <p>Sirve para chicos con discapacidad y con TDAH. Preguntale a la familia qué está aprendiendo ahora (vestirse, lavarse las manos, guardar los juguetes) para practicar lo mismo.</p>
+    <ul>
+      <li><b>Una cosa por vez.</b> A veces ya está usando mucha energía en algo como mantenerse sentado.</li>
+      <li><b>Dividí la tarea en pasos chicos</b> y practicá uno por vez. Un truco: empezar por el último paso, para que sienta la satisfacción de terminar.</li>
+      <li><b>Mostrá primero:</b> que te mire, hacelo despacio y contá lo que hacés en voz alta. Si le cuesta mirarte de frente, que se siente a tu lado.</li>
+      <li><b>Instrucciones claras y cortas,</b> en tono tranquilo, y dale hasta un minuto para responder.</li>
+      <li><b>Ayudas que se van retirando:</b> primero guiarle las manos, después un gesto, después una pista.</li>
+      <li><b>Dibujos o canciones</b> para recordar los pasos.</li>
+      <li><b>Felicitalo</b> cada vez que lo logra, diciendo qué hizo bien.</li>
+      <li><b>Si se cansa o pierde interés,</b> dejalo para otro momento.</li>
+    </ul>
+    <p class="src">Fuente: <a href="https://raisingchildren.net.au/disability/school-play-work/learning-behaviour/teaching-skills-to-children-with-disability" target="_blank" rel="noopener">Raising Children Network, enseñar habilidades a chicos con discapacidad o TDAH</a></p>
+    <button class="mark" type="button">Ya lo leí</button>
+  </div></details>
+  <div class="quiz" data-quiz="discapacidad"><h3>Repaso</h3></div>
+  <nav class="next"></nav>
+</section>
+<section class="module adm" id="recibidas" data-group="Para Parents' Break" data-name="Fichas recibidas" data-age="solo admins" hidden>
+  <div class="mhead"><span class="age">Solo para Parents' Break</span><h2>Fichas recibidas</h2><p>Las fichas que mandan las niñeras, de la más nueva a la más vieja. Copiala y mandásela por WhatsApp a la próxima niñera que vaya a esa familia.</p></div>
+  <input class="search" id="rsearch" type="search" placeholder="Buscar por familia o niñera" aria-label="Buscar ficha">
+  <div id="rlist" class="rlist"><p class="empty">Todavía no llegó ninguna ficha. Cuando una niñera toque "Enviar a Parents' Break", aparece acá.</p></div>
+  <textarea id="rcopybox" class="copybox" readonly hidden aria-label="Texto de la ficha para copiar"></textarea>
+</section>
+<footer>
+  <p>Guía armada por Parents' Break a partir de Raising Children Network (Australia), la OMS, la Academia Americana de Pediatría, la American Heart Association, el CDC, Children's Minnesota, el Manual MSD, el NHS y Uruguay Crece Contigo. Versión borrador de octubre de 2026, para revisar con una pediatra antes de usarla como oficial.</p>
+</footer>
+</main>
+</div>
+<script>
+const QUIZ={
+ recien:[
+  {q:"Un bebé de 2 meses se durmió en la hamaca. ¿Qué hacés?",o:["Lo dejás, está tranquilo","Lo pasás a la cuna, boca arriba","Le ponés una almohada al costado"],a:1,e:"Las superficies inclinadas no son seguras para dormir: va a la cuna, boca arriba y sin nada alrededor."},
+  {q:"Un bebé de 6 semanas tiene 38,2 °C y se ve bien. ¿Qué hacés?",o:["Esperás a ver si baja","Le das un antifebril","Llamás a la familia ya mismo"],a:2,e:"En menores de 3 meses, 38 °C o más siempre requiere avisar enseguida para que lo vea un médico."},
+  {q:"Llevás una hora con un bebé que llora y nada lo calma. Estás desbordada.",o:["Lo acostás seguro en la cuna, salís un momento y escribís a PB","Lo movés más fuerte para que pare","Le das de comer otra vez"],a:0,e:"Un bebé llorando en su cuna está seguro. Nunca se sacude a un bebé."},
+  {q:"Estás jugando con un recién nacido y empieza a dar vuelta la cara y bostezar.",o:["Le mostrás un juguete nuevo para animarlo","Bajás el ritmo: ya tuvo suficiente estímulo","Prendés música más fuerte"],a:1,e:"Son señales de cansancio. Demasiado estímulo lo agota y le cuesta dormirse."},
+  {q:"¿A qué distancia de su cara conviene mostrarle cosas a un recién nacido?",o:["A unos 20 a 30 cm","A más de un metro","Pegadas a la cara"],a:0,e:"A esa distancia es donde mejor ve colores y formas."}
+ ],
+ bebes:[
+  {q:"Tenés que buscar algo y el bebé de 7 meses está en el cambiador.",o:["Te alejás un segundo","Lo bajás al piso o lo llevás con vos","Le ponés un almohadón al costado"],a:1,e:"Un bebé que se da vuelta se cae en un segundo. Nunca solo en alturas."},
+  {q:"Un bebé de 10 meses tira la cuchara al piso una y otra vez.",o:["Lo retás para que aprenda","Es normal: está aprendiendo causa y efecto","Le sacás todos los juguetes"],a:1,e:"Entre los 8 y 12 meses experimenta tirando cosas para ver qué pasa."},
+  {q:"¿Cuántos juguetes conviene ofrecerle a la vez a un bebé?",o:["Todos los que haya","Pocos, para que no se abrume","Ninguno, mejor la tele"],a:1,e:"Muchas opciones juntas lo abruman. Pocas, y que elija él."}
+ ],
+ toddlers:[
+  {q:"Un chico de 3 años se tira al piso porque no quiere irse de la plaza.",o:["Le comprás algo para que pare","Te quedás cerca, tranquila, y nombrás lo que siente","Lo dejás solo hasta que se le pase"],a:1,e:"Acompañar con calma y ponerle nombre a la emoción, sin ceder la regla."},
+  {q:"Un chico que está dejando el pañal se hace pis jugando.",o:["Le decís que ya es grande para eso","Limpiás con calma y le decís que no importa","Le volvés a poner pañal"],a:1,e:"Los accidentes son parte del aprendizaje. Calma y sin comentarios."},
+  {q:"Un toddler dice \"perro\". ¿Qué le contestás para ayudarlo a hablar?",o:["\"Sí, perro grande\"","Nada","\"No se dice así\""],a:0,e:"Repetir lo que dice y agregar una palabra le amplía el lenguaje."}
+ ],
+ preescolares:[
+  {q:"Una nena de 4 años tiene miedo de que haya un monstruo en el placard.",o:["Te reís, los monstruos no existen","Le das importancia a lo que siente y la tranquilizás","La dejás sola para que se acostumbre"],a:1,e:"A esta edad es común tenerle miedo a cosas imaginarias. Lo que siente es real para ella."}
+ ],
+ escolar:[
+  {q:"Faltan 40 minutos para que el chico de 7 años se duerma y quiere jugar a la tablet.",o:["Le dejás, total es un ratito","Le proponés un cuento o un juego tranquilo","Le das la tablet en la cama"],a:1,e:"Sin pantallas la hora antes de dormir: le cuesta más dormirse."},
+  {q:"¿Cuál es la mejor forma de cortar la pantalla sin pelea?",o:["Sacársela de golpe","Avisar y usar un corte natural, como el final del capítulo","Amenazar con contarle a los padres"],a:1,e:"Un temporizador o un corte natural ayudan a apagar con menos conflicto."}
+ ],
+ preteens:[
+  {q:"Una nena de 11 te cuenta que alguien le manda mensajes que la hacen sentir mal, y te pide que no le digas a nadie.",o:["Le prometés guardar el secreto","La escuchás con calma, no prometés el secreto y avisás a PB ese día","Le decís que no le dé importancia"],a:1,e:"Escuchar sin juzgar y avisar a Parents' Break, que ve con la familia cómo seguir."}
+ ],
+ autismo:[
+  {q:"Un chico autista repite \"¿querés agua?\" varias veces.",o:["Lo ignorás, está repitiendo","Le ofrecés agua: puede ser su forma de pedirla","Le pedís que hable bien"],a:1,e:"La ecolalia muchas veces es una forma de comunicarse."},
+  {q:"Le pedís algo a un chico autista y no responde enseguida.",o:["Repetís la orden más fuerte","Le das unos 10 segundos para procesar","Le das otra orden distinta"],a:1,e:"Una instrucción por vez y tiempo para procesarla."},
+  {q:"El chico aletea las manos cuando está contento.",o:["Le agarrás las manos para que pare","Lo dejás: lo ayuda a regularse","Le decís que los demás lo van a mirar raro"],a:1,e:"El stimming lo ayuda. No hay que frenarlo si no es peligroso."}
+ ],
+ tdah:[
+  {q:"Un chico con TDAH tiene que hacer los deberes y no se concentra.",o:["Lo sentás 1 hora sin moverse","Tareas cortas con temporizador y pausas con movimiento","Lo dejás para que lo hagan los padres"],a:1,e:"Ratos cortos con un temporizador, pausas para moverse y menos distracciones."},
+  {q:"¿Cómo le das instrucciones a un chico con TDAH?",o:["Todas juntas para que no se olvide","Cortas, claras y de a una","Por escrito, una lista larga"],a:1,e:"Una instrucción corta por vez, y si hace falta mostrándole cómo."}
+ ],
+ discapacidad:[
+  {q:"Estás ayudando a un chico con discapacidad a ponerse las medias.",o:["Se las ponés vos, es más rápido","Dividís en pasos chicos y lo ayudás menos de a poco","Le explicás todo de una vez"],a:1,e:"Pasos chicos, ayuda que se va retirando y felicitarlo cuando lo logra."},
+  {q:"En la plaza, otros chicos dejan de lado al chico que cuidás.",o:["No te metés, que aprenda solo","Intervenís y lo contás a la familia y a PB","Te lo llevás a casa sin decir nada"],a:1,e:"Hay que intervenir y avisar."}
+ ],
+ protocolos:[
+  {q:"Llega el tío del chico a buscarlo y la familia no te avisó.",o:["Se lo entregás, es familia","Llamás a los padres y esperás que te confirmen","Le pedís el documento y se lo das"],a:1,e:"Solo se entrega a quien la familia avisó antes. Ante la duda, llamás a los padres."},
+  {q:"En la plaza no ves al chico que cuidás.",o:["Lo buscás un minuto sin alejarte, pedís ayuda y si no aparece llamás al 911","Te vas a buscarlo a la casa","Esperás media hora a que vuelva"],a:0,e:"Buscar cerca, pedir ayuda a la gente y a seguridad, y si no aparece en pocos minutos, 911."},
+  {q:"Sentís olor a gas en la cocina.",o:["Prendés la luz para ver de dónde viene","Salís con los chicos sin tocar nada eléctrico y llamás desde afuera","Abrís el horno para revisar"],a:1,e:"Nada eléctrico ni fuego. Afuera, y después llamar."}
+ ],
+ emergencias:[
+  {q:"Un bebé de 6 meses no responde y no respira. ¿Cómo hacés las compresiones?",o:["Con dos dedos","Con los dos pulgares rodeando el pecho o el talón de una mano","Con las dos manos como en un adulto"],a:1,e:"Desde 2025 ya no se recomienda usar dos dedos: no alcanzan la profundidad."},
+  {q:"¿A qué ritmo se hacen las compresiones?",o:["40 a 60 por minuto","100 a 120 por minuto","Lo más rápido posible"],a:1,e:"100 a 120 por minuto, dejando que el pecho vuelva entre cada una."},
+  {q:"Un chico se quemó la mano con agua caliente.",o:["Hielo directo","Agua fresca de la canilla al menos 5 minutos","Manteca"],a:1,e:"Agua fresca corriendo y tapar con algo limpio. Nunca hielo ni remedios caseros."},
+  {q:"Un chico convulsiona con fiebre. ¿Qué no hacés?",o:["Ponerlo de costado","Mirar cuánto dura","Meterle algo en la boca"],a:2,e:"Nunca nada en la boca. De costado, proteger y mirar el reloj."},
+  {q:"Un bebé de 8 meses se atraganta, no llora ni tose.",o:["Maniobra de Heimlich en la panza","5 golpes en la espalda y 5 compresiones en el pecho","Le das agua"],a:1,e:"En menores de 1 año: espalda y pecho. Nunca compresiones en la panza."},
+  {q:"Un chico se tragó un producto de limpieza y está consciente.",o:["Lo hacés vomitar","Llamás al CIAT, 1722, y a la familia","Esperás a ver qué pasa"],a:1,e:"No provoques el vómito. El CIAT te dice qué hacer según el producto."}
+ ]
+};
+const KIT={"sopa": ["UGPPMJHFHV", "CUAAJSRLPA", "JVCTDSPOFC", "LEROOOEBCA", "TULLMVRRUP", "CCIRCBRMJU", "PLLJNMOOAP", "MOEFVDRNBG", "JROSOEHONN", "RONCFPNTIE"], "words": ["PERRO", "GATO", "LORO", "VACA", "PATO", "OSO", "LEON", "MONO"], "maze": [[[0, 0, 1, 1], [1, 0, 0, 1], [1, 1, 0, 0], [1, 1, 0, 0], [1, 0, 0, 0], [1, 0, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0]], [[0, 0, 1, 1], [0, 1, 0, 1], [1, 1, 1, 0], [1, 0, 0, 1], [0, 1, 1, 0], [0, 1, 0, 1], [0, 1, 1, 0], [0, 1, 0, 1], [0, 1, 1, 0], [0, 0, 1, 1]], [[0, 1, 0, 1], [1, 1, 0, 0], [1, 0, 1, 0], [0, 0, 1, 1], [1, 0, 1, 1], [1, 0, 0, 1], [1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0]], [[1, 0, 1, 1], [1, 0, 0, 1], [0, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 1], [0, 1, 0, 1], [1, 0, 1, 0], [1, 1, 0, 1], [1, 1, 0, 0], [1, 0, 1, 0]], [[0, 0, 0, 1], [0, 1, 1, 0], [1, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1], [1, 1, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 0]], [[0, 1, 0, 1], [1, 0, 1, 0], [1, 0, 0, 1], [0, 1, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0], [1, 0, 1, 0], [1, 0, 0, 1], [1, 1, 0, 0], [0, 1, 1, 0]], [[1, 0, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [1, 0, 1, 0], [1, 0, 0, 1], [1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1], [1, 1, 0, 1], [1, 0, 1, 0]], [[0, 0, 0, 1], [0, 1, 1, 0], [0, 1, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [1, 1, 0, 0], [1, 0, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0], [0, 0, 1, 0]], [[0, 1, 0, 1], [1, 1, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0], [0, 1, 1, 1], [1, 0, 0, 1], [0, 0, 1, 0], [1, 0, 0, 1], [1, 0, 1, 0], [0, 0, 1, 1]], [[1, 0, 0, 1], [1, 0, 1, 0], [1, 0, 0, 1], [1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0]], [[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [1, 1, 0, 1], [1, 1, 0, 0], [0, 1, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0], [1, 0, 1, 0]], [[0, 1, 1, 1], [0, 1, 0, 1], [0, 1, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 0]]]};
+const KEY="pb-curso-v1", DRAFT="pb-ficha-borrador";
+const $=s=>document.querySelector(s);
+const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let done=store.get(KEY,{});
+
+/* ---------- navegación ---------- */
+const modules=[...document.querySelectorAll(".module")];
+const GROUPS=["Antes de ir","Por edad","Necesidades especiales","Para Parents' Break"];
+const sidenav=$("#sidenav"), side=$("#side"), scrim=$("#scrim"), menubtn=$("#menubtn");
+const links=new Map();
+GROUPS.forEach((g,gi)=>{
+  const ms=modules.filter(m=>m.dataset.group===g);if(!ms.length)return;
+  const box=el("div","sgroup");box.dataset.group=g;
+  const lab=el("span","sglabel");if(gi<3){lab.appendChild(el("i",null,String(gi+1)))}lab.appendChild(document.createTextNode(g));box.appendChild(lab);
+  ms.forEach(m=>{
+    const a=el("a","slink");a.href="#"+m.id;
+    const hasLessons=m.querySelector(".lesson");
+    if(hasLessons){a.insertAdjacentHTML("beforeend",'<svg class="ring" viewBox="0 0 22 22" aria-hidden="true"><circle class="bgc" cx="11" cy="11" r="8"/><circle class="fgc" cx="11" cy="11" r="8" stroke-dasharray="50.27" stroke-dashoffset="50.27"/></svg>')}
+    else{a.insertAdjacentHTML("beforeend",'<svg class="ring" viewBox="0 0 22 22" aria-hidden="true"><rect x="5" y="4" width="12" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"/><path d="M8 9h6M8 13h4" stroke="currentColor" stroke-width="2" style="color:var(--accent)"/></svg>')}
+    const meta=el("span","meta");meta.appendChild(el("span",null,m.dataset.name));if(m.dataset.age)meta.appendChild(el("small",null,m.dataset.age));a.appendChild(meta);
+    a.addEventListener("click",()=>closeMenu());
+    box.appendChild(a);links.set(m.id,a);
+  });
+  if(g==="Para Parents' Break")box.hidden=true;
+  sidenav.appendChild(box);
+});
+const order=modules.filter(m=>m.dataset.group&&m.dataset.group!=="Para Parents' Break");
+order.forEach((m,i)=>{const nx=order[i+1],nav=m.querySelector(".next");if(nx&&nav){const a=el("a",null,"Siguiente: "+nx.dataset.name);a.href="#"+nx.id;nav.appendChild(a)}});
+function show(){
+  let id=(location.hash||"").slice(1);
+  if(!document.getElementById(id)||!document.getElementById(id).classList.contains("module"))id="inicio";
+  if(id==="recibidas"&&!isAdmin)id="inicio";
+  modules.forEach(m=>m.hidden=m.id!==id);
+  links.forEach((a,k)=>{if(k===id)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
+  const m=document.getElementById(id);$("#tbtitle").textContent=id==="inicio"?"Guía de niñeras":m.dataset.name;
+  window.scrollTo(0,0);
+  m.querySelectorAll("canvas.maze").forEach(c=>c._draw&&c._draw());
+}
+function openMenu(){side.classList.add("open");scrim.hidden=false;menubtn.setAttribute("aria-expanded","true")}
+function closeMenu(){side.classList.remove("open");scrim.hidden=true;menubtn.setAttribute("aria-expanded","false")}
+menubtn.addEventListener("click",()=>side.classList.contains("open")?closeMenu():openMenu());
+scrim.addEventListener("click",closeMenu);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeMenu()});
+window.addEventListener("hashchange",show);
+
+/* ---------- lecciones y progreso ---------- */
+modules.forEach(m=>m.querySelectorAll(".lesson .dot").forEach((d,i)=>d.textContent=i+1));
+function render(){
+  let t=0,d=0;
+  modules.forEach(m=>{
+    const ls=[...m.querySelectorAll(".lesson")];if(!ls.length)return;
+    const n=ls.filter(l=>done[l.dataset.id]).length;t+=ls.length;d+=n;
+    const a=links.get(m.id),fg=a&&a.querySelector(".fgc");if(fg)fg.setAttribute("stroke-dashoffset",String(50.27*(1-n/ls.length)));
+    ls.forEach(l=>{const on=!!done[l.dataset.id];l.classList.toggle("done",on);l.querySelector(".mark").textContent=on?"Leída":"Ya lo leí"});
+  });
+  const tot=$("#tot");if(tot)tot.textContent=d+" de "+t;
+}
+document.querySelectorAll(".lesson").forEach(l=>{
+  l.querySelector(".mark").addEventListener("click",()=>{
+    const id=l.dataset.id;if(done[id])delete done[id];else done[id]=1;store.set(KEY,done);render();
+    if(done[id]){l.open=false;const nx=l.nextElementSibling;if(nx&&nx.matches(".lesson"))nx.open=true}
+  });
+});
+
+/* ---------- repasos ---------- */
+document.querySelectorAll("[data-quiz]").forEach(box=>{
+  (QUIZ[box.dataset.quiz]||[]).forEach(item=>{
+    const q=el("div","q");q.appendChild(el("p",null,item.q));
+    const opts=el("div","opts"),fb=el("span","fb");fb.setAttribute("aria-live","polite");
+    item.o.forEach((txt,i)=>{const b=el("button","opt",txt);b.type="button";
+      b.addEventListener("click",()=>{opts.querySelectorAll(".opt").forEach(x=>x.classList.remove("right","wrong"));b.classList.add(i===item.a?"right":"wrong");fb.textContent=(i===item.a?"Bien. ":"No es esa. ")+item.e});
+      opts.appendChild(b)});
+    q.append(opts,fb);box.appendChild(q);
+  });
+});
+
+/* ---------- juegos ---------- */
+const tog=b=>b.addEventListener("click",()=>b.classList.toggle("on"));
+const FACES={Contento:'<path d="M22 40q10 10 20 0"/>',Triste:'<path d="M22 46q10-9 20 0"/>',Enojado:'<path d="M22 46q10-9 20 0"/><path d="M17 20l9 4M47 20l-9 4"/>',Asustado:'<path d="M22 44l5-3 5 3 5-3 5 3"/><path d="M17 22l8-4M47 22l-8-4"/>',Sorprendido:'<circle cx="32" cy="43" r="5"/>',Cansado:'<path d="M25 44h14"/>'};
+const eyes=k=>k==="Cansado"?'<path d="M18 28h9M37 28h9"/>':(k==="Asustado"||k==="Sorprendido")?'<circle cx="23" cy="28" r="3.5" fill="currentColor"/><circle cx="41" cy="28" r="3.5" fill="currentColor"/>':'<circle cx="23" cy="28" r="2.5" fill="currentColor"/><circle cx="41" cy="28" r="2.5" fill="currentColor"/>';
+const face=k=>`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="32" cy="32" r="28" style="stroke:var(--accent)"/>${eyes(k)}${FACES[k]}</svg>`;
+function emoPicker(cls,out){const box=el("div",cls);Object.keys(FACES).forEach(k=>{const b=el("button");b.type="button";b.innerHTML=face(k)+k;b.addEventListener("click",()=>{box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));if(out)out.textContent="Hoy me siento "+k.toLowerCase()});box.appendChild(b)});return box}
+const GAMES={
+  tesoro:["Búsqueda del tesoro","3 a 8 años","Encontrá cada cosa en la casa y tocala cuando la tengas.",()=>{const g=el("div","chk");["Algo rojo","Algo más chico que tu mano","Algo suave","Algo que haga ruido","Una cuchara","Algo redondo","Un libro con un animal","Algo amarillo","Una media","Algo que empiece con M","Algo frío","Tu juguete favorito"].forEach(t=>{const b=el("button",null,t);b.type="button";tog(b);g.appendChild(b)});return[g]}],
+  bingo:["Bingo de la plaza","4 a 10 años","Cuando veas algo, tocalo. Cuatro en línea es bingo.",()=>{const g=el("div","bingo"),w=el("p","sh-win");w.setAttribute("aria-live","polite");
+    const bb=["Un perro","Una hoja seca","Una paloma","Un tobogán","Una flor","Una bici","Un árbol grande","Una nube con forma","Una piedra lisa","Un banco","Una hormiga","Algo azul","Una pelota","Un gato","Una hamaca","Un pájaro que canta"].map(t=>{const b=el("button",null,t);b.type="button";g.appendChild(b);return b});
+    const ln=[];for(let i=0;i<4;i++){ln.push([0,1,2,3].map(j=>i*4+j));ln.push([0,1,2,3].map(j=>j*4+i))}ln.push([0,5,10,15],[3,6,9,12]);
+    bb.forEach(b=>b.addEventListener("click",()=>{b.classList.toggle("on");w.textContent=ln.some(l=>l.every(k=>bb[k].classList.contains("on")))?"¡Bingo!":""}));return[g,w]}],
+  sopa:["Sopa de letras","6 a 10 años","Encontrá los 8 animales. Tocá las letras para marcarlas y tachá cada animal que encuentres.",()=>{const g=el("div","sopa");KIT.sopa.forEach(r=>[...r].forEach(ch=>{const b=el("button",null,ch);b.type="button";tog(b);g.appendChild(b)}));const w=el("div","words");KIT.words.forEach(x=>{const b=el("button",null,x);b.type="button";tog(b);w.appendChild(b)});return[g,w]}],
+  laberinto:["Laberinto","4 a 8 años","Con el dedo, llevá al perro de la entrada (arriba a la izquierda) hasta su hueso (abajo a la derecha).",()=>{
+    const cv=el("canvas","maze");cv.width=400;cv.height=480;cv.setAttribute("aria-label","Laberinto para recorrer con el dedo");const cx=cv.getContext("2d");
+    const R=KIT.maze.length,C=KIT.maze[0].length,cs=36,ox=20,oy=30;let path=[],drawing=false;
+    const col=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const draw=()=>{cx.clearRect(0,0,cv.width,cv.height);cx.lineCap="round";cx.strokeStyle=col("--ink");cx.lineWidth=3;
+      for(let r=0;r<R;r++)for(let c=0;c<C;c++){const w=KIT.maze[r][c],x=ox+c*cs,y=oy+r*cs;cx.beginPath();
+        if(w[0]){cx.moveTo(x,y);cx.lineTo(x+cs,y)}if(w[3]){cx.moveTo(x,y);cx.lineTo(x,y+cs)}
+        if(r===R-1&&w[1]){cx.moveTo(x,y+cs);cx.lineTo(x+cs,y+cs)}if(c===C-1&&w[2]){cx.moveTo(x+cs,y);cx.lineTo(x+cs,y+cs)}cx.stroke()}
+      cx.fillStyle=col("--clay");cx.font="600 14px Inter, sans-serif";cx.textAlign="left";cx.fillText("Perro",ox,oy-10);cx.textAlign="right";cx.fillText("Hueso",ox+C*cs,oy+R*cs+20);
+      cx.strokeStyle=col("--clay");cx.lineWidth=5;path.forEach(s=>{cx.beginPath();s.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke()})};
+    const pos=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};
+    cv.addEventListener("pointerdown",e=>{drawing=true;path.push([pos(e)]);try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+    cv.addEventListener("pointermove",e=>{if(!drawing)return;path[path.length-1].push(pos(e));draw()});
+    ["pointerup","pointercancel"].forEach(t=>cv.addEventListener(t,()=>drawing=false));
+    const clr=el("button","mini","Borrar y volver a empezar");clr.type="button";clr.addEventListener("click",()=>{path=[];draw()});
+    cv._draw=draw;draw();try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw)}catch(_){}
+    return[cv,clr]}],
+  emociones:["Emociones","2 a 6 años","¿Cómo te sentís hoy? Tocá la cara que se parece a lo que sentís.",()=>{const w=el("p","sh-win");w.setAttribute("aria-live","polite");return[emoPicker("emos",w),w]}],
+  tateti:["Ta-te-ti","5 a 12 años","De a dos, por turnos. Empieza la X.",()=>{const g=el("div","ttt"),w=el("p","sh-win","Turno de X");w.setAttribute("aria-live","polite");let turn="X",over=false;
+    const cells=[...Array(9)].map(()=>{const b=el("button");b.type="button";b.setAttribute("aria-label","casilla vacía");g.appendChild(b);return b});
+    const W3=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    cells.forEach(b=>b.addEventListener("click",()=>{if(over||b.textContent)return;b.textContent=turn;b.classList.toggle("o",turn==="O");b.setAttribute("aria-label",turn);
+      if(W3.some(l=>l.every(k=>cells[k].textContent===turn))){w.textContent="¡Ganó "+turn+"!";over=true;return}
+      if(cells.every(c=>c.textContent)){w.textContent="Empate";over=true;return}turn=turn==="X"?"O":"X";w.textContent="Turno de "+turn}));
+    const rs=el("button","mini","Jugar de nuevo");rs.type="button";rs.addEventListener("click",()=>{cells.forEach(c=>{c.textContent="";c.classList.remove("o");c.setAttribute("aria-label","casilla vacía")});turn="X";over=false;w.textContent="Turno de X"});
+    return[g,w,rs]}],
+  diario:["Hoy con mi niñera","3 a 10 años","Completalo con el chico al final del sitting y mostráselo a la familia o mandales una captura.",()=>{const d=el("div","diary");
+    ["Me llamo","Mi niñera se llama","Hoy jugamos a","Comí","Lo que más me gustó"].forEach(t=>{const lb=el("label",null,t);const inp=el("input");inp.type="text";lb.appendChild(inp);lb.style.display="flex";lb.style.flexDirection="column";lb.style.gap="4px";d.appendChild(lb)});
+    d.appendChild(el("span","dlabel","Hoy me sentí"));d.appendChild(emoPicker("dfeel",null));return[d]}]
+};
+document.querySelectorAll(".kit").forEach(kit=>{
+  const names=kit.dataset.games.split(",");const nav=el("div","kitnav");nav.setAttribute("role","tablist");kit.appendChild(nav);
+  const sheets=names.map((n,i)=>{const [title,age,sub,build]=GAMES[n];const sh=el("div","sheet");sh.hidden=i!==0;
+    const h=el("div","sh-head");h.append(el("h3",null,title),el("small",null,age));sh.append(h,el("p","sh-sub",sub),...build());kit.appendChild(sh);
+    const b=el("button",null,title);b.type="button";b.setAttribute("role","tab");b.setAttribute("aria-selected",i===0?"true":"false");nav.appendChild(b);return[sh,b]});
+  sheets.forEach(([sh,b])=>b.addEventListener("click",()=>{sheets.forEach(([s2,b2])=>{s2.hidden=s2!==sh;b2.setAttribute("aria-selected",s2===sh?"true":"false")});sh.querySelectorAll("canvas.maze").forEach(c=>c._draw())}));
+});
+
+/* ---------- ficha ---------- */
+const form=$("#fichaform"),fstatus=$("#fstatus"),fsend=$("#fsend");
+const FIELDS=[...form.querySelectorAll("input:not([type=checkbox]),textarea:not(.copybox)")];
+const CHECKS=[...form.querySelectorAll("input[type=checkbox]")];
+const labelOf=i=>form.querySelector(`label[for="${i.id}"]`).textContent;
+["f_familia","f_ninera"].forEach(id=>form.querySelector(`label[for="${id}"]`).classList.add("req"));
+function readForm(){const o={};FIELDS.forEach(f=>o[f.id]=f.value.trim());o.checks=CHECKS.filter(c=>c.checked).map(c=>c.nextElementSibling.textContent);return o}
+function fillForm(o){FIELDS.forEach(f=>f.value=o[f.id]||"");CHECKS.forEach(c=>c.checked=(o.checks||[]).includes(c.nextElementSibling.textContent))}
+const draft=store.get(DRAFT,null);if(draft)fillForm(draft);
+form.addEventListener("input",()=>store.set(DRAFT,readForm()));
+const LABELS={};FIELDS.forEach(f=>LABELS[f.id]=labelOf(f));
+function fichaText(o){
+  const lines=["*Ficha de la familia, Parents' Break*"];
+  FIELDS.forEach(f=>{const v=o[f.id];if(v)lines.push(`*${LABELS[f.id]}:* ${v}`)});
+  if(o.checks&&o.checks.length)lines.push("*Revisado:* "+o.checks.join("; "));
+  return lines.join("\n");
+}
+async function copyText(txt,box,status){
+  try{await navigator.clipboard.writeText(txt);status.textContent="Copiado. Pegalo en WhatsApp.";status.className="fstatus ok";box.hidden=true}
+  catch(e){box.value=txt;box.hidden=false;box.focus();box.select();status.textContent="Seleccioná el texto de abajo y copialo.";status.className="fstatus"}
+}
+$("#fcopy").addEventListener("click",()=>copyText(fichaText(readForm()),$("#fcopybox"),fstatus));
+$("#fclear").addEventListener("click",()=>{fillForm({});store.set(DRAFT,null);fstatus.textContent="Ficha nueva, en blanco.";fstatus.className="fstatus";$("#fcopybox").hidden=true});
+
+let db=null,user=null,uid=null,isAdmin=false;
+form.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const o=readForm();
+  if(!o.f_familia||!o.f_ninera){fstatus.textContent="Completá al menos la familia y tu nombre.";fstatus.className="fstatus err";(o.f_familia?form.f_ninera:form.f_familia).focus();return}
+  if(!db||!uid){fstatus.textContent="Desde acá no se puede enviar. Tocá \"Copiar para WhatsApp\" y mandánosla por ahí.";fstatus.className="fstatus err";return}
+  fsend.disabled=true;fstatus.textContent="Enviando…";fstatus.className="fstatus";
+  try{
+    const now=Date.now();
+    await db.collection("fichas/"+uid+"/items").add({...o,createdAt:now,uid,pasada:false});
+    await db.doc("buzon/"+uid).set({uid,last:now});
+    fstatus.textContent="Enviada. Ya nos llegó a Parents' Break.";fstatus.className="fstatus ok";
+    fillForm({});store.set(DRAFT,null);
+  }catch(err){
+    fstatus.textContent="No se pudo enviar. Tocá \"Copiar para WhatsApp\" y mandánosla por ahí.";fstatus.className="fstatus err";
+  }finally{fsend.disabled=false}
+});
+
+function fmtDate(o){const f=o.f_fecha;if(f){const [y,m,d]=f.split("-");return `${d}/${m}/${y}`}return new Date(o.createdAt).toLocaleDateString("es-UY")}
+
+(async()=>{
+  try{user=await claude.use("user");db=await claude.use("db")}catch(e){}
+  if(user){try{uid=await user.id()}catch(e){}try{isAdmin=await user.canEdit()}catch(e){}}
+  if(db&&uid){
+    try{db.collection("fichas/"+uid+"/items").orderBy("createdAt","desc").limit(10).onSnapshot(snap=>{
+      const ul=$("#minelist");ul.textContent="";snap.docs.forEach(d=>{const o=d.data();ul.appendChild(el("li",null,`${o.f_familia} (${fmtDate(o)})`))});
+      $("#mine").hidden=!snap.docs.length},()=>{})}catch(e){}
+  }
+  if(isAdmin&&db){
+    document.querySelector('.sgroup[data-group="Para Parents\' Break"]').hidden=false;
+    setupAdmin();
+  }
+  show();
+})();
+
+const ALERT=["f_alergias","f_medic","f_salud"];
+function setupAdmin(){
+  const all=new Map(),subs=new Set();
+  const list=$("#rlist"),q=$("#rsearch");
+  function draw(){
+    const term=q.value.trim().toLowerCase();
+    const rows=[...all.values()].filter(r=>!term||(r.data.f_familia+" "+r.data.f_ninera).toLowerCase().includes(term)).sort((a,b)=>b.data.createdAt-a.data.createdAt);
+    list.textContent="";
+    if(!rows.length){list.appendChild(el("p","empty",all.size?"No hay fichas con esa búsqueda.":"Todavía no llegó ninguna ficha. Cuando una niñera toque \"Enviar a Parents' Break\", aparece acá."));return}
+    rows.forEach(r=>{const o=r.data,c=el("article","rcard");
+      const top=el("div","rtop"),t=el("div");t.append(el("b",null,o.f_familia||"Sin nombre"),document.createElement("br"),el("small",null,`${fmtDate(o)}, completada por ${o.f_ninera||"sin nombre"}`));
+      top.append(t,el("span","pill"+(o.pasada?" done":""),o.pasada?"Ya se pasó":"Para pasar"));c.appendChild(top);
+      const dl=el("dl");FIELDS.forEach(f=>{if(["f_familia","f_ninera","f_fecha"].includes(f.id))return;const v=o[f.id];if(!v)return;const w=el("div",ALERT.includes(f.id)?"alert":"");w.append(el("dt",null,LABELS[f.id]),el("dd",null,v));dl.appendChild(w)});
+      if(o.checks&&o.checks.length){const w=el("div");w.append(el("dt",null,"Revisado"),el("dd",null,o.checks.join("; ")));dl.appendChild(w)}
+      c.appendChild(dl);
+      const acts=el("div","racts"),st=el("p","fstatus");st.setAttribute("aria-live","polite");
+      const cp=el("button","solid","Copiar para la próxima niñera");cp.type="button";cp.addEventListener("click",()=>copyText(fichaText(o),$("#rcopybox"),st));
+      const mk=el("button","ghost",o.pasada?"Marcar como pendiente":"Marcar como pasada");mk.type="button";
+      mk.addEventListener("click",async()=>{mk.disabled=true;try{await r.ref.update({pasada:!o.pasada})}catch(e){st.textContent="No se pudo guardar el cambio.";st.className="fstatus err"}mk.disabled=false});
+      acts.append(cp,mk);c.append(acts,st);list.appendChild(c)});
+  }
+  q.addEventListener("input",draw);
+  try{db.collection("buzon").onSnapshot(snap=>{snap.docs.forEach(d=>{const id=d.id;if(subs.has(id))return;subs.add(id);
+    db.collection("fichas/"+id+"/items").onSnapshot(s2=>{s2.docChanges().forEach(ch=>{const key=id+"/"+ch.doc.id;if(ch.type==="removed")all.delete(key);else all.set(key,{ref:db.doc("fichas/"+id+"/items/"+ch.doc.id),data:ch.doc.data()})});draw()},()=>{})});draw()},()=>{})}catch(e){}
+}
+
+render();show();
+
+</script>
+
+</body></html>

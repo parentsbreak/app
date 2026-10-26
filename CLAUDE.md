@@ -175,6 +175,11 @@ El repo es público: lo que entra al repo lo puede leer cualquiera.
   inventados ("Familia Prueba Uno", "Ana Ficticia", cuentas 0001234567...). Los extractos
   bancarios reales se usan solo en una carpeta temporal y nunca se commitean, ni recortados.
   Una migración que necesita tocar filas puntuales las nombra solo por id.
+- Datos de práctica (26/10/2026): para probar la app de niñeras en producción una admin carga filas
+  reales con "(práctica)" en el nombre (una niñera con el celular de Diego, una familia inventada).
+  Un pedido de práctica se manda solo a la niñera de práctica (la pantalla avisa si hay una real
+  tildada); sus sittings nunca se marcan cobrados ni pagados; al terminar la prueba Diego las borra
+  con respaldo previo y su OK (`docs/fase1/decisiones.md` 4.17).
 - Para diagnosticar se pueden LEER datos de producción (solo lectura).
 - Escribir en producción solo para corregir datos rotos por un bug, y nunca desde tests:
   1. Primero mostrarle a Diego las filas afectadas, cómo quedan antes y después, y el SQL
@@ -318,10 +323,26 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/solicitud-un-paso.spec.js`: "+ Nueva solicitud" con niñera opcional y los dos precios por hora
   (precargados, cambiados a mano, sin hora de fin, traslado por viaje, lista según el tipo, fallas al
   cargar la niñera o el registro, doble reserva, doble toque, 390 px) y el pago por hora en las tarjetas.
+- `tests/ninera-cuenta.spec.js`: puerta de niñeras (`ninera/`): el simulador, invitación (bienvenida,
+  errores de la función, link para cambiar la contraseña), login con el celular escrito de cualquier
+  forma, instalar, avisos, inicio vacío, sesiones separadas de las dos puertas, cuenta inactiva, que
+  no se vean montos, 390 y 1280 px.
+- `tests/invitar-app.spec.js`: ficha de la niñera: "Invitar a la app" (link y mensaje, link vigente,
+  errores, doble toque), estado de la app, link para cambiar la contraseña, aviso de celular cambiado
+  y login del panel con una cuenta de niñera o sin acceso.
+- `supabase/pruebas/fase1_cuentas_ninieras.sql`: celular normalizado y mail sintético, invitaciones
+  (solo la última sirve, una vez), `ninera_actual()`, RLS y push como niñera, e ida y vuelta de la
+  migración (aplicar, deshacer, aplicar).
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
   Ningún test llega a la base real: un pedido sin simular hace fallar el test.
+  `abrirAppNinera(page, { datos, ninera, sesion, instalada, consulta, funciones })` abre `ninera/`
+  con una niñera ficticia (su sesión bajo `sb-ninera-auth`); `estado.funciones[nombre]` simula una
+  Edge Function por nombre; las RPC de la niñera se simulan en `tests/support/rpc-ninera.js`.
+- `scripts/probar-sql.mjs` (26/10/2026): `--migracion` se puede repetir (aplicar → deshacer →
+  aplicar) y una prueba "es" una cuenta con `set local role authenticated` y
+  `set local request.jwt.claims` (de ahí salen `auth.uid()`, `auth.jwt()` y `auth.email()`).
 - supabase-js 2.117.2 está en el repo (`vendor/`, desde el 05/10/2026): la app y los tests lo
   cargan de ahí, sin CDN. `tests/estatico.spec.js` controla la versión y el sha256.
 - El CI corre todo en cada PR (`.github/workflows/tests.yml`).
@@ -381,6 +402,14 @@ reporte.
   cuenta de nadie: `net.http_post` desde el SQL Editor con `x-cron-secret` (app_secrets
   'cron_push_secret') y `probar: true` (no guarda nada; con esa clave no se puede sin probar);
   la respuesta queda en `net._http_response`. Solo mensajes inventados.
+- `ninera-cuenta` (26/10/2026): pública por diseño (verify_jwt = false, el token del link es la
+  credencial), CORS solo al origen publicado. `POST {token}` → bienvenida (nombre, celular
+  enmascarado, `es_reset`); `POST {token, password}` → crea o resetea la cuenta con la clave de
+  servicio y la vincula. Errores: 400 `token`, 404 `no_existe`, 410 `vencido`, 403 `inactiva`, 400
+  `password_corta`, 409 `celular_invalido`. Nunca devuelve el celular entero ni loguea la
+  contraseña. La lógica en `cuenta.ts`, con tests de Deno (`cuenta_test.ts`).
+- `enviar-push-urgentes` V11 (26/10/2026) manda solo a `push_subscriptions` con `user_id` nulo
+  (admins). Se publica después de la migración `cuentas_ninieras` y antes de `ninera-cuenta`.
 
 ## Convenciones
 - UI y comentarios en español rioplatense (voseo). Los comentarios explican el porqué y
@@ -446,6 +475,33 @@ reporte.
 - Una función global nueva no puede repetir el nombre de otra en ningún archivo, de ninguna de las
   dos puertas. Una función de `js/comun.js` no se redefine en ningún otro archivo; `comun.js` no
   lleva nada de plata.
+- Dos puertas, una sesión cada una (26/10/2026): el cliente de `ninera/` usa
+  `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
+  Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
+  equivocada. Una cuenta nunca tiene los dos roles.
+- Cuentas de niñeras (26/10/2026): usuario = celular + contraseña; por dentro, Auth usa el mail
+  sintético `<celular normalizado>@ninieras.parentsbreak.invalid` (`MAIL_DOMINIO_NINERA` en
+  `js/comun.js`, `mail_sintetico_ninera()` en SQL y la constante de `ninera-cuenta`: los tres
+  iguales). La normalización es una sola regla en SQL (`normalizar_celular`), Deno y JS
+  (`normalizarCelular`), con los mismos 11 casos en las tres pruebas. La cuenta la crea la Edge
+  Function `ninera-cuenta` desde el link de invitación (`crear_invitacion_ninera`, 7 días salvo
+  `app_config` 'ninieras_app'.vigencia_dias, un link nuevo invalida el anterior); reset de
+  contraseña = otro link desde la ficha, sin mails. El rol es
+  `ninieras.user_id` + `ninera_actual()`; `usuarias_autorizadas` no se toca.
+- Lo que la niñera nunca ve (26/10/2026): plata acumulada, pagos, márgenes, el apellido completo de
+  la madre, notas internas ni datos de otras niñeras (lista completa en `docs/fase1/decisiones.md`
+  5.3). Lo garantiza la base: nada de políticas nuevas sobre tablas compartidas; la niñera lee por
+  funciones `security definer` que filtran por `ninera_actual()` y devuelven solo columnas
+  permitidas; sus tablas propias llevan RLS por `ninera_actual()`. Cada función nueva trae su
+  prueba SQL como niñera.
+- Login del panel con cuenta de niñera (26/10/2026): `login()` consulta `es_usuaria_autorizada()`;
+  solo si devuelve exactamente `false` mira `ninera_actual()` y cierra la sesión local: si es
+  niñera, muestra el link a `ninera/`; si no, que la cuenta no tiene acceso
+  (`frenarCuentaSinAccesoAlPanel`, auth.js). Un error de la RPC sigue como siempre: nunca dejar
+  afuera a una admin por una consulta fallida.
+- Push y niñeras (26/10/2026): `push_subscriptions.user_id` identifica los dispositivos de niñeras
+  (política `push_propias`); `enviar-push-urgentes` V11 manda solo a las filas con `user_id` nulo
+  (admins). Los avisos a niñeras van por la cola de la etapa 3.
 - Buscadores (25/10/2026): nunca `<datalist>` nativo (en el iPhone no ignora tildes): siempre
   `attachAutocomplete` (sittings.js), que compara con `normaliza()`; con `{sinCoincidencias:''}` no
   avisa nada cuando el nombre es libre. "Entrevistó" viene con `registradoPorUsuario()` y sugiere los
@@ -596,6 +652,22 @@ o pagos automáticos. Va por etapas y Diego decide. El pago automático a niñer
 descartado (19/10/2026): no proponerlo de nuevo.
 - Niñeras que dicen que no (20/10/2026): va a la app de niñeras, como un contador.
 
+### Fase 1: app de niñeras + asistente de pedidos (26/10/2026)
+En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-negocio.md` (leerlas
+antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los textos en
+`textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
+`plan-implementacion.md`. Etapa 1 hecha (puerta `ninera/`, cuentas, invitación, instalar, avisos);
+etapas 2 a 11 pendientes, cada una se detalla antes de arrancarla. Los textos provisorios para las
+dueñas están en `textos-provisorios.md`.
+- `ninera-cuenta`: un alta a medias (la cuenta de Auth se crea y falla vincularla) deja un usuario
+  huérfano y el link da 500 en cada reintento; tratar el error `email_exists` buscando el usuario
+  por mail y vinculándolo.
+- `resolverCambioTelefono` (celular aceptado desde la página de temporada) no avisa que una niñera
+  con app necesita un link nuevo ni refresca la fila "App" de la ficha.
+- `copiarAlPortapapeles` en el panel: si el portapapeles falla, el modal de copia a mano reemplaza
+  la ficha abierta.
+- Los textos provisorios de `textos-provisorios.md` esperan la confirmación de las dueñas.
+
 ### Próximas tareas (pedidas por Paulina y Delfina)
 - Rediseño del panel: EN PAUSA (21/10/2026, Paulina y Delfina después de ver las maquetas). No se
   hace el PR 0 ni la barra de abajo: prefieren la navegación actual. Lo que sirve del rediseño se
@@ -652,7 +724,9 @@ descartado (19/10/2026): no proponerlo de nuevo.
   completó. Después: en la app, la lista de niñeras que no lo completaron, con un botón que abre
   WhatsApp con el mensaje y el link al formulario (editable); cuando llega la respuesta, sale sola
   de la lista. Jubilar el recordatorio por mail (Apps Script recordatorio_carsitting +
-  carsitting-recordatorio).
+  carsitting-recordatorio). El PR #60 (pantalla de car sitting) se cerró el 25/10/2026 sin mergear:
+  el formulario de Google y el webhook se reemplazan por el carsitting dentro de la app de niñeras
+  (fase 1, etapa 10).
 
 ### Errores encontrados en la auditoría (21/10/2026)
 - "Editar horarios futuros" (`guardarHorarioAsignacionFija`) no permite fijos que cruzan medianoche.
@@ -663,8 +737,6 @@ descartado (19/10/2026): no proponerlo de nuevo.
 - `chequearFijoNuevoContraTodo` corre dentro de un loop por día (fijo con horario por día);
   `abrirModalAsignar` lee toda la historia de registros cada vez que se abre.
 - Editar un registro de una niñera inactiva deja `ninera_id` nulo (`cargarSitBase` trae solo activas).
-- Crear un fijo desde la ficha de la familia guardaba `ninera_id` nulo (arreglado el 25/10/2026, ahora
-  `ninierasItems` trae el id): falta revisar en producción cuántas asignaciones quedaron así.
 - Borrar una familia borra sus fijos en cascada (FK `ON DELETE CASCADE`): conviene baja lógica.
   "Descartar" una candidata es un DELETE físico: decidido (21/10/2026) que pase al estado
   `descartada`; va en el PR de Postulantes del rediseño.
