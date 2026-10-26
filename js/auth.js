@@ -192,6 +192,7 @@ async function login(){
     document.getElementById('loginwarn').innerHTML = `<div class="warnbox">${error.message==='Invalid login credentials' ? 'Mail o contraseña incorrectos.' : escaparHtml(error.message)}</div>`;
     return;
   }
+  if(await frenarCuentaSinAccesoAlPanel()) return;
   // scope 'local' (21/10/2026): solo este dispositivo. Sin eso supabase-js cierra la sesión de
   // esa cuenta en TODOS lados, y cerrar esta pestaña sacaba del sistema a la compu donde se
   // estaba haciendo una entrevista (que se perdía al pasar al login).
@@ -199,6 +200,30 @@ async function login(){
   // Mientras se revisa Face ID / contraseña pendiente (va a la base), el logo con la ruedita.
   mostrarPantallaCarga('Entrando…');
   await continuarPostLogin();
+}
+// Cuentas de niñera en el panel (26/10/2026, fase 1): desde que las niñeras tienen usuario, una
+// puede escribir su celular y contraseña acá. La RLS ya no le deja ver nada, pero quedaba en una
+// pantalla vacía: se le cierra la sesión (solo este dispositivo) y se le dice que entre por su app.
+// Solo frena con una respuesta clara de la base (es_usuaria_autorizada = false): si la consulta
+// falla o devuelve otra cosa, se sigue como siempre, para no dejar afuera a una admin por un
+// problema de conexión. Devuelve true si frenó el login.
+async function frenarCuentaSinAccesoAlPanel(){
+  const { data: autorizada, error } = await sb.rpc('es_usuaria_autorizada');
+  if(error || autorizada !== false) return false;
+  const { data: nineraId, error: errNinera } = await sb.rpc('ninera_actual');
+  const esNinera = !errNinera && !!nineraId;
+  // faceidPendiente sigue prendida durante el signOut: así el SIGNED_OUT no repinta el login
+  // (y borra el aviso) antes de tiempo.
+  await sb.auth.signOut({ scope: 'local' });
+  limpiarPostLoginPendiente();
+  if(!document.getElementById('loginwarn')) renderLogin();
+  const btn = document.getElementById('loginbtn');
+  btn.disabled = false;
+  document.getElementById('loginbtn-label').textContent = 'Entrar';
+  document.getElementById('loginwarn').innerHTML = esNinera
+    ? `<div class="warnbox">Esta cuenta es de niñera. Entrá por la app de niñeras: <a href="ninera/">abrir la app</a></div>`
+    : `<div class="warnbox">Esta cuenta no tiene acceso. Avisale a Diego.</div>`;
+  return true;
 }
 // Cadena de pasos obligatorios después de un login con contraseña exitoso: primero cambio
 // de contraseña forzado (si esa cuenta lo tiene pendiente), después Face ID/Touch ID (si el

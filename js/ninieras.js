@@ -395,7 +395,7 @@ async function verNinera(id){
     </div>
     ${htmlCambioTelefono(n)}
     ${cvDesactualizado ? `<div class="warnbox" style="margin-bottom:10px;">Cumplió años desde que se generó el CV — convendría rehacerlo.</div>` : ''}
-    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.cv_url?`<div><b>CV</b><a href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver CV</a></div>`:''}<div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
+    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.cv_url?`<div><b>CV</b><a href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver CV</a></div>`:''}<div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
     <div id="vn-carsitting"></div>
     <div id="vn-juguetes"></div>
     <div id="vn-saldo" style="margin-top:18px;"></div>
@@ -411,6 +411,7 @@ async function verNinera(id){
       </div>
       <div id="vn-historial"><div class="empty"><span class="spinner dark"></span> Cargando…</div></div>
     </div>`);
+  cargarEstadoAppNinera(n.id);
   cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
   cargarJuguetesDeNinera(n.nombre);
   renderIncidentesEnFicha('vn-incidentes', 'ninera', n.id, n.nombre);
@@ -483,6 +484,111 @@ async function resolverCambioTelefono(id, aceptar){
   if(enFicha && aceptar) enFicha.textContent = nuevo;
   filtrarNinieras();
   toast(aceptar ? 'Celular actualizado.' : 'Cambio descartado, queda el celular de antes.');
+}
+/* ---- App de niñeras (fase 1, 26/10/2026) ----
+   La ficha muestra en qué anda la cuenta de la niñera y arma el link de invitación (o de cambio
+   de contraseña, si ya tiene cuenta). El link lo crea la base (crear_invitacion_ninera: invalida
+   el anterior y vence solo) y el mensaje NUNCA sale solo: la admin lo copia o abre WhatsApp. */
+// dd/mm en hora de Montevideo. Se arma a mano: con 'es-UY', day:'2-digit' igual da "3/10".
+function fechaCortaApp(iso){
+  const partes = new Intl.DateTimeFormat('es-UY', { day:'numeric', month:'numeric', timeZone:'America/Montevideo' }).formatToParts(new Date(iso));
+  const p = t => (partes.find(x=>x.type===t)?.value || '').padStart(2, '0');
+  return `${p('day')}/${p('month')}`;
+}
+// Pura (sin DOM): n es la fila de ninieras, invitacion la última de ninera_invitaciones (o null)
+// y pushs cuántos dispositivos de esa cuenta tienen los avisos prendidos.
+function estadoAppNinera(n, invitacion, pushs){
+  let texto = 'Sin app';
+  if(n.user_id){
+    texto = (n.app_activada_en ? `App activa desde ${fechaCortaApp(n.app_activada_en)}` : 'App activa')
+      + (pushs > 0 ? ' · avisos activados' : ' · sin avisos');
+  } else if(invitacion && !invitacion.usada_en && !invitacion.reemplazada_en && invitacion.vence_en){
+    texto = new Date(invitacion.vence_en).getTime() > Date.now()
+      ? `Invitada el ${fechaCortaApp(invitacion.creada_en)}, el link vence el ${fechaCortaApp(invitacion.vence_en)}`
+      : `Link vencido el ${fechaCortaApp(invitacion.vence_en)}`;
+  }
+  let motivo = '';
+  if(!n.activa) motivo = 'Está inactiva';
+  else if(!normalizarCelular(n.telefono)) motivo = 'Cargá un celular uruguayo válido para invitarla';
+  return { texto, puedeInvitar: !motivo, motivo, esReset: !!n.user_id };
+}
+async function cargarEstadoAppNinera(id){
+  const n = ninierasItems.find(x=>x.id===id);
+  if(!n) return;
+  const [inv, push] = await Promise.all([
+    sb.from('ninera_invitaciones').select('vence_en,usada_en,reemplazada_en,creada_en')
+      .eq('ninera_id', id).order('creada_en', { ascending:false }).limit(1),
+    n.user_id ? sb.from('push_subscriptions').select('id').eq('user_id', n.user_id) : Promise.resolve({ data: [] }),
+  ]);
+  const cont = document.getElementById('vn-app');
+  // La ficha se cerró o ya es la de otra niñera (se abrió otra mientras esto cargaba): no se pinta.
+  if(!cont || cont.dataset.ninera !== id) return;
+  if(inv.error || push.error){ cont.textContent = 'No se pudo cargar el estado de la app'; return; }
+  const est = estadoAppNinera(n, (inv.data||[])[0] || null, (push.data||[]).length);
+  const etiqueta = est.esReset ? 'Link para cambiar la contraseña' : 'Invitar a la app';
+  cont.innerHTML = `<span>${escaparHtml(est.texto)}</span> `
+    + (est.puedeInvitar
+      ? `<button class="smallbtn" onclick="conGuardado(this, ()=>abrirInvitacionApp(${argJs(id)}))">${etiqueta}</button>`
+      : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`);
+}
+const ERRORES_INVITACION = {
+  ninera_inactiva: 'la niñera está inactiva',
+  celular_invalido: 'el celular no es válido',
+  no_autorizada: 'tu cuenta no tiene permiso',
+  ninera_no_encontrada: 'no se encontró la niñera',
+};
+let invitacionAppMensaje = '';
+async function abrirInvitacionApp(id){
+  const n = ninierasItems.find(x=>x.id===id);
+  if(!n) return;
+  const { data, error } = await sb.rpc('crear_invitacion_ninera', { p_ninera_id: id });
+  const fila = Array.isArray(data) ? data[0] : data;
+  if(error || !fila || !fila.token){
+    const msg = error ? (ERRORES_INVITACION[error.message] || error.message) : 'la base no devolvió el link';
+    toast('No se pudo crear el link: ' + msg, 'bad');
+    return;
+  }
+  const link = `${new URL('ninera/', location.href).href}?i=${encodeURIComponent(fila.token)}`;
+  const nombre = (n.nombre||'').trim().split(/\s+/)[0];
+  const dias = Math.max(1, Math.round((new Date(fila.vence_en).getTime() - Date.now()) / 86400000)) || 7;
+  const vale = `Vale por ${dias} ${dias===1 ? 'día' : 'días'}.`;
+  // Textos de docs/fase1/textos.md, sección 2 (a la niñera, en "tú").
+  invitacionAppMensaje = fila.es_reset
+    ? `¡Hola ${nombre}! Con este link puedes crear una contraseña nueva: ${link}. ${vale}`
+    : `¡Hola ${nombre}! Desde ahora los pedidos de Parents' Break te van a llegar por nuestra app. Haz click aquí para crear tu usuario y contraseña: ${link}. ${vale}`;
+  const titulo = fila.es_reset ? 'Link para cambiar la contraseña' : 'Invitar a la app';
+  cerrarInvitacionApp();
+  // Va en un modal aparte, encima de la ficha: al cerrarlo la ficha sigue ahí, con la fila "App" al día.
+  const overlay = document.createElement('div');
+  overlay.className = 'confirmoverlay';
+  overlay.id = 'invitar-overlay';
+  overlay.innerHTML = `
+    <div class="confirmbox wide" role="dialog" aria-label="${titulo}">
+      <h2 style="margin:0 0 4px;">${titulo}</h2>
+      <div class="helper" style="margin:0 0 12px;">Mandale este mensaje a ${escaparHtml(nombre)} por WhatsApp. El link sirve una sola vez.</div>
+      <div id="invitar-mensaje" style="white-space:pre-wrap;overflow-wrap:anywhere;background:var(--accent-soft);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;">${escaparHtml(invitacionAppMensaje)}</div>
+      <div class="confirmbtns" style="flex-wrap:wrap;">
+        <button class="btn ghost" onclick="cerrarInvitacionApp()">Cerrar</button>
+        <button class="btn" onclick="copiarMensajeInvitacion()">Copiar mensaje</button>
+        <a class="btn primary" href="${urlSegura(waLink(n.telefono, invitacionAppMensaje))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) cerrarInvitacionApp(); });
+  document.body.appendChild(overlay);
+  requestAnimationFrame(()=>overlay.classList.add('show'));
+  cargarEstadoAppNinera(id);
+}
+async function copiarMensajeInvitacion(){
+  await copiarAlPortapapeles(invitacionAppMensaje, 'Mensaje copiado. Pegalo en WhatsApp.');
+  // Sin portapapeles, copiarAlPortapapeles pone el texto en el modal de abajo: se cierra este para verlo.
+  if(document.getElementById('copiar-a-mano')) cerrarInvitacionApp();
+}
+function cerrarInvitacionApp(){
+  const o = document.getElementById('invitar-overlay');
+  if(!o) return;
+  o.classList.remove('show');
+  o.id = '';
+  setTimeout(()=>o.remove(), 180);
 }
 let nineraHistItems = [];
 function renderNineraHistorial(id){
@@ -738,6 +844,10 @@ async function guardarEdicionNinera(id){
     cambios.temporada_fuente = 'sistema';
     cambios.zona = zonaConTemporada(cambios.zona, cambios.temporada);
   }
+  const nAntes = ninierasItems.find(x=>x.id===id);
+  // Con la app activa, la cuenta está atada al celular (el mail de la cuenta sale de él): si cambia,
+  // la niñera ya no entra con el número nuevo hasta que le manden un link (26/10/2026).
+  const cambioCelularConApp = !!(nAntes?.user_id && (nAntes.telefono||'') !== (cambios.telefono||''));
   const { error } = await sb.from('ninieras').update(cambios).eq('id', id);
   if(error){ toast('No se pudo guardar: '+error.message,'bad'); return; }
   const extraInputs = [...document.querySelectorAll('#ed-extra-fields [data-campo]')];
@@ -787,6 +897,7 @@ async function guardarEdicionNinera(id){
   cerrarModal();
   if(errExtra) toast('Se guardó lo básico, pero no las categorías extra: '+errExtra.message, 'bad');
   else toast('Cambios guardados.');
+  if(cambioCelularConApp) toast('Cambió el celular: va a necesitar un link nuevo para entrar (Invitar a la app).');
   const scrollN1 = guardarScrollMainarea();
   await cargarNinieras();
   restaurarScrollMainarea(scrollN1);
