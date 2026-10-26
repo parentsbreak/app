@@ -304,6 +304,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/busquedas-entrevisto.spec.js`: "Entrevistó" con el nombre de la cuenta, editable y con los ya usados
   (entrevistas viejas intactas, borrador); los buscadores de "+ Asignar niñera" (ficha de la familia) y del
   nombre en Contratos con el autocompletar de la app (sin tildes, id de la niñera, 390 px).
+- `tests/solicitud-un-paso.spec.js`: "+ Nueva solicitud" con niñera opcional y los dos precios por hora
+  (precargados, cambiados a mano, sin hora de fin, traslado por viaje, lista según el tipo, fallas al
+  cargar la niñera o el registro, doble reserva, doble toque, 390 px) y el pago por hora en las tarjetas.
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -402,6 +405,13 @@ reporte.
 - Celular (25/10/2026, regla de Paulina y Delfina): toda casilla mide 24 px (regla global en
   `index.html`, `@media (max-width:760px)`); nada de `width:auto` inline en un checkbox. El botón
   de `confirmarAccion` dice lo que hace: el 'Eliminar' por defecto solo si de verdad borra.
+- Solicitud en un paso (25/10/2026): "+ Nueva solicitud" lleva la niñera (opcional, solo las que hacen
+  ese tipo: `nineraHaceTipo`), "Precio por hora a la familia" y "Precio por hora a la niñera"
+  precargados con la tarifa. Con niñera, la solicitud nace `confirmada` y `cargarNineraYRegistro`
+  (agenda.js, el mismo que usa "Asignar niñera") carga la niñera y el registro en Sittings; si falla
+  la niñera, vuelve a `sin_asignar`. Sin niñera, el precio por hora a la niñera no se guarda (no hay
+  columna): al asignar se vuelve a sugerir con la tarifa. En las tarjetas de la Agenda el pago de un
+  sitting se ve por hora (`textoPagoAgenda`); los traslados, por viaje.
 - Fijos: nunca se borran. "Terminar desde [fecha]" completa `vigente_hasta` con el día
   anterior (`abrirModalTerminarFijo`, agenda.js).
 - Registro cancelado (25/10/2026): "Reactivar" (modal del registro en la Agenda) lo deja como
