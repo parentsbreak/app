@@ -51,7 +51,9 @@ export type Deps = {
   // Cambio de contraseña: también el mail, por si la admin le cambió el celular en la ficha.
   actualizarUsuario(userId: string, cambios: { password: string; email: string }): Promise<void>;
   vincular(nineraId: string, userId: string): Promise<void>;
-  marcarUsada(invitacionId: string): Promise<void>;
+  // Marca el link usado solo si nadie lo marcó antes; false si ya estaba usado (otro pedido con el
+  // mismo link llegó al mismo tiempo y ganó).
+  marcarUsada(invitacionId: string): Promise<boolean>;
   ahora(): Date;
 };
 
@@ -82,7 +84,8 @@ export async function procesarCuenta(deps: Deps, entrada: { token?: unknown; pas
         },
       };
     }
-    if (typeof password !== "string" || password.length < MIN_PASSWORD) return { status: 400, cuerpo: { error: "password_corta" } };
+    // Solo espacios no cuenta como contraseña (26/10/2026); si pasa, se guarda tal cual se escribió.
+    if (typeof password !== "string" || password.trim().length < MIN_PASSWORD) return { status: 400, cuerpo: { error: "password_corta" } };
     // crear_invitacion_ninera ya no deja invitar con un celular que no normaliza, pero la admin
     // pudo cambiarlo después de mandar el link.
     if (!celular) return { status: 409, cuerpo: { error: "celular_invalido" } };
@@ -94,7 +97,10 @@ export async function procesarCuenta(deps: Deps, entrada: { token?: unknown; pas
     } else {
       await deps.actualizarUsuario(inv.user_id, { password, email });
     }
-    await deps.marcarUsada(inv.id);
+    // Primero la cuenta y después la marca: si la marca falla, el link sigue sirviendo para
+    // reintentar. Si otro pedido con el mismo link lo marcó en el medio, ese ya hizo lo mismo
+    // (la misma alta o el mismo cambio de contraseña): este responde como link usado.
+    if (!(await deps.marcarUsada(inv.id))) return { status: 410, cuerpo: { error: "vencido" } };
     return { status: 200, cuerpo: { celular } };
   } catch {
     // El detalle lo anota index.ts (console.error), sin la contraseña.

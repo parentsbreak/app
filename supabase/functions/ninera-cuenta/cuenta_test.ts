@@ -19,14 +19,18 @@ function invitacion(cambios: Partial<Invitacion> = {}): Invitacion {
   };
 }
 
-// Base y Auth de mentira: anotan qué se les pidió. marcarUsada pone usada_en en la invitación,
-// como la base, para probar el mismo link dos veces.
-function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">) {
+// Base y Auth de mentira: anotan qué se les pidió, cada una en su lista y todas en `orden`.
+// marcarUsada pone usada_en en la invitación, como la base, para probar el mismo link dos veces;
+// con yaMarcada devuelve false, como cuando otro pedido con el mismo link lo marcó antes.
+function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">, yaMarcada = false) {
   const llamadas = {
     buscar: [] as string[], crear: [] as unknown[][], actualizar: [] as unknown[][],
-    vincular: [] as unknown[][], usada: [] as string[],
+    vincular: [] as unknown[][], usada: [] as string[], orden: [] as string[],
   };
-  const fallar = (nombre: string) => { if (falla === nombre) throw new Error(`falla simulada en ${nombre}`); };
+  const fallar = (nombre: string) => {
+    llamadas.orden.push(nombre);
+    if (falla === nombre) throw new Error(`falla simulada en ${nombre}`);
+  };
   const deps: Deps = {
     buscarInvitacion: async (token) => { llamadas.buscar.push(token); fallar("buscarInvitacion"); return inv ? { ...inv } : null; },
     crearUsuario: async (email, password, nineraId) => {
@@ -35,7 +39,13 @@ function simulado(inv: Invitacion | null, falla?: keyof Omit<Deps, "ahora">) {
     },
     actualizarUsuario: async (userId, cambios) => { llamadas.actualizar.push([userId, cambios]); fallar("actualizarUsuario"); },
     vincular: async (nineraId, userId) => { llamadas.vincular.push([nineraId, userId]); fallar("vincular"); },
-    marcarUsada: async (id) => { llamadas.usada.push(id); fallar("marcarUsada"); if (inv) inv.usada_en = AHORA.toISOString(); },
+    marcarUsada: async (id) => {
+      fallar("marcarUsada");
+      if (yaMarcada) return false;
+      llamadas.usada.push(id);
+      if (inv) inv.usada_en = AHORA.toISOString();
+      return true;
+    },
     ahora: () => AHORA,
   };
   return { deps, llamadas };
@@ -122,7 +132,7 @@ Deno.test("sin contraseña, con cuenta (reset) y celular que no normaliza: es_re
 });
 
 Deno.test("contraseña corta o que no es texto: 400 y no crea nada", async () => {
-  for (const password of ["1234567", "", 12345678, null]) {
+  for (const password of ["1234567", "", 12345678, null, "        ", "  abc1234  "]) {
     const { deps, llamadas } = simulado(invitacion());
     assertEquals(await procesarCuenta(deps, { token: TOKEN, password }), { status: 400, cuerpo: { error: "password_corta" } }, String(password));
     assertEquals(llamadas.crear, []);
@@ -144,6 +154,8 @@ Deno.test("alta: crea la cuenta con el mail sintético, la vincula y marca el li
   assertEquals(llamadas.vincular, [["30000000-0000-4000-8000-000000000001", "40000000-0000-4000-8000-000000000001"]]);
   assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
   assertEquals(llamadas.actualizar, []);
+  // Primero la cuenta y recién al final la marca del link.
+  assertEquals(llamadas.orden, ["buscarInvitacion", "crearUsuario", "vincular", "marcarUsada"]);
   // La respuesta no lleva la contraseña ni el mail (solo el celular normalizado, que es su usuario).
   const texto = JSON.stringify(r);
   assertFalse(texto.includes("clave1234"));
@@ -157,6 +169,7 @@ Deno.test("reset: cambia la contraseña y el mail de la cuenta que ya existe, si
   assertEquals(llamadas.actualizar, [["40000000-0000-4000-8000-000000000009", { password: "otraclave99", email: "59899000002@ninieras.parentsbreak.invalid" }]]);
   assertEquals(llamadas.usada, ["c0000000-0000-4000-8000-000000000001"]);
   assertEquals([llamadas.crear, llamadas.vincular], [[], []]);
+  assertEquals(llamadas.orden, ["buscarInvitacion", "actualizarUsuario", "marcarUsada"]);
   assertFalse(JSON.stringify(r).includes("otraclave99"));
 });
 
@@ -168,14 +181,36 @@ Deno.test("el mismo link dos veces: la segunda vez 410 y no crea otra cuenta", a
   assertEquals(llamadas.crear.length, 1);
 });
 
+Deno.test("contraseña con espacios alrededor: se guarda tal cual se escribió", async () => {
+  const { deps, llamadas } = simulado(invitacion());
+  assertEquals((await procesarCuenta(deps, { token: TOKEN, password: " clave1234 " })).status, 200);
+  assertEquals(llamadas.crear[0][1], " clave1234 ");
+});
+
 Deno.test("si falla la base o Auth: 500 con el aviso, sin la contraseña", async () => {
   for (const falla of ["buscarInvitacion", "crearUsuario", "vincular", "marcarUsada"] as const) {
-    const { deps } = simulado(invitacion(), falla);
+    const { deps, llamadas } = simulado(invitacion(), falla);
     const r = await procesarCuenta(deps, { token: TOKEN, password: "clave1234" });
     assertEquals(r, { status: 500, cuerpo: { error: ERROR_500 } }, falla);
+    // Si la cuenta no se terminó de armar, el link no queda usado: sirve para reintentar.
+    assertEquals(llamadas.usada, [], falla);
   }
   const { deps } = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009" }), "actualizarUsuario");
   assertEquals(await procesarCuenta(deps, { token: TOKEN, password: "clave1234" }), { status: 500, cuerpo: { error: ERROR_500 } });
+});
+
+// Dos pedidos con el mismo link al mismo tiempo: los dos pasan la vigencia y el que llega segundo
+// a marcarlo recibe false. Que igual haya creado o cambiado la cuenta está bien: el primero ya hizo
+// lo mismo con el mismo link (en el alta, el segundo createUser falla por mail repetido y da 500
+// antes de llegar acá; en el reset, la contraseña que queda es la de uno de los dos pedidos de la
+// misma niñera). Lo importante es que el segundo no responda como si hubiera entrado.
+Deno.test("link marcado por otro pedido al mismo tiempo: 410, después de tocar la cuenta", async () => {
+  const alta = simulado(invitacion(), undefined, true);
+  assertEquals(await procesarCuenta(alta.deps, { token: TOKEN, password: "clave1234" }), { status: 410, cuerpo: { error: "vencido" } });
+  assertEquals(alta.llamadas.orden, ["buscarInvitacion", "crearUsuario", "vincular", "marcarUsada"]);
+  const reset = simulado(invitacion({ user_id: "40000000-0000-4000-8000-000000000009" }), undefined, true);
+  assertEquals(await procesarCuenta(reset.deps, { token: TOKEN, password: "clave1234" }), { status: 410, cuerpo: { error: "vencido" } });
+  assertEquals(reset.llamadas.orden, ["buscarInvitacion", "actualizarUsuario", "marcarUsada"]);
 });
 
 Deno.test("ninguna respuesta lleva el celular completo de la ficha", async () => {

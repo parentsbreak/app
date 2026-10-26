@@ -89,9 +89,14 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       if (!data || !data.length) throw new Error("No se encontró la ficha para vincular la cuenta");
     }),
+    // Con la condición del valor de antes (CLAUDE.md, "Lo que dos admins pueden cambiar a la vez"):
+    // dos pedidos con el mismo link al mismo tiempo pasan los dos el chequeo de vigencia, pero
+    // solo uno lo marca; el otro recibe false y responde 410.
     marcarUsada: conRegistro("marcarUsada", async (invitacionId: string) => {
-      const { error } = await sb.from("ninera_invitaciones").update({ usada_en: new Date().toISOString() }).eq("id", invitacionId);
+      const { data, error } = await sb.from("ninera_invitaciones").update({ usada_en: new Date().toISOString() })
+        .eq("id", invitacionId).is("usada_en", null).select("id");
       if (error) throw error;
+      return !!data && data.length > 0;
     }),
     ahora: () => new Date(),
   };
