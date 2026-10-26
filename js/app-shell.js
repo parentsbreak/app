@@ -1010,16 +1010,9 @@ function suscribirNotifRealtime(){
    tabla app_secrets (sin ninguna policy — solo la Edge Function, con la service role key,
    puede leerla). El envío real lo hace la Edge Function "enviar-push-urgentes", disparada
    por un cron de Supabase cada 10 minutos — no depende de que este chat ni el navegador
-   estén abiertos. Acá solo pedimos permiso, nos suscribimos, y guardamos la suscripción. */
-const VAPID_PUBLIC_KEY = 'BPfb5Yy4XNWZVci1Cq7fnwxS-pVApiKii_QOTeRwUEzJMy1D9K1e8RMef4Lp8TBmXX1jhYTRHL9A5318e0ikHkc';
-function urlBase64ToUint8Array(base64String){
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for(let i=0;i<rawData.length;++i) outputArray[i] = rawData.charCodeAt(i);
-  return outputArray;
-}
+   estén abiertos. Acá solo pedimos permiso, nos suscribimos, y guardamos la suscripción.
+   VAPID_PUBLIC_KEY y urlBase64ToUint8Array están en comun.js desde el 26/10/2026: las usa
+   también la app de niñeras. */
 function pushSoportado(){
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }

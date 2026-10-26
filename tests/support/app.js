@@ -290,8 +290,19 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
 
     if (url.pathname.startsWith('/auth/v1/')) {
       if (url.pathname === '/auth/v1/user') return route.fulfill({ json: usuario });
-      if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
-      if (url.pathname === '/auth/v1/token') return route.fulfill({ json: sesionFalsa(usuario) });
+      // Login y cerrar sesión quedan anotados (app de niñeras, 26/10/2026: el test mira con qué
+      // mail entra y que cierre solo este dispositivo) y pasan por estado.fallar como una
+      // escritura: 'red' corta la conexión y {status, message} es el error de Supabase
+      // (por ejemplo 400 'Invalid login credentials').
+      if (url.pathname === '/auth/v1/logout' || url.pathname === '/auth/v1/token') {
+        let cuerpo; try { cuerpo = req.postDataJSON(); } catch { cuerpo = req.postData(); }
+        const falla = estado.fallar && estado.fallar({ tabla: url.pathname, metodo, cuerpo, params: Object.fromEntries(url.searchParams) });
+        if (falla === 'red') return route.abort('failed');
+        if (falla) return route.fulfill({ status: falla.status || 400, json: { code: falla.code || 'invalid_credentials', error_code: falla.code || 'invalid_credentials', message: falla.message || 'falla simulada' } });
+        estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo });
+        if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
+        return route.fulfill({ json: sesionFalsa(usuario) });
+      }
       estado.noSimulados.push(metodo + ' ' + url.pathname);
       return route.fulfill({ status: 400, json: { message: 'no simulado en tests' } });
     }

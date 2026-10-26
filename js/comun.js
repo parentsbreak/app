@@ -43,6 +43,43 @@ function urlSegura(u){
 function normaliza(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 
 /* ============================================================
+   Cuentas de las niñeras (fase 1, 26/10/2026): entran con el celular y una contraseña. Por
+   dentro la cuenta es un mail sintético armado con el celular normalizado, que nadie recibe
+   (.invalid es un dominio reservado).
+   Una sola regla en tres lugares: normalizar_celular() / mail_sintetico_ninera() en la base
+   (migración 20261026_cuentas_ninieras), normalizarCelular() / MAIL_DOMINIO_NINERA en la Edge
+   Function ninera-cuenta (cuenta.ts) y estas dos. Si cambia una, cambian las tres: si no, la
+   app arma un mail y la cuenta tiene otro, y la niñera no puede entrar. Los mismos 11 casos se
+   prueban en las tres (tests/ninera-cuenta.spec.js).
+   ============================================================ */
+const MAIL_DOMINIO_NINERA = 'ninieras.parentsbreak.invalid';
+// Celular uruguayo como '598' + 8 dígitos que empiezan en 9, o null. Solo dígitos; se quita un
+// 00 inicial; si empieza en 598, la parte local es el resto; de la parte local se quita un 0
+// inicial. Así '+598 99 123 456', '099123456', '99 123 456' y '+598 099 123 456' dan lo mismo.
+function normalizarCelular(s){
+  const digitos = (typeof s === 'string' ? s : '').replace(/[^0-9]/g, '').replace(/^00/, '');
+  const local = (digitos.startsWith('598') ? digitos.slice(3) : digitos).replace(/^0/, '');
+  return /^9[0-9]{7}$/.test(local) ? '598' + local : null;
+}
+// Recibe el celular YA normalizado (el de normalizarCelular o el que devuelve ninera-cuenta) y no
+// lo vuelve a normalizar: la cuenta se creó con ese texto tal cual.
+function mailSinteticoNinera(celular){ return celular ? `${celular}@${MAIL_DOMINIO_NINERA}` : null; }
+
+/* ---- Push (Web Push + VAPID), las dos puertas ----
+   La clave pública con la que se suscribe cada dispositivo. El panel y la app de niñeras usan
+   el mismo par de claves (la privada vive en app_secrets, solo la leen las Edge Functions).
+   Vino de app-shell.js el 26/10/2026. */
+const VAPID_PUBLIC_KEY = 'BPfb5Yy4XNWZVci1Cq7fnwxS-pVApiKii_QOTeRwUEzJMy1D9K1e8RMef4Lp8TBmXX1jhYTRHL9A5318e0ikHkc';
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+/* ============================================================
    Fechas en hora de Montevideo (05/10/2026). todayISO() usaba
    new Date().toISOString(), que es UTC: de 21:00 a 24:00 en Uruguay ya devolvía
    el día de mañana (un sitting cargado de noche quedaba con la fecha siguiente).
@@ -171,10 +208,13 @@ async function sbGuardar(consulta, queCosa='los cambios'){
 
 // Copia un dato con un toque (cuentas y montos para pagar desde el celular, 21/10/2026). Si el
 // navegador no deja usar el portapapeles, lo muestra seleccionado para copiarlo a mano.
+// Cada puerta pone su modal: abrirModal en el panel (core.js), abrirModalNinera en la app de
+// niñeras (ninera/js/base.js), que además le habla de "tú".
 async function copiarAlPortapapeles(texto, aviso='Copiado.'){
   try{ await navigator.clipboard.writeText(texto); toast(aviso); }
   catch(e){
-    abrirModal(`<h2 style="margin:0 0 8px;">Copialo de acá</h2><input type="text" id="copiar-a-mano" readonly value="${escaparHtml(texto)}" style="font-family:'IBM Plex Mono',monospace;">`);
+    const enPanel = typeof abrirModal === 'function';
+    (enPanel ? abrirModal : abrirModalNinera)(`<h2 style="margin:0 0 8px;">${enPanel ? 'Copialo de acá' : 'Cópialo de aquí'}</h2><input type="text" id="copiar-a-mano" readonly value="${escaparHtml(texto)}" style="font-family:'IBM Plex Mono',monospace;">`);
     document.getElementById('copiar-a-mano')?.select();
   }
 }
