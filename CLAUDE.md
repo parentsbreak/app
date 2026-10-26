@@ -301,6 +301,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/precio-a-mano-horario.spec.js`: cambio de horario con precio a mano ("Usar el nuevo monto ($X)" /
   "Mantener el precio a mano", sin elegir no guarda), casillas de 24 px en el celular y el texto de los
   botones de confirmar ("Sí, no fue", "Quitar la pausa").
+- `tests/busquedas-entrevisto.spec.js`: "Entrevistó" con el nombre de la cuenta, editable y con los ya usados
+  (entrevistas viejas intactas, borrador); los buscadores de "+ Asignar niñera" (ficha de la familia) y del
+  nombre en Contratos con el autocompletar de la app (sin tildes, id de la niñera, 390 px).
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -418,6 +421,10 @@ reporte.
   recarga liviana (`RT_RECARGA_LIVIANA`, agenda.js); con un modal abierto el cambio se aplica al
   cerrarlo.
 - Una función global nueva no puede repetir el nombre de otra en ningún archivo.
+- Buscadores (25/10/2026): nunca `<datalist>` nativo (en el iPhone no ignora tildes): siempre
+  `attachAutocomplete` (sittings.js), que compara con `normaliza()`; con `{sinCoincidencias:''}` no
+  avisa nada cuando el nombre es libre. "Entrevistó" viene con `registradoPorUsuario()` y sugiere los
+  ya usados (`cargarEntrevistadores`, postulantes.js): nada de nombres reales en el código.
 - Escape (05/10/2026): helpers únicos en core.js. `escaparHtml()` para texto y atributos,
   `argJs()` para pasar un dato a un handler inline (`f(${argJs(x)})`, nunca `'${x}'`) y
   `urlSegura()` para href/src. `tests/escape.spec.js` recorre todo con datos tramposos y
@@ -631,8 +638,8 @@ descartado (19/10/2026): no proponerlo de nuevo.
 - `chequearFijoNuevoContraTodo` corre dentro de un loop por día (fijo con horario por día);
   `abrirModalAsignar` lee toda la historia de registros cada vez que se abre.
 - Editar un registro de una niñera inactiva deja `ninera_id` nulo (`cargarSitBase` trae solo activas).
-- Crear un fijo desde la ficha de la familia guarda `ninera_id` nulo (`ninierasItems` sin id):
-  revisar en producción cuántas asignaciones quedaron así.
+- Crear un fijo desde la ficha de la familia guardaba `ninera_id` nulo (arreglado el 25/10/2026, ahora
+  `ninierasItems` trae el id): falta revisar en producción cuántas asignaciones quedaron así.
 - Borrar una familia borra sus fijos en cascada (FK `ON DELETE CASCADE`): conviene baja lógica.
   "Descartar" una candidata es un DELETE físico: decidido (21/10/2026) que pase al estado
   `descartada`; va en el PR de Postulantes del rediseño.

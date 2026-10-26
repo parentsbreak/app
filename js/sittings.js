@@ -1128,7 +1128,10 @@ async function eliminarIncidenteFicha(incId, containerId, tipo, id, nombre){
   renderIncidentesEnFicha(containerId, tipo, id||null, nombre);
   cargarIncidentes(); // por si el panel general de Sittings también está montado detrás del modal
 }
-function attachAutocomplete(inputId, dropdownId, getOpciones, onPick){
+// Buscador de la app (ignora tildes y mayúsculas con normaliza). Es el único que se usa: la
+// lista nativa del navegador (<datalist>) no ignora tildes en el iPhone (25/10/2026).
+// sinCoincidencias: el aviso cuando no hay nada; vacío, no se muestra nada (nombres libres).
+function attachAutocomplete(inputId, dropdownId, getOpciones, onPick, {sinCoincidencias='Sin coincidencias — se puede cargar como nueva.'}={}){
   const input = document.getElementById(inputId);
   const dd = document.getElementById(dropdownId);
   if(!input || !dd) return;
@@ -1138,8 +1141,9 @@ function attachAutocomplete(inputId, dropdownId, getOpciones, onPick){
     const matches = opciones.filter(o=>!q || normaliza(o.nombre).includes(q)).slice(0,8);
     dd.innerHTML = '';
     if(!matches.length){
-      dd.innerHTML = q ? '<div class="autocomplete-empty">Sin coincidencias — se puede cargar como nueva.</div>' : '';
-      dd.style.display = q ? 'block' : 'none';
+      const aviso = q && sinCoincidencias;
+      dd.innerHTML = aviso ? `<div class="autocomplete-empty">${escaparHtml(sinCoincidencias)}</div>` : '';
+      dd.style.display = aviso ? 'block' : 'none';
       return;
     }
     matches.forEach(o=>{

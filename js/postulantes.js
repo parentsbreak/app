@@ -293,7 +293,10 @@ async function renderEntrevista(body){
       <div class="grid3">
         <div class="field"><label>Nombre de la candidata</label><input type="text" id="f-nombre"></div>
         <div class="field"><label>Fecha</label><input type="date" id="f-fecha"></div>
-        <div class="field"><label>Entrevistó</label><select id="f-entrevisto"><option value="">Elegir…</option><option ${registradoPorUsuario()==='Paulina G'?'selected':''}>Paulina G</option><option ${registradoPorUsuario()==='Delfina F'?'selected':''}>Delfina F</option><option>Otra</option></select></div>
+        <div class="field" style="position:relative;"><label>Entrevistó</label>
+          <input type="text" id="f-entrevisto" autocomplete="off" value="${escaparHtml(registradoPorUsuario())}" placeholder="Quién la entrevistó">
+          <div id="f-entrevisto-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
+        </div>
       </div>
       <div class="grid2">
         <div class="field"><label>Teléfono</label><input type="tel" id="f-telefono"></div>
@@ -363,8 +366,31 @@ async function renderEntrevista(body){
   // Lo que ya está en memoria (puntajes, notas, señales) se ve: antes, al volver a la pestaña,
   // seguía guardado pero no se mostraba, y se guardaba igual sin que nadie lo viera.
   pintarEstadoEntrevista();
+  wireEntrevistadores();
   escucharCambiosEntrevista(body);
   ofrecerBorradorEntrevista();
+}
+/* "Entrevistó" (25/10/2026): viene con el nombre de la cuenta logueada (el mismo del sidebar), se
+   puede cambiar escribiendo y sugiere los nombres ya usados en otras entrevistas. Antes era una
+   lista fija con dos nombres y "Otra": Fede tiene cuenta propia y no se podía elegir. Lo guardado
+   en las entrevistas viejas (vacío u "Otra") no se toca al retomarlas: seguirEntrevista lo pone. */
+let entrevistadoresUsados = [];
+function wireEntrevistadores(){
+  attachAutocomplete('f-entrevisto', 'f-entrevisto-dropdown', ()=>entrevistadoresUsados, (elegido)=>{
+    // Elegir de la lista también es un cambio (borrador y "sin guardar"): el valor se puso por código.
+    if(elegido) document.getElementById('f-entrevisto')?.dispatchEvent(new Event('change', {bubbles:true}));
+  }, {sinCoincidencias:''});
+  cargarEntrevistadores();
+}
+async function cargarEntrevistadores(){
+  const { data } = await sb.from('entrevistas').select('entrevisto').not('entrevisto', 'is', null);
+  const vistos = new Set(), lista = [];
+  [registradoPorUsuario(), ...(data||[]).map(r=>r.entrevisto)].forEach(n=>{
+    const nombre = (n||'').trim();
+    if(!nombre || vistos.has(normaliza(nombre))) return;
+    vistos.add(normaliza(nombre)); lista.push({ nombre });
+  });
+  entrevistadoresUsados = lista;
 }
 /* ---- Borrador de la entrevista (21/10/2026) ----
    Cada cambio (escribir, un puntaje, una referencia) se guarda en el dispositivo, por usuaria y
