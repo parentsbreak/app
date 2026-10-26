@@ -103,7 +103,7 @@ async function cargarFamilias(){
     sb.from('asignaciones').select('*'),
     leerTodasLasFilas(()=>sinPrevistos(sb.from('sittings_traslados').select('familia_nombre,ninera_nombre,fecha')).order('id')),
     sb.from('resenas_ninieras').select('ninera_nombre,puntuacion'),
-    necesitaNinieras ? sb.from('ninieras').select('nombre') : Promise.resolve({data:null}),
+    necesitaNinieras ? sb.from('ninieras').select('id,nombre') : Promise.resolve({data:null}), // con el id: el fijo guarda ninera_id (auditoría 21/10/2026)
     cargarPausasFijos(),
   ]);
   if(error){ cont.innerHTML = errBox(error); return; }
@@ -342,9 +342,11 @@ function verFamilia(id){
       <tbody>${asigRows || '<tr><td colspan="3" style="color:var(--ink-soft);">Sin niñeras asignadas todavía.</td></tr>'}</tbody></table></div>
     ${asigTerminadas.length ? `<div class="helper" style="margin:10px 0 4px;">Fijos que ya terminaron</div>
     <div class="tablewrap"><table class="asigtable"><tbody>${asigTerminadas.map(filaAsig).join('')}</tbody></table></div>` : ''}
-    <datalist id="ninieras-dl">${(ninierasItems||[]).map(n=>`<option value="${escaparHtml(n.nombre)}">`).join('')}</datalist>
     <div class="grid3" style="margin-top:14px;">
-      <div class="field"><label>Niñera</label><input type="text" list="ninieras-dl" id="asig-nombre-${f.id}"></div>
+      <div class="field" style="position:relative;"><label>Niñera</label>
+        <input type="text" id="asig-nombre-${f.id}" autocomplete="off">
+        <div id="asig-nombre-${f.id}-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
+      </div>
       <div class="field"><label>Hora inicio</label>${selectHora('asig-horaini-'+f.id)}</div>
       <div class="field"><label>Hora fin</label>${selectHora('asig-horafin-'+f.id)}</div>
     </div>
@@ -362,6 +364,8 @@ function verFamilia(id){
       </div>
     </div>
     <button class="smallbtn" onclick="conGuardado(this, ()=>addAsignacion(${argJs(f.id)}))">+ Asignar niñera</button>`);
+  // Buscador de la app, no la lista nativa: en el iPhone "pia" no encontraba "Pía" (25/10/2026).
+  attachAutocomplete('asig-nombre-'+f.id, 'asig-nombre-'+f.id+'-dropdown', ()=>ninierasItems, ()=>{}, {sinCoincidencias:''});
   renderIncidentesEnFicha('fam-incidentes', 'familia', f.id, f.nombre);
   pintarSaldoEnFicha('fam-saldo', 'familia', f.id, f.nombre);
   pintarVariantesEnFicha(f.id);

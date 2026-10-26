@@ -272,7 +272,7 @@ test.describe('app nueva con la base todavía sin migrar', () => {
     await page.locator(`#asig-dias-${ID.fDos} .daybtn`, { hasText: 'V' }).click();
     await page.evaluate(id => setHoraSelect('asig-horaini-'+id, '10:00'), ID.fDos); // sin horario no se crea (13/10/2026)
     await page.locator('#editmodal button', { hasText: '+ Asignar niñera' }).click();
-    await expect(page.locator('#editmodal')).toContainText('Carla Ejemplo');
+    await expect(page.locator('#editmodal .asigtable')).toContainText('Carla Ejemplo'); // la fila nueva (el buscador ya muestra el nombre antes de guardar, 25/10/2026)
     const altas = e.escrituras.filter(w => w.tabla === 'asignaciones' && w.metodo === 'POST');
     expect(altas.at(-1).cuerpo).toEqual(expect.objectContaining({ ninera_nombre: 'Carla Ejemplo', familia_id: ID.fDos }));
     expect(altas.at(-1).cuerpo).not.toHaveProperty('vigente_desde');

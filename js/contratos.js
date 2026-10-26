@@ -130,11 +130,13 @@ function renderLegal(cont){
       <h2>Generar contrato</h2>
       <div class="grid3">
         <div class="field"><label>Tipo</label><select id="leg-tipo" onchange="onLegTipoChange()"><option value="ninera">Niñera</option><option value="traslado">Traslados</option></select></div>
-        <div class="field"><label>Nombre</label><input type="text" id="leg-nombre" list="leg-nombres-dl"></div>
+        <div class="field" style="position:relative;"><label>Nombre</label>
+          <input type="text" id="leg-nombre" autocomplete="off">
+          <div id="leg-nombre-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
+        </div>
         <div class="field"><label>Cédula</label><input type="text" id="leg-cedula"></div>
       </div>
       <div class="field"><label>Domicilio</label><input type="text" id="leg-domicilio" placeholder="Calle, número, ciudad"></div>
-      <datalist id="leg-nombres-dl"></datalist>
       <div class="grid3">
         <div class="field"><label>Tarifa por hora</label><input type="number" id="leg-tarifa"></div>
         <div class="field"><label>Frecuencia de pago</label><input type="text" id="leg-frecuencia" value="semanalmente"></div>
@@ -155,16 +157,18 @@ function renderLegal(cont){
       <div id="leg-lista" style="margin-top:14px;"></div>
     </div>
   `;
+  // Buscador de la app, no la lista nativa: en el iPhone "pia" no encontraba "Pía" (25/10/2026).
+  attachAutocomplete('leg-nombre', 'leg-nombre-dropdown', ()=>legNombres, ()=>{}, {sinCoincidencias:''});
   cargarLegNombres();
   cargarContratos();
 }
+let legNombres = []; // niñeras activas y familias, para el buscador del nombre
 async function cargarLegNombres(){
   const [{data:nins}, {data:fams}] = await Promise.all([
     sb.from('ninieras').select('nombre').eq('activa', true),
     sb.from('familias').select('nombre'),
   ]);
-  const dl = document.getElementById('leg-nombres-dl');
-  if(dl) dl.innerHTML = [...(nins||[]), ...(fams||[])].map(x=>`<option value="${escaparHtml(x.nombre)}">`).join('');
+  legNombres = [...(nins||[]), ...(fams||[])].map(x=>({ nombre: x.nombre }));
 }
 function onLegTipoChange(){ /* placeholder por si más adelante autocompleta tarifa según asignación */ }
 function generarContrato(){
