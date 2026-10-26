@@ -158,6 +158,9 @@ textarea{resize:vertical;min-height:54px;}
    (nowrap) se cortaba en "canceló la familia" y el modal hacía scroll de costado. */
 .chk.chk-largo{white-space:normal;align-items:flex-start;line-height:1.35;}
 .chk.chk-largo input[type=checkbox]{width:24px;height:24px;flex:none;margin:-3px 0 0;accent-color:var(--accent);}
+/* Botones del aviso de precio a mano del registro (25/10/2026): "Usar el nuevo monto" / "Mantener". */
+.sit-precio-botones{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.sit-precio-botones .smallbtn{min-height:36px;}
 .smallbtn{background:none;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--ink-soft);font-family:'Inter',sans-serif;}
 .smallbtn:hover{border-color:var(--accent);color:var(--accent);}
 .smallbtn.danger:hover{border-color:var(--bad);color:var(--bad);}
@@ -546,6 +549,9 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
   input[type=text],input[type=tel],input[type=date],input[type=number],input[type=email],input[type=password],select,textarea{
     font-size:16px; /* evita que iOS haga zoom automático al tocar un campo (el umbral es 16px) */
   }
+  /* Toda casilla mide al menos 24 px en el celular (25/10/2026, regla de Paulina y Delfina): las
+     nativas de 13 px eran imposibles de tocar. */
+  input[type=checkbox]{min-width:24px;min-height:24px;width:24px;height:24px;flex:none;accent-color:var(--accent);}
 }
 @media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr;}.refrow{grid-template-columns:1fr;}.fichadl{grid-template-columns:1fr;}.hometiles{grid-template-columns:1fr;grid-auto-rows:auto;}.tile.hero{grid-column:span 1;grid-row:span 1;}}
 @media print{.subnav,.actions,.backbtn,button{display:none !important;}}

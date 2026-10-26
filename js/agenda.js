@@ -1561,7 +1561,7 @@ async function guardarPausaFijo(asigId){
   await revisarPrevistosEditadosFueraDelFijo([asigId]);
 }
 async function quitarPausaFijo(pausaId){
-  if(!(await confirmarAccion('¿Quitar la pausa? Esos días vuelven a cargarse como siempre.'))) return;
+  if(!(await confirmarAccion('¿Quitar la pausa? Esos días vuelven a cargarse como siempre.', 'Quitar la pausa'))) return;
   const { error } = await sb.from('asignaciones_pausas').delete().eq('id', pausaId);
   if(error){ toast('No se pudo quitar la pausa: '+error.message, 'bad'); return; }
   cerrarModal();

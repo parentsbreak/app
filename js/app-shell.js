@@ -544,7 +544,7 @@ async function marcarAutoNoFue(id){
   const r = dashAutoConfirmados.find(x=>x.id===id);
   if(!r) return;
   if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
-  if(!(await confirmarAccion(`¿${r.ninera_nombre} no fue el ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{day:'numeric',month:'long'})} a lo de ${r.familia_nombre}? Queda en $0, sin cobro ni pago.`))) return;
+  if(!(await confirmarAccion(`¿${r.ninera_nombre} no fue el ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{day:'numeric',month:'long'})} a lo de ${r.familia_nombre}? Queda en $0, sin cobro ni pago.`, 'Sí, no fue'))) return;
   if(!(await sbGuardar(sb.from('sittings_traslados').update({
     cancelado: true, cobro_familia: 0, pago_ninera: 0, cobrado: true, pagado: true,
     generado_automatico: false, revisado_at: new Date().toISOString(),

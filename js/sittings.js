@@ -8,7 +8,7 @@ let sitAsignacionId = null; // fijo del que sale el registro nuevo (vino con sit
 let sitEsRegistroConocido = false; // true si se está editando uno ya guardado, o si vino con sitPrefill (un fijo/pendiente ya sabido) — controla si tiene sentido mostrar "Este día no hubo servicio"
 let sitPagoModoHora = false; // true = el campo de pago a niñera se tipea por hora (y se calcula el total solo), false = se tipea el total directo
 let sitEditId = null;
-let sitPrecioMotivo = ''; // el motivo guardado del registro que se edita (precio a mano, 21/10/2026)
+let sitPrecioMotivo = ''; // el motivo del precio a mano: el guardado al abrir y el último elegido en el formulario (21/10/2026)
 let sitTeniaVariantes = false; // el registro que se edita tenía variantes de precio (23/10/2026)
 let sitAsignacionVariantes = null; // el fijo del registro, para mostrar las variantes que son solo de ese fijo
 let sitFamiliaSel = null;
@@ -542,7 +542,7 @@ function sitFormHTML(){
     <div id="sit-camposTipo"></div>
     <div class="field" style="margin-top:4px;">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;">
-        <input type="checkbox" id="sit-esfijo" onchange="toggleSitEsFijo()" style="width:auto;">
+        <input type="checkbox" id="sit-esfijo" onchange="toggleSitEsFijo()">
         ¿Es un trabajo fijo? (se repite todas las semanas)
       </label>
     </div>
@@ -1463,7 +1463,7 @@ function actualizarCobroPagoPorHorario(){
   if(sitPagoModoHora) calc.pago = null;
   if(calc.cobro!=null && !cobroInput.dataset.tocadoManual) cobroInput.value = calc.cobro;
   if(calc.pago!=null && !pagoInput.dataset.tocadoManual) pagoInput.value = calc.pago;
-  pintarSugerenciaPrecioSit(calc);
+  pintarSugerenciaPrecioSit(calc, {elegir:true}); // cambió el horario o la familia: primero se decide qué monto queda
   if(sitPagoModoHora) onSitPagoHoraInput(); // si cambió el horario, recalcula el total con el valor por hora ya tipeado
   calcSitMargen();
 }
@@ -1486,19 +1486,29 @@ function precioSegunHorario(familia, horaIni, horaFin, cruza, fechaISO){
     pago: horas && pagoH ? redondearPago(pagoH*horas.real) : null,
   };
 }
-// Si lo puesto a mano no coincide con el horario, se muestra el calculado con un botón para usarlo.
-function pintarSugerenciaPrecioSit(calc){
+// Si lo puesto a mano no coincide con el horario, se muestra el calculado. Al cambiar el horario o
+// la familia (elegir) primero hay que decidir: "Usar el nuevo monto" (aplica cobro y pago y saca la
+// marca de precio a mano) o "Mantener el precio a mano" (recién ahí se pide el motivo). Al tipear
+// un precio a propósito, el motivo se pide directo (25/10/2026, pedido de Paulina y Delfina).
+function pintarSugerenciaPrecioSit(calc, {elegir=false}={}){
   const box = document.getElementById('sit-precio-sugerido');
   if(!box) return;
   const plata = n => '$'+Number(n).toLocaleString('es-UY');
   const difiere = (id, n) => { const el = document.getElementById(id); return n!=null && !!el?.dataset.tocadoManual && Number(el.value)!==n; };
-  const partes = [difiere('sit-cobro', calc.cobro) ? `cobro ${plata(calc.cobro)}` : '', difiere('sit-pago', calc.pago) ? `pago ${plata(calc.pago)}` : ''].filter(Boolean);
-  // El motivo elegido se conserva al volver a dibujar el aviso (se redibuja con cada cambio).
-  const motivo = document.getElementById('sit-precio-motivo')?.value ?? sitPrecioMotivo;
+  const cobroNuevo = difiere('sit-cobro', calc.cobro) ? calc.cobro : null;
+  const pagoNuevo = difiere('sit-pago', calc.pago) ? calc.pago : null;
+  const partes = [cobroNuevo!=null ? `cobro ${plata(cobroNuevo)}` : '', pagoNuevo!=null ? `pago ${plata(pagoNuevo)}` : ''].filter(Boolean);
+  // El motivo elegido se conserva al volver a dibujar el aviso (se redibuja con cada cambio) y
+  // mientras se decide si se mantiene el precio a mano.
+  const sel = document.getElementById('sit-precio-motivo');
+  if(sel) sitPrecioMotivo = sel.value;
   if(!partes.length){ box.innerHTML = ''; return; }
+  const textoUsar = partes.length>1 ? `Usar los nuevos montos (${partes.join(' y ')})` : `Usar el nuevo monto (${plata(cobroNuevo ?? pagoNuevo)})`;
+  const botonUsar = `<button type="button" class="smallbtn" onclick="usarPrecioCalculadoSit(${argJs(cobroNuevo)}, ${argJs(pagoNuevo)})">${textoUsar}</button>`;
   box.innerHTML = `<div class="warnbox" style="margin:0 0 10px;">Con este horario y la tarifa de la familia: ${partes.join(' y ')}. Lo que pusiste a mano no se cambió.
-    ${htmlMotivoPrecio('sit-precio-motivo', motivo)}
-    <div style="margin-top:6px;"><button type="button" class="smallbtn" onclick="usarPrecioCalculadoSit(${argJs(difiere('sit-cobro', calc.cobro) ? calc.cobro : null)}, ${argJs(difiere('sit-pago', calc.pago) ? calc.pago : null)})">Usar estos montos</button></div></div>`;
+    ${elegir
+      ? `<div class="sit-precio-botones" id="sit-precio-elegir">${botonUsar}<button type="button" class="smallbtn" onclick="mantenerPrecioAManoSit()">Mantener el precio a mano</button></div>`
+      : `${htmlMotivoPrecio('sit-precio-motivo', sitPrecioMotivo)}<div class="sit-precio-botones">${botonUsar}</div>`}</div>`;
 }
 function usarPrecioCalculadoSit(cobro, pago){
   [['sit-cobro', cobro], ['sit-pago', pago]].forEach(([id, n])=>{
@@ -1507,10 +1517,13 @@ function usarPrecioCalculadoSit(cobro, pago){
     el.value = n;
     delete el.dataset.tocadoManual;
   });
+  sitPrecioMotivo = ''; // ya no es un precio a mano: no queda motivo
   const box = document.getElementById('sit-precio-sugerido');
   if(box) box.innerHTML = '';
   calcSitMargen();
 }
+// "Mantener el precio a mano": el mismo aviso, ahora con el motivo para completar.
+function mantenerPrecioAManoSit(){ refrescarSugerenciaPrecioSit(); }
 /* Toggle "pago por hora" vs "pago total" para ESTE sitting puntual. El campo de pago total
    sigue siendo lo que se guarda en la base (pago_ninera) — el de por hora es solo una forma
    más cómoda de tipear, que calcula el total sola según el horario cargado. */
@@ -1655,6 +1668,9 @@ async function guardarSitting(){
   }
   // Un monto negativo (un "-" de más al tipear) deformaba Finanzas sin avisar (05/10/2026).
   if(registro.cobro_familia < 0 || registro.pago_ninera < 0){ toast('Los montos no pueden ser negativos.', 'bad'); return; }
+  // Cambio de horario con precio a mano (25/10/2026): primero hay que decidir qué monto queda.
+  const elegir = document.getElementById('sit-precio-elegir');
+  if(elegir){ toast('Elegí si usás el nuevo monto o mantenés el precio a mano.', 'bad'); elegir.scrollIntoView({block:'center'}); return; }
   // Precio a mano (21/10/2026): si no coincide con el de la tarifa, se anota por qué.
   const motivoEl = document.getElementById('sit-precio-motivo');
   if(motivoEl && !motivoEl.value){ toast('Elegí por qué el precio no es el de la tarifa: descuento, extra, se cobra sin servicio u otro.', 'bad'); motivoEl.focus(); return; }

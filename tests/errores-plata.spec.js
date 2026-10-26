@@ -286,7 +286,7 @@ test.describe('Sittings: el precio puesto a mano no se pisa al tocar la hora', (
     await expect(page.locator('#sit-pago')).toHaveValue('1000');
     const sugerencia = page.locator('#sit-precio-sugerido');
     await expect(sugerencia).toContainText('$1.520');
-    await sugerencia.locator('button', { hasText: 'Usar estos montos' }).click();
+    await sugerencia.locator('button', { hasText: 'Usar el nuevo monto ($1.520)' }).click(); // cambió la hora: primero se elige (25/10/2026)
     await expect(page.locator('#sit-cobro')).toHaveValue('1520');
     await expect(sugerencia).toBeEmpty();
     await page.locator('#editmodal button', { hasText: 'Guardar registro' }).click();
