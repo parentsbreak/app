@@ -246,7 +246,10 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   o puntual) pagado ese domingo y el margen un sábado.
 - `tests/arranque.spec.js`: pantalla de carga (símbolo latiendo), error si no carga supabase-js,
   "Entrando…", carga entre el login y Hoy, símbolo chico al cambiar de sección (> 300 ms).
-- `tests/alta-ninera.spec.js`: alta de niñera con solo el nombre.
+- `tests/alta-ninera.spec.js`: alta de niñera con nombre y celular (solo el nombre si hace traslados).
+- `tests/celular-ninera.spec.js`: celular obligatorio de la niñera en el alta y al editar (salvo tipo
+  'Traslados'), celular mal escrito, se guarda como se escribió, niñera vieja sin celular, la regla
+  caso por caso (`problemaCelularNinera`) y 390 px.
 - `tests/familia-desde-registro.spec.js`: familia nueva desde el registro de un sitting (ficha ahí mismo sin
   perder lo cargado, precio con su tarifa, base que falla, doble toque, nombre parecido, sin términos, 390 px).
 - `tests/escape.spec.js`: todos los campos de texto con datos tramposos (comillas, HTML, URLs
@@ -523,6 +526,9 @@ reporte.
   Nunca pisar la niñera de una asignación con historia: cerrarla y abrir otra desde una
   fecha. Lo que se registra desde un fijo lleva `asignacion_id`. Para saber si un fijo
   corre un día, usar `asignacionVigenteEn(a, fecha)` (core.js).
+- Celular de niñera (27/10/2026): obligatorio en el alta y al editar salvo tipo 'Traslados', validado
+  con `problemaCelularNinera` (core.js) y la regla de `normalizarCelular`; se guarda como se escribió.
+  Contratar desde Postulantes y el alta rápida del registro no lo exigen todavía.
 - Lista de Niñeras (21/10/2026): ordenada por la fecha de la entrevista, de la más nueva a la más
   vieja, y las de antes de la app (sin entrevista) al final (`ordenarNinierasPorEntrevista`). Cada
   fila dice cuántos sittings y traslados hizo (sin cancelados ni previstos), de la misma lectura
@@ -685,6 +691,9 @@ dueñas están en `textos-provisorios.md`.
 - `copiarAlPortapapeles` en el panel: si el portapapeles falla, el modal de copia a mano reemplaza
   la ficha abierta.
 - Los textos provisorios de `textos-provisorios.md` esperan la confirmación de las dueñas.
+- Celular obligatorio (27/10/2026): si Diego lo pide, exigirlo también con `problemaCelularNinera` en
+  `contratar` (postulantes.js), `crearNineraRapida` (sittings.js) y `resolverCambioTelefono`
+  (ninieras.js); hoy solo lo exigen el alta y la edición de Niñeras.
 
 ### Próximas tareas (pedidas por Paulina y Delfina)
 - Rediseño del panel: EN PAUSA (21/10/2026, Paulina y Delfina después de ver las maquetas). No se

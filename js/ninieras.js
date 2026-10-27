@@ -644,15 +644,16 @@ function renderNineraHistorial(id){
     }).join('')}</tbody></table></div>`;
 }
 /* Alta directa de una niñera (05/10/2026, E5). Antes la única forma era pasar por toda la
-   entrevista de RR.HH. (o crearla al vuelo desde un sitting). Solo el nombre es obligatorio;
-   lo demás se puede completar después con "Editar". */
+   entrevista de RR.HH. (o crearla al vuelo desde un sitting). Nombre y celular son obligatorios
+   (el celular, salvo que solo haga traslados; 27/10/2026); lo demás se puede completar después
+   con "Editar". */
 function abrirModalNuevaNinera(){
   abrirModal(`
     <h2 style="margin:0 0 6px;">Nueva niñera</h2>
-    <div class="helper" style="margin-bottom:14px;">Solo el nombre es obligatorio. Lo demás (foto, fecha de nacimiento, temporada, categorías) se completa después desde "Editar".</div>
+    <div class="helper" style="margin-bottom:14px;">Nombre y celular son obligatorios (el celular, salvo que solo haga traslados). Lo demás (foto, fecha de nacimiento, temporada, categorías) se completa después desde "Editar".</div>
     <div class="grid2">
       <div class="field"><label>Nombre</label><input type="text" id="nn-nombre" autocomplete="off"></div>
-      <div class="field"><label>Teléfono (opcional)</label><input type="tel" id="nn-telefono"></div>
+      <div class="field"><label>Celular</label><input type="tel" id="nn-telefono"></div>
       <div class="field"><label>Tipo</label><select id="nn-tipo"><option>Niñera</option><option>Traslados</option><option>Ambas</option></select></div>
     </div>
     ${checklistZonas('nn', '', 'Zonas (opcional)')}
@@ -668,13 +669,16 @@ function abrirModalNuevaNinera(){
 async function addNinera(){
   const nombre = document.getElementById('nn-nombre').value.trim().replace(/\s+/g, ' ');
   if(!nombre){ toast('Falta el nombre.', 'bad'); return; }
-  if(!(await confirmarNombreNuevo(nombre, ninierasItems||[], 'niñera'))) return;
   const telefono = document.getElementById('nn-telefono').value.trim();
+  const tipo = document.getElementById('nn-tipo').value || 'Niñera';
+  const problemaCel = problemaCelularNinera(telefono, tipo);
+  if(problemaCel){ toast(problemaCel, 'bad'); document.getElementById('nn-telefono').focus(); return; }
+  if(!(await confirmarNombreNuevo(nombre, ninierasItems||[], 'niñera'))) return;
   const notas = document.getElementById('nn-notas').value.trim();
   const ninera = {
     nombre,
     telefono: telefono || null,
-    tipo: document.getElementById('nn-tipo').value || 'Niñera',
+    tipo,
     zona: leerZonasChecklist('nn') || null,
     cuenta_bancaria: leerCuentasBancarias('nn'),
     notas: notas || null,
@@ -711,7 +715,7 @@ function editarNinera(id){
     </div>
     <div class="grid2">
       <div class="field"><label>Nombre</label><input type="text" id="ed-nombre" value="${escaparHtml(n.nombre)}"></div>
-      <div class="field"><label>Teléfono</label><input type="tel" id="ed-telefono" value="${escaparHtml(n.telefono)}"></div>
+      <div class="field"><label>Celular</label><input type="tel" id="ed-telefono" value="${escaparHtml(n.telefono)}"></div>
       <div class="field"><label>Tipo</label><select id="ed-tipo">${tipos.map(t=>`<option ${n.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
     </div>
     ${htmlCuentasBancarias('ed', n.cuenta_bancaria)}
@@ -856,11 +860,17 @@ async function subirFotoNinera(input){
 }
 let ninFotoUrlPendiente = null;
 async function guardarEdicionNinera(id){
+  // Celular obligatorio salvo traslados (27/10/2026): a las que no lo tienen de antes se les pide
+  // acá, al editarlas. Vacío se guarda como null, igual que en el alta.
+  const telefono = document.getElementById('ed-telefono').value.trim();
+  const tipo = document.getElementById('ed-tipo').value;
+  const problemaCel = problemaCelularNinera(telefono, tipo);
+  if(problemaCel){ toast(problemaCel, 'bad'); document.getElementById('ed-telefono').focus(); return; }
   const cambios = {
     nombre: document.getElementById('ed-nombre').value,
-    telefono: document.getElementById('ed-telefono').value,
+    telefono: telefono || null,
     zona: leerZonasChecklist('ed'),
-    tipo: document.getElementById('ed-tipo').value,
+    tipo,
     foto: ninFotoUrlPendiente,
     cuenta_bancaria: leerCuentasBancarias('ed'),
     notas: document.getElementById('ed-notas').value,

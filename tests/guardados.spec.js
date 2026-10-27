@@ -69,6 +69,7 @@ const FORMULARIOS = [
       await irAModulo(page, 'ninieras');
       await page.locator('button[onclick^="abrirModalNuevaNinera"]').click();
       await page.fill('#nn-nombre', 'Niñera Doble Toque');
+      await page.fill('#nn-telefono', '099 123 456');
     },
   },
   {

@@ -1300,6 +1300,18 @@ async function leerFamiliasConTerminos(columnas, armar = q=>q){
   }
   return armar(sb.from('familias').select(columnas));
 }
+/* Celular de una niñera (27/10/2026, pedido de Diego): obligatorio en el alta y al editar, salvo
+   que solo haga traslados (la misma lectura que nineraHaceTipo: 'Niñera' y 'Ambas' hacen sittings;
+   sin tipo cuenta como niñera, porque la base pone 'Niñera' por defecto). Lo escrito, con cualquier
+   tipo, tiene que ser un celular uruguayo según normalizarCelular (comun.js), la regla con la que
+   se arma su cuenta de la app. Se guarda como se escribió, no normalizado. Devuelve el problema en
+   texto, o '' si está bien. */
+function problemaCelularNinera(telefono, tipo){
+  const valor = String(telefono ?? '').trim();
+  if(!valor) return tipo==='Traslados' ? '' : 'Falta el celular: para una niñera es obligatorio.';
+  if(!normalizarCelular(valor)) return 'Revisá el celular: tiene que ser uruguayo, de 8 dígitos y empezar en 9 (099 123 456 o +598 99 123 456).';
+  return '';
+}
 /* Controles al crear un fijo (13/10/2026). Un fijo de traslado sin precio hizo que el
    precargado tomara un traslado con la comida sumada y lo copiara a todo el mes, y un fijo
    sin hora de inicio no se carga solo (generar_previstos_fijos lo saltea) y dejaba el aviso
