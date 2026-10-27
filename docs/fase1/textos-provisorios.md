@@ -76,3 +76,24 @@ de `textos.md`. Lo que se sumó:
 - Si no se puede abrir "Mi perfil": "No pudimos abrir tu perfil. Revisa tu conexión a internet y
   vuelve a intentar."
 - En el inicio, al pie: "Mi perfil" (al lado de "Mi cuenta").
+
+## Etapa 2: próximos sittings
+
+En el inicio, debajo de "No tienes pedidos por ahora.":
+- Título "Próximos sittings" y, mientras carga, "Cargando…".
+- Los días: "Hoy", "Mañana" o el día abreviado y la fecha ("jue 30/10").
+- Cada sitting: el horario ("18:00 a 22:00"; sin hora de fin, "desde las 18:00"; si termina después
+  de medianoche, "22:00 a 02:00, termina al día siguiente"; sin hora, "horario a confirmar"), "Sitting"
+  o "Traslado" con la zona, "Madre: [nombre + inicial]" y "Chicos: [cantidad y edades]".
+- Sin sittings: "No tienes sittings próximos."
+- Si no carga: "No pudimos cargar tus sittings. Revisa tu conexión a internet y vuelve a intentar." con
+  el botón "Reintentar".
+
+Al tocar un sitting (detalle):
+- Arriba "Sitting" o "Traslado" y "[día], [horario]"; después "Zona:", "Madre:", "Chicos:" y
+  "Dirección:" (en un traslado, "Desde:" y "Hasta:").
+- Si todavía no está confirmado: "La dirección aparece el día del sitting."
+- Botones "Cómo llegar" (abre el mapa con la dirección; en un traslado, con el destino) y "Agregar al
+  calendario".
+- En el calendario el evento se llama "Sitting Parents' Break" (o "Traslado Parents' Break"), con la
+  dirección y en la descripción la madre y los chicos.
