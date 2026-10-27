@@ -134,6 +134,8 @@ borran. Las tablas de respaldo se dejan unas semanas y se borran a mano cuando y
 ```sql
 begin;
 create table public.respaldo_20261027_webauthn_credentials as select * from auth.webauthn_credentials;
+-- Con RLS y sin políticas: la app no la ve (como los demás respaldos del repo).
+alter table public.respaldo_20261027_webauthn_credentials enable row level security;
 delete from auth.webauthn_credentials;
 commit;
 ```
@@ -153,6 +155,8 @@ mudanza. Reemplazar el marcador por la fecha y hora de la mudanza en UTC (Montev
 ```sql
 begin;
 create table public.respaldo_20261027_push_subscriptions as select * from public.push_subscriptions;
+-- Con RLS y sin políticas: guarda endpoints y claves, la app no la tiene que ver.
+alter table public.respaldo_20261027_push_subscriptions enable row level security;
 delete from public.push_subscriptions
  where user_id is null
    and created_at < '<fecha y hora de la mudanza, por ejemplo 2026-10-28 01:00:00+00>';
