@@ -539,9 +539,34 @@ const ERRORES_INVITACION = {
   ninera_no_encontrada: 'no se encontró la niñera',
 };
 let invitacionAppMensaje = '';
+// Celular repetido (26/10/2026): la cuenta es una por celular (el mail sintético sale de él), así que
+// una segunda ficha con el mismo celular no puede tener cuenta: Auth la rechaza con email_exists y la
+// niñera ve un error genérico. Se controla antes de invitar, contra TODAS las fichas (también las
+// inactivas, que cargarNinieras no trae; son unas 100 filas, una sola lectura). Devuelve las otras
+// fichas con ese celular, o null si no se pudo leer.
+async function fichasConMismoCelular(id, telefono){
+  const { data, error } = await sb.from('ninieras').select('id,nombre,telefono,activa');
+  if(error || !Array.isArray(data)) return null;
+  const propio = normalizarCelular((data.find(x=>x.id===id) || {}).telefono ?? telefono);
+  if(!propio) return [];
+  return data.filter(x=>x.id!==id && normalizarCelular(x.telefono)===propio);
+}
 async function abrirInvitacionApp(id, linkVigente=false){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n) return;
+  // Nunca se invita sin saber si el celular está repetido: si la lectura falla, no se crea el link.
+  const repetidas = await fichasConMismoCelular(id, n.telefono);
+  if(!repetidas){ toast('No se pudo verificar el celular: revisá la conexión e intentá de nuevo.', 'bad'); return; }
+  // En la fila "App" y no en un toast: hay que leer el nombre e ir a corregir una de las dos fichas.
+  const cont = document.getElementById('vn-app');
+  cont?.querySelector('.app-celular-repetido')?.remove();
+  if(repetidas.length){
+    const lista = repetidas.map(x=>`${(x.nombre||'').trim() || 'Sin nombre'} (${x.activa ? 'activa' : 'inactiva'})`).join(', ');
+    const aviso = `Otra ficha tiene el mismo celular: ${lista}. Corregí el celular en una de las dos antes de invitar.`;
+    if(cont && cont.dataset.ninera === id) cont.insertAdjacentHTML('beforeend', `<div class="warnbox app-celular-repetido" style="margin-top:8px;">${escaparHtml(aviso)}</div>`);
+    else toast(aviso, 'bad'); // toast usa textContent: no hace falta escapar
+    return;
+  }
   // Cada link nuevo invalida el anterior: si ya le mandaron uno que todavía sirve, se pregunta antes.
   if(linkVigente && !(await confirmarAccion('Ya tiene un link vigente, que deja de servir si creás otro. ¿Crear otro?', 'Crear otro link'))) return;
   const { data, error, status } = await sb.rpc('crear_invitacion_ninera', { p_ninera_id: id });

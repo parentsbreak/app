@@ -14,7 +14,8 @@ export const MAIL_DOMINIO_NINERA = "ninieras.parentsbreak.invalid";
 // Mínimo de la contraseña (textos de la app de niñeras, sección 3).
 export const MIN_PASSWORD = 8;
 
-const ERROR_INTERNO = "No se pudo crear la cuenta: avisale a Diego";
+// Lo lee la niñera (la app lo muestra tal cual, 26/10/2026): en "tú" y sin nombrar a nadie del equipo.
+const ERROR_INTERNO = "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break.";
 // Mensaje con el que crearUsuario / actualizarUsuario rechazan cuando Auth no acepta la contraseña
 // (26/10/2026): Auth puede pedir más que MIN_PASSWORD (por ejemplo, si se sube el mínimo en el
 // panel de Supabase). Es culpa de la contraseña, no del sistema: 400 password_corta, no 500.

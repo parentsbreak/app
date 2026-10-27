@@ -234,7 +234,9 @@ test.describe('invitación: crear la contraseña desde el link', () => {
       [400, { error: 'token' }, 'Este link no es válido. Pídele uno nuevo al equipo por WhatsApp.'],
       [403, { error: 'inactiva' }, 'Tu cuenta no está activa. Escríbenos por WhatsApp.'],
       [409, { error: 'celular_invalido' }, 'Tu número de celular no es válido. Avísale al equipo para corregirlo.'],
-      [500, { error: 'No se pudo crear la cuenta: avisale a Diego' }, 'No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.'],
+      // Error interno (26/10/2026): el texto de la función, que no nombra a nadie; sin texto, el mismo.
+      [500, { error: "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break." }, "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break."],
+      [502, {}, "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break."],
     ];
     for (const [status, json, texto] of casos) {
       e.funciones['ninera-cuenta'] = () => ({ status, json });
@@ -242,10 +244,14 @@ test.describe('invitación: crear la contraseña desde el link', () => {
       await expect(page.locator('#app')).toContainText(texto);
       await expect(page.locator('#inv-pass')).toHaveCount(0);
     }
-    // Sin conexión: el mismo aviso que el error del servidor.
+    // El error del servidor deja reintentar.
+    await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+    await expect(page.locator('#app')).not.toContainText('Diego');
+    // Sin conexión: el aviso de la conexión, también con Reintentar.
     await page.route(/functions\/v1\/ninera-cuenta/, r => r.abort('failed'));
     await page.reload();
     await expect(page.locator('#app')).toContainText('No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.');
+    await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
     // Desde un link que ya no sirve se puede ir a entrar con el celular (quien ya creó su cuenta).
     await page.unroute(/functions\/v1\/ninera-cuenta/);
     e.funciones['ninera-cuenta'] = () => ({ status: 410, json: { error: 'vencido' } });
@@ -253,23 +259,24 @@ test.describe('invitación: crear la contraseña desde el link', () => {
     await page.getByRole('button', { name: 'Entrar con mi celular' }).click();
     await expect(page.locator('#login-celular')).toBeVisible();
     expect(new URL(page.url()).search).toBe('');
-    verificarLimpio(e, { ignorar: [/status of (4\d\d|500)/, RUIDO_RED] });
+    verificarLimpio(e, { ignorar: [/status of (4\d\d|50\d)/, RUIDO_RED] });
   });
 
   test('si la función falla al crear la cuenta, el formulario avisa y deja reintentar sin perder nada', async ({ page }) => {
     const e = await abrirInvitacion(page, e => {
       e.funciones['ninera-cuenta'] = cuerpo => (cuerpo.password === undefined
         ? { json: { nombre: 'Ana', celular_mascarado: '••• 001', es_reset: false } }
-        : { status: 500, json: { error: 'No se pudo crear la cuenta: avisale a Diego' } });
+        : { status: 500, json: { error: "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break." } });
     });
     await page.fill('#inv-pass', 'clave-ficticia-1');
     await page.fill('#inv-pass2', 'clave-ficticia-1');
     await page.click('#inv-btn');
-    await expect(page.locator('#inv-error')).toHaveText('No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.');
+    // Error interno (26/10/2026): el texto de la función, no el de la conexión.
+    await expect(page.locator('#inv-error')).toHaveText("No pudimos crear tu cuenta. Avisa al equipo de Parents' Break.");
     await expect(page.locator('#inv-pass')).toHaveValue('clave-ficticia-1');
     await expect(page.locator('#inv-btn')).toBeEnabled();
     expect(loginsPedidos(e)).toHaveLength(0);
-    // Sin conexión, lo mismo.
+    // Sin conexión: el aviso de la conexión, también sin perder nada.
     await page.route(/functions\/v1\/ninera-cuenta/, r => r.abort('failed'));
     await page.click('#inv-btn');
     await expect(page.locator('#inv-error')).toHaveText('No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.');

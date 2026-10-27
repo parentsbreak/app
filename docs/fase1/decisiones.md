@@ -235,6 +235,9 @@ SQL `mail_sintetico_ninera`).
     email_confirm: true, user_metadata: {ninera_id}})` y guarda `user_id`; si ya existe (reset),
     `auth.admin.updateUserById(user_id, {password})`. Marca `usada_en`. Devuelve el celular
     normalizado para que la app entre sola con `signInWithPassword`.
+  - `user_metadata` (nombre, ninera_id) lo puede cambiar la propia niñera desde su sesión
+    (`auth.updateUser`): sirve solo para saludarla, nunca para autorizar ni para buscar su ficha;
+    la identidad es `ninieras.user_id` + `ninera_actual()` (26/10/2026).
   - Contraseña: mínimo 8 letras o números (textos, sección 3). Sin passkeys en la fase 1.
 - Login diario: la niñera escribe su celular (cualquier formato) y la contraseña; la app
   normaliza y entra con el mail sintético. "Olvidé mi contraseña" muestra "Pídele un link nuevo

@@ -238,6 +238,65 @@ test.describe('ficha de la niñera: fila "App" e "Invitar a la app"', () => {
     verificarLimpio(e, { ignorar: [/status of 400/] });
   });
 
+  // Celular repetido (26/10/2026): la cuenta es una por celular; si otra ficha (activa o no) tiene el
+  // mismo, Auth rechazaría la segunda cuenta. Se avisa antes, sin crear el link.
+  const avisoRepetido = page => filaApp(page).locator('.app-celular-repetido');
+  test('otra ficha activa con el mismo celular escrito distinto: avisa con su nombre y no crea el link', async ({ page }) => {
+    const d = datos();
+    d.ninieras.find(n => n.id === ID.nBruno).telefono = '098 000 001'; // Ana tiene '098000001'
+    const e = await abrirFichaAna(page, { datos: d });
+    e.rpc.crear_invitacion_ninera = invitacionOk();
+    await botonApp(page).click();
+    await expect(avisoRepetido(page)).toHaveText('Otra ficha tiene el mismo celular: Bruno Inventado (activa). Corregí el celular en una de las dos antes de invitar.');
+    await expect(modalInv(page)).toHaveCount(0);
+    expect(llamadasInvitar(e)).toHaveLength(0);
+    await expect(botonApp(page)).toBeEnabled();
+    // Corregido el celular de la otra ficha, invita como siempre y el aviso se va.
+    e.db.ninieras.find(n => n.id === ID.nBruno).telefono = '098000002';
+    await botonApp(page).click();
+    await expect(modalInv(page)).toBeVisible();
+    await expect(avisoRepetido(page)).toHaveCount(0);
+    expect(llamadasInvitar(e)).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('ficha inactiva con el mismo celular: también avisa, "(inactiva)", con el nombre escapado', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const d = datos();
+    const bruno = d.ninieras.find(n => n.id === ID.nBruno);
+    d.ninieras.push({ ...bruno, id: '30000000-0000-4000-8000-0000000000f1', nombre: 'Dora <b>Repetida</b>', telefono: '+598 98 000 001', activa: false, temporada_token: '60000000-0000-4000-8000-0000000000f1' });
+    const e = await abrirFichaAna(page, { datos: d });
+    e.rpc.crear_invitacion_ninera = invitacionOk();
+    await botonApp(page).click();
+    await expect(avisoRepetido(page)).toHaveText('Otra ficha tiene el mismo celular: Dora <b>Repetida</b> (inactiva). Corregí el celular en una de las dos antes de invitar.');
+    await expect(avisoRepetido(page).locator('b')).toHaveCount(0);
+    expect(llamadasInvitar(e)).toHaveLength(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // Un segundo toque no apila otro aviso.
+    await botonApp(page).click();
+    await expect(avisoRepetido(page)).toHaveCount(1);
+    verificarLimpio(e);
+  });
+
+  test('si no se pueden leer las fichas para controlar el celular, no invita a ciegas', async ({ page }) => {
+    const e = await abrirFichaAna(page);
+    e.rpc.crear_invitacion_ninera = invitacionOk();
+    const lecturaCelulares = /rest\/v1\/ninieras\?select=id(%2C|,)nombre(%2C|,)telefono(%2C|,)activa(&|$)/;
+    await page.route(lecturaCelulares, r => r.abort('failed'));
+    await botonApp(page).click();
+    // Sin conexión, supabase-js reintenta la lectura unos segundos (1 s, 2 s, 4 s) antes de dar error.
+    await expect(toasts(page).last()).toHaveText('No se pudo verificar el celular: revisá la conexión e intentá de nuevo.', { timeout: 15000 });
+    await expect(modalInv(page)).toHaveCount(0);
+    await expect(botonApp(page)).toBeEnabled();
+    await page.unroute(lecturaCelulares);
+    await page.route(lecturaCelulares, r => r.fulfill({ status: 500, json: { code: 'XX000', message: 'falla simulada' } }));
+    await botonApp(page).click();
+    await expect(toasts(page).last()).toHaveText('No se pudo verificar el celular: revisá la conexión e intentá de nuevo.');
+    await expect(modalInv(page)).toHaveCount(0);
+    expect(llamadasInvitar(e)).toHaveLength(0);
+    verificarLimpio(e, { ignorar: [/status of 500|Failed to load resource|ERR_FAILED/] });
+  });
+
   test('doble toque en "Invitar a la app": una sola invitación', async ({ page }) => {
     const e = await abrirFichaAna(page);
     e.rpc.crear_invitacion_ninera = invitacionOk();

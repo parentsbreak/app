@@ -6,6 +6,9 @@ const NINERA_CUENTA_URL = `${SUPABASE_URL}/functions/v1/ninera-cuenta`;
 // Igual a MIN_PASSWORD en la Edge Function ninera-cuenta (cuenta.ts), que también lo controla.
 const MIN_PASSWORD_NINERA = 8;
 const TEXTO_SIN_CONEXION_CUENTA = 'No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a intentar.';
+// Error de la Edge Function (26/10/2026): el mismo texto que ERROR_INTERNO en cuenta.ts, por si la
+// respuesta llega sin él. Nunca nombra a nadie del equipo: lo lee la niñera.
+const TEXTO_ERROR_INTERNO_CUENTA = "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break.";
 const TEXTO_SIN_CONEXION_LOGIN = 'No pudimos entrar. Revisa tu conexión a internet y vuelve a intentar.';
 
 /* ---- Invitación: /ninera/?i=<token> ---- */
@@ -27,13 +30,28 @@ async function llamarNineraCuenta(cuerpo){
   }
 }
 
-function textoErrorInvitacion({ status, json }){
+// El link no sirve (vencido, no existe, cuenta dada de baja, celular mal): reintentar no cambia nada.
+// Si no es nada de eso, null.
+function textoLinkQueNoSirve({ status, json }){
   const error = json && json.error;
   if(error === 'vencido' || status === 410) return 'Este link venció. Solicítale uno nuevo al equipo por WhatsApp.';
   if(error === 'no_existe' || error === 'token' || status === 404) return 'Este link no es válido. Pídele uno nuevo al equipo por WhatsApp.';
   if(error === 'inactiva' || status === 403) return 'Tu cuenta no está activa. Escríbenos por WhatsApp.';
   if(error === 'celular_invalido' || status === 409) return 'Tu número de celular no es válido. Avísale al equipo para corregirlo.';
-  return TEXTO_SIN_CONEXION_CUENTA; // 500 o sin conexión
+  return null;
+}
+// Falla que se puede reintentar (26/10/2026). Sin conexión (status 0) es la conexión; un 500 de la
+// función trae su propio texto para la niñera (ERROR_INTERNO en cuenta.ts) y se muestra ese; si no
+// lo trae (otro error del servidor), el mismo texto desde acá. Antes un 500 decía "revisa tu
+// conexión", y la conexión andaba.
+function textoFallaCuenta({ status, json }){
+  if(!status) return TEXTO_SIN_CONEXION_CUENTA;
+  const error = json && json.error;
+  if(status === 500 && typeof error === 'string' && error.trim()) return error;
+  return TEXTO_ERROR_INTERNO_CUENTA;
+}
+function textoErrorInvitacion(r){
+  return textoLinkQueNoSirve(r) || textoFallaCuenta(r);
 }
 
 async function pantallaInvitacion(token){
@@ -74,7 +92,7 @@ async function pantallaInvitacion(token){
 // vuelve a tocar el link del WhatsApp no queda trabada en "venció".
 function pantallaErrorInvitacion(r){
   const texto = textoErrorInvitacion(r);
-  const reintentar = texto === TEXTO_SIN_CONEXION_CUENTA
+  const reintentar = !textoLinkQueNoSirve(r)
     ? '<button class="btn primary ancho" onclick="location.reload()">Reintentar</button>' : '';
   const entrar = (r.json && r.json.error === 'inactiva') || r.status === 403
     ? '' : '<button class="btn ghost ancho" onclick="salirDeInvitacion()">Entrar con mi celular</button>';
@@ -96,9 +114,8 @@ async function crearCuentaDesdeInvitacion(token){
   const r = await llamarNineraCuenta({ token, password: pass });
   if(r.status !== 200 || !r.json.celular){
     if(r.json.error === 'password_corta'){ avisar('Mínimo 8 letras o números.'); return; }
-    const texto = textoErrorInvitacion(r);
     // Sin conexión o error del servidor: el formulario queda con lo escrito para reintentar.
-    if(texto === TEXTO_SIN_CONEXION_CUENTA){ avisar(texto); return; }
+    if(!textoLinkQueNoSirve(r)){ avisar(textoFallaCuenta(r)); return; }
     pantallaErrorInvitacion(r);
     return;
   }

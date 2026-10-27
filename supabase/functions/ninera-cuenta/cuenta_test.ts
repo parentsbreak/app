@@ -9,7 +9,7 @@ import {
 
 const TOKEN = "a".repeat(32) + "0123456789abcdef0123456789abcdef";
 const AHORA = new Date("2026-10-26T15:00:00Z");
-const ERROR_500 = "No se pudo crear la cuenta: avisale a Diego";
+const ERROR_500 = "No pudimos crear tu cuenta. Avisa al equipo de Parents' Break.";
 
 function invitacion(cambios: Partial<Invitacion> = {}): Invitacion {
   return {

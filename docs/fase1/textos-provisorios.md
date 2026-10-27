@@ -17,8 +17,10 @@ Pantalla de invitación y contraseña:
 - Cuenta dada de baja: "Tu cuenta no está activa. Escríbenos por WhatsApp."
 - Celular mal cargado en la ficha: "Tu número de celular no es válido. Avísale al equipo para
   corregirlo."
-- Falla al crear la cuenta: "No pudimos crear tu cuenta. Revisa tu conexión a internet y vuelve a
-  intentar."
+- Falla al crear la cuenta, error del servidor: "No pudimos crear tu cuenta. Avisa al equipo de
+  Parents' Break."
+- Falla al crear la cuenta, sin internet: "No pudimos crear tu cuenta. Revisa tu conexión a internet
+  y vuelve a intentar."
 - Desde un link vencido o inválido, botón "Entrar con mi celular".
 
 Entrar:

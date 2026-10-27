@@ -492,6 +492,9 @@ reporte.
   `app_config` 'ninieras_app'.vigencia_dias, un link nuevo invalida el anterior); reset de
   contraseña = otro link desde la ficha, sin mails. El rol es
   `ninieras.user_id` + `ninera_actual()`; `usuarias_autorizadas` no se toca.
+  `user_metadata` de la cuenta (nombre, ninera_id) lo puede editar la propia niñera desde su
+  sesión (`auth.updateUser`): sirve solo para saludar, nunca para autorizar ni para buscar su
+  ficha; la identidad es `ninieras.user_id` + `ninera_actual()` (26/10/2026).
 - Lo que la niñera nunca ve (26/10/2026): plata acumulada, pagos, márgenes, el apellido completo de
   la madre, notas internas ni datos de otras niñeras (lista completa en `docs/fase1/decisiones.md`
   5.3). Lo garantiza la base: nada de políticas nuevas sobre tablas compartidas; la niñera lee por
