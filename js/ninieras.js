@@ -47,13 +47,33 @@ function renderCumpleaneras(){
   const wrap = document.getElementById('nin-cumpleaneras-wrap');
   if(!wrap) return;
   const cumpleaneras = ninierasItems.filter(esCumpleHoy);
-  if(!cumpleaneras.length){ wrap.innerHTML = ''; return; }
-  wrap.innerHTML = `<div class="card" style="padding:12px 18px;border-left:3px solid var(--accent);margin-bottom:10px;">
+  if(!cumpleaneras.length){ pintarSiCambio(wrap, ''); return; }
+  pintarSiCambio(wrap, `<div class="card" style="padding:12px 18px;border-left:3px solid var(--accent);margin-bottom:10px;">
     <div style="font-weight:600;margin-bottom:2px;">🎂 Cumpleañera${cumpleaneras.length>1?'s':''} hoy</div>
     <div class="helper" style="margin:0;">${escaparHtml(cumpleaneras.map(n=>n.nombre).join(', '))}</div>
-  </div>`;
+  </div>`);
 }
-async function cargarNinieras(){
+/* Una sola carga en vuelo (27/10/2026, parpadeo en Niñeras): el guardado y el eco de Realtime
+   llamaban a cargarNinieras a la vez y las dos pintadas se intercalaban (cada una vuelve a crear
+   Utilización y Temporadas con su fundido). Una llamada que llega con otra en curso espera esa
+   misma y, como puede haber datos nuevos, la carga se repite una vez al terminar. Le avisa a
+   Realtime cuándo empieza y termina (marcarRecargaLiviana, agenda.js) para que el eco del propio
+   guardado no dispare otra. */
+let ninCargaEnVuelo = null, ninCargaDesde = 0, ninCargaRepetir = false;
+function cargarNinieras(){
+  // Una lectura colgada (fetch no tiene timeout) no puede dejar la pantalla trabada para siempre.
+  if(ninCargaEnVuelo && performance.now() - ninCargaDesde < 20000){ ninCargaRepetir = true; return ninCargaEnVuelo; }
+  marcarRecargaLiviana('ninieras', true);
+  ninCargaDesde = performance.now();
+  const carga = cargarNinierasUnaVez().finally(()=>{
+    if(ninCargaEnVuelo === carga) ninCargaEnVuelo = null;
+    marcarRecargaLiviana('ninieras', false);
+    if(ninCargaRepetir){ ninCargaRepetir = false; return cargarNinieras(); }
+  });
+  ninCargaEnVuelo = carga;
+  return carga;
+}
+async function cargarNinierasUnaVez(){
   asegurarEstilosTemporada();
   // Los grupos de zona ahora se esperan: además del checklist de "Editar", la lista los usa
   // para saber qué zonas son de afuera (temporadas) al filtrar y al poner el badge.
@@ -173,9 +193,9 @@ function renderUtilizacionNinieras(){
       return ua.localeCompare(ub);
     });
 
-  if(!top.length && !sinActividad.length){ wrap.innerHTML = ''; return; }
-
-  wrap.innerHTML = `
+  const etiquetas = top.map(x=>(x.nombre||'').split(' ')[0]);
+  const valores = top.map(x=>x.cant);
+  const html = !top.length && !sinActividad.length ? '' : `
     <div class="card" style="padding:14px 18px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;cursor:pointer;" onclick="toggleNinUtil()">
         <h2 style="margin:0;">Utilización — últimos ${NIN_UTIL_DIAS} días</h2>
@@ -203,6 +223,12 @@ function renderUtilizacionNinieras(){
           }).join('')}
         </div>` : ''}` : ''}
     </div>`;
+  if(!pintarSiCambio(wrap, html)){
+    // El panel quedó igual: el gráfico no se vuelve a armar, solo recibe los conteos de hoy (las
+    // barras no están en el HTML, así que pueden cambiar sin que cambie el panel).
+    if(ninUtilAbierto && ninUtilChart){ ninUtilChart.data.labels = etiquetas; ninUtilChart.data.datasets[0].data = valores; ninUtilChart.update(); }
+    return;
+  }
 
   if(ninUtilAbierto && top.length){
     asegurarChart().then(()=>{
@@ -211,7 +237,7 @@ function renderUtilizacionNinieras(){
       if(ninUtilChart){ ninUtilChart.destroy(); ninUtilChart = null; }
       ninUtilChart = new Chart(canvas, {
         type:'bar',
-        data:{ labels: top.map(x=>(x.nombre||'').split(' ')[0]), datasets:[{ label:'Sittings/traslados', data: top.map(x=>x.cant), backgroundColor:'#757CBB', borderRadius:6 }] },
+        data:{ labels: etiquetas, datasets:[{ label:'Sittings/traslados', data: valores, backgroundColor:'#757CBB', borderRadius:6 }] },
         options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
       });
     });
@@ -1269,12 +1295,12 @@ function renderTemporadasPanel(){
   const wrap = document.getElementById('nin-temporadas-wrap');
   if(!wrap) return;
   asegurarEstilosTemporada();
-  if(!(zonaGruposCache||[]).some(g=>g.fuera_de_montevideo)){ wrap.innerHTML = ''; return; }
+  if(!(zonaGruposCache||[]).some(g=>g.fuera_de_montevideo)){ pintarSiCambio(wrap, ''); return; }
   const faltan = ninierasItems.filter(n=>estadoTemporada(n)!=='ok');
   const alDia = ninierasItems.filter(n=>estadoTemporada(n)==='ok');
   const inicio = inicioTemporadaActual();
   const lista = ninTempVerTodas ? [...faltan, ...alDia] : faltan;
-  wrap.innerHTML = `
+  pintarSiCambio(wrap, `
     <div class="card" style="padding:14px 18px;margin-bottom:14px;${faltan.length?'border-left:3px solid var(--warn);border-radius:0 12px 12px 0;':''}">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;cursor:pointer;" onclick="toggleTemporadasPanel()">
         <h2 style="margin:0;">Temporadas de verano</h2>
@@ -1288,7 +1314,7 @@ function renderTemporadasPanel(){
         </div>
         ${lista.length ? lista.map(filaTemporadaPanel).join('') : '<div class="empty">Están todas al día.</div>'}
       ` : ''}
-    </div>`;
+    </div>`);
 }
 function textoFuenteTemporada(n){
   if(!n.temporada_actualizada_en) return '';
