@@ -43,7 +43,12 @@ declare
     'es_usuaria_autorizada()',                   -- solo lee: dice si la sesión es de una admin
     'generar_previstos_fijos(p_dias integer)',   -- admin o sin sesión (cron): raise 'no_autorizada'
     'ninera_activar_app()',                      -- niñera: solo su ficha (ninera_actual())
-    'ninera_actual()'                            -- solo lee: la ficha de la sesión, o null
+    'ninera_actual()',                           -- solo lee: la ficha de la sesión, o null
+    -- Etapa 2 (27/10/2026): perfil y próximos sittings, todas por ninera_actual().
+    'ninera_guardar_perfil(p_tipo text, p_zonas text[], p_cuenta text[], p_foto_ruta text)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su ficha
+    'ninera_mi_perfil()',                        -- niñera: solo su fila; vacío si no es niñera
+    'ninera_mis_sittings()',                     -- niñera: solo los suyos, sin plata; vacío si no es niñera
+    'ninera_zonas_disponibles()'                 -- niñera: zona_grupos; vacío si no es niñera
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];
