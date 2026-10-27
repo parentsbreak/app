@@ -415,6 +415,7 @@ async function verNinera(id){
   const fotoHtml = n.foto ? `<img src="${urlSegura(n.foto)}" alt="Foto de ${escaparHtml(n.nombre)}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;margin-bottom:12px;cursor:zoom-in;" onclick="abrirLightboxFoto(${argJs(n.foto)}, ${argJs('Foto de '+n.nombre)})" onerror="this.style.display='none'">` : '';
   abrirModal(`
     ${fotoHtml}
+    ${htmlFotoPropuesta(n)}
     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;padding-right:44px;">
       <h2 style="margin:0 0 10px;">${escaparHtml(n.nombre)} ${resenaBadge ? resenaBadge(n.nombre) : ''}</h2>
       <button class="smallbtn" onclick="abrirModalIncidente(${argJs({ninera_id:n.id, ninera_nombre:n.nombre})})">+ Registrar incidente</button>
@@ -438,6 +439,7 @@ async function verNinera(id){
       <div id="vn-historial"><div class="empty"><span class="spinner dark"></span> Cargando…</div></div>
     </div>`);
   cargarEstadoAppNinera(n.id);
+  if(n.foto_propuesta_ruta) cargarFotoPropuesta(n.id, n.foto_propuesta_ruta);
   cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
   cargarJuguetesDeNinera(n.nombre);
   renderIncidentesEnFicha('vn-incidentes', 'ninera', n.id, n.nombre);
@@ -539,6 +541,18 @@ function estadoAppNinera(n, invitacion, pushs){
   else if(!normalizarCelular(n.telefono)) motivo = 'Cargá un celular uruguayo válido para invitarla';
   return { texto, puedeInvitar: !motivo, motivo, esReset: !!n.user_id, linkVigente };
 }
+// Perfil desde la app (etapa 2, 27/10/2026): perfil_app_en es el primer guardado y
+// perfil_actualizado_en el último. La niñera puede cambiar su cuenta bancaria desde la app, así que
+// la ficha dice también cuándo editó por última vez (con un minuto de margen: el primer guardado
+// escribe las dos columnas casi juntas). Pura: con la base sin migrar no hay columnas y da ''.
+function textoPerfilApp(n){
+  if(!n || !n.perfil_app_en) return '';
+  let texto = `Perfil completado en la app el ${fechaCortaApp(n.perfil_app_en)}`;
+  if(n.perfil_actualizado_en && new Date(n.perfil_actualizado_en).getTime() - new Date(n.perfil_app_en).getTime() > 60000){
+    texto += `, editado el ${fechaCortaApp(n.perfil_actualizado_en)}`;
+  }
+  return texto;
+}
 async function cargarEstadoAppNinera(id){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n) return;
@@ -550,13 +564,17 @@ async function cargarEstadoAppNinera(id){
   const cont = document.getElementById('vn-app');
   // La ficha se cerró o ya es la de otra niñera (se abrió otra mientras esto cargaba): no se pinta.
   if(!cont || cont.dataset.ninera !== id) return;
-  if(inv.error || push.error){ cont.textContent = 'No se pudo cargar el estado de la app'; return; }
+  // El perfil completado sale de la fila de ninieras: se muestra aunque falle la lectura del estado.
+  const perfil = textoPerfilApp(n);
+  const perfilHtml = perfil ? `<div class="helper" style="margin-top:4px;">${escaparHtml(perfil)}</div>` : '';
+  if(inv.error || push.error){ cont.innerHTML = `<span>No se pudo cargar el estado de la app</span>${perfilHtml}`; return; }
   const est = estadoAppNinera(n, (inv.data||[])[0] || null, (push.data||[]).length);
   const etiqueta = est.esReset ? 'Link para cambiar la contraseña' : 'Invitar a la app';
   cont.innerHTML = `<span>${escaparHtml(est.texto)}</span> `
     + (est.puedeInvitar
       ? `<button class="smallbtn" onclick="conGuardado(this, ()=>abrirInvitacionApp(${argJs(id)}, ${est.linkVigente}))">${etiqueta}</button>`
-      : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`);
+      : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`)
+    + perfilHtml;
 }
 const ERRORES_INVITACION = {
   ninera_inactiva: 'la niñera está inactiva',
@@ -885,6 +903,94 @@ async function subirFotoNinera(input){
   status.textContent = 'Foto lista.';
 }
 let ninFotoUrlPendiente = null;
+/* ---- Foto propuesta por la niñera (fase 1, etapa 2, 27/10/2026) ----
+   La foto que la niñera sube desde su app NO reemplaza la del CV (la ven las madres): queda en el
+   bucket privado 'ninieras-privado' (fotos/<id>/propuesta.jpg) y una admin la usa o la descarta
+   desde la ficha. Con la base sin migrar la fila no trae foto_propuesta_ruta: no hay bloque. */
+function htmlFotoPropuesta(n){
+  if(!n || !n.foto_propuesta_ruta) return '';
+  const cuando = n.foto_propuesta_en ? ` el ${fechaCortaApp(n.foto_propuesta_en)}` : '';
+  return `
+    <div id="vn-foto-propuesta" style="background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin:0 0 12px;max-width:100%;box-sizing:border-box;">
+      <div style="font-weight:600;font-size:13px;padding-right:36px;">Foto propuesta por la niñera${cuando}</div>
+      <div id="vn-foto-propuesta-img" data-ninera="${escaparHtml(n.id)}" style="margin:8px 0;font-size:13px;">Cargando…</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn ghost" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>descartarFotoPropuesta(${argJs(n.id)}))">Descartar</button>
+        <button class="btn primary" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>aprobarFotoPropuesta(${argJs(n.id)}))">Usar como foto del CV</button>
+      </div>
+    </div>`;
+}
+// El bucket es privado: la imagen se ve con una URL firmada por 10 minutos (lo que dura mirar la ficha).
+async function cargarFotoPropuesta(id, ruta){
+  let url = null;
+  try {
+    const { data, error } = await sb.storage.from('ninieras-privado').createSignedUrl(ruta, 600);
+    if(!error) url = data?.signedUrl || null;
+  } catch(e){ url = null; }
+  const cont = document.getElementById('vn-foto-propuesta-img');
+  // La ficha se cerró o ya es la de otra niñera: no se pinta.
+  if(!cont || cont.dataset.ninera !== id) return;
+  if(!url){ cont.textContent = 'No se pudo mostrar la foto'; return; }
+  cont.innerHTML = `<img src="${urlSegura(url)}" alt="Foto propuesta" style="width:96px;height:96px;border-radius:50%;object-fit:cover;cursor:zoom-in;" onclick="abrirLightboxFoto(this.src, 'Foto propuesta')" onerror="this.parentElement.textContent='No se pudo mostrar la foto'">`;
+}
+// Copia la propuesta al bucket público del CV y recién después cambia la ficha (el update va
+// último: si algo falla antes, la ficha queda como estaba). El nombre es nuevo cada vez, como en
+// subirFotoNinera: pisar un nombre fijo cambiaría la foto del CV antes del update (y si el update
+// falla quedaría a medias), y el navegador seguiría mostrando la vieja desde su caché.
+async function aprobarFotoPropuesta(id){
+  const n = ninierasItems.find(x=>x.id===id);
+  if(!n || !n.foto_propuesta_ruta) return;
+  const ruta = n.foto_propuesta_ruta;
+  let blob = null;
+  try {
+    const { data, error } = await sb.storage.from('ninieras-privado').download(ruta);
+    if(!error) blob = data;
+  } catch(e){ blob = null; }
+  if(!blob){ toast('No se pudo descargar la foto propuesta', 'bad'); return; }
+  // La app de niñeras sube el tipo real (JPG, PNG o WEBP) aunque la ruta diga .jpg.
+  const ext = { 'image/png':'png', 'image/webp':'webp' }[blob.type] || 'jpg';
+  const nombre = `ninera-${Date.now()}-${id}.${ext}`;
+  const publico = sb.storage.from('ninieras-fotos');
+  let subida = false;
+  try {
+    const { error } = await publico.upload(nombre, blob, { upsert:true, contentType: blob.type || undefined });
+    subida = !error;
+  } catch(e){ subida = false; }
+  if(!subida){ toast('No se pudo subir la foto al CV', 'bad'); return; }
+  const cambios = { foto: publico.getPublicUrl(nombre).data.publicUrl, foto_propuesta_ruta: null, foto_propuesta_en: null };
+  if(!(await sbGuardar(sb.from('ninieras').update(cambios).eq('id', id), 'la foto del CV'))){
+    // Que la copia no quede suelta en el bucket público: no la usa ninguna ficha.
+    try { await publico.remove([nombre]); } catch(e){ /* nada más que hacer */ }
+    return;
+  }
+  // Ya no se muestra en ningún lado: si no se puede borrar, solo se anota.
+  try {
+    const { error } = await sb.storage.from('ninieras-privado').remove([ruta]);
+    if(error) console.warn('[foto propuesta] no se pudo borrar', error);
+  } catch(e){ console.warn('[foto propuesta] no se pudo borrar', e); }
+  Object.assign(n, cambios);
+  filtrarNinieras();
+  verNinera(id);
+  toast('Foto del CV actualizada.');
+}
+// Borra primero el archivo y después limpia la ficha: si el update falla, el bloque sigue ahí y se
+// puede volver a descartar (borrar un archivo que ya no está no da error).
+async function descartarFotoPropuesta(id){
+  const n = ninierasItems.find(x=>x.id===id);
+  if(!n || !n.foto_propuesta_ruta) return;
+  if(!(await confirmarAccion('¿Descartar la foto propuesta?', 'Descartar la foto'))) return;
+  let borrada = false;
+  try {
+    const { error } = await sb.storage.from('ninieras-privado').remove([n.foto_propuesta_ruta]);
+    borrada = !error;
+  } catch(e){ borrada = false; }
+  if(!borrada){ toast('No se pudo borrar la foto propuesta. Revisá tu conexión e intentá de nuevo.', 'bad'); return; }
+  const cambios = { foto_propuesta_ruta: null, foto_propuesta_en: null };
+  if(!(await sbGuardar(sb.from('ninieras').update(cambios).eq('id', id)))) return;
+  Object.assign(n, cambios);
+  verNinera(id);
+  toast('Foto propuesta descartada.');
+}
 async function guardarEdicionNinera(id){
   // Celular obligatorio salvo traslados (27/10/2026): a las que no lo tienen de antes se les pide
   // acá, al editarlas. Vacío se guarda como null, igual que en el alta.
