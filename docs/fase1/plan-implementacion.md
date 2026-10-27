@@ -361,50 +361,349 @@ nueva `ninera-cuenta`. Lleva `docs/fase1/` entero.
 
 ## Etapa 2: perfil y próximos sittings
 
-Rama `claude/fase1-perfil`. Migración `AAAAMMDD_perfil_ninera.sql`.
+Rama `claude/fase1-perfil` (worktree `.claude/worktrees/perfil`). Migración
+`20261027_perfil_ninera.sql` + `_DESHACER.sql`. Detallada el 27/10/2026 con el OK de Diego al
+resumen y sus ajustes: la foto que sube la niñera NO reemplaza la del CV (la ven las madres): queda
+como "foto propuesta" en un bucket privado propio y la admin la aprueba con un toque desde la ficha.
 
-### Tarea 2.1: funciones de lectura y escritura del perfil y de los sittings (SQL + pruebas)
-- `madre_nombre_inicial(p_nombre text) returns text` (puro): primera palabra + inicial de la última
-  ("María Pérez" → "María P."; una palabra → la palabra; vacío → "la familia").
-- `chicos_texto(p_familia_id uuid) returns text`: de `hijos_familia` con `edadHijo` traducido a SQL
-  (`edad_declarada` + años pasados desde `edad_declarada_en`, o `fecha_nacimiento`): "2 chicos
-  (3 y 5 años)", "1 chico (8 meses)"; sin hijos → `familias.ninos` recortado a 80; si nada → null.
-- `ninera_mi_perfil() returns table (id, nombre, telefono, tipo, zona, barrios, cuenta_bancaria,
-  app_activada_en, rcp_presencial, rcp_certificado_ruta)` y `ninera_guardar_perfil(p_tipo text,
-  p_zonas text[], p_cuenta text[]) returns void` (`p_tipo` solo 'Niñera' | 'Traslados' | 'Ambas';
-  zonas solo nombres de `zona_grupos`; guarda `zona = array_to_string(p_zonas, '/')`).
-- `ninera_mis_sittings() returns table (id, tipo, fecha, hora_inicio, hora_fin,
-  termina_dia_siguiente, zona, madre, direccion, chicos, notas_para_ninera)` sobre
-  `sittings_traslados` no cancelados, `ninera_id = ninera_actual()`, `fecha between hoy_mvd() and
-  hoy_mvd() + 60`, `estado in ('previsto','confirmado')`. `hoy_mvd()` = `(now() at time zone
-  'America/Montevideo')::date`. Sin precio (el precio por hora solo se ve en el pedido y en
-  "¡Quedaste seleccionada!"). `notas_para_ninera` de `solicitudes` vía el registro (null hasta la
-  etapa 5).
-- Pruebas: como niñera, la salida no tiene `cobro_familia` ni `pago_ninera` (`select * from
-  ninera_mis_sittings()` con las columnas listadas), no ve sittings de otra ni cancelados ni de hace
-  un mes, `madre_nombre_inicial` con 4 casos, `chicos_texto` con 3 casos (declarada vieja,
-  nacimiento, sin hijos), `ninera_guardar_perfil` rechaza tipo inválido y zona desconocida.
+**Objetivo:** la niñera completa su perfil una sola vez (servicios, zonas, datos bancarios, foto
+opcional) y ve en el inicio sus próximos sittings sin ningún monto; la admin ve en la ficha cuándo
+completó el perfil y aprueba o descarta la foto propuesta.
 
-### Tarea 2.2: pantalla "Completa esto una sola vez" y "Mi perfil" (`ninera/js/perfil.js`)
-- Primer ingreso con `tipo` por defecto y sin zonas → la pantalla, con casillas por grupo
-  (`zona_grupos` leída por RPC `ninera_zonas_disponibles()` o incluida en `ninera_mi_perfil`),
-  servicios (Sittings / Carsittings / Ambos), datos bancarios (texto libre por línea como la ficha).
-  Guardar con `conGuardado`; error de base → aviso sin éxito falso. Marcar Carsittings: texto
-  "Pronto vas a poder cargar los datos del auto desde aquí" (hasta la etapa 10).
-- Tests: `tests/ninera-perfil.spec.js` (feliz, zonas sin elegir, base que falla, doble toque,
-  390 px).
+**Restricciones de la etapa (además de las globales):**
+- Datos bancarios: solo los devuelve `ninera_mi_perfil()` (la propia niñera) y la ficha del panel.
+- `ninera_mis_sittings()`: nunca `cobro_familia`, `pago_ninera`, `cobrado`, `pagado`, `notas`,
+  `precio_*`; la dirección (y origen / destino de un traslado) solo si `estado = 'confirmado'`.
+- Ningún HTML de la app de niñeras contiene `$` seguido de un dígito ni la palabra "pago" (test).
+- Fotos: `achicarFoto(file, 1600, 0.8)` antes de subir, desde `js/comun.js` (se muda desde core.js).
+- Base sin migrar (las RPC nuevas dan 404 `PGRST202`): la app de niñeras sigue andando sin la
+  pantalla de perfil ni la sección de sittings; el panel sin el bloque de la foto.
+- Textos nuevos en "tú" a `docs/fase1/textos-provisorios.md` (sección "Etapa 2"); los del panel en voseo.
 
-### Tarea 2.3: "Próximos sittings" en el inicio (`ninera/js/inicio.js`)
-- Lista por fecha: día (hoy / mañana / "jue 30/10"), horas, zona, madre, chicos; al tocar, detalle
-  con dirección, "Cómo llegar" (`https://maps.apple.com/?q=` / `https://www.google.com/maps/search/?api=1&query=` con `encodeURIComponent`), "Agregar al calendario" (`.ics` armado en JS con `DTSTART;TZID=America/Montevideo`). Sin precio. Sin nada: "No tienes sittings próximos."
-- Tests: fijos y puntuales, uno que cruza medianoche, sin sittings, base que falla; búsqueda de
-  cualquier `$` o "pago" en el HTML renderizado (regla dura).
+**Review Focus de la etapa** (cada línea tiene su test en la tarea que la cubre):
+1. Sitting que cruza la medianoche (`termina_dia_siguiente`): las horas se ven como "22:00 a
+   02:00 (termina al día siguiente)" y el `.ics` termina al otro día (2.4).
+2. Familia sin filas en `hijos_familia` pero con texto en `familias.ninos`: ese texto, recortado a
+   80 (2.1 y 2.4).
+3. `madre_nombre_inicial`: "María Pérez" → "María P.", "Pérez" → "Pérez", "Familia Pérez" →
+   "Familia P.", vacío o null → "la familia" (2.1).
+4. Falla al subir la foto o al guardar el perfil: aviso claro, nada guardado a medias, el
+   formulario sigue con lo escrito (2.3). La foto va siempre a la misma ruta
+   `fotos/<ninera_id>/propuesta.jpg` con `upsert`: nunca quedan huérfanas.
+5. Una niñera no puede subir fuera de su carpeta ni ver la de otra; la admin ve y borra todo;
+   `ninera_guardar_perfil` rechaza una ruta de foto ajena (2.1).
 
-### Tarea 2.4: panel: ver el perfil que cargó la niñera
-- En la ficha de la niñera (`verNinera`), las zonas y la cuenta ya se ven; agregar "Perfil completado
-  en la app el dd/mm" (de un campo `ninieras.perfil_app_en` que fija `ninera_guardar_perfil`).
+### Tarea 2.1: migración `perfil_ninera`, funciones y pruebas SQL
 
-### Tarea 2.5: PR, migración (OK) y merge.
+**Archivos:**
+- Crear: `supabase/migraciones/20261027_perfil_ninera.sql`, `..._DESHACER.sql`,
+  `supabase/pruebas/fase1_perfil.sql`
+- Modificar: `supabase/schema.sql`, `supabase/pruebas/catalogo_seguridad.sql`,
+  `scripts/probar-sql.mjs` (sumar `storage.foldername(name text) returns text[]` al Supabase de
+  mentira: `string_to_array` sin el último tramo, como el real)
+
+**Interfaces (produce):**
+- Columnas: `ninieras.perfil_app_en timestamptz`, `ninieras.foto_propuesta_ruta text`,
+  `ninieras.foto_propuesta_en timestamptz`.
+- Bucket privado `ninieras-privado` (`public = false`). Políticas sobre `storage.objects`:
+  `ninieras_privado_propio` (`for all to authenticated`, using y with check: `bucket_id =
+  'ninieras-privado' and (storage.foldername(name))[2] = (select public.ninera_actual())::text`) y
+  `ninieras_privado_admins` (`for all to public`, `bucket_id = 'ninieras-privado' and (select
+  public.es_usuaria_autorizada())`). Rutas: `fotos/<ninera_id>/propuesta.jpg` (la etapa 4 suma
+  `firmas/`, `rcp/` y la 10 `carsitting/` con el mismo criterio).
+- `hoy_mvd() returns date` (`language sql stable`, sin security definer):
+  `(now() at time zone 'America/Montevideo')::date`.
+- `madre_nombre_inicial(p_nombre text) returns text` (`immutable`): primera palabra + inicial de la
+  última con punto; una palabra → la palabra; vacío o null → `'la familia'`.
+- `chicos_texto(p_familia_id uuid) returns text` (`stable`, invoker: llamada desde una security
+  definer corre como su dueña; llamada directa por una niñera ve 0 filas y da null): de
+  `hijos_familia` por `orden`, edad = años enteros desde `fecha_nacimiento` (`age(hoy_mvd(), …)`)
+  o `edad_declarada + años enteros desde edad_declarada_en` (la misma regla que `edadHijo` en
+  core.js); "1 chico (5 años)", "2 chicos (3 y 5 años)", "3 chicos (2, 4 y 7 años)", edad 0 →
+  "menos de 1 año", sin ninguna edad → "2 chicos"; sin filas → `left(trim(familias.ninos), 80)`;
+  nada → null.
+- `ninera_mi_perfil() returns table (id uuid, nombre text, telefono text, tipo text, zona text,
+  barrios text, cuenta_bancaria text[], foto text, foto_propuesta_ruta text, foto_propuesta_en
+  timestamptz, perfil_app_en timestamptz, app_activada_en timestamptz)` (`stable`, security
+  definer): la fila de `ninera_actual()`; vacío si null.
+- `ninera_zonas_disponibles() returns table (id uuid, nombre text, orden integer,
+  fuera_de_montevideo boolean)` (`stable`, security definer): `zona_grupos` por `orden`; vacío si
+  no es niñera.
+- `ninera_guardar_perfil(p_tipo text, p_zonas text[], p_cuenta text[], p_foto_ruta text default
+  null) returns void` (`volatile`, security definer): `raise 'no_autorizada'` si `ninera_actual()`
+  es null; `'tipo_invalido'` si `p_tipo` no está en ('Niñera', 'Traslados', 'Ambas');
+  `'sin_zonas'` si `p_zonas` viene vacío; `'zona_desconocida'` si alguna no es un
+  `zona_grupos.nombre`; `'foto_invalida'` si `p_foto_ruta` no es null y no empieza con
+  `'fotos/' || v_id || '/'`. Guarda `tipo`, `zona = array_to_string(p_zonas, '/')`,
+  `cuenta_bancaria` = las líneas de `p_cuenta` sin vacíos (null si no queda ninguna),
+  `perfil_app_en = coalesce(perfil_app_en, now())` y, con `p_foto_ruta`, `foto_propuesta_ruta` y
+  `foto_propuesta_en = now()`.
+- `ninera_mis_sittings() returns table (id uuid, tipo text, fecha date, hora_inicio time,
+  hora_fin time, termina_dia_siguiente boolean, estado text, zona text, madre text, direccion
+  text, origen text, destino text, chicos text, notas_para_ninera text)` (`stable`, security
+  definer): `sittings_traslados s left join familias f on f.id = s.familia_id` con `s.ninera_id =
+  ninera_actual()`, `not s.cancelado`, `s.estado in ('previsto', 'confirmado')`, `s.fecha between
+  hoy_mvd() and hoy_mvd() + 60`, orden `fecha, hora_inicio`. `zona = f.zona`, `madre =
+  madre_nombre_inicial(coalesce(f.nombre, s.familia_nombre))`, `direccion / origen / destino` solo
+  con `estado = 'confirmado'` (si no, null), `chicos = chicos_texto(f.id)`, `notas_para_ninera =
+  null::text` (la columna de `solicitudes` llega en la etapa 5).
+- Permisos como en la etapa 1: `revoke execute ... from public, anon; grant execute ... to
+  authenticated` en las cuatro security definer. `catalogo_seguridad.sql` suma a
+  `lista_authenticated`: `ninera_guardar_perfil(p_tipo text, p_zonas text[], p_cuenta text[],
+  p_foto_ruta text)`, `ninera_mi_perfil()`, `ninera_mis_sittings()`, `ninera_zonas_disponibles()`,
+  cada una con su comentario de guardia.
+- Compatible con la app publicada: columnas nuevas vacías, bucket y políticas nuevas, funciones
+  nuevas. Sin respaldo (no toca filas). El DESHACER borra funciones, políticas, el bucket (solo si
+  está vacío: si tiene objetos, los lista y frena, para no perder fotos propuestas) y las columnas.
+
+- [ ] **Paso 1:** escribir `supabase/pruebas/fase1_perfil.sql` (mismo esqueleto que
+  `fase1_cuentas_ninieras.sql`: `pg_temp.verificar`, `pg_temp.error_de`, datos inventados con una
+  admin, dos niñeras con cuenta, dos familias con hijos (una con `fecha_nacimiento`, otra con
+  `edad_declarada` vieja, una tercera solo con `ninos`) y sittings: 2 de Ana en los próximos
+  días (uno `previsto` y uno `confirmado` con dirección), 1 cancelado, 1 de hace un mes, 1 a 70
+  días, 1 de Bruno; "ser" cada cuenta con `set local role authenticated` + `request.jwt.claims`).
+  Casos: lo de la migración está (3 columnas, bucket, 2 políticas, 7 funciones);
+  `madre_nombre_inicial` 4 casos; `chicos_texto` 4 casos (nacimiento, declarada vieja, solo
+  `ninos`, nada → null); como Ana: `ninera_mi_perfil()` devuelve solo su fila con la cuenta;
+  `ninera_zonas_disponibles()` las zonas por orden; `ninera_mis_sittings()` devuelve exactamente
+  sus 2 (ids), el previsto con `direccion` null y el confirmado con la dirección, y
+  `pg_get_function_result('public.ninera_mis_sittings'::regproc)` no contiene `cobro`, `pago`,
+  `notas` (salvo `notas_para_ninera`) ni `precio`; `select count(*) from sittings_traslados`
+  directo como Ana = 0; `ninera_guardar_perfil` rechaza `'Chofer'`, zonas vacías, `'Narnia'` y
+  `'fotos/<id de Bruno>/propuesta.jpg'`, y acepta ('Ambas', {'Pocitos','Carrasco'}, {'Banco X',
+  '', 'cuenta 0001234567'}, 'fotos/<id de Ana>/propuesta.jpg') dejando `zona =
+  'Pocitos/Carrasco'`, `cuenta_bancaria = {'Banco X','cuenta 0001234567'}`, `perfil_app_en` puesto
+  una vez (segunda llamada no lo mueve) y `foto_propuesta_ruta` puesta; como la admin,
+  `ninera_guardar_perfil` da `no_autorizada` y `ninera_mi_perfil()` vacío; storage: como Ana
+  `insert into storage.objects (bucket_id, name)` bajo su carpeta anda, bajo la de Bruno falla
+  (RLS), `select` ve solo la suya; como admin ve las dos y borra.
+- [ ] **Paso 2:** correr `PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema
+  <schema de main> --migracion supabase/migraciones/20261027_perfil_ninera.sql
+  supabase/pruebas/fase1_perfil.sql`. Esperado: falla (la migración no existe).
+- [ ] **Paso 3:** escribir la migración (encabezado con qué suma y por qué, en una transacción),
+  el DESHACER, sumar `storage.foldername` a `probar-sql.mjs` y reflejar todo en `schema.sql`
+  (columnas en la tabla, bucket en el insert de buckets, políticas junto a las de `comprobantes`,
+  funciones después de `crear_invitacion_ninera`).
+- [ ] **Paso 4:** correr el paso 2, más aplicar → deshacer → aplicar (`--migracion` tres veces),
+  más `catalogo_seguridad.sql` y `fase1_cuentas_ninieras.sql` con la migración, más todos los
+  `supabase/pruebas/*.sql` sobre `schema.sql`. Esperado: todo OK.
+- [ ] **Paso 5:** commit: `Etapa 2: migración perfil_ninera (perfil, foto propuesta, próximos
+  sittings) y pruebas SQL`.
+
+### Tarea 2.2: `achicarFoto` compartida y simulador de la etapa
+
+**Archivos:**
+- Modificar: `js/comun.js` (recibe `achicarFoto` tal cual desde `js/core.js`, con su
+  comentario), `js/core.js` (la saca), `tests/support/rpc-ninera.js`, `tests/support/app.js`,
+  `tests/support/fuentes.js` (`ORDEN_SCRIPTS_NINERA` con `perfil` entre `cuenta` e `inicio`),
+  `ninera/index.html` (`<script src="js/perfil.js">` antes de `inicio.js`), crear
+  `ninera/js/perfil.js` vacío con su comentario de cabecera.
+- Test: `tests/estatico.spec.js` (ya controla el orden y las globales), `tests/mejoras-hoy.spec.js`
+  (las fotos livianas del panel siguen igual).
+
+**Interfaces (produce):**
+- `rpcNinera(db, nineraId)` suma: `ninera_mi_perfil` (la fila de `db.ninieras` con las columnas
+  de 2.1), `ninera_zonas_disponibles` (`db.zona_grupos` por `orden`), `ninera_guardar_perfil`
+  (`cuerpo = {p_tipo, p_zonas, p_cuenta, p_foto_ruta}`: valida como la SQL y escribe en la fila;
+  devuelve null), `ninera_mis_sittings` (filtra `db.sittings_traslados` con las mismas reglas,
+  `madre` y `chicos` calculados desde `db.familias` y `db.hijos_familia`, dirección solo en
+  confirmados). Un test pisa cualquiera con `e.rpc.nombre = () => …` o la hace fallar con
+  `e.fallar`.
+- `app.js`, storage: `POST /storage/v1/object/sign/<bucket>/<ruta>` responde `{ signedURL:
+  '/object/sign/<bucket>/<ruta>?token=ficticio' }`; `GET /storage/v1/object/...` (descarga o la
+  URL firmada) responde un PNG de 1×1 con `content-type: image/png`; `POST/PUT
+  /storage/v1/object/<bucket>/<ruta>` sigue anotándose en `e.escrituras` con la ruta. Con
+  `baseSinMigrar`, las RPC nuevas ya dan 404 `PGRST202` (genérico).
+- Datos ficticios (`datos.js`): Ana sin `zona` ni `perfil_app_en` (primer ingreso), Carla con
+  `zona 'Pocitos/Carrasco'`, `perfil_app_en` y `foto_propuesta_ruta 'fotos/<id>/propuesta.jpg'`;
+  `hijos_familia` de la familia Prueba Uno con dos hijos; sittings futuros de Ana: hoy
+  confirmado 18:00 a 22:00, mañana previsto 22:00 a 02:00 (`termina_dia_siguiente`), uno a 70
+  días (no sale). Nada de eso rompe los tests que ya existen (correrlos).
+
+- [ ] **Paso 1:** mover `achicarFoto` a `comun.js`; `npm run test:static` y `PUERTO_TESTS=4195
+  npx playwright test tests/mejoras-hoy.spec.js tests/ninera-cuenta.spec.js`. Esperado: pasan.
+- [ ] **Paso 2:** simulador y datos; correr `tests/ninera-cuenta.spec.js`, `tests/humo.spec.js`,
+  `tests/ninieras-lista.spec.js`, `tests/fijos.spec.js`, `tests/finanzas.spec.js` (los datos nuevos
+  no cambian totales: los sittings nuevos de Ana van en $0 y a más de 30 días de los meses que
+  miran esos tests, o se ajustan sus expectativas con el porqué). Esperado: pasan.
+- [ ] **Paso 3:** commit: `Etapa 2: achicarFoto en comun.js, perfil.js en el orden de carga y
+  simulador de perfil y sittings`.
+
+### Tarea 2.3: "Completa esto una sola vez" y "Mi perfil" (`ninera/js/perfil.js`)
+
+**Archivos:**
+- Modificar: `ninera/js/perfil.js`, `ninera/js/arranque.js` (`continuarDespuesDeInstalar`),
+  `ninera/js/inicio.js` (link "Mi perfil" en el pie, junto a "Mi cuenta"), `ninera/estilos.css`,
+  `docs/fase1/textos-provisorios.md`
+- Test: `tests/ninera-perfil.spec.js`
+
+**Interfaces (produce):**
+- `cargarPerfilNinera()` → `{ perfil, sinMigrar }`: RPC `ninera_mi_perfil`; 404 `PGRST202` →
+  `sinMigrar: true`; otro error → lanza.
+- `perfilIncompleto(perfil)` (pura): true si `!perfil.zona` (sin zonas = nunca lo completó).
+- `pantallaPerfil(modo, perfil)` con `modo` `'primera'` (título "Completa esto una sola vez") o
+  `'editar'` (título "Mi perfil"), ruta `#perfil`. Campos: "¿Qué servicios realizas?" con tres
+  botones de radio Sittings / Carsittings / Ambos (valores `'Niñera'` / `'Traslados'` / `'Ambas'`,
+  precargado desde `perfil.tipo`); "Zonas donde puedes tomar servicios" con una casilla por grupo
+  (`ninera_zonas_disponibles`, marcadas las de `perfil.zona` partido por "/"); "Datos bancarios
+  para pagarte" `textarea` (una cuenta por línea, precargado con `perfil.cuenta_bancaria`) y
+  helper "Banco, tipo y número de cuenta, uno por línea."; "Tu foto (opcional)" `input
+  type=file accept="image/*"` con vista previa y helper "La ve el equipo y, si la aprueban, pasa a
+  tu perfil."; si `perfil.foto_propuesta_ruta`, debajo "Foto enviada el dd/mm, el equipo la va a
+  revisar."; al marcar Carsittings o Ambos, "Pronto vas a poder cargar los datos del auto desde
+  aquí."; botón "Guardar" con `conGuardado(this, ()=>guardarPerfilNinera(modo))`.
+- `guardarPerfilNinera(modo)`: sin zona marcada → "Elige al menos una zona." (sin llamar a nada);
+  con foto elegida → `achicarFoto(file, 1600, 0.8)` → `sbn.storage.from('ninieras-privado')
+  .upload('fotos/<id>/propuesta.jpg', archivo, { upsert: true, contentType: 'image/jpeg' })`; si
+  falla → "No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar." y no
+  sigue; después RPC `ninera_guardar_perfil` con `p_foto_ruta` (o null); error → "No pudimos
+  guardar tu perfil. Revisa tu conexión a internet y vuelve a intentar." con lo escrito intacto;
+  OK → toast "¡Listo! Tu perfil quedó guardado." y `renderInicio()`.
+- `arranque.js`: en `continuarDespuesDeInstalar`, después de los avisos:
+  `const { perfil, sinMigrar } = await cargarPerfilNinera()`; si no `sinMigrar` y
+  `perfilIncompleto(perfil)` → `pantallaPerfil('primera', perfil)`; si no → `renderInicio()`. Un
+  error de red ahí → `mostrarErrorCargaInicio()`.
+- `inicio.js`: en el pie, "Mi perfil" → `abrirMiPerfil()` (carga el perfil y abre
+  `pantallaPerfil('editar', perfil)`); con `sinMigrar` el link no se muestra.
+- Textos nuevos (en "tú") a `textos-provisorios.md`, sección "Etapa 2: perfil".
+
+- [ ] **Paso 1:** escribir `tests/ninera-perfil.spec.js`: (a) Ana entra por primera vez → la
+  pantalla "Completa esto una sola vez" con los tres servicios, las zonas de `zona_grupos` y los
+  datos bancarios; sin marcar zona, "Guardar" → "Elige al menos una zona." y ninguna RPC; (b)
+  marcar Ambos + Pocitos + dos líneas de cuenta → RPC `ninera_guardar_perfil` con `{p_tipo:
+  'Ambas', p_zonas: ['Pocitos'], p_cuenta: ['Banco Ficticio', 'CA 0001234567'], p_foto_ruta:
+  null}` y después el inicio; el texto "Pronto vas a poder cargar los datos del auto" aparece al
+  marcar Ambos; (c) con una foto (un PNG de 300×200 inyectado con `setInputFiles`) → una
+  escritura a `/storage/v1/object/ninieras-privado/fotos/<id de Ana>/propuesta.jpg` y la RPC con
+  esa `p_foto_ruta`; (d) la subida falla (`e.fallar` sobre `/storage/v1/`) → mensaje de la foto y
+  ninguna RPC; (e) la RPC falla (`e.fallar`) → mensaje de guardar, el formulario sigue con lo
+  escrito; (f) doble toque en "Guardar" con `e.demoraEscrituras = 400` → una sola RPC; (g) Carla
+  (perfil completo) entra directo al inicio y "Mi perfil" abre la edición precargada (Ambas,
+  Pocitos y Carrasco marcadas, cuenta en el textarea, "Foto enviada el dd/mm"); (h)
+  `baseSinMigrar` → inicio sin "Mi perfil" ni pantalla de perfil; (i) 390 px: la pantalla sin
+  scroll horizontal, casillas de 24 px, captura; (j) el HTML de la pantalla no contiene `/\$\d/`
+  ni `/\bpago/i`. Todos con `verificarLimpio(e)`.
+- [ ] **Paso 2:** correr `PUERTO_TESTS=4195 npx playwright test tests/ninera-perfil.spec.js`.
+  Esperado: fallan todos.
+- [ ] **Paso 3:** implementar `perfil.js`, los cambios de `arranque.js` e `inicio.js`, las clases
+  que falten en `estilos.css` (radios y casillas grandes, vista previa de la foto, `textarea`) y
+  los textos provisorios.
+- [ ] **Paso 4:** correr el spec nuevo más `tests/ninera-cuenta.spec.js` y `npm run test:static`.
+  Esperado: pasan.
+- [ ] **Paso 5:** commit: `Etapa 2: perfil de la niñera (servicios, zonas, datos bancarios, foto
+  propuesta)`.
+
+### Tarea 2.4: "Próximos sittings" en el inicio (`ninera/js/inicio.js`)
+
+**Archivos:**
+- Modificar: `ninera/js/inicio.js`, `ninera/estilos.css`, `docs/fase1/textos-provisorios.md`
+- Test: `tests/ninera-sittings.spec.js`
+
+**Interfaces (produce):**
+- `renderInicio()` pinta primero lo de hoy (saludo, avisos, "No tienes pedidos por ahora.") y
+  debajo `<section id="proximos-sittings">` con el título "Próximos sittings" y "Cargando…";
+  después `cargarProximosSittings()`.
+- `cargarProximosSittings()`: RPC `ninera_mis_sittings`; 404 `PGRST202` → saca la sección; otro
+  error → "No pudimos cargar tus sittings. Revisa tu conexión a internet y vuelve a intentar." con
+  "Reintentar"; vacío → "No tienes sittings próximos."; con datos → `htmlSittingsNinera(filas)`.
+- `htmlSittingsNinera(filas)` (pura): agrupadas por fecha con `textoDiaNinera(fecha, hoy)`
+  ("Hoy", "Mañana", "jue 30/10": día abreviado en minúscula y dd/mm), cada una un botón-tarjeta
+  con `horasSittingNinera(s)` ("18:00 a 22:00"; sin fin: "desde las 18:00"; cruza: "22:00 a
+  02:00, termina al día siguiente"), tipo ("Sitting" / "Traslado"), zona, "Madre: …" y
+  "Chicos: …" (solo si vienen), `onclick="abrirDetalleSittingNinera(${argJs(id)})"`.
+- `abrirDetalleSittingNinera(id)`: `abrirModalNinera` con día, horas, tipo, zona, madre, chicos
+  y: si `direccion` (confirmado) → la dirección (y origen / destino en un traslado), botón "Cómo
+  llegar" (`https://maps.apple.com/?q=` en iPhone (`/iPhone|iPad/.test(navigator.userAgent)`),
+  si no `https://www.google.com/maps/search/?api=1&query=`, con `encodeURIComponent` y
+  `urlSegura`, `target=_blank rel=noopener`); si no → "La dirección aparece el día del sitting.";
+  botón "Agregar al calendario" → `descargarIcsSitting(s)`.
+- `armarIcsSitting(s, hoyISO)` (pura, devuelve el texto): `BEGIN:VCALENDAR`, `VERSION:2.0`,
+  `PRODID:-//Parents Break//App ninieras//ES`, `BEGIN:VEVENT`, `UID:<id>@parentsbreak`,
+  `DTSTAMP` en UTC, `DTSTART;TZID=America/Montevideo:AAAAMMDDTHHMMSS`, `DTEND` igual (si
+  `termina_dia_siguiente`, con `sumarDiasISO(fecha, 1)`; sin `hora_fin`, DTEND = inicio + 1 h),
+  `SUMMARY:Sitting Parents' Break` (o Traslado), `LOCATION:` solo con dirección, `DESCRIPTION:`
+  con madre y chicos. Sin montos. `descargarIcsSitting` arma un `Blob` `text/calendar` y lo baja
+  con un `<a download="sitting-AAAA-MM-DD.ics">`.
+- Textos nuevos a `textos-provisorios.md`, sección "Etapa 2: próximos sittings".
+
+- [ ] **Paso 1:** escribir `tests/ninera-sittings.spec.js`: (a) Ana (hoy 04/10/2026 en el
+  simulador) ve "Hoy" con "18:00 a 22:00", "Mañana" con "22:00 a 02:00, termina al día
+  siguiente", madre "Madre: Prueba U." o la inicial que corresponda a `datos.js`, chicos "2
+  chicos (…)", y NO el sitting a 70 días; (b) tocar el de hoy (confirmado) → la dirección y "Cómo
+  llegar" con la dirección codificada en el `href`; el de mañana (previsto) → "La dirección
+  aparece el día del sitting." sin botón; (c) "Agregar al calendario" → `armarIcsSitting` del de
+  mañana tiene `DTSTART;TZID=America/Montevideo:20261005T220000` y `DTEND;TZID=America/Montevideo:20261006T020000`,
+  y el click dispara una descarga `sitting-2026-10-05.ics` (`page.waitForEvent('download')`);
+  (d) `e.rpc.ninera_mis_sittings = () => []` → "No tienes sittings próximos."; (e) `e.fallar`
+  en la RPC → el mensaje y "Reintentar" que vuelve a pedir; (f) `baseSinMigrar` → sin la
+  sección, el inicio intacto; (g) el HTML del inicio y del detalle no contiene `/\$\d/` ni
+  `/\bpago/i`, y el `.ics` tampoco; (h) 390 px: captura, sin scroll horizontal. `verificarLimpio(e)`.
+- [ ] **Paso 2:** correr el spec. Esperado: fallan todos salvo los que miran lo de la etapa 1.
+- [ ] **Paso 3:** implementar en `inicio.js` y `estilos.css`, y los textos provisorios.
+- [ ] **Paso 4:** correr el spec nuevo, `tests/ninera-cuenta.spec.js`, `tests/ninera-perfil.spec.js`
+  y `npm run test:static`. Esperado: pasan.
+- [ ] **Paso 5:** commit: `Etapa 2: próximos sittings en el inicio de la niñera (sin montos, dirección
+  solo confirmada, cómo llegar y calendario)`.
+
+### Tarea 2.5: panel: perfil completado y foto propuesta en la ficha
+
+**Archivos:**
+- Modificar: `js/ninieras.js` (`verNinera`, `estadoAppNinera` / `cargarEstadoAppNinera`, y la
+  lectura de `ninieras` si pide columnas explícitas)
+- Test: `tests/foto-propuesta.spec.js`
+
+**Interfaces (produce):**
+- En la fila "App" de la ficha, después del estado: "Perfil completado en la app el dd/mm"
+  (`fechaCortaApp(n.perfil_app_en)`) o nada.
+- Bloque `#vn-foto-propuesta` debajo de la foto, solo si `n.foto_propuesta_ruta`: "Foto propuesta
+  por la niñera el dd/mm", la imagen con `sb.storage.from('ninieras-privado').createSignedUrl(ruta,
+  600)` (si falla, "No se pudo mostrar la foto" y los botones igual), botones "Usar como foto del
+  CV" (`conGuardado(this, ()=>aprobarFotoPropuesta(id))`) y "Descartar" (`confirmarAccion` con el
+  botón "Descartar la foto" → `descartarFotoPropuesta(id)`).
+- `aprobarFotoPropuesta(id)`: descarga la propuesta (`.download(ruta)`), la sube a
+  `ninieras-fotos` con el mismo nombre que usa `subirFotoNinera` para esa niñera (`upsert`),
+  `update ninieras set foto = <URL pública>, foto_propuesta_ruta = null, foto_propuesta_en =
+  null` con `sbGuardar`, borra la propuesta del bucket privado (si falla, solo se anota en
+  consola: ya no se muestra) y repinta la ficha; toast "Foto del CV actualizada.". Si falla la
+  descarga, la subida o el update → toast con qué falló, nada a medias (el update va último).
+- `descartarFotoPropuesta(id)`: borra el objeto y limpia las dos columnas; toast "Foto propuesta
+  descartada.".
+
+- [ ] **Paso 1:** escribir `tests/foto-propuesta.spec.js`: (a) la ficha de Carla muestra "Perfil
+  completado en la app el …", "Foto propuesta por la niñera el …", una imagen con la URL firmada
+  y los dos botones; la de Ana, nada de eso; (b) "Usar como foto del CV" → descarga desde
+  `ninieras-privado`, subida a `ninieras-fotos` (escritura con la ruta), PATCH a `ninieras` con
+  `foto` y las dos columnas en null, borrado de la propuesta, y la ficha repintada sin el bloque;
+  (c) falla la subida → toast de error y ningún PATCH; (d) falla el PATCH → toast y la ficha sigue
+  mostrando la propuesta; (e) doble toque → una sola subida; (f) "Descartar" → confirmación,
+  borrado y PATCH con null; (g) `baseSinMigrar` (la fila sin las columnas) → la ficha sin el
+  bloque; (h) 390 px. `verificarLimpio(e)`.
+- [ ] **Paso 2:** correr el spec. Esperado: fallan.
+- [ ] **Paso 3:** implementar en `ninieras.js`.
+- [ ] **Paso 4:** correr el spec nuevo más `tests/invitar-app.spec.js`, `tests/ninieras-lista.spec.js`,
+  `tests/escape.spec.js` y `npm run test:static`. Esperado: pasan.
+- [ ] **Paso 5:** commit: `Etapa 2: la ficha muestra el perfil completado y aprueba o descarta la foto
+  propuesta`.
+
+### Tarea 2.6: documentación, revisión final, PR y migración (con OK)
+
+- [ ] **Paso 1:** `CLAUDE.md`: orden de carga de `ninera/index.html` (perfil antes de inicio), la lista
+  de tests (los tres specs y `fase1_perfil.sql`), "Convenciones": la foto propuesta (bucket privado
+  `ninieras-privado` con carpeta por niñera, la admin aprueba desde la ficha; nunca pisa `foto`
+  sola), `achicarFoto` en comun.js (la niñera sube con 1600 y 0,8; el panel sigue con 800) y
+  `ninera_mis_sittings` sin plata y con dirección solo confirmada; "Fase 1": etapa 2 hecha.
+  `docs/fase1/decisiones.md` 5.3 y 5.5: la foto propuesta y el bucket ya en la etapa 2;
+  `plan-implementacion.md`: casillas tildadas.
+- [ ] **Paso 2:** revisión final de toda la rama con un revisor fresco (Opus), con la lista de 5.3 de
+  lo que la niñera nunca ve; arreglar lo que encuentre.
+- [ ] **Paso 3:** rebase sobre `origin/main`, `npm test` completo, push, PR con: qué quedó hecho, las
+  decisiones, el SQL de la migración listo para el SQL Editor y la verificación (`select count(*)
+  from pg_proc where proname like 'ninera_%'` = 6: las 2 de la etapa 1 más las 4 nuevas, `select id, public from storage.buckets where id
+  = 'ninieras-privado'`, las 2 políticas en `pg_policies`). Diego revisa el archivo contra la base
+  y la aplica él.
+- [ ] **Paso 4:** con la migración aplicada y verificada, y el CI verde: merge con merge commit.
+  Después, Diego prueba con la niñera de práctica (perfil, foto, sittings) y aprueba la foto desde
+  la ficha.
 
 ---
 
