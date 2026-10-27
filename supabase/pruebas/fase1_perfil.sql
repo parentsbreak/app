@@ -232,6 +232,10 @@ select pg_temp.verificar('foto en su carpeta con otro nombre: foto_invalida',
 select pg_temp.verificar('foto que sale de su carpeta con "..": foto_invalida',
   pg_temp.error_de($$select public.ninera_guardar_perfil('Ambas', array['Pocitos'], array['Banco X'],
     'fotos/d2000000-0000-4000-8000-000000000001/../d2000000-0000-4000-8000-000000000002/propuesta.jpg')$$) like '%foto_invalida%');
+-- Una cuenta por renglón con tope de 10 (27/10/2026): 11 renglones con texto no pasan.
+select pg_temp.verificar('11 cuentas: demasiadas_cuentas',
+  pg_temp.error_de($$select public.ninera_guardar_perfil('Ambas', array['Pocitos'],
+    array(select 'Banco Ficticio cuenta 000000000' || g from generate_series(1, 11) g))$$) like '%demasiadas_cuentas%');
 select pg_temp.verificar('después de los rechazos su perfil sigue igual',
   (select tipo = 'Niñera' and zona = 'Centro' and perfil_app_en is null and perfil_actualizado_en is null
           and foto_propuesta_ruta is null from public.ninera_mi_perfil()));
@@ -270,22 +274,37 @@ select pg_temp.verificar('zonas repetidas: "Pocitos/Carrasco"',
   (select zona = 'Pocitos/Carrasco' from public.ninera_mi_perfil()));
 select pg_temp.verificar('renglón de la cuenta cortado a 120 caracteres',
   (select cuenta_bancaria = array[repeat('9', 120), 'Banco Y'] from public.ninera_mi_perfil()));
+-- El tope cuenta después de sacar los renglones vacíos: 10 con texto y 3 en blanco pasan.
+select public.ninera_guardar_perfil('Ambas', array['Pocitos'],
+  array(select 'Banco Ficticio cuenta 000000000' || g from generate_series(1, 10) g) || array['', '  ', E'\t']);
+select pg_temp.verificar('10 cuentas y renglones en blanco: guarda las 10',
+  (select cardinality(cuenta_bancaria) = 10 and cuenta_bancaria[10] = 'Banco Ficticio cuenta 00000000010'
+     from public.ninera_mi_perfil()));
 
--- Storage: su carpeta sí, la de Bruno no.
+-- Storage: fotos/<su id>/propuesta.jpg sí; nada más, y la de Bruno no.
 reset role;
 insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'fotos/d2000000-0000-4000-8000-000000000002/propuesta.jpg');
 set local role authenticated;
-select pg_temp.verificar('Ana sube a su carpeta',
+select pg_temp.verificar('Ana sube fotos/<su id>/propuesta.jpg',
   pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg')$$) is null);
 select pg_temp.verificar('Ana no puede subir a la carpeta de Bruno (RLS)',
   pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'fotos/d2000000-0000-4000-8000-000000000002/otra.jpg')$$) like '%row-level security%');
+-- Solo la ruta exacta de su foto (27/10/2026): ni otro nombre en su carpeta ni otra carpeta con
+-- su id. Las etapas 4 y 10 amplían la política para sus rutas.
+select pg_temp.verificar('Ana no puede subir otro archivo en su carpeta de fotos (RLS)',
+  pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'fotos/d2000000-0000-4000-8000-000000000001/otra.jpg')$$) like '%row-level security%');
+select pg_temp.verificar('Ana no puede subir a otra carpeta con su id (firmas/, RLS)',
+  pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'firmas/d2000000-0000-4000-8000-000000000001/x.png')$$) like '%row-level security%');
+select pg_temp.verificar('Ana no puede subir fuera de las carpetas (RLS)',
+  pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('ninieras-privado', 'd2000000-0000-4000-8000-000000000001/propuesta.jpg')$$) like '%row-level security%');
 select pg_temp.verificar('Ana no puede subir a otro bucket privado',
   pg_temp.error_de($$insert into storage.objects (bucket_id, name) values ('comprobantes', 'fotos/d2000000-0000-4000-8000-000000000001/x.jpg')$$) like '%row-level security%');
 select pg_temp.verificar('Ana ve solo lo suyo',
   (select count(*) = 1 and bool_and(name = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg') from storage.objects));
-select pg_temp.verificar('Ana puede reemplazar la suya (upsert) pero no mover a la carpeta de Bruno',
+select pg_temp.verificar('Ana puede reemplazar la suya (upsert) pero no moverla a la carpeta de Bruno ni renombrarla',
   pg_temp.error_de($$update storage.objects set owner = 'd1000000-0000-4000-8000-000000000001' where name = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'$$) is null
-  and pg_temp.error_de($$update storage.objects set name = 'fotos/d2000000-0000-4000-8000-000000000002/propuesta2.jpg' where name = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'$$) like '%row-level security%');
+  and pg_temp.error_de($$update storage.objects set name = 'fotos/d2000000-0000-4000-8000-000000000002/propuesta2.jpg' where name = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'$$) like '%row-level security%'
+  and pg_temp.error_de($$update storage.objects set name = 'fotos/d2000000-0000-4000-8000-000000000001/otra.jpg' where name = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'$$) like '%row-level security%');
 select pg_temp.verificar('Ana no borra la de Bruno (0 filas)',
   pg_temp.error_de($q$do $x$ declare n int; begin
      delete from storage.objects where name = 'fotos/d2000000-0000-4000-8000-000000000002/propuesta.jpg';

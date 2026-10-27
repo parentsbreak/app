@@ -17,6 +17,8 @@ const SERVICIOS_NINERA = [['Niñera', 'Sittings'], ['Traslados', 'Carsittings'],
 const FALLA_SUBIR_FOTO = 'No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_GUARDAR_PERFIL = 'No pudimos guardar tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
 const FOTO_TIPO_INVALIDO = 'La foto tiene que ser JPG o PNG.';
+// La base rechaza más de 10 cuentas (demasiadas_cuentas, 27/10/2026): no es un problema de conexión.
+const DEMASIADAS_CUENTAS = 'Puedes cargar hasta 10 cuentas.';
 const FALLA_ABRIR_PERFIL = 'No pudimos abrir tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
 
 // { perfil, sinMigrar }. Sin la migración, la app sigue como en la etapa 1; cualquier otro error
@@ -90,7 +92,7 @@ async function pantallaPerfil(modo, perfil){
     <div class="field">
       <label for="perfil-cuenta">Datos bancarios para pagarte</label>
       <textarea id="perfil-cuenta" rows="3" autocomplete="off">${escaparHtml(cuenta)}</textarea>
-      <p class="helper">Banco, tipo y número de cuenta, uno por línea.</p>
+      <p class="helper">Una cuenta por renglón: banco, tipo y número (por ejemplo: BROU caja de ahorro 001234567).</p>
     </div>
     <div class="field">
       <label for="perfil-foto">Tu foto (opcional)</label>
@@ -173,7 +175,7 @@ async function guardarPerfilNinera(modo){
     if(error) throw error;
   }catch(e){
     console.error('[perfil] al guardar', e);
-    aviso.textContent = FALLA_GUARDAR_PERFIL;
+    aviso.textContent = /demasiadas_cuentas/.test(e?.message || '') ? DEMASIADAS_CUENTAS : FALLA_GUARDAR_PERFIL;
     return;
   }
   limpiarFotoPerfil();

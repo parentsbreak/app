@@ -286,6 +286,8 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     expect(sinHora).toContain('DTEND;VALUE=DATE:20261010');
     // Previsto: sin lugar.
     expect(sinHora.some(l => l.startsWith('LOCATION'))).toBe(false);
+    // Saltos de línea de cualquier tipo, también un \r suelto, quedan como \n (27/10/2026).
+    expect(await page.evaluate(() => textoIcsNinera('a\r\nb\rc\nd'))).toBe('a\\nb\\nc\\nd');
     verificarLimpio(e);
   });
 

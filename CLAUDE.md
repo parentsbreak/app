@@ -344,8 +344,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/foto-propuesta.spec.js`: ficha de la niñera en el panel: "Perfil completado en la app", foto
   propuesta con "Usar como foto del CV" / "Descartar" (condicionados a `foto_propuesta_en`, fallas, 390 px).
 - `supabase/pruebas/fase1_perfil.sql`: las 4 funciones de la etapa 2 como niñera (sin columnas prohibidas,
-  dirección solo confirmada), `madre_nombre_inicial`, `chicos_texto`, el bucket `ninieras-privado` (carpeta
-  propia, ruta ajena rechazada) e ida y vuelta de la migración.
+  dirección solo confirmada, tope de 10 cuentas), `madre_nombre_inicial`, `chicos_texto`, el bucket
+  `ninieras-privado` (solo `fotos/<su id>/propuesta.jpg`; otro nombre, otra carpeta o ruta ajena
+  rechazados) e ida y vuelta de la migración.
 - `supabase/pruebas/fase1_cuentas_ninieras.sql`: celular normalizado y mail sintético, invitaciones
   (solo la última sirve, una vez), `ninera_actual()` (una admin nunca es niñera), RLS y push como
   niñera, `generar_previstos_fijos` solo para admins y el cron, e ida y vuelta de la migración
@@ -509,13 +510,15 @@ reporte.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
   equivocada. Una cuenta nunca tiene los dos roles.
 - Perfil y foto propuesta de la niñera (27/10/2026): la foto que sube la niñera NO reemplaza `foto` (la ven
-  las madres): queda en el bucket PRIVADO `ninieras-privado` (5 MB, JPG / PNG / WEBP, carpeta por niñera, la
-  admin ve y borra todo) como `foto_propuesta_ruta` y la admin la aprueba o descarta desde la ficha; las dos
+  las madres): queda en el bucket PRIVADO `ninieras-privado` (5 MB, JPG / PNG / WEBP; la niñera solo lee y
+  escribe `fotos/<su id>/propuesta.jpg`, y las etapas 4 y 10 amplían la política para sus rutas; la admin ve
+  y borra todo) como `foto_propuesta_ruta` y la admin la aprueba o descarta desde la ficha; las dos
   acciones se escriben con la condición de `foto_propuesta_en` (si la niñera mandó otra mientras se miraba,
   no se pisa). La niñera sube con `achicarFoto(file, 1600, 0.8)` (ahora en `js/comun.js`; el panel sigue con
   800). `ninera_mis_sittings()` nunca devuelve plata ni notas y la dirección solo si el sitting está
   `confirmado`. La ficha muestra cuándo completó y editó el perfil (`perfil_app_en`, `perfil_actualizado_en`)
-  porque ahí carga su cuenta bancaria.
+  porque ahí carga su cuenta bancaria: una cuenta por renglón, como la ficha y Por pagar, hasta 10
+  (`demasiadas_cuentas`).
 - Cuentas de niñeras (26/10/2026): usuario = celular + contraseña; por dentro, Auth usa el mail
   sintético `<celular normalizado>@ninieras.parentsbreak.invalid` (`MAIL_DOMINIO_NINERA` en
   `js/comun.js`, `mail_sintetico_ninera()` en SQL y la constante de `ninera-cuenta`: los tres
@@ -708,6 +711,10 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Perfil de la niñera (27/10/2026): un segmento de zona que no es un grupo de `zona_grupos` se pierde cuando
   ella guarda desde la app. Pregunta de producto para Diego: ¿se conserva o se descarta?
 - `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.
+- "Editar" en la ficha de la niñera (panel, 27/10/2026) puede pisar un cambio que ella acaba de hacer desde
+  la app (cuenta bancaria, zonas, tipo): condicionar el guardado a `perfil_actualizado_en`, como la foto.
+- "Madre:" en los próximos sittings de la niñera (27/10/2026) muestra el nombre del padre en algunas
+  familias: confirmar el texto con las dueñas (¿"Familia:"?).
 - `ninera-cuenta`: con `email_exists` (cuenta huérfana de un alta anterior, por ejemplo si falló
   borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
 - `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene

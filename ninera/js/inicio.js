@@ -179,9 +179,10 @@ function abrirDetalleSittingNinera(id){
    Hora local de Montevideo con su zona (VTIMEZONE: UTC-3 todo el año, sin horario de verano desde
    2015), así el evento cae a la misma hora aunque el celular esté en otra zona. Sin montos. */
 
-// Texto de un campo: \ ; , y los saltos de línea van escapados.
+// Texto de un campo: \ ; , y los saltos de línea van escapados. También un \r suelto (27/10/2026):
+// dentro de una línea del .ics la cortaría y el calendario leería mal el resto.
 function textoIcsNinera(t){
-  return String(t).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  return String(t).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
 }
 
 // Ninguna línea pasa de 75 bytes: se sigue en la próxima con un espacio adelante. Por letra, para no

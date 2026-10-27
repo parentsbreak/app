@@ -61,7 +61,9 @@ Mensaje de WhatsApp para cambiar la contraseña (lo manda la admin desde la fich
 Los títulos y campos fijos ("Completa esto una sola vez", "¿Qué servicios realizas?", "Sittings /
 Carsittings / Ambos", "Zonas donde puedes tomar servicios", "Datos bancarios para pagarte") son los
 de `textos.md`. Lo que se sumó:
-- Debajo de los datos bancarios: "Banco, tipo y número de cuenta, uno por línea."
+- Debajo de los datos bancarios: "Una cuenta por renglón: banco, tipo y número (por ejemplo: BROU caja
+  de ahorro 001234567)." (cada renglón es una cuenta aparte en Por pagar, con su "Copiar").
+- Con más de 10 cuentas: "Puedes cargar hasta 10 cuentas."
 - "Tu foto (opcional)" y debajo "La ve el equipo y, si la aprueban, pasa a tu perfil."
 - Si ya mandó una foto: "Foto enviada el [dd/mm], el equipo la va a revisar."
 - Al marcar Carsittings o Ambos: "Pronto vas a poder cargar los datos del auto desde aquí."

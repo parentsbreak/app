@@ -11,8 +11,9 @@
 --     ficha), ninieras.perfil_actualizado_en (el último guardado: un cambio de la cuenta
 --     bancaria no pasa en silencio), ninieras.foto_propuesta_ruta y ninieras.foto_propuesta_en;
 --   - el bucket privado ninieras-privado, con rutas por niñera (fotos/<ninera_id>/propuesta.jpg;
---     más adelante firmas/, rcp/ y carsitting/ con el mismo criterio): cada niñera solo su
---     carpeta (ninieras_privado_propio), las admins todo (ninieras_privado_admins);
+--     más adelante firmas/, rcp/ y carsitting/): cada niñera solo escribe y lee su
+--     fotos/<su id>/propuesta.jpg (ninieras_privado_propio), las admins todo
+--     (ninieras_privado_admins);
 --   - los ayudantes hoy_mvd(), madre_nombre_inicial() y chicos_texto();
 --   - las funciones de la niñera: ninera_mi_perfil(), ninera_zonas_disponibles(),
 --     ninera_guardar_perfil() y ninera_mis_sittings(). Son security definer y filtran por
@@ -39,12 +40,15 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('ninieras-privado', 'ninieras-privado', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 
--- Cada niñera, solo su carpeta: el segundo tramo de la ruta es su id (fotos/<ninera_id>/...).
--- "for all" porque la app sube con upsert (insert o update) a la misma ruta, así nunca quedan
--- fotos huérfanas. Una admin no pasa: ninera_actual() es null para ella.
+-- Cada niñera, solo la ruta exacta de su foto: fotos/<su id>/propuesta.jpg (27/10/2026, revisión
+-- final: con "el segundo tramo es su id" podía subir archivos sin límite a cualquier carpeta).
+-- Las etapas 4 y 10 la amplían para sus propias rutas (firmas/, rcp/, carsitting/) y deciden ahí
+-- si la niñera puede borrar (docs/fase1, decisiones 5.3). "for all" porque la app sube con upsert
+-- (select, insert o update) a la misma ruta, así nunca quedan fotos huérfanas. Una admin no pasa:
+-- ninera_actual() es null para ella.
 create policy ninieras_privado_propio on storage.objects as permissive for all to authenticated
-  using (((bucket_id = 'ninieras-privado'::text) AND ((storage.foldername(name))[2] = (( SELECT public.ninera_actual() AS ninera_actual))::text)))
-  with check (((bucket_id = 'ninieras-privado'::text) AND ((storage.foldername(name))[2] = (( SELECT public.ninera_actual() AS ninera_actual))::text)));
+  using (((bucket_id = 'ninieras-privado'::text) AND (name = (('fotos/'::text || (( SELECT public.ninera_actual() AS ninera_actual))::text) || '/propuesta.jpg'::text))))
+  with check (((bucket_id = 'ninieras-privado'::text) AND (name = (('fotos/'::text || (( SELECT public.ninera_actual() AS ninera_actual))::text) || '/propuesta.jpg'::text))));
 -- Las admins ven, aprueban (copian) y borran todo, como en comprobantes.
 create policy ninieras_privado_admins on storage.objects as permissive for all to public
   using (((bucket_id = 'ninieras-privado'::text) AND ( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada)))
@@ -218,6 +222,11 @@ begin
   select array_agg(left(btrim(l, E' \t\r\n'), 120) order by o) into v_cuenta
     from unnest(p_cuenta) with ordinality u(l, o)
    where btrim(l, E' \t\r\n') <> '';
+  -- Una cuenta por renglón (como la ficha del panel y Por pagar): más de 10 no es una persona
+  -- cargando sus cuentas sino un error o un abuso, y la fila crece sin tope (27/10/2026).
+  if coalesce(cardinality(v_cuenta), 0) > 10 then
+    raise exception 'demasiadas_cuentas';
+  end if;
 
   update public.ninieras n
      set tipo = p_tipo,

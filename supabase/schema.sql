@@ -1723,6 +1723,11 @@ begin
   select array_agg(left(btrim(l, E' \t\r\n'), 120) order by o) into v_cuenta
     from unnest(p_cuenta) with ordinality u(l, o)
    where btrim(l, E' \t\r\n') <> '';
+  -- Una cuenta por renglón (como la ficha del panel y Por pagar): más de 10 no es una persona
+  -- cargando sus cuentas sino un error o un abuso, y la fila crece sin tope (27/10/2026).
+  if coalesce(cardinality(v_cuenta), 0) > 10 then
+    raise exception 'demasiadas_cuentas';
+  end if;
 
   update public.ninieras n
      set tipo = p_tipo,
@@ -1772,14 +1777,17 @@ revoke execute on function public.ninera_mis_sittings() from public, anon;
 grant execute on function public.ninera_mis_sittings() to authenticated;
 
 -- ninieras-privado (27/10/2026, fase 1): fotos propuestas por las niñeras
--- (fotos/<ninera_id>/propuesta.jpg; más adelante firmas/, rcp/ y carsitting/ con el mismo
--- criterio). Van acá y no junto a las de comprobantes porque usan ninera_actual(). Cada niñera,
--- solo su carpeta: el segundo tramo de la ruta es su id. "for all" porque la app sube con upsert
--- (insert o update) a la misma ruta, así nunca quedan fotos huérfanas. Una admin no pasa por esta:
--- ninera_actual() es null para ella; pasa por ninieras_privado_admins (ve, aprueba y borra todo).
+-- (fotos/<ninera_id>/propuesta.jpg; más adelante firmas/, rcp/ y carsitting/). Van acá y no
+-- junto a las de comprobantes porque usan ninera_actual(). Cada niñera, solo la ruta exacta de su
+-- foto (revisión final del 27/10/2026: con "el segundo tramo es su id" podía subir archivos sin
+-- límite a cualquier carpeta). Las etapas 4 y 10 la amplían para sus propias rutas y deciden ahí
+-- si la niñera puede borrar (docs/fase1, decisiones 5.3). "for all" porque la app sube con upsert
+-- (select, insert o update) a la misma ruta, así nunca quedan fotos huérfanas. Una admin no pasa
+-- por esta: ninera_actual() es null para ella; pasa por ninieras_privado_admins (ve, aprueba y
+-- borra todo).
 create policy ninieras_privado_propio on storage.objects as permissive for all to authenticated
-  using (((bucket_id = 'ninieras-privado'::text) AND ((storage.foldername(name))[2] = (( SELECT public.ninera_actual() AS ninera_actual))::text)))
-  with check (((bucket_id = 'ninieras-privado'::text) AND ((storage.foldername(name))[2] = (( SELECT public.ninera_actual() AS ninera_actual))::text)));
+  using (((bucket_id = 'ninieras-privado'::text) AND (name = (('fotos/'::text || (( SELECT public.ninera_actual() AS ninera_actual))::text) || '/propuesta.jpg'::text))))
+  with check (((bucket_id = 'ninieras-privado'::text) AND (name = (('fotos/'::text || (( SELECT public.ninera_actual() AS ninera_actual))::text) || '/propuesta.jpg'::text))));
 create policy ninieras_privado_admins on storage.objects as permissive for all to public
   using (((bucket_id = 'ninieras-privado'::text) AND ( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada)))
   with check (((bucket_id = 'ninieras-privado'::text) AND ( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada)));

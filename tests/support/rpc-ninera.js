@@ -120,6 +120,8 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
       const cuenta = (p_cuenta || []).filter(l => l != null)
         .map(l => String(l).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '')).filter(l => l !== '')
         .map(l => Array.from(l).slice(0, 120).join(''));
+      // Tope de 10 cuentas después de sacar los renglones vacíos, como la SQL (27/10/2026).
+      if (cuenta.length > 10) throw errorRpc('demasiadas_cuentas');
       const n = miFila();
       if (n) {
         Object.assign(n, {

@@ -11,6 +11,7 @@ const TITULO_PRIMERA = 'Completa esto una sola vez';
 const SIN_ZONA = 'Elige al menos una zona.';
 const FALLA_FOTO = 'No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_GUARDAR = 'No pudimos guardar tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
+const DEMASIADAS_CUENTAS = 'Puedes cargar hasta 10 cuentas.';
 const LISTO = '¡Listo! Tu perfil quedó guardado.';
 const AVISO_AUTO = 'Pronto vas a poder cargar los datos del auto desde aquí.';
 const RUTA_FOTO_ANA = `fotos/${ID.nAna}/propuesta.jpg`;
@@ -41,11 +42,15 @@ async function pngFicticio(page) {
   });
   return { name: 'foto.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') };
 }
-// Completa el formulario de Ana: Ambos, Pocitos y dos renglones de cuenta.
+// Una cuenta por renglón (27/10/2026): el panel guarda cada elemento de cuenta_bancaria como una
+// cuenta aparte y Por pagar muestra cada una con su "Copiar".
+const CUENTA_ANA = 'Banco Ficticio caja de ahorro 0001234567';
+const CUENTA_ESCRITA = `  ${CUENTA_ANA}  \n\n`;
+// Completa el formulario de Ana: Ambos, Pocitos y una cuenta (con espacios y renglones en blanco).
 async function completarAna(page) {
   await radio(page, 'Ambos').check();
   await zona(page, 'Pocitos').check();
-  await page.fill('#perfil-cuenta', '  Banco Ficticio  \n\nCA 0001234567\n');
+  await page.fill('#perfil-cuenta', CUENTA_ESCRITA);
 }
 
 test.describe('primer ingreso: "Completa esto una sola vez"', () => {
@@ -61,7 +66,7 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     expect(await page.locator('.perfil-zona').evaluateAll(cs => cs.map(c => [c.value, c.checked])))
       .toEqual([['Pocitos', false], ['Carrasco', false], ['Punta del Este', false]]);
     await expect(page.locator('#app')).toContainText('Datos bancarios para pagarte');
-    await expect(page.locator('#app')).toContainText('Banco, tipo y número de cuenta, uno por línea.');
+    await expect(page.locator('#app')).toContainText('Una cuenta por renglón: banco, tipo y número (por ejemplo: BROU caja de ahorro 001234567).');
     await expect(page.locator('#perfil-cuenta')).toHaveValue('0099887766');
     await expect(page.locator('#app')).toContainText('Tu foto (opcional)');
     await expect(page.locator('#app')).toContainText('La ve el equipo y, si la aprueban, pasa a tu perfil.');
@@ -76,7 +81,7 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     verificarLimpio(e);
   });
 
-  test('Ambos + Pocitos + dos renglones de cuenta: guarda y va al inicio; el aviso del auto con Carsittings o Ambos', async ({ page }) => {
+  test('Ambos + Pocitos + una cuenta: guarda y va al inicio; el aviso del auto con Carsittings o Ambos', async ({ page }) => {
     const e = await abrir(page);
     await expect(page.locator('h1')).toHaveText(TITULO_PRIMERA);
     await expect(page.getByText(AVISO_AUTO)).toBeHidden();
@@ -92,11 +97,11 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     expect(new URL(page.url()).hash).toBe('#inicio');
     expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([
-      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: ['Banco Ficticio', 'CA 0001234567'], p_foto_ruta: null },
+      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: [CUENTA_ANA], p_foto_ruta: null },
     ]);
     expect(subidas(e)).toEqual([]);
     const ana = e.db.ninieras.find(n => n.id === ID.nAna);
-    expect([ana.tipo, ana.zona, ana.cuenta_bancaria]).toEqual(['Ambas', 'Pocitos', ['Banco Ficticio', 'CA 0001234567']]);
+    expect([ana.tipo, ana.zona, ana.cuenta_bancaria]).toEqual(['Ambas', 'Pocitos', [CUENTA_ANA]]);
     verificarLimpio(e);
   });
 
@@ -116,7 +121,7 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     expect(subida[0].cuerpo).toMatch(/Content-Type: image\/png/i);
     expect(subida[0].cuerpo).not.toMatch(/Content-Type: image\/jpeg/i);
     expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([
-      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: ['Banco Ficticio', 'CA 0001234567'], p_foto_ruta: RUTA_FOTO_ANA },
+      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: [CUENTA_ANA], p_foto_ruta: RUTA_FOTO_ANA },
     ]);
     // Primero la foto, después el perfil.
     const orden = e.escrituras.map(w => w.tabla);
@@ -149,7 +154,7 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     expect(new URL(page.url()).hash).toBe('#perfil');
     await expect(radio(page, 'Ambos')).toBeChecked();
     await expect(zona(page, 'Pocitos')).toBeChecked();
-    await expect(page.locator('#perfil-cuenta')).toHaveValue('  Banco Ficticio  \n\nCA 0001234567\n');
+    await expect(page.locator('#perfil-cuenta')).toHaveValue(CUENTA_ESCRITA);
     await expect(page.getByRole('button', { name: 'Guardar' })).toBeEnabled();
     expect(e.db.ninieras.find(n => n.id === ID.nAna).zona).toBeNull();
 
@@ -172,7 +177,7 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     expect(new URL(page.url()).hash).toBe('#perfil');
     await expect(radio(page, 'Ambos')).toBeChecked();
     await expect(zona(page, 'Pocitos')).toBeChecked();
-    await expect(page.locator('#perfil-cuenta')).toHaveValue('  Banco Ficticio  \n\nCA 0001234567\n');
+    await expect(page.locator('#perfil-cuenta')).toHaveValue(CUENTA_ESCRITA);
     expect(e.db.ninieras.find(n => n.id === ID.nAna).zona).toBeNull();
 
     // Sin conexión, el mismo aviso.
@@ -185,6 +190,27 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     await page.getByRole('button', { name: 'Guardar' }).click();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     expect(rpcs(e, 'ninera_guardar_perfil')).toHaveLength(1);
+    verificarLimpio(e, { ignorar: RUIDO });
+  });
+
+  test('más de 10 cuentas: la base las rechaza y el aviso lo dice (no habla de la conexión)', async ({ page }) => {
+    const e = await abrir(page);
+    await completarAna(page);
+    const once = Array.from({ length: 11 }, (_, i) => `Banco Ficticio caja de ahorro 00000000${String(i + 1).padStart(2, '0')}`);
+    await page.fill('#perfil-cuenta', once.join('\n'));
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#perfil-error')).toHaveText(DEMASIADAS_CUENTAS);
+    await expect(page.locator('.toast')).toHaveCount(0);
+    expect(new URL(page.url()).hash).toBe('#perfil');
+    expect(rpcs(e, 'ninera_guardar_perfil')).toHaveLength(1);
+    expect(e.db.ninieras.find(n => n.id === ID.nAna).zona).toBeNull();
+    await expect(page.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+
+    // 10 cuentas y renglones en blanco: el tope cuenta solo los renglones con texto.
+    await page.fill('#perfil-cuenta', once.slice(0, 10).join('\n\n') + '\n  \n');
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('.toast')).toHaveText(LISTO);
+    expect(e.db.ninieras.find(n => n.id === ID.nAna).cuenta_bancaria).toEqual(once.slice(0, 10));
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
@@ -228,11 +254,13 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
 });
 
 test.describe('"Mi perfil": editar desde el inicio', () => {
+  // Dos cuentas: un renglón cada una, de ida (textarea) y de vuelta (RPC).
+  const CUENTAS_CARLA = ['Banco Ficticio caja de ahorro 0001234567', 'Banco Inventado cuenta corriente 0007654321'];
   test('Carla (perfil completo) entra directo al inicio y "Mi perfil" abre la edición precargada', async ({ page }) => {
     const e = await abrir(page, { ninera: ID.nCarla });
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     expect(new URL(page.url()).hash).toBe('#inicio');
-    e.db.ninieras.find(n => n.id === ID.nCarla).cuenta_bancaria = ['Banco Ficticio', 'CA 0001234567'];
+    e.db.ninieras.find(n => n.id === ID.nCarla).cuenta_bancaria = CUENTAS_CARLA;
 
     await page.getByRole('button', { name: 'Mi perfil' }).click();
     await expect(page.locator('h1')).toHaveText('Mi perfil');
@@ -241,7 +269,7 @@ test.describe('"Mi perfil": editar desde el inicio', () => {
     await expect(zona(page, 'Pocitos')).toBeChecked();
     await expect(zona(page, 'Carrasco')).toBeChecked();
     await expect(zona(page, 'Punta del Este')).not.toBeChecked();
-    await expect(page.locator('#perfil-cuenta')).toHaveValue('Banco Ficticio\nCA 0001234567');
+    await expect(page.locator('#perfil-cuenta')).toHaveValue(CUENTAS_CARLA.join('\n'));
     await expect(page.locator('#app')).toContainText('Foto enviada el 02/10, el equipo la va a revisar.');
     await expect(page.getByText(AVISO_AUTO)).toBeVisible();
 
@@ -257,7 +285,7 @@ test.describe('"Mi perfil": editar desde el inicio', () => {
     await expect(page.locator('.toast')).toHaveText(LISTO);
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([
-      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: ['Banco Ficticio', 'CA 0001234567'], p_foto_ruta: null },
+      { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: CUENTAS_CARLA, p_foto_ruta: null },
     ]);
     const carla = e.db.ninieras.find(n => n.id === ID.nCarla);
     expect([carla.zona, carla.foto_propuesta_ruta]).toEqual(['Pocitos', `fotos/${ID.nCarla}/propuesta.jpg`]);
@@ -338,17 +366,24 @@ test.describe('perfil: datos raros, celular y textos', () => {
     verificarLimpio(e);
   });
 
-  test('ni la pantalla de perfil ni el inicio muestran montos ni la palabra "pago"', async ({ page }) => {
-    const e = await abrir(page, { ninera: ID.nCarla });
-    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+  test('ni la primera vez, ni el inicio, ni "Mi perfil" muestran montos ni "pago" / "pagos"', async ({ page }) => {
+    const e = await abrir(page);
+    await expect(page.locator('h1')).toHaveText(TITULO_PRIMERA);
     const htmls = [await page.locator('#app').innerHTML()];
+    await completarAna(page);
+    await page.setInputFiles('#perfil-foto', await pngFicticio(page));
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    htmls.push(await page.locator('#app').innerHTML());
     await page.getByRole('button', { name: 'Mi perfil' }).click();
     await expect(page.locator('#app')).toContainText('Foto enviada el');
     htmls.push(await page.locator('#app').innerHTML());
-    expect(htmls[1]).toContain('Datos bancarios para pagarte');
+    expect(htmls[0]).toContain('Datos bancarios para pagarte');
+    expect(htmls[2]).toContain('Datos bancarios para pagarte');
+    // Sin \b al final (27/10/2026): también agarra "pagos"; "pagarte" no tiene la "o".
     for (const h of htmls) {
       expect(h).not.toMatch(/\$\d/);
-      expect(h).not.toMatch(/\bpago\b/i);
+      expect(h).not.toMatch(/\bpago/i);
     }
     verificarLimpio(e);
   });

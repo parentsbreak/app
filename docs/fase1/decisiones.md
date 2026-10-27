@@ -301,8 +301,11 @@ Storage:
 - Bucket privado nuevo `ninieras-privado` (se crea en la etapa 2, 5 MB, solo imágenes; en la 2 lleva
   `fotos/<ninera_id>/propuesta.jpg`, la foto propuesta que la admin aprueba antes de que reemplace la del CV): firmas (`firmas/<ninera_id>/...`), certificados de
   RCP (`rcp/<ninera_id>/...`) y fotos de carsitting (`carsitting/<ninera_id>/...`). Políticas:
-  la niñera sube solo bajo su carpeta (`(storage.foldername(name))[2] = ninera_actual()::text`);
-  admins leen y borran; nadie lista público. Se ven con `createSignedUrl`.
+  la niñera lee y escribe solo rutas exactas suyas: en la etapa 2, `name = 'fotos/' ||
+  ninera_actual() || '/propuesta.jpg'` (27/10/2026, revisión final: "bajo su carpeta" la dejaba
+  subir archivos sin límite a cualquier carpeta con su id); las etapas 4 y 10 amplían la política
+  para sus rutas y deciden ahí si la niñera puede borrar. Admins leen y borran; nadie lista
+  público. Se ven con `createSignedUrl`.
 - Bucket `comprobantes` (existe): la niñera puede subir bajo `ninieras/<ninera_id>/...` para el
   ticket de un gasto; no puede listar ni leer.
 - `push_subscriptions`: columna nueva `user_id uuid`; política para que una cuenta autenticada
