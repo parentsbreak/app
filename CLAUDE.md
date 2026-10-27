@@ -666,8 +666,9 @@ En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-neg
 antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los textos en
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapa 1 hecha (puerta `ninera/`, cuentas, invitación, instalar, avisos);
-etapas 2 a 11 pendientes, cada una se detalla antes de arrancarla. Los textos provisorios para las
-dueñas están en `textos-provisorios.md`.
+etapas 2 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+(temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
+provisorios para las dueñas están en `textos-provisorios.md`.
 - `ninera-cuenta`: con `email_exists` (cuenta huérfana de un alta anterior, por ejemplo si falló
   borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
 - `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene

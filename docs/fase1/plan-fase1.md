@@ -24,7 +24,8 @@ Repo público: nada de nombres reales, teléfonos, cuentas ni datos de familias 
 8. Al final: "Llegaron los padres" con hora real (a la hora de fin prevista llega el aviso; si a los 30 min no cerró, recordatorio con "Se extendió el sitting"). Gasto extra con monto + foto. Comentarios extras. Calificación 1–5, ¿volverías?, ¿a qué jugaron?, comentario al equipo. Una admin revisa el registro con un toque y queda en `sittings_traslados` como hoy.
 9. Chat con el equipo (lo leen todas las admins).
 10. Carsitting dentro de la app para las que hacen Carsittings: campos de `carsitting_datos` (nombre completo, cédula, modelo, padrón, compañía y tipo de seguro, asientos, cinturones, año, color, matrícula, número y año de licencia, libreta de propiedad) + fotos de licencia, libreta, asientos y del auto por dentro y por fuera. Va todo junto en una sola pantalla. Recordatorio semanal si falta. Las admins lo revisan y habilitan traslados. Reemplaza el formulario de Google (ver PR viejo #60, rebasar o rehacer).
-11. Temporada: se manda sola cada 1/10; recordatorio cada 15 días si no completó. Por quincena: Punta del Este / Montevideo / La Paloma / Fuera del país / Otro. Reemplaza el formulario actual (`temporada.html`).
+11. Temporada: se manda sola cada 1/10; recordatorio cada 15 días si no completó. Por quincena: Punta del Este / Montevideo / La Paloma / Fuera del país / Otro. Reemplaza el formulario actual (`temporada.html`). A las admins no se les pide más la
+    temporada (27/10/2026): la niñera la completa en su app.
 12. Nunca ve plata acumulada ni pagos (ver reglas, sección 3).
 
 ## Admins
@@ -44,6 +45,9 @@ Chat de ayuda para admins; panel de control por admin; niñeras de Argentina; op
 
 ## Cómo se trabaja
 - Primero brainstorming con Diego para cerrar dudas que surjan del código real; después plan escrito (writing-plans) en `docs/fase1/plan-implementacion.md`, dividido en etapas que se puedan probar y mergear por separado (ej.: 1 roles + RLS + login niñera; 2 perfil + invitación + push; 3 guía; 4 pedido → acepto → elección; 5 el día y cierre; 6 carsitting + temporada; 7 asistente y plantillas).
+- Orden de las etapas (Diego, 27/10/2026): 1, 2, 3, 9 y después 4, 5, 6, 7, 8, 10, 11. La 9
+  (temporada) se adelanta porque la temporada de verano ya empieza y el aviso del 1/10 ya pasó;
+  va después de la 3 porque depende de su cola de avisos.
 - Cada etapa en su worktree/rama, PR con CI verde y tests de Playwright con datos ficticios.
 - Migraciones: archivo en `supabase/migrations/`, nunca aplicadas a producción sin OK de Diego. Si la confirmación del MCP vence, pasarle el SQL a Diego para el SQL Editor.
 - Nada se manda a madres ni a niñeras reales sin confirmación de una admin.

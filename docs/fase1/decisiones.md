@@ -535,6 +535,9 @@ en `app_config 'plantillas'` y las dueñas lo editan desde ahí, con el emoji qu
   no completaron, hasta el 31 de diciembre.
 - La página actual de temporada (Cloudflare) y `temporada-ninera` siguen como están para las
   niñeras sin app (sección 10).
+- A las admins no se les pide nada (Diego, 27/10/2026): en esta etapa se apagan el aviso anual
+  "Pedir la temporada de Punta" del panel y el paso previo de temporada al editar una niñera.
+- Va después de la etapa 3 y antes de la 4 (orden del 27/10/2026): necesita la cola de avisos.
 
 ### 6.7 Carsitting (etapa 10)
 - Una pantalla: los campos de `carsitting_datos` + fotos de licencia, libreta, asientos, auto por
@@ -649,11 +652,12 @@ en la fase 1 (SQL).
 - PR #63: se mergea en la etapa 0. PR #60: se cierra en la etapa 0 con un comentario que apunta
   a la etapa 10.
 - Temporada: la página de Cloudflare, `temporada.html` (redirección), la Edge Function
-  `temporada-ninera`, `TEMPORADA_URL` y el mensaje de difusión en `ninieras.js`, y el aviso anual
-  "Pedir la temporada de Punta" del panel siguen hasta que todas las niñeras activas tengan la
-  app. Recién ahí (PR aparte, con OK): borrar la función, la página y el mensaje; el aviso anual
-  del panel pasa a listar solo las que no completaron en la app. Hasta entonces, la temporada
-  cargada desde la app y desde la página se guardan en el mismo campo.
+  `temporada-ninera`, `TEMPORADA_URL` y el mensaje de difusión en `ninieras.js` siguen hasta que
+  todas las niñeras activas tengan la app. Recién ahí (PR aparte, con OK): borrar la función, la
+  página y el mensaje. El aviso anual "Pedir la temporada de Punta" y el paso previo de temporada
+  al editar una niñera se apagan antes, en la etapa 9 (Diego, 27/10/2026): a las admins no se les
+  pide nada; la niñera la completa en su app. Hasta entonces, la temporada cargada desde la app y
+  desde la página se guardan en el mismo campo.
 - Carsitting: el formulario de Google, el Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` y `carsitting_mail_enviado_at` siguen hasta que las 20 niñeras que
   hacen traslados tengan la app y hayan cargado el carsitting ahí. Después (PR aparte, con OK):

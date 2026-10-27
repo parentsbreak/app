@@ -32,6 +32,10 @@ GitHub Pages, Playwright contra el simulador de `tests/support/`, PGlite para el
   tests de Deno (`npx deno@2 test --allow-env` desde una copia fuera del repo), publicación con OK.
 - Al cerrar una etapa: descripción del PR con qué quedó hecho, qué falta y las decisiones; CLAUDE.md
   actualizado en el mismo PR (convenciones nuevas y pendientes).
+- Orden de ejecución (Diego, 27/10/2026): 1 → 2 → 3 → 9 → 4 → 5 → 6 → 7 → 8 → 10 → 11. La etapa 9
+  (temporada) se adelanta porque la temporada de verano ya empieza y el aviso del 1/10 ya pasó; va
+  después de la 3 porque usa su cola de avisos. Los números de las etapas no cambian: los cruzan
+  `decisiones.md` y el catálogo de avisos.
 
 ## Restricciones globales (valen para toda tarea)
 - Repo público: cero nombres, celulares, cuentas, mails o montos reales. Datos ficticios siempre
@@ -655,14 +659,20 @@ Rama `claude/fase1-ficha-cambios`. Migración `AAAAMMDD_ficha_cambios.sql`.
 
 ## Etapa 9: temporada en la app
 
-Rama `claude/fase1-temporada`. Migración `AAAAMMDD_temporada_app.sql`.
+Rama `claude/fase1-temporada`. Migración `AAAAMMDD_temporada_app.sql`. Se hace después de la
+etapa 3 (necesita `avisos` y `programar_avisos()`) y antes de la 4 (orden del 27/10/2026).
 - 9.1 `ninieras.temporada_lugares`, `ninera_guardar_temporada(p_lugares jsonb)` (escribe también
   `temporada` en el formato de hoy, `temporada_fuente 'app'`), reglas `temporada:<año>:<id>` (1/10
   9:00) y `:q<n>` (cada 15 días hasta el 31/12); pruebas.
 - 9.2 App: pantalla por quincena, atajo, "Otro" con texto.
 - 9.3 Panel: marca "Otro" en la ficha; `ordenarSugeridas` lee `temporada_lugares` y
   `temporada_reglas`; el panel de temporadas muestra la fuente "app".
-- 9.4 Plan de apagado anotado en CLAUDE.md (nada se apaga). PR, migración (OK), merge.
+- 9.3b Panel: a las admins no se les pide más la temporada (Diego, 27/10/2026): se apagan el
+  aviso anual "Pedir la temporada de Punta" (`app-shell.js` y `enviar-push-urgentes`, republicar
+  con OK) y el paso previo de temporada al editar una niñera (`abrirPasoTemporada`, `ninieras.js`);
+  la niñera la completa en su app. Qué queda para las que todavía no tienen la app (el botón
+  "Pedirle por WhatsApp" de la ficha, sin recordatorios) se cierra al detallar la etapa.
+- 9.4 Plan de apagado anotado en CLAUDE.md (nada más se apaga). PR, migración (OK), merge.
 
 ## Etapa 10: carsitting en la app
 
