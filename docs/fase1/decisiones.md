@@ -298,7 +298,8 @@ Cada etapa que agregue una función de lectura trae una prueba SQL (PGlite) que,
 están en la salida y que las tablas compartidas devuelven 0 filas en lectura directa.
 
 Storage:
-- Bucket privado nuevo `ninieras-privado`: firmas (`firmas/<ninera_id>/...`), certificados de
+- Bucket privado nuevo `ninieras-privado` (se crea en la etapa 2, 5 MB, solo imágenes; en la 2 lleva
+  `fotos/<ninera_id>/propuesta.jpg`, la foto propuesta que la admin aprueba antes de que reemplace la del CV): firmas (`firmas/<ninera_id>/...`), certificados de
   RCP (`rcp/<ninera_id>/...`) y fotos de carsitting (`carsitting/<ninera_id>/...`). Políticas:
   la niñera sube solo bajo su carpeta (`(storage.foldername(name))[2] = ninera_actual()::text`);
   admins leen y borran; nadie lista público. Se ven con `createSignedUrl`.
@@ -349,11 +350,13 @@ leido_en timestamptz, creado_en timestamptz default now()
   `es_ninera()`, `normalizar_celular()`, `push_subscriptions.user_id` y su política,
   `app_config 'ninieras_app'` (vigencia del link en días).
 - Etapa 2: funciones `ninera_mi_perfil`, `ninera_guardar_perfil`, `ninera_mis_sittings`,
-  `madre_nombre_inicial(nombre)`, `chicos_texto(familia_id)`.
+  `madre_nombre_inicial(nombre)`, `chicos_texto(familia_id)`, `hoy_mvd()`; columnas `ninieras.perfil_app_en`,
+  `perfil_actualizado_en`, `foto_propuesta_ruta`, `foto_propuesta_en`; bucket `ninieras-privado` (5 MB,
+  imágenes) con la foto propuesta.
 - Etapa 3: `avisos`, `chat_mensajes`, `programar_avisos()`, `reclamar_avisos()`, cron
   `enviar-avisos` cada minuto, trigger de disparo inmediato.
 - Etapa 4: `guia_progreso`, `guia_repasos`, `guia_firmas`, `ninieras.rcp_presencial`,
-  `ninieras.rcp_certificado_ruta`, bucket `ninieras-privado`, `ninera_puede_recibir_pedidos()`,
+  `ninieras.rcp_certificado_ruta`, `ninera_puede_recibir_pedidos()`,
   `app_config 'guia'` (plazo_dias, gracia_anual_dias, version_vigente).
 - Etapa 5: `solicitudes` (+ `pedido_id`, `chicos_texto`, `ninera_pedida`, `notas_para_ninera`,
   `enviado_app_en`, `responder_hasta`), `solicitud_ninieras` (+ `enviado_en`, `visto_en`,

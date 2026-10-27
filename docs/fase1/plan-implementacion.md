@@ -456,7 +456,7 @@ completó el perfil y aprueba o descarta la foto propuesta.
   nuevas. Sin respaldo (no toca filas). El DESHACER borra funciones, políticas, el bucket (solo si
   está vacío: si tiene objetos, los lista y frena, para no perder fotos propuestas) y las columnas.
 
-- [ ] **Paso 1:** escribir `supabase/pruebas/fase1_perfil.sql` (mismo esqueleto que
+- [x] **Paso 1:** escribir `supabase/pruebas/fase1_perfil.sql` (mismo esqueleto que
   `fase1_cuentas_ninieras.sql`: `pg_temp.verificar`, `pg_temp.error_de`, datos inventados con una
   admin, dos niñeras con cuenta, dos familias con hijos (una con `fecha_nacimiento`, otra con
   `edad_declarada` vieja, una tercera solo con `ninos`) y sittings: 2 de Ana en los próximos
@@ -477,17 +477,17 @@ completó el perfil y aprueba o descarta la foto propuesta.
   `ninera_guardar_perfil` da `no_autorizada` y `ninera_mi_perfil()` vacío; storage: como Ana
   `insert into storage.objects (bucket_id, name)` bajo su carpeta anda, bajo la de Bruno falla
   (RLS), `select` ve solo la suya; como admin ve las dos y borra.
-- [ ] **Paso 2:** correr `PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema
+- [x] **Paso 2:** correr `PGLITE_DIR=<pglite> node scripts/probar-sql.mjs --schema
   <schema de main> --migracion supabase/migraciones/20261027_perfil_ninera.sql
   supabase/pruebas/fase1_perfil.sql`. Esperado: falla (la migración no existe).
-- [ ] **Paso 3:** escribir la migración (encabezado con qué suma y por qué, en una transacción),
+- [x] **Paso 3:** escribir la migración (encabezado con qué suma y por qué, en una transacción),
   el DESHACER, sumar `storage.foldername` a `probar-sql.mjs` y reflejar todo en `schema.sql`
   (columnas en la tabla, bucket en el insert de buckets, políticas junto a las de `comprobantes`,
   funciones después de `crear_invitacion_ninera`).
-- [ ] **Paso 4:** correr el paso 2, más aplicar → deshacer → aplicar (`--migracion` tres veces),
+- [x] **Paso 4:** correr el paso 2, más aplicar → deshacer → aplicar (`--migracion` tres veces),
   más `catalogo_seguridad.sql` y `fase1_cuentas_ninieras.sql` con la migración, más todos los
   `supabase/pruebas/*.sql` sobre `schema.sql`. Esperado: todo OK.
-- [ ] **Paso 5:** commit: `Etapa 2: migración perfil_ninera (perfil, foto propuesta, próximos
+- [x] **Paso 5:** commit: `Etapa 2: migración perfil_ninera (perfil, foto propuesta, próximos
   sittings) y pruebas SQL`.
 
 ### Tarea 2.2: `achicarFoto` compartida y simulador de la etapa
@@ -520,13 +520,13 @@ completó el perfil y aprueba o descarta la foto propuesta.
   confirmado 18:00 a 22:00, mañana previsto 22:00 a 02:00 (`termina_dia_siguiente`), uno a 70
   días (no sale). Nada de eso rompe los tests que ya existen (correrlos).
 
-- [ ] **Paso 1:** mover `achicarFoto` a `comun.js`; `npm run test:static` y `PUERTO_TESTS=4195
+- [x] **Paso 1:** mover `achicarFoto` a `comun.js`; `npm run test:static` y `PUERTO_TESTS=4195
   npx playwright test tests/mejoras-hoy.spec.js tests/ninera-cuenta.spec.js`. Esperado: pasan.
-- [ ] **Paso 2:** simulador y datos; correr `tests/ninera-cuenta.spec.js`, `tests/humo.spec.js`,
+- [x] **Paso 2:** simulador y datos; correr `tests/ninera-cuenta.spec.js`, `tests/humo.spec.js`,
   `tests/ninieras-lista.spec.js`, `tests/fijos.spec.js`, `tests/finanzas.spec.js` (los datos nuevos
   no cambian totales: los sittings nuevos de Ana van en $0 y a más de 30 días de los meses que
   miran esos tests, o se ajustan sus expectativas con el porqué). Esperado: pasan.
-- [ ] **Paso 3:** commit: `Etapa 2: achicarFoto en comun.js, perfil.js en el orden de carga y
+- [x] **Paso 3:** commit: `Etapa 2: achicarFoto en comun.js, perfil.js en el orden de carga y
   simulador de perfil y sittings`.
 
 ### Tarea 2.3: "Completa esto una sola vez" y "Mi perfil" (`ninera/js/perfil.js`)
@@ -567,7 +567,7 @@ completó el perfil y aprueba o descarta la foto propuesta.
   `pantallaPerfil('editar', perfil)`); con `sinMigrar` el link no se muestra.
 - Textos nuevos (en "tú") a `textos-provisorios.md`, sección "Etapa 2: perfil".
 
-- [ ] **Paso 1:** escribir `tests/ninera-perfil.spec.js`: (a) Ana entra por primera vez → la
+- [x] **Paso 1:** escribir `tests/ninera-perfil.spec.js`: (a) Ana entra por primera vez → la
   pantalla "Completa esto una sola vez" con los tres servicios, las zonas de `zona_grupos` y los
   datos bancarios; sin marcar zona, "Guardar" → "Elige al menos una zona." y ninguna RPC; (b)
   marcar Ambos + Pocitos + dos líneas de cuenta → RPC `ninera_guardar_perfil` con `{p_tipo:
@@ -583,14 +583,14 @@ completó el perfil y aprueba o descarta la foto propuesta.
   `baseSinMigrar` → inicio sin "Mi perfil" ni pantalla de perfil; (i) 390 px: la pantalla sin
   scroll horizontal, casillas de 24 px, captura; (j) el HTML de la pantalla no contiene `/\$\d/`
   ni `/\bpago/i`. Todos con `verificarLimpio(e)`.
-- [ ] **Paso 2:** correr `PUERTO_TESTS=4195 npx playwright test tests/ninera-perfil.spec.js`.
+- [x] **Paso 2:** correr `PUERTO_TESTS=4195 npx playwright test tests/ninera-perfil.spec.js`.
   Esperado: fallan todos.
-- [ ] **Paso 3:** implementar `perfil.js`, los cambios de `arranque.js` e `inicio.js`, las clases
+- [x] **Paso 3:** implementar `perfil.js`, los cambios de `arranque.js` e `inicio.js`, las clases
   que falten en `estilos.css` (radios y casillas grandes, vista previa de la foto, `textarea`) y
   los textos provisorios.
-- [ ] **Paso 4:** correr el spec nuevo más `tests/ninera-cuenta.spec.js` y `npm run test:static`.
+- [x] **Paso 4:** correr el spec nuevo más `tests/ninera-cuenta.spec.js` y `npm run test:static`.
   Esperado: pasan.
-- [ ] **Paso 5:** commit: `Etapa 2: perfil de la niñera (servicios, zonas, datos bancarios, foto
+- [x] **Paso 5:** commit: `Etapa 2: perfil de la niñera (servicios, zonas, datos bancarios, foto
   propuesta)`.
 
 ### Tarea 2.4: "Próximos sittings" en el inicio (`ninera/js/inicio.js`)
@@ -626,7 +626,7 @@ completó el perfil y aprueba o descarta la foto propuesta.
   con un `<a download="sitting-AAAA-MM-DD.ics">`.
 - Textos nuevos a `textos-provisorios.md`, sección "Etapa 2: próximos sittings".
 
-- [ ] **Paso 1:** escribir `tests/ninera-sittings.spec.js`: (a) Ana (hoy 04/10/2026 en el
+- [x] **Paso 1:** escribir `tests/ninera-sittings.spec.js`: (a) Ana (hoy 04/10/2026 en el
   simulador) ve "Hoy" con "18:00 a 22:00", "Mañana" con "22:00 a 02:00, termina al día
   siguiente", madre "Madre: Prueba U." o la inicial que corresponda a `datos.js`, chicos "2
   chicos (…)", y NO el sitting a 70 días; (b) tocar el de hoy (confirmado) → la dirección y "Cómo
@@ -638,11 +638,11 @@ completó el perfil y aprueba o descarta la foto propuesta.
   en la RPC → el mensaje y "Reintentar" que vuelve a pedir; (f) `baseSinMigrar` → sin la
   sección, el inicio intacto; (g) el HTML del inicio y del detalle no contiene `/\$\d/` ni
   `/\bpago/i`, y el `.ics` tampoco; (h) 390 px: captura, sin scroll horizontal. `verificarLimpio(e)`.
-- [ ] **Paso 2:** correr el spec. Esperado: fallan todos salvo los que miran lo de la etapa 1.
-- [ ] **Paso 3:** implementar en `inicio.js` y `estilos.css`, y los textos provisorios.
-- [ ] **Paso 4:** correr el spec nuevo, `tests/ninera-cuenta.spec.js`, `tests/ninera-perfil.spec.js`
+- [x] **Paso 2:** correr el spec. Esperado: fallan todos salvo los que miran lo de la etapa 1.
+- [x] **Paso 3:** implementar en `inicio.js` y `estilos.css`, y los textos provisorios.
+- [x] **Paso 4:** correr el spec nuevo, `tests/ninera-cuenta.spec.js`, `tests/ninera-perfil.spec.js`
   y `npm run test:static`. Esperado: pasan.
-- [ ] **Paso 5:** commit: `Etapa 2: próximos sittings en el inicio de la niñera (sin montos, dirección
+- [x] **Paso 5:** commit: `Etapa 2: próximos sittings en el inicio de la niñera (sin montos, dirección
   solo confirmada, cómo llegar y calendario)`.
 
 ### Tarea 2.5: panel: perfil completado y foto propuesta en la ficha
@@ -669,7 +669,7 @@ completó el perfil y aprueba o descarta la foto propuesta.
 - `descartarFotoPropuesta(id)`: borra el objeto y limpia las dos columnas; toast "Foto propuesta
   descartada.".
 
-- [ ] **Paso 1:** escribir `tests/foto-propuesta.spec.js`: (a) la ficha de Carla muestra "Perfil
+- [x] **Paso 1:** escribir `tests/foto-propuesta.spec.js`: (a) la ficha de Carla muestra "Perfil
   completado en la app el …", "Foto propuesta por la niñera el …", una imagen con la URL firmada
   y los dos botones; la de Ana, nada de eso; (b) "Usar como foto del CV" → descarga desde
   `ninieras-privado`, subida a `ninieras-fotos` (escritura con la ruta), PATCH a `ninieras` con
@@ -678,16 +678,16 @@ completó el perfil y aprueba o descarta la foto propuesta.
   mostrando la propuesta; (e) doble toque → una sola subida; (f) "Descartar" → confirmación,
   borrado y PATCH con null; (g) `baseSinMigrar` (la fila sin las columnas) → la ficha sin el
   bloque; (h) 390 px. `verificarLimpio(e)`.
-- [ ] **Paso 2:** correr el spec. Esperado: fallan.
-- [ ] **Paso 3:** implementar en `ninieras.js`.
-- [ ] **Paso 4:** correr el spec nuevo más `tests/invitar-app.spec.js`, `tests/ninieras-lista.spec.js`,
+- [x] **Paso 2:** correr el spec. Esperado: fallan.
+- [x] **Paso 3:** implementar en `ninieras.js`.
+- [x] **Paso 4:** correr el spec nuevo más `tests/invitar-app.spec.js`, `tests/ninieras-lista.spec.js`,
   `tests/escape.spec.js` y `npm run test:static`. Esperado: pasan.
-- [ ] **Paso 5:** commit: `Etapa 2: la ficha muestra el perfil completado y aprueba o descarta la foto
+- [x] **Paso 5:** commit: `Etapa 2: la ficha muestra el perfil completado y aprueba o descarta la foto
   propuesta`.
 
 ### Tarea 2.6: documentación, revisión final, PR y migración (con OK)
 
-- [ ] **Paso 1:** `CLAUDE.md`: orden de carga de `ninera/index.html` (perfil antes de inicio), la lista
+- [x] **Paso 1:** `CLAUDE.md`: orden de carga de `ninera/index.html` (perfil antes de inicio), la lista
   de tests (los tres specs y `fase1_perfil.sql`), "Convenciones": la foto propuesta (bucket privado
   `ninieras-privado` con carpeta por niñera, la admin aprueba desde la ficha; nunca pisa `foto`
   sola), `achicarFoto` en comun.js (la niñera sube con 1600 y 0,8; el panel sigue con 800) y
