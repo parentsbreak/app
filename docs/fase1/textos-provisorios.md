@@ -68,6 +68,8 @@ de `textos.md`. Lo que se sumó:
 - Botón "Guardar". En "Mi perfil" (la misma pantalla para cambiar algo después), además "Volver".
 - Sin zona marcada: "Elige al menos una zona." Sin servicio marcado: "Elige qué servicios realizas."
 - Al guardar: "¡Listo! Tu perfil quedó guardado."
+- Si la foto no es una imagen que se pueda subir (por ejemplo HEIC o un PDF): "La foto tiene que ser
+  JPG o PNG."
 - Si falla la foto: "No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar."
 - Si falla el perfil: "No pudimos guardar tu perfil. Revisa tu conexión a internet y vuelve a
   intentar."

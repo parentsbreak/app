@@ -16,6 +16,7 @@ let perfilNineraSinMigrar = false;
 const SERVICIOS_NINERA = [['Niñera', 'Sittings'], ['Traslados', 'Carsittings'], ['Ambas', 'Ambos']];
 const FALLA_SUBIR_FOTO = 'No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_GUARDAR_PERFIL = 'No pudimos guardar tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
+const FOTO_TIPO_INVALIDO = 'La foto tiene que ser JPG o PNG.';
 const FALLA_ABRIR_PERFIL = 'No pudimos abrir tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
 
 // { perfil, sinMigrar }. Sin la migración, la app sigue como en la etapa 1; cualquier otro error
@@ -147,9 +148,17 @@ async function guardarPerfilNinera(modo){
   let fotoRuta = null;
   if(fotoPerfilElegida){
     const ruta = `fotos/${perfil.id}/propuesta.jpg`;
+    // achicarFoto devuelve el original si ya es chica o si no la puede leer (HEIC que el navegador
+    // no convirtió, un PDF renombrado). El bucket acepta solo JPG, PNG y WEBP: sin este control la
+    // base la rechazaba y el aviso hablaba de la conexión. Se sube con su tipo real (27/10/2026):
+    // supabase-js manda un File en un formulario con el tipo del archivo, no el de contentType.
+    const archivo = await achicarFoto(fotoPerfilElegida, 1600, 0.8);
+    if(!/^image\/(jpeg|png|webp)$/.test(archivo.type || '')){
+      aviso.textContent = FOTO_TIPO_INVALIDO;
+      return;
+    }
     try{
-      const archivo = await achicarFoto(fotoPerfilElegida, 1600, 0.8);
-      const { error } = await sbn.storage.from('ninieras-privado').upload(ruta, archivo, { upsert: true, contentType: 'image/jpeg' });
+      const { error } = await sbn.storage.from('ninieras-privado').upload(ruta, archivo, { upsert: true, contentType: archivo.type });
       if(error) throw error;
     }catch(e){
       console.error('[perfil] al subir la foto', e);

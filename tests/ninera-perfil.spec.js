@@ -111,6 +111,10 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     const subida = subidas(e);
     expect(subida.map(s => [s.tabla, s.metodo])).toEqual([[`/storage/v1/object/ninieras-privado/${RUTA_FOTO_ANA}`, 'POST']]);
+    // Sube con su tipo real (27/10/2026). supabase-js manda un File como multipart: el tipo que
+    // guarda Storage es el de la parte del archivo, que el simulador anota en el cuerpo.
+    expect(subida[0].cuerpo).toMatch(/Content-Type: image\/png/i);
+    expect(subida[0].cuerpo).not.toMatch(/Content-Type: image\/jpeg/i);
     expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([
       { p_tipo: 'Ambas', p_zonas: ['Pocitos'], p_cuenta: ['Banco Ficticio', 'CA 0001234567'], p_foto_ruta: RUTA_FOTO_ANA },
     ]);
@@ -118,6 +122,19 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     const orden = e.escrituras.map(w => w.tabla);
     expect(orden.indexOf(`/storage/v1/object/ninieras-privado/${RUTA_FOTO_ANA}`)).toBeLessThan(orden.indexOf('rpc/ninera_guardar_perfil'));
     expect(e.db.ninieras.find(n => n.id === ID.nAna).foto_propuesta_ruta).toBe(RUTA_FOTO_ANA);
+    verificarLimpio(e);
+  });
+
+  test('una foto que no es JPG, PNG ni WEBP (HEIC sin convertir): avisa, no sube nada ni guarda el perfil', async ({ page }) => {
+    const e = await abrir(page);
+    await completarAna(page);
+    await page.setInputFiles('#perfil-foto', { name: 'foto.heic', mimeType: 'image/heic', buffer: Buffer.from('heic ficticio') });
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#perfil-error')).toHaveText('La foto tiene que ser JPG o PNG.');
+    expect(subidas(e)).toEqual([]);
+    expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([]);
+    await expect(radio(page, 'Ambos')).toBeChecked();
+    await expect(page.getByRole('button', { name: 'Guardar' })).toBeEnabled();
     verificarLimpio(e);
   });
 
