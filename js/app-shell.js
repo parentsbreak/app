@@ -160,8 +160,53 @@ function rangoFechas(desdeISO, hastaISO){
   for(let d = desdeISO; d <= hastaISO; d = sumarDiasISO(d, 1)) dias.push(d);
   return dias;
 }
+/* Mudanza a parentsbreak.github.io/app (27/10/2026): la app cambió de dirección y el ícono viejo
+   del celular dejó de abrirla; además localStorage es por origen, así que en la dirección nueva no
+   hay sesión ni passkey. La primera vez que se abre acá, el login y Hoy explican qué hacer
+   (reinstalar el ícono, entrar con mail y contraseña, Face ID y avisos de nuevo). "Entendido" deja
+   la marca en el dispositivo y no se muestra más. Se saca en un PR aparte un mes después de la
+   mudanza (Pendientes de CLAUDE.md). */
+const HOST_MUDANZA = 'parentsbreak.github.io';
+const DIRECCION_MUDANZA = 'parentsbreak.github.io/app';
+const LS_MUDANZA_VISTA = 'pb_mudanza_vista';
+// Pura, para poder probarla: host es location.hostname y visto lo que hay en localStorage bajo
+// LS_MUDANZA_VISTA (null si no está). Solo avisa en la dirección nueva: en localhost (tests) y en
+// la vieja no cambia nada.
+function hayQueAvisarMudanza(host, visto){ return host === HOST_MUDANZA && !visto; }
+function avisoMudanzaPendiente(){
+  let visto = null;
+  try{ visto = localStorage.getItem(LS_MUDANZA_VISTA); }catch(e){}
+  return hayQueAvisarMudanza(location.hostname, visto);
+}
+// Arriba del formulario del login (auth.js, renderLogin). Sin botón: la marca se deja desde Hoy.
+function avisoMudanzaLoginHtml(){
+  if(!avisoMudanzaPendiente()) return '';
+  return `<div class="warnbox" id="aviso-mudanza-login" style="margin:0 0 16px;"><b>La app se mudó</b><br>Ahora vive en esta dirección: ${escaparHtml(DIRECCION_MUDANZA)}. Entrá con tu mail y contraseña; después te va a pedir activar Face ID de nuevo. Al entrar aparecen los pasos para reinstalar el ícono.</div>`;
+}
+// Arriba de todo en Hoy, hasta tocar "Entendido".
+function avisoMudanzaHoyHtml(){
+  if(!avisoMudanzaPendiente()) return '';
+  return `<div class="card" id="aviso-mudanza">
+      <h2>La app se mudó: reinstalá el ícono</h2>
+      <ol style="margin:0 0 16px;padding-left:22px;line-height:1.6;">
+        <li>Borrá el ícono viejo de Parents’ Break del celular.</li>
+        <li>Abrí ${escaparHtml(DIRECCION_MUDANZA)} en Safari (en Android, en Chrome).</li>
+        <li>Tocá Compartir y después Agregar a pantalla de inicio.</li>
+        <li>Abrí la app desde el ícono nuevo y entrá con tu mail y contraseña.</li>
+        <li>Activá los avisos desde la campanita.</li>
+      </ol>
+      <button class="btn primary" onclick="cerrarAvisoMudanza()">Entendido</button>
+    </div>`;
+}
+// No escribe en la base (la marca vive en el dispositivo): por eso no pasa por conGuardado.
+function cerrarAvisoMudanza(){
+  try{ localStorage.setItem(LS_MUDANZA_VISTA, '1'); }catch(e){}
+  const caja = document.getElementById('aviso-mudanza');
+  if(caja) caja.remove();
+}
 async function renderDashboard(cont){
   cont.innerHTML = `
+    ${avisoMudanzaHoyHtml()}
     <div class="homeintro"><div class="eyebrow">Parents’ Break</div><h1>Hoy · ${fechaHoyLarga()}</h1>
     </div>
     <div class="statrow" id="statrow">

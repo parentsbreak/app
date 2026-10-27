@@ -2,7 +2,7 @@
 
 A staffing operations platform built for a real childcare/transport business, replacing a WhatsApp-and-spreadsheets workflow with a single system: candidate intake → structured interviews → active roster → per-family billing, deployed as an installable PWA with zero infrastructure cost.
 
-**Live:** `https://diegomarin28.github.io/sistema-parents-break/`
+**Live:** `https://parentsbreak.github.io/app/` (moved from `diegomarin28.github.io/sistema-parents-break` on 27/10/2026)
 **Sitter app (phase 1, in progress):** a second door at `/ninera/` — same repo and Supabase project, its own PWA (manifest + service worker scoped to `ninera/`) and its own session key, so a staff account and a sitter account never share a session in the same browser.
 **Stack:** Vanilla JS (15 scripts: `comun.js` + 13 modules + `bootstrap.js`, no build step) · Supabase (Postgres, Auth, RLS, Realtime) · GitHub Pages · PWA
 

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="only light">
+<title>La app se mudó - Parents’ Break</title>
+<!-- Repo de redirección (27/10/2026): el panel se mudó de diegomarin28.github.io/sistema-parents-break a
+     parentsbreak.github.io/app. Esta página queda publicada en la dirección vieja para que el ícono viejo
+     y los links viejos no caigan en un 404. Abierta en el navegador pasa sola a la dirección nueva (con
+     lo que traiga el link: ?acceso=temporal, #access_token...); abierta desde el ícono viejo (app
+     instalada) muestra cómo reinstalar. Sin scripts externos ni datos. -->
+<script>
+  var NUEVA = 'https://parentsbreak.github.io/app/';
+  var instalada = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (!instalada) location.replace(NUEVA + location.search + location.hash);
+</script>
+<style>
+  :root{color-scheme:only light;}
+  body{margin:0;background:#FFFFFF;color:#312F45;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5;}
+  main{max-width:420px;margin:0 auto;padding:40px 20px 60px;}
+  h1{font-size:26px;margin:0 0 8px;}
+  p{margin:0 0 18px;}
+  .dir{word-break:break-all;}
+  .btn{display:block;text-align:center;background:#757CBB;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:17px;padding:16px 20px;border-radius:12px;margin:0 0 28px;}
+  ol{padding-left:22px;margin:0;}
+  li{margin-bottom:8px;}
+</style>
+</head>
+<body>
+<main>
+  <h1>La app se mudó</h1>
+  <p>Ahora vive en <b class="dir">parentsbreak.github.io/app</b>.</p>
+  <a class="btn" id="abrir" href="https://parentsbreak.github.io/app/">Abrir la app nueva</a>
+  <p><b>Para reinstalar el ícono:</b></p>
+  <ol>
+    <li>Borrá el ícono viejo de Parents’ Break del celular.</li>
+    <li>Abrí parentsbreak.github.io/app en Safari (en Android, en Chrome).</li>
+    <li>Tocá Compartir y después Agregar a pantalla de inicio.</li>
+    <li>Abrí la app desde el ícono nuevo y entrá con tu mail y contraseña.</li>
+    <li>Activá los avisos desde la campanita.</li>
+  </ol>
+</main>
+<script>document.getElementById('abrir').href = NUEVA + location.search + location.hash;</script>
+</body>
+</html>

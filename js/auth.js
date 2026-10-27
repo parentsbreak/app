@@ -136,6 +136,7 @@ function renderLogin(){
         <div class="loginwrap">
           <h2>Bienvenida de vuelta</h2>
           <div class="helper">Entrá con tu cuenta de equipo. Se pide Face ID/Touch ID siempre, aunque uses contraseña.</div>
+          ${avisoMudanzaLoginHtml()}
           ${PASSKEY_SOPORTADO ? `
           <button class="btn" type="button" id="passkeybtn" style="width:100%;margin-bottom:14px;" onclick="entrarConPasskey()">
             <span id="passkeybtn-label">Entrar con Face ID / Touch ID</span>

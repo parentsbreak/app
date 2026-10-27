@@ -25,7 +25,9 @@ sistema o se para?
   en oscuro: `color-scheme: only light` en `index.html`. Nada de colores para `prefers-color-scheme: dark`.
 
 ## Stack
-- HTML/CSS/JS vanilla, sin build ni framework. GitHub Pages publica desde `main`.
+- HTML/CSS/JS vanilla, sin build ni framework. GitHub Pages publica desde `main` en
+  `https://parentsbreak.github.io/app/` (niñeras en `/app/ninera/`), desde la mudanza del 27/10/2026
+  (antes `diegomarin28.github.io/sistema-parents-break`; el plan está en `docs/mudanza-pages.md`).
 - `index.html` = head + CSS + `<div id="app">` (con la pantalla de carga inicial) + scripts.
   Todo el HTML de la app lo genera JS. supabase-js se carga de `vendor/`, justo antes de comun.js.
 - App de niñeras (fase 1, 26/10/2026): segunda puerta en `ninera/` (`index.html`, `estilos.css`,
@@ -743,6 +745,20 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Celular obligatorio (27/10/2026): si Diego lo pide, exigirlo también con `problemaCelularNinera` en
   `contratar` (postulantes.js), `crearNineraRapida` (sittings.js) y `resolverCambioTelefono`
   (ninieras.js); hoy solo lo exigen el alta y la edición de Niñeras.
+
+### Mudanza a parentsbreak.github.io/app (27/10/2026)
+El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL en
+`docs/mudanza-pages.md`). Queda para después de la noche de la mudanza:
+- Republicar `ninera-cuenta` y `pedido-whatsapp` con el valor por defecto nuevo de `ORIGENES` (ya
+  está en el repo; mientras tanto manda el secret `ORIGENES_PERMITIDOS`). Con OK de Diego.
+- A la semana: sacar `https://diegomarin28.github.io` del secret `ORIGENES_PERMITIDOS` (Diego) y
+  del valor por defecto de las dos funciones.
+- Al mes: PR que saque el aviso "La app se mudó" del login y de Hoy (`hayQueAvisarMudanza` y lo
+  que lo usa, app-shell.js y auth.js; `tests/mudanza.spec.js`).
+- Cuando las 3 admins activaron los avisos en la dirección nueva: borrar las suscripciones push
+  viejas (SQL con respaldo en `docs/mudanza-pages.md`, lo corre Diego).
+- Remote local: `git remote set-url origin https://github.com/parentsbreak/app` en el checkout de
+  Diego (GitHub redirige el viejo, pero conviene dejarlo bien).
 
 ### Próximas tareas (pedidas por Paulina y Delfina)
 - Rediseño del panel: EN PAUSA (21/10/2026, Paulina y Delfina después de ver las maquetas). No se

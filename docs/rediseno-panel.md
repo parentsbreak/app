@@ -399,7 +399,7 @@ Finanzas, el PDF y la Agenda lo traten como cobrable: hoy un registro cancelado 
 
 En `docs/maquetas/` (datos ficticios; hasta el 21/10/2026 estaban en `local/`, fuera del repo). Como
 GitHub Pages publica el repo, también se ven en el celular en
-`https://diegomarin28.github.io/sistema-parents-break/docs/maquetas/hoy.html` (y las demás):
+`https://parentsbreak.github.io/app/docs/maquetas/hoy.html` (y las demás):
 
 | Archivo | Pantalla |
 |---|---|

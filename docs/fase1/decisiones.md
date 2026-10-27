@@ -183,7 +183,8 @@ SQL `mail_sintetico_ninera`).
 - Admins: `index.html` + `js/*` (sin cambios de navegación).
 - Niñeras: `ninera/index.html`, `ninera/manifest.json`, `ninera/sw.js`, `ninera/estilos.css`,
   `ninera/js/*.js` y `ninera/guia/contenido.json`. URL publicada:
-  `https://diegomarin28.github.io/sistema-parents-break/ninera/`.
+  `https://parentsbreak.github.io/app/ninera/` (desde la mudanza del 27/10/2026; antes
+  `diegomarin28.github.io/sistema-parents-break/ninera/`).
 - `js/comun.js` (nuevo): helpers puros que usan las dos puertas, sacados de `core.js`:
   `escaparHtml`, `argJs`, `urlSegura`, `normaliza`, `todayISO` / `fechaNegocioISO`,
   `sumarDiasISO`, `diaSemanaDeISO`, `calcularEdad`, `toast`, `conGuardado`, `sbGuardar`,
