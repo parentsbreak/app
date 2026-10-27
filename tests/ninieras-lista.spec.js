@@ -47,6 +47,9 @@ test('ordenada por la fecha de la entrevista, de la más nueva a la más vieja; 
 
 test('cada fila dice cuántos sittings y traslados viene haciendo (sin cancelados)', async ({ page }) => {
   const d = datos();
+  // El previsto de mañana de Ana (datos.js, etapa 2) solo existe con los fijos automáticos
+  // prendidos, como en producción: con la marca, la lista no lo cuenta.
+  d.app_config = [...d.app_config, { id: 'fijos_automaticos', valor: { activo: true, dias: 14 }, actualizado_at: '2026-10-04T06:00:00Z' }];
   const e = await abrirApp(page, { datos: d });
   await irAModulo(page, 'ninieras');
   const deAna = d.sittings_traslados.filter(r => r.ninera_id === ID.nAna && !r.cancelado && r.estado !== 'previsto' && r.tipo === 'sitting').length;

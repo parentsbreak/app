@@ -205,7 +205,8 @@ test.describe('casillas y confirmaciones en el celular', () => {
     d.asignaciones_pausas = [{ id: 'b1000000-0000-4000-8000-000000000001', asignacion_id: ID.aFijo, desde: '2026-10-12', hasta: '2026-10-14', motivo: 'Vacaciones', created_at: '2026-10-01T00:00:00Z' }];
     const e = await abrirApp(page, { datos: d });
     await irAModulo(page, 'agenda');
-    await page.locator('#agenda-grid-wrap [onclick^="abrirModalSolicitud"]', { hasText: 'Familia Prueba Uno' }).first().click();
+    // La tarjeta del fijo ("asig:"), no el sitting de hoy de Ana en la misma familia (datos.js, etapa 2).
+    await page.locator('#agenda-grid-wrap [onclick*="asig:"]', { hasText: 'Familia Prueba Uno' }).first().click();
     await page.locator('#editmodal button', { hasText: 'Quitar pausa' }).click();
     await expect(page.locator('.confirmoverlay .confirmmsg')).toContainText('¿Quitar la pausa?');
     await expect(page.locator('#confirm-si')).toHaveText('Quitar la pausa');

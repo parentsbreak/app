@@ -14,9 +14,11 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2 } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
+// PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
+const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const USUARIO = {
   id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated',
@@ -156,12 +158,14 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *   ruta: path a abrir (por defecto '/')
  *   baseSinMigrar: true simula la base ANTES de la migración del 05/10/2026 (asignaciones
  *     sin vigencia/tipo, sin tabla sittings_historial) y de las siguientes (familias sin
- *     terminos_aceptados_el, 20/10/2026), con los mismos errores que Supabase
+ *     terminos_aceptados_el, 20/10/2026; ninieras sin las columnas de la etapa 2, 27/10/2026),
+ *     con los mismos errores que Supabase
  */
 async function abrirApp(page, opciones = {}) {
   const { datos = {}, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/', baseSinMigrar = false } = opciones;
   const estado = crearEstado(datos);
   if (baseSinMigrar) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
+  if (baseSinMigrar) sacarColumnasEtapa2(estado.db);
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora, baseSinMigrar });
 
   await page.goto(ruta);
@@ -178,20 +182,26 @@ async function abrirApp(page, opciones = {}) {
  *   ninera: id de la niñera de la sesión (su fila queda con user_id = USUARIO_NINERA.id)
  *   sesion: false para entrar sin sesión (invitación, login)
  *   ruta, consulta: path y query a abrir (consulta: '?i=<token>' para un link de invitación)
+ *   baseSinMigrar: true simula la base sin la migración de la etapa 2 (27/10/2026): sus RPC dan
+ *     404 PGRST202 y ninieras no tiene sus columnas; las de la etapa 1 andan
  *   funciones: Edge Functions simuladas por nombre desde el primer pedido (como estado.funciones,
  *     pero antes de navegar: con consulta, la app llama a la función apenas abre)
  *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
  *     y navigator.standalone del iPhone); false, abierta en el navegador
  */
 async function abrirAppNinera(page, opciones = {}) {
-  const { datos = {}, ninera = ID.nAna, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/ninera/', instalada = true, consulta = '', funciones = {} } = opciones;
+  const { datos = {}, ninera = ID.nAna, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/ninera/', instalada = true, consulta = '', funciones = {}, baseSinMigrar = false } = opciones;
   const estado = crearEstado(datos);
   Object.assign(estado.funciones, funciones);
   if (sesion) {
     const fila = (estado.db.ninieras || []).find(n => n.id === ninera);
     if (fila) fila.user_id = USUARIO_NINERA.id;
   }
-  Object.assign(estado.rpc, rpcNinera(estado.db, ninera));
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined));
+  if (baseSinMigrar) {
+    RPC_ETAPA_2.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+    sacarColumnasEtapa2(estado.db);
+  }
   // Clave propia de la sesión (storageKey 'sb-ninera-auth'): el panel y la app de niñeras nunca
   // comparten sesión en el mismo navegador.
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora });
@@ -212,6 +222,11 @@ async function abrirAppNinera(page, opciones = {}) {
   await page.goto(ruta + consulta);
   await esperarQuieta(page);
   return estado;
+}
+
+// Base sin la migración de la etapa 2 (27/10/2026): las filas de ninieras sin sus columnas.
+function sacarColumnasEtapa2(db) {
+  (db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_2.forEach(c => { delete n[c]; }));
 }
 
 // El estado que ve cada test: la base ficticia y lo que pasó (escrituras, errores, pedidos sin
@@ -310,11 +325,32 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       estado.noSimulados.push(metodo + ' ' + url.pathname);
       return route.fulfill({ status: 400, json: { message: 'no simulado en tests' } });
     }
-    if (url.pathname.startsWith('/storage/v1/') || url.pathname.startsWith('/functions/v1/')) {
+    // Storage (27/10/2026, etapa 2): pasa por estado.fallar ({tabla: la ruta de /storage/v1/...},
+    // 'red' o {status, message}) y por demoraEscrituras al subir o borrar. Bajar un archivo o abrir
+    // una URL firmada devuelve una imagen de 1×1 (no es una escritura: no se anota); pedir la URL
+    // firmada responde una ficticia que vuelve a pasar por acá. Subir, borrar y lo demás se anota
+    // en escrituras con la ruta.
+    if (url.pathname.startsWith('/storage/v1/')) {
+      const falla = estado.fallar && estado.fallar({ tabla: url.pathname, metodo, cuerpo: null, params: Object.fromEntries(url.searchParams) });
+      if (falla === 'red') { estado.fallidas = (estado.fallidas || 0) + 1; return route.abort('failed'); }
+      if (falla) {
+        estado.fallidas = (estado.fallidas || 0) + 1;
+        const status = falla.status || 500;
+        return route.fulfill({ status, json: { statusCode: String(status), error: 'falla simulada', message: falla.message || 'falla simulada' } });
+      }
+      if (metodo === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG_1X1, 'base64') });
+      if (estado.demoraEscrituras) await new Promise(r => setTimeout(r, estado.demoraEscrituras));
+      estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData() });
+      if (metodo === 'POST' && url.pathname.startsWith('/storage/v1/object/sign/')) {
+        return route.fulfill({ json: { signedURL: `${url.pathname.replace('/storage/v1', '')}?token=ficticio` } });
+      }
+      return route.fulfill({ json: { Key: 'ficticio', path: 'ficticio' } });
+    }
+    if (url.pathname.startsWith('/functions/v1/')) {
       estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData() });
       // estado.funciones[nombre] = (cuerpo, req) => ({ status, json }) simula una Edge Function
       // por nombre; sin eso, la respuesta genérica de siempre.
-      const funcion = url.pathname.startsWith('/functions/v1/') && estado.funciones[url.pathname.split('/')[3]];
+      const funcion = estado.funciones[url.pathname.split('/')[3]];
       if (typeof funcion === 'function') {
         let cuerpo; try { cuerpo = req.postDataJSON(); } catch { cuerpo = req.postData(); }
         const { status = 200, json } = (await funcion(cuerpo, req)) || {};
@@ -330,12 +366,29 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     const tabla = url.pathname.replace('/rest/v1/', '');
     if (tabla.startsWith('rpc/')) {
       const cuerpo = req.postDataJSON?.();
+      // Una RPC también puede fallar con estado.fallar (27/10/2026, etapa 2): {tabla: 'rpc/<nombre>'}.
+      // Como en las escrituras, la que falla no queda anotada, y demoraEscrituras la demora (doble
+      // toque en un botón que guarda con una RPC).
+      const falla = estado.fallar && estado.fallar({ tabla, metodo, cuerpo, params: Object.fromEntries(url.searchParams) });
+      if (falla === 'red') { estado.fallidas = (estado.fallidas || 0) + 1; return route.abort('failed'); }
+      if (falla) {
+        estado.fallidas = (estado.fallidas || 0) + 1;
+        return route.fulfill({ status: falla.status || 500, json: { code: falla.code || 'XX000', message: falla.message || 'falla simulada' } });
+      }
+      if (estado.demoraEscrituras) await new Promise(r => setTimeout(r, estado.demoraEscrituras));
       estado.escrituras.push({ tabla, metodo, cuerpo });
       // Con la base sin migrar, una función nueva no existe (mismo error que Supabase).
       if (baseSinMigrar) return route.fulfill({ status: 404, json: { code: 'PGRST202', message: `Could not find the function public.${tabla.slice(4)} in the schema cache` } });
-      // estado.rpc[nombre] = (cuerpo, db) => resultado simula lo que hace la función en la base.
+      // estado.rpc[nombre] = (cuerpo, db) => resultado simula lo que hace la función en la base. Si
+      // tira errorRpc (rpc-ninera.js), responde ese error, como un "raise exception" de la SQL.
       const simular = estado.rpc[tabla.slice(4)];
-      return route.fulfill({ json: simular ? simular(cuerpo, db) : [] });
+      let resultado;
+      try { resultado = simular ? await simular(cuerpo, db) : []; }
+      catch (e) {
+        if (!e || !e.rpc) throw e;
+        return route.fulfill({ status: e.rpc.status, json: { code: e.rpc.code, details: null, hint: null, message: e.rpc.message } });
+      }
+      return route.fulfill({ json: resultado });
     }
     if (baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores'].includes(tabla)) {
       return route.fulfill({ status: 404, json: { code: 'PGRST205', message: `Could not find the table 'public.${tabla}' in the schema cache` } });

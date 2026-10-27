@@ -218,3 +218,30 @@ async function copiarAlPortapapeles(texto, aviso='Copiado.'){
     document.getElementById('copiar-a-mano')?.select();
   }
 }
+
+/* Fotos livianas (mejora 9, 06/10/2026): una foto de celular pesa 1-4 MB y la lista de niñeras
+   con datos móviles bajaba 10-15 MB. Antes de subirla se achica a 800 px de lado como mucho, en
+   JPEG. Si el navegador no la puede leer (por ejemplo HEIC en algunos) o ya es chica, se sube
+   tal cual: nunca se pierde la foto por esto.
+   Vive en comun.js desde el 27/10/2026 (fase 1, etapa 2): la app de niñeras la usa para la foto
+   del perfil, con achicarFoto(file, 1600, 0.8). */
+async function achicarFoto(file, ladoMax=800, calidad=0.82){
+  try{
+    if(!file || !/^image\/(jpeg|png|webp)$/i.test(file.type||'')) return file;
+    const url = URL.createObjectURL(file);
+    try{
+      const img = await new Promise((ok, mal)=>{ const i = new Image(); i.onload = ()=>ok(i); i.onerror = mal; i.src = url; });
+      const escala = Math.min(1, ladoMax / Math.max(img.naturalWidth||0, img.naturalHeight||0));
+      if(escala >= 1 && file.size <= 300*1024) return file;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth*escala));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight*escala));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // PNG con transparencia: fondo blanco
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(ok=>canvas.toBlob(ok, 'image/jpeg', calidad));
+      if(!blob || blob.size >= file.size) return file;
+      return new File([blob], file.name.replace(/\.[^.]*$/, '')+'.jpg', { type:'image/jpeg' });
+    } finally { URL.revokeObjectURL(url); }
+  }catch(e){ return file; }
+}
