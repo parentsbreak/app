@@ -117,7 +117,8 @@ test.describe('ficha de la niñera: foto propuesta', () => {
     expect(nombre).toMatch(new RegExp(`^ninera-\\d+-${ID.nCarla}\\.png$`)); // el simulador baja un PNG
     expect(parches(e)).toHaveLength(1);
     const p = parches(e)[0];
-    expect(p.params).toEqual({ id: `eq.${ID.nCarla}` });
+    // Con la condición de la foto que se vio: si la niñera mandó otra, no se pisa (ver abajo).
+    expect(p.params).toEqual({ id: `eq.${ID.nCarla}`, foto_propuesta_en: 'eq.2026-10-02T15:00:00+00:00', select: 'id' });
     expect(Object.keys(p.cuerpo).sort()).toEqual(['foto', 'foto_propuesta_en', 'foto_propuesta_ruta']);
     expect(p.cuerpo.foto).toMatch(new RegExp(`/storage/v1/object/public/ninieras-fotos/${nombre.replace('.', '\\.')}$`));
     expect(p.cuerpo.foto_propuesta_ruta).toBeNull();
@@ -201,7 +202,7 @@ test.describe('ficha de la niñera: foto propuesta', () => {
     verificarLimpio(e);
   });
 
-  test('"Descartar": pregunta, borra la propuesta y limpia las dos columnas', async ({ page }) => {
+  test('"Descartar": pregunta, limpia las dos columnas y después borra la propuesta', async ({ page }) => {
     const e = await abrirFicha(page, ID.nCarla);
     await botonDescartar(page).click();
     await expect(page.locator('.confirmmsg')).toHaveText('¿Descartar la foto propuesta?');
@@ -218,23 +219,26 @@ test.describe('ficha de la niñera: foto propuesta', () => {
     await expect(toasts(page).last()).toHaveText('Foto propuesta descartada.');
     expect(borradosPrivados(e).map(w => JSON.parse(w.cuerpo))).toEqual([{ prefixes: [RUTA] }]);
     expect(parches(e).map(p => p.cuerpo)).toEqual([{ foto_propuesta_ruta: null, foto_propuesta_en: null }]);
+    expect(parches(e)[0].params).toEqual({ id: `eq.${ID.nCarla}`, foto_propuesta_en: 'eq.2026-10-02T15:00:00+00:00', select: 'id' });
     expect(subidasPublicas(e)).toEqual([]);
+    // El archivo se borra recién cuando la ficha ya no lo apunta: nunca una foto nueva de la niñera.
     const orden = e.escrituras.map(w => w.tabla + ' ' + w.metodo);
-    expect(orden.indexOf(PRIVADO + ' DELETE')).toBeLessThan(orden.indexOf('ninieras PATCH'));
+    expect(orden.indexOf('ninieras PATCH')).toBeLessThan(orden.indexOf(PRIVADO + ' DELETE'));
     await expect(bloque(page)).toHaveCount(0);
     expect(carla(e).foto_propuesta_ruta).toBeNull();
     expect(carla(e).foto).toBeNull();
     verificarLimpio(e);
   });
 
-  test('"Descartar" si falla el borrado: aviso y nada guardado', async ({ page }) => {
+  test('"Descartar" si falla el borrado después de guardar: igual queda descartada (solo se anota)', async ({ page }) => {
     const e = await abrirFicha(page, ID.nCarla);
     e.fallar = p => (p.tabla === PRIVADO && p.metodo === 'DELETE' ? 'red' : undefined);
     await botonDescartar(page).click();
     await page.locator('#confirm-si').click();
-    await expect(toasts(page).last()).toHaveText('No se pudo borrar la foto propuesta. Revisá tu conexión e intentá de nuevo.');
-    expect(parches(e)).toEqual([]);
-    await expect(bloque(page)).toBeVisible();
+    await expect(toasts(page).last()).toHaveText('Foto propuesta descartada.');
+    expect(parches(e)).toHaveLength(1);
+    expect(carla(e).foto_propuesta_ruta).toBeNull();
+    await expect(bloque(page)).toHaveCount(0);
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
@@ -247,6 +251,52 @@ test.describe('ficha de la niñera: foto propuesta', () => {
     expect(carla(e).foto_propuesta_ruta).toBe(RUTA);
     await expect(bloque(page)).toBeVisible();
     verificarLimpio(e, { ignorar: RUIDO });
+  });
+
+  test('"Usar" si la niñera mandó otra foto mientras se miraba: aviso, nada cambia y la copia se borra', async ({ page }) => {
+    const e = await abrirFicha(page, ID.nCarla);
+    // La niñera vuelve a subir desde su app (misma ruta, otra fecha) con la ficha abierta.
+    carla(e).foto_propuesta_en = '2026-10-04T14:00:00+00:00';
+    await botonUsar(page).click();
+    await expect(toasts(page).last()).toHaveText('La niñera mandó otra foto mientras la mirabas. Volvé a abrir la ficha.');
+    expect(parches(e)).toHaveLength(1); // el intento condicionado, que no actualizó ninguna fila
+    expect(carla(e).foto).toBeNull();
+    expect(carla(e).foto_propuesta_ruta).toBe(RUTA);
+    expect(borradosPrivados(e)).toEqual([]);
+    const nombre = subidasPublicas(e)[0].tabla.slice(PUBLICO.length);
+    const borradoPublico = e.escrituras.filter(w => w.tabla === '/storage/v1/object/ninieras-fotos' && w.metodo === 'DELETE');
+    expect(borradoPublico.map(w => JSON.parse(w.cuerpo))).toEqual([{ prefixes: [nombre] }]);
+    // La ficha se repinta con la foto nueva y sus botones ya van con la fecha nueva.
+    await expect(bloque(page)).toContainText('Foto propuesta por la niñera el 04/10');
+    await botonUsar(page).click();
+    await expect(toasts(page).last()).toHaveText('Foto del CV actualizada.');
+    expect(carla(e).foto).toMatch(/ninieras-fotos/);
+    verificarLimpio(e);
+  });
+
+  test('"Descartar" si la niñera mandó otra foto mientras se miraba: aviso y no se borra nada', async ({ page }) => {
+    const e = await abrirFicha(page, ID.nCarla);
+    carla(e).foto_propuesta_en = '2026-10-04T14:00:00+00:00';
+    await botonDescartar(page).click();
+    await page.locator('#confirm-si').click();
+    await expect(toasts(page).last()).toHaveText('La niñera mandó otra foto mientras la mirabas. Volvé a abrir la ficha.');
+    expect(borradosPrivados(e)).toEqual([]);
+    expect(carla(e).foto_propuesta_ruta).toBe(RUTA);
+    expect(carla(e).foto_propuesta_en).toBe('2026-10-04T14:00:00+00:00');
+    expect(carla(e).foto).toBeNull();
+    await expect(bloque(page)).toContainText('Foto propuesta por la niñera el 04/10');
+    verificarLimpio(e);
+  });
+
+  test('propuesta sin fecha: la condición va con is.null', async ({ page }) => {
+    const d = datosBase();
+    d.ninieras.find(n => n.id === ID.nCarla).foto_propuesta_en = null;
+    const e = await abrirFicha(page, ID.nCarla, { datos: d });
+    await expect(bloque(page).locator('div').first()).toHaveText('Foto propuesta por la niñera');
+    await botonUsar(page).click();
+    await expect(toasts(page).last()).toHaveText('Foto del CV actualizada.');
+    expect(parches(e)[0].params).toEqual({ id: `eq.${ID.nCarla}`, foto_propuesta_en: 'is.null', select: 'id' });
+    verificarLimpio(e);
   });
 
   test('base sin migrar: la ficha sin el bloque ni el perfil completado, y sin errores', async ({ page }) => {

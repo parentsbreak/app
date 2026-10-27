@@ -915,8 +915,8 @@ function htmlFotoPropuesta(n){
       <div style="font-weight:600;font-size:13px;padding-right:36px;">Foto propuesta por la niñera${cuando}</div>
       <div id="vn-foto-propuesta-img" data-ninera="${escaparHtml(n.id)}" style="margin:8px 0;font-size:13px;">Cargando…</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn ghost" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>descartarFotoPropuesta(${argJs(n.id)}))">Descartar</button>
-        <button class="btn primary" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>aprobarFotoPropuesta(${argJs(n.id)}))">Usar como foto del CV</button>
+        <button class="btn ghost" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>descartarFotoPropuesta(${argJs(n.id)}, ${argJs(n.foto_propuesta_en)}))">Descartar</button>
+        <button class="btn primary" style="padding:7px 14px;font-size:12.5px;" onclick="conGuardado(this, ()=>aprobarFotoPropuesta(${argJs(n.id)}, ${argJs(n.foto_propuesta_en)}))">Usar como foto del CV</button>
       </div>
     </div>`;
 }
@@ -933,11 +933,41 @@ async function cargarFotoPropuesta(id, ruta){
   if(!url){ cont.textContent = 'No se pudo mostrar la foto'; return; }
   cont.innerHTML = `<img src="${urlSegura(url)}" alt="Foto propuesta" style="width:96px;height:96px;border-radius:50%;object-fit:cover;cursor:zoom-in;" onclick="abrirLightboxFoto(this.src, 'Foto propuesta')" onerror="this.parentElement.textContent='No se pudo mostrar la foto'">`;
 }
+// La niñera puede mandar otra foto (misma ruta, upsert) mientras la admin mira la ficha: el update
+// va con la condición de foto_propuesta_en tal como se pintó (`antes`), como las marcas que dos
+// admins pueden cambiar a la vez. Devuelve 'ok', 'cambio' (no se actualizó ninguna fila: la foto
+// ya es otra) o 'error' (ya avisado, como sbGuardar).
+async function guardarSiFotoPropuestaNoCambio(id, antes, cambios, queCosa){
+  try {
+    let q = sb.from('ninieras').update(cambios).eq('id', id);
+    q = antes == null ? q.is('foto_propuesta_en', null) : q.eq('foto_propuesta_en', antes);
+    const { data, error } = await q.select('id');
+    if(error){
+      console.error('[Supabase] al guardar', queCosa, error);
+      toast(`No se pudo guardar ${queCosa}: ${error.message}`, 'bad');
+      return 'error';
+    }
+    return (data || []).length ? 'ok' : 'cambio';
+  } catch(e){
+    console.error('[Supabase] al guardar', queCosa, e);
+    toast(`No se pudo guardar ${queCosa}. Revisá tu conexión.`, 'bad');
+    return 'error';
+  }
+}
+// Relee solo las columnas de la foto (no toda la lista) y repinta: la ficha muestra lo que hay ahora.
+async function avisarFotoPropuestaCambiada(id){
+  toast('La niñera mandó otra foto mientras la mirabas. Volvé a abrir la ficha.', 'bad');
+  const n = ninierasItems.find(x=>x.id===id);
+  if(!n) return;
+  const { data, error } = await sb.from('ninieras').select('foto,foto_propuesta_ruta,foto_propuesta_en').eq('id', id);
+  if(!error && data && data[0]) Object.assign(n, data[0]);
+  verNinera(id);
+}
 // Copia la propuesta al bucket público del CV y recién después cambia la ficha (el update va
 // último: si algo falla antes, la ficha queda como estaba). El nombre es nuevo cada vez, como en
 // subirFotoNinera: pisar un nombre fijo cambiaría la foto del CV antes del update (y si el update
 // falla quedaría a medias), y el navegador seguiría mostrando la vieja desde su caché.
-async function aprobarFotoPropuesta(id){
+async function aprobarFotoPropuesta(id, antes){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n || !n.foto_propuesta_ruta) return;
   const ruta = n.foto_propuesta_ruta;
@@ -958,9 +988,12 @@ async function aprobarFotoPropuesta(id){
   } catch(e){ subida = false; }
   if(!subida){ toast('No se pudo subir la foto al CV', 'bad'); return; }
   const cambios = { foto: publico.getPublicUrl(nombre).data.publicUrl, foto_propuesta_ruta: null, foto_propuesta_en: null };
-  if(!(await sbGuardar(sb.from('ninieras').update(cambios).eq('id', id), 'la foto del CV'))){
-    // Que la copia no quede suelta en el bucket público: no la usa ninguna ficha.
+  const resultado = await guardarSiFotoPropuestaNoCambio(id, antes, cambios, 'la foto del CV');
+  if(resultado !== 'ok'){
+    // Que la copia no quede suelta en el bucket público: no la usa ninguna ficha. La propuesta
+    // privada no se toca (si cambió, es la foto nueva de la niñera).
     try { await publico.remove([nombre]); } catch(e){ /* nada más que hacer */ }
+    if(resultado === 'cambio') await avisarFotoPropuestaCambiada(id);
     return;
   }
   // Ya no se muestra en ningún lado: si no se puede borrar, solo se anota.
@@ -973,20 +1006,22 @@ async function aprobarFotoPropuesta(id){
   verNinera(id);
   toast('Foto del CV actualizada.');
 }
-// Borra primero el archivo y después limpia la ficha: si el update falla, el bloque sigue ahí y se
-// puede volver a descartar (borrar un archivo que ya no está no da error).
-async function descartarFotoPropuesta(id){
+// Primero limpia la ficha (con la condición de `antes`) y recién después borra el archivo: así nunca
+// se borra una foto que la niñera mandó mientras la admin miraba. Si el borrado falla, la ficha ya
+// no la muestra y la próxima foto de la niñera la pisa (misma ruta): solo se anota.
+async function descartarFotoPropuesta(id, antes){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n || !n.foto_propuesta_ruta) return;
+  const ruta = n.foto_propuesta_ruta;
   if(!(await confirmarAccion('¿Descartar la foto propuesta?', 'Descartar la foto'))) return;
-  let borrada = false;
-  try {
-    const { error } = await sb.storage.from('ninieras-privado').remove([n.foto_propuesta_ruta]);
-    borrada = !error;
-  } catch(e){ borrada = false; }
-  if(!borrada){ toast('No se pudo borrar la foto propuesta. Revisá tu conexión e intentá de nuevo.', 'bad'); return; }
   const cambios = { foto_propuesta_ruta: null, foto_propuesta_en: null };
-  if(!(await sbGuardar(sb.from('ninieras').update(cambios).eq('id', id)))) return;
+  const resultado = await guardarSiFotoPropuestaNoCambio(id, antes, cambios, 'los cambios');
+  if(resultado === 'cambio'){ await avisarFotoPropuestaCambiada(id); return; }
+  if(resultado !== 'ok') return;
+  try {
+    const { error } = await sb.storage.from('ninieras-privado').remove([ruta]);
+    if(error) console.warn('[foto propuesta] no se pudo borrar', error);
+  } catch(e){ console.warn('[foto propuesta] no se pudo borrar', e); }
   Object.assign(n, cambios);
   verNinera(id);
   toast('Foto propuesta descartada.');
