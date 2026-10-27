@@ -102,8 +102,24 @@ textarea{resize:vertical;min-height:54px;}
 .aviso-apagado{background:var(--warn-soft);border:1px solid #E4C888;border-radius:12px;padding:14px;margin-bottom:18px;color:#7A5A16;}
 .aviso-apagado p{margin:0 0 12px;font-size:15px;font-weight:600;line-height:1.45;}
 .vacio{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:28px 16px;text-align:center;font-size:16px;color:var(--ink-soft);margin:0;}
-.pie{margin-top:28px;text-align:center;}
+.pie{margin-top:28px;text-align:center;display:flex;flex-wrap:wrap;justify-content:center;column-gap:18px;}
+.pie .link-boton{margin:14px 0 0;}
 .pantallacarga-logo{width:min(220px,60vw);height:auto;animation:fadeIn 400ms ease both;}
+
+/* ---- Perfil (etapa 2, 27/10/2026, perfil.js) ----
+   Radios y casillas de 24 px (regla del celular del panel, 25/10/2026) dentro de renglones de 44 px
+   o más: se marca tocando todo el renglón, no solo el cuadradito. */
+.grupo{border:none;margin:0 0 18px;padding:0;min-width:0;}
+.grupo legend{font-size:14px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;padding:0;}
+.pantalla label.radio,.pantalla label.chk{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 14px;margin:0 0 8px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font-size:16px;font-weight:500;color:var(--ink);cursor:pointer;overflow-wrap:anywhere;}
+.pantalla label.radio:has(input:checked),.pantalla label.chk:has(input:checked){border-color:var(--accent);background:var(--accent-soft);}
+.pantalla label.radio input,.pantalla label.chk input{width:24px;height:24px;margin:0;flex:none;accent-color:var(--accent);}
+.aviso-info{background:var(--accent-soft);border-radius:10px;padding:10px 13px;font-size:14.5px;line-height:1.45;color:var(--ink);margin:4px 0 0;}
+.aviso-info[hidden]{display:none;}
+.pantalla textarea{padding:13px 14px;min-height:96px;border-radius:10px;}
+.pantalla input[type=file]{display:block;width:100%;max-width:100%;font-size:16px;padding:10px 0;color:var(--ink);}
+.perfil-foto-previa{display:block;width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:8px 0 4px;}
+.perfil-foto-previa[hidden]{display:none;}
 
 /* Modal (abrirModalNinera, ninera/js/base.js): el mismo del panel. */
 .confirmoverlay{position:fixed;inset:0;background:rgba(49,47,69,.35);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;transition:opacity 180ms ease;padding:16px;}

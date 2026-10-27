@@ -1,7 +1,8 @@
 // App de niñeras (fase 1, 26/10/2026): el inicio. En la etapa 1 no hay pedidos todavía: el saludo,
 // el aviso si los avisos están apagados, "No tienes pedidos por ahora." y Mi cuenta. Sin montos ni
 // fechas de pago, nunca (textos.md, sección 3). Los pedidos y los próximos sittings llegan en las
-// etapas 5 y 6.
+// etapas 5 y 6. Desde la etapa 2 (27/10/2026) el pie suma "Mi perfil" (perfil.js), salvo con la base
+// sin migrar.
 
 // El nombre viene en la cuenta (user_metadata, lo pone ninera-cuenta al crearla o al cambiar la
 // contraseña): sirve en cualquier celular y en la app instalada. Se saluda con el primero.
@@ -21,6 +22,7 @@ async function renderInicio(){
     <div id="inicio-avisos"></div>
     <p class="vacio">No tienes pedidos por ahora.</p>
     <footer class="pie">
+      ${perfilNineraSinMigrar ? '' : '<button type="button" class="link-boton" onclick="conGuardado(this, ()=>abrirMiPerfil())">Mi perfil</button>'}
       <button type="button" class="link-boton" onclick="abrirMiCuentaNinera()">Mi cuenta</button>
     </footer>
   </main>`);

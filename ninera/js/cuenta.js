@@ -294,13 +294,14 @@ async function avisosActivados(){
 function pantallaAvisos(){
   marcarRuta('#avisos');
   // Una sola vez por celular: si dice "Ahora no", el inicio le sigue avisando que están apagados.
+  // Los dos botones siguen como después de instalar (etapa 2, 27/10/2026): la primera vez, al perfil.
   guardarLocalNinera('pb-ninera-avisos-vistos', '1');
   pintar(`<main class="pantalla">
     <img src="../logo.png" alt="Parents’ Break" class="pantalla-logo">
     <h1>Activa los avisos</h1>
     <p class="intro">Te avisaremos cuando haya un pedido, cuando quedes seleccionada y antes de tu sitting. Sin avisos te vas a perder pedidos.</p>
-    <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosNinera('#inicio'))">Activar avisos</button>
-    <button type="button" class="link-boton" onclick="irA('#inicio')">Ahora no</button>
+    <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosNinera().then(()=>continuarDespuesDeInstalar()))">Activar avisos</button>
+    <button type="button" class="link-boton" onclick="continuarDespuesDeInstalar()">Ahora no</button>
   </main>`);
 }
 

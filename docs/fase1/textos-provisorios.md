@@ -55,3 +55,22 @@ Inicio y cuenta:
 
 Mensaje de WhatsApp para cambiar la contraseña (lo manda la admin desde la ficha):
 - "¡Hola [niñera]! Con este link puedes crear una contraseña nueva: [link]. Vale por [N] días."
+
+## Etapa 2: perfil
+
+Los títulos y campos fijos ("Completa esto una sola vez", "¿Qué servicios realizas?", "Sittings /
+Carsittings / Ambos", "Zonas donde puedes tomar servicios", "Datos bancarios para pagarte") son los
+de `textos.md`. Lo que se sumó:
+- Debajo de los datos bancarios: "Banco, tipo y número de cuenta, uno por línea."
+- "Tu foto (opcional)" y debajo "La ve el equipo y, si la aprueban, pasa a tu perfil."
+- Si ya mandó una foto: "Foto enviada el [dd/mm], el equipo la va a revisar."
+- Al marcar Carsittings o Ambos: "Pronto vas a poder cargar los datos del auto desde aquí."
+- Botón "Guardar". En "Mi perfil" (la misma pantalla para cambiar algo después), además "Volver".
+- Sin zona marcada: "Elige al menos una zona." Sin servicio marcado: "Elige qué servicios realizas."
+- Al guardar: "¡Listo! Tu perfil quedó guardado."
+- Si falla la foto: "No pudimos subir tu foto. Revisa tu conexión a internet y vuelve a intentar."
+- Si falla el perfil: "No pudimos guardar tu perfil. Revisa tu conexión a internet y vuelve a
+  intentar."
+- Si no se puede abrir "Mi perfil": "No pudimos abrir tu perfil. Revisa tu conexión a internet y
+  vuelve a intentar."
+- En el inicio, al pie: "Mi perfil" (al lado de "Mi cuenta").

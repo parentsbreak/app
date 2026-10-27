@@ -89,10 +89,24 @@ async function activarAppNinera(){
 }
 
 // Después de instalar (o si ya estaba instalada): la pantalla de avisos una sola vez por celular,
-// y el inicio.
+// el perfil si todavía no lo completó (etapa 2, 27/10/2026) y el inicio. Con la base sin la
+// migración de la etapa 2, el inicio de siempre.
 async function continuarDespuesDeInstalar(){
   if(avisosSoportados() && leerLocalNinera('pb-ninera-avisos-vistos') !== '1' && !(await avisosActivados())){
     pantallaAvisos();
+    return;
+  }
+  mostrarCargaNinera();
+  let cargado;
+  try{
+    cargado = await cargarPerfilNinera();
+  }catch(e){
+    console.error('[ninera_mi_perfil]', e);
+    mostrarErrorCargaInicio();
+    return;
+  }
+  if(!cargado.sinMigrar && cargado.perfil && perfilIncompleto(cargado.perfil)){
+    await pantallaPerfil('primera', cargado.perfil);
     return;
   }
   await renderInicio();
