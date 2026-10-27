@@ -36,11 +36,14 @@ create function pg_temp.hoy() returns date language sql as $$ select (now() at t
 -- ---------------------------------------------------------------------------
 -- Todo lo de la migración está (también después de aplicar → deshacer → aplicar)
 -- ---------------------------------------------------------------------------
-select pg_temp.verificar('tres columnas nuevas en ninieras',
-  (select count(*) = 3 from information_schema.columns where table_schema = 'public' and table_name = 'ninieras'
-    and column_name in ('perfil_app_en', 'foto_propuesta_ruta', 'foto_propuesta_en')));
+select pg_temp.verificar('cuatro columnas nuevas en ninieras',
+  (select count(*) = 4 from information_schema.columns where table_schema = 'public' and table_name = 'ninieras'
+    and column_name in ('perfil_app_en', 'perfil_actualizado_en', 'foto_propuesta_ruta', 'foto_propuesta_en')));
 select pg_temp.verificar('bucket ninieras-privado, privado, una sola vez',
   (select count(*) = 1 and bool_and(not public) from storage.buckets where id = 'ninieras-privado'));
+select pg_temp.verificar('bucket ninieras-privado: hasta 5 MB y solo imágenes',
+  (select file_size_limit = 5242880 and allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']
+     from storage.buckets where id = 'ninieras-privado'));
 select pg_temp.verificar('las dos políticas del bucket, una sola vez cada una',
   (select count(*) = 2 from pg_policies where schemaname = 'storage' and tablename = 'objects'
     and policyname in ('ninieras_privado_propio', 'ninieras_privado_admins')));
@@ -107,7 +110,8 @@ insert into familias (id, nombre, direccion, zona, ninos, cobro_hora, pago_hora)
   ('d3000000-0000-4000-8000-000000000004', 'Sin Nada', null, null, '   ', 300, 200),
   ('d3000000-0000-4000-8000-000000000005', 'Con Bebe', null, null, null, 300, 200),
   ('d3000000-0000-4000-8000-000000000006', 'Sin Edades', null, null, null, 300, 200),
-  ('d3000000-0000-4000-8000-000000000007', 'Un Chico', null, null, null, 300, 200);
+  ('d3000000-0000-4000-8000-000000000007', 'Un Chico', null, null, null, 300, 200),
+  ('d3000000-0000-4000-8000-000000000008', 'Declarada Futura', null, null, null, 300, 200);
 -- Familia 1 (con fecha de nacimiento): cargados en otro orden que el de "orden".
 insert into hijos_familia (familia_id, nombre, fecha_nacimiento, orden) values
   ('d3000000-0000-4000-8000-000000000001', 'Mayor Ficticio', (pg_temp.hoy() - interval '5 years')::date, 1),
@@ -115,6 +119,9 @@ insert into hijos_familia (familia_id, nombre, fecha_nacimiento, orden) values
 -- Familia 2 (edad declarada hace más de dos años): 4 declarados + 2 cumplidos = 6.
 insert into hijos_familia (familia_id, nombre, edad_declarada, edad_declarada_en, orden) values
   ('d3000000-0000-4000-8000-000000000002', 'Declarado Ficticio', 4, (pg_temp.hoy() - interval '2 years 1 day')::date, 0);
+-- Familia 8: edad declarada con una fecha futura (mal cargada): no resta, 3 + 0 = 3.
+insert into hijos_familia (familia_id, nombre, edad_declarada, edad_declarada_en, orden) values
+  ('d3000000-0000-4000-8000-000000000008', 'Futuro Ficticio', 3, pg_temp.hoy() + 400, 0);
 -- Familia 5: un bebé (0 años), uno sin edad y uno de 2.
 insert into hijos_familia (familia_id, nombre, fecha_nacimiento, edad_declarada, edad_declarada_en, orden) values
   ('d3000000-0000-4000-8000-000000000005', 'Bebe Ficticio', (pg_temp.hoy() - interval '3 months')::date, null, null, 0),
@@ -156,6 +163,8 @@ select pg_temp.verificar('chicos_texto con fecha de nacimiento, por orden: "2 ch
   public.chicos_texto('d3000000-0000-4000-8000-000000000001') = '2 chicos (3 y 5 años)');
 select pg_temp.verificar('chicos_texto con edad declarada vieja: suma los años cumplidos ("1 chico (6 años)")',
   public.chicos_texto('d3000000-0000-4000-8000-000000000002') = '1 chico (6 años)');
+select pg_temp.verificar('chicos_texto con edad declarada en una fecha futura: suma 0 ("1 chico (3 años)")',
+  public.chicos_texto('d3000000-0000-4000-8000-000000000008') = '1 chico (3 años)');
 select pg_temp.verificar('chicos_texto sin hijos cargados: familias.ninos recortado a 80',
   public.chicos_texto('d3000000-0000-4000-8000-000000000003') = left('Dos nenas, una de 4 y otra de 8, ' || repeat('x', 100), 80)
   and length(public.chicos_texto('d3000000-0000-4000-8000-000000000003')) = 80);
@@ -182,7 +191,7 @@ select pg_temp.verificar('ninera_mi_perfil(): solo su fila, con su cuenta y su f
                        and zona = 'Centro' and barrios = 'Cordón' and telefono = '099000001'
                        and cuenta_bancaria = array['Banco Inventado', 'cuenta 0009876543']
                        and foto = 'https://ejemplo.invalid/ana.jpg'
-                       and foto_propuesta_ruta is null and perfil_app_en is null)
+                       and foto_propuesta_ruta is null and perfil_app_en is null and perfil_actualizado_en is null)
      from public.ninera_mi_perfil()));
 select pg_temp.verificar('ninera_zonas_disponibles(): las zonas por orden',
   (select array_agg(nombre order by ordinality) = array['Carrasco', 'Pocitos', 'Punta del Este']
@@ -217,11 +226,15 @@ select pg_temp.verificar('zona "Narnia": zona_desconocida',
 select pg_temp.verificar('foto en la carpeta de Bruno: foto_invalida',
   pg_temp.error_de($$select public.ninera_guardar_perfil('Ambas', array['Pocitos'], array['Banco X'],
     'fotos/d2000000-0000-4000-8000-000000000002/propuesta.jpg')$$) like '%foto_invalida%');
+select pg_temp.verificar('foto en su carpeta con otro nombre: foto_invalida',
+  pg_temp.error_de($$select public.ninera_guardar_perfil('Ambas', array['Pocitos'], array['Banco X'],
+    'fotos/d2000000-0000-4000-8000-000000000001/otra.jpg')$$) like '%foto_invalida%');
 select pg_temp.verificar('foto que sale de su carpeta con "..": foto_invalida',
   pg_temp.error_de($$select public.ninera_guardar_perfil('Ambas', array['Pocitos'], array['Banco X'],
     'fotos/d2000000-0000-4000-8000-000000000001/../d2000000-0000-4000-8000-000000000002/propuesta.jpg')$$) like '%foto_invalida%');
 select pg_temp.verificar('después de los rechazos su perfil sigue igual',
-  (select tipo = 'Niñera' and zona = 'Centro' and perfil_app_en is null and foto_propuesta_ruta is null from public.ninera_mi_perfil()));
+  (select tipo = 'Niñera' and zona = 'Centro' and perfil_app_en is null and perfil_actualizado_en is null
+          and foto_propuesta_ruta is null from public.ninera_mi_perfil()));
 
 -- Lo que acepta.
 select public.ninera_guardar_perfil('Ambas', array['Pocitos', 'Carrasco'], array['Banco X', '', '  cuenta 0001234567  '],
@@ -229,15 +242,17 @@ select public.ninera_guardar_perfil('Ambas', array['Pocitos', 'Carrasco'], array
 select pg_temp.verificar('guardó tipo, zonas con "/", cuenta sin líneas vacías, la foto propuesta y cuándo completó el perfil',
   (select tipo = 'Ambas' and zona = 'Pocitos/Carrasco' and cuenta_bancaria = array['Banco X', 'cuenta 0001234567']
           and foto_propuesta_ruta = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'
-          and foto_propuesta_en is not null and perfil_app_en is not null
+          and foto_propuesta_en is not null and perfil_app_en is not null and perfil_actualizado_en is not null
           and foto = 'https://ejemplo.invalid/ana.jpg'
      from public.ninera_mi_perfil()));
 reset role;
 select pg_temp.verificar('a Bruno no lo tocó',
-  (select tipo = 'Traslados' and zona = 'Carrasco' and perfil_app_en is null and foto_propuesta_ruta is null
+  (select tipo = 'Traslados' and zona = 'Carrasco' and perfil_app_en is null and perfil_actualizado_en is null
+          and foto_propuesta_ruta is null
      from ninieras where id = 'd2000000-0000-4000-8000-000000000002'));
--- Para ver que no se mueve: perfil_app_en y la foto quedan en el pasado y se vuelve a guardar sin foto.
-update ninieras set perfil_app_en = '2026-10-01 12:00-03', foto_propuesta_en = '2026-10-01 12:00-03'
+-- Para ver qué se mueve: las tres fechas quedan en el pasado y se vuelve a guardar sin foto.
+update ninieras set perfil_app_en = '2026-10-01 12:00-03', perfil_actualizado_en = '2026-10-01 12:00-03',
+                    foto_propuesta_en = '2026-10-01 12:00-03'
  where id = 'd2000000-0000-4000-8000-000000000001';
 set local role authenticated;
 select public.ninera_guardar_perfil('Niñera', array['Carrasco'], array['   ', '']);
@@ -246,6 +261,15 @@ select pg_temp.verificar('segunda vez: perfil_app_en no se mueve, la foto propue
           and foto_propuesta_ruta = 'fotos/d2000000-0000-4000-8000-000000000001/propuesta.jpg'
           and tipo = 'Niñera' and zona = 'Carrasco' and cuenta_bancaria is null
      from public.ninera_mi_perfil()));
+select pg_temp.verificar('segunda vez: perfil_actualizado_en sí se mueve (un cambio de cuenta no pasa en silencio)',
+  (select perfil_actualizado_en > '2026-10-01 12:00-03'::timestamptz from public.ninera_mi_perfil()));
+-- Zonas repetidas: una vez cada una, en el orden en que llegaron (no alfabético). Renglón de la
+-- cuenta de más de 120 caracteres: se corta.
+select public.ninera_guardar_perfil('Ambas', array['Pocitos', 'Pocitos', 'Carrasco', 'Pocitos'], array[repeat('9', 150), ' Banco Y ']);
+select pg_temp.verificar('zonas repetidas: "Pocitos/Carrasco"',
+  (select zona = 'Pocitos/Carrasco' from public.ninera_mi_perfil()));
+select pg_temp.verificar('renglón de la cuenta cortado a 120 caracteres',
+  (select cuenta_bancaria = array[repeat('9', 120), 'Banco Y'] from public.ninera_mi_perfil()));
 
 -- Storage: su carpeta sí, la de Bruno no.
 reset role;

@@ -1,6 +1,6 @@
 -- Deshace 20261027_perfil_ninera.sql: borra las funciones del perfil y de los próximos sittings,
 -- los ayudantes, las dos políticas y el bucket ninieras-privado, y las columnas
--- ninieras.perfil_app_en / foto_propuesta_ruta / foto_propuesta_en. La app de las admins sigue
+-- ninieras.perfil_app_en / perfil_actualizado_en / foto_propuesta_ruta / foto_propuesta_en. La app de las admins sigue
 -- andando igual; la de niñeras, sin estas funciones (404 PGRST202), sigue sin la pantalla de
 -- perfil ni la sección de sittings, y el panel sin el bloque de la foto.
 --
@@ -39,5 +39,6 @@ drop function if exists public.hoy_mvd();
 
 alter table public.ninieras drop column if exists foto_propuesta_en;
 alter table public.ninieras drop column if exists foto_propuesta_ruta;
+alter table public.ninieras drop column if exists perfil_actualizado_en;
 alter table public.ninieras drop column if exists perfil_app_en;
 commit;

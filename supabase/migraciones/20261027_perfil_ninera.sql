@@ -8,7 +8,8 @@
 --
 -- Suma:
 --   - ninieras.perfil_app_en (cuándo completó el perfil por primera vez; la admin lo ve en la
---     ficha), ninieras.foto_propuesta_ruta y ninieras.foto_propuesta_en;
+--     ficha), ninieras.perfil_actualizado_en (el último guardado: un cambio de la cuenta
+--     bancaria no pasa en silencio), ninieras.foto_propuesta_ruta y ninieras.foto_propuesta_en;
 --   - el bucket privado ninieras-privado, con rutas por niñera (fotos/<ninera_id>/propuesta.jpg;
 --     más adelante firmas/, rcp/ y carsitting/ con el mismo criterio): cada niñera solo su
 --     carpeta (ninieras_privado_propio), las admins todo (ninieras_privado_admins);
@@ -24,14 +25,18 @@
 -- ============================================================================
 begin;
 
--- Perfil completado desde la app (lo pone ninera_guardar_perfil la primera vez y no lo pisa) y
--- la foto que propuso la niñera, a la espera de que una admin la apruebe.
+-- Perfil completado desde la app (lo pone ninera_guardar_perfil la primera vez y no lo pisa), el
+-- último cambio del perfil (cada guardado: así la admin ve si cambió, por ejemplo, la cuenta
+-- bancaria) y la foto que propuso la niñera, a la espera de que una admin la apruebe.
 alter table public.ninieras add column perfil_app_en timestamp with time zone;
+alter table public.ninieras add column perfil_actualizado_en timestamp with time zone;
 alter table public.ninieras add column foto_propuesta_ruta text;
 alter table public.ninieras add column foto_propuesta_en timestamp with time zone;
 
--- Bucket privado de las niñeras: se abre con createSignedUrl, nunca con URL pública.
-insert into storage.buckets (id, name, public) values ('ninieras-privado', 'ninieras-privado', false)
+-- Bucket privado de las niñeras: se abre con createSignedUrl, nunca con URL pública. Hasta 5 MB y
+-- solo imágenes (la app las achica antes de subir); la etapa 4 lo amplía si guarda PDF.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('ninieras-privado', 'ninieras-privado', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 
 -- Cada niñera, solo su carpeta: el segundo tramo de la ruta es su id (fotos/<ninera_id>/...).
@@ -73,7 +78,8 @@ $function$;
 
 -- Los chicos de una familia en una línea: "2 chicos (3 y 5 años)". La edad es la misma regla que
 -- edadHijo() en core.js: años cumplidos desde la fecha de nacimiento o, si no hay, la edad
--- declarada más los años que pasaron desde que se declaró. Un bebé es "menos de 1 año"; el que no
+-- declarada más los años que pasaron desde que se declaró (nunca negativos: una fecha futura
+-- suma 0, como anosCompletosDesde). Un bebé es "menos de 1 año"; el que no
 -- tiene edad cuenta pero no va entre paréntesis. Sin hijos cargados, el texto viejo de
 -- familias.ninos recortado a 80; sin nada, null.
 -- Invoker a propósito: desde ninera_mis_sittings (security definer) corre como su dueña; llamada
@@ -97,7 +103,7 @@ begin
                  case when h.fecha_nacimiento is not null
                         then extract(year from age(public.hoy_mvd(), h.fecha_nacimiento))::int
                       when h.edad_declarada is not null
-                        then h.edad_declarada + coalesce(extract(year from age(public.hoy_mvd(), h.edad_declarada_en))::int, 0)
+                        then h.edad_declarada + greatest(0, coalesce(extract(year from age(public.hoy_mvd(), h.edad_declarada_en))::int, 0))
                  end as edad
             from public.hijos_familia h
            where h.familia_id = p_familia_id) e;
@@ -135,14 +141,15 @@ create or replace function public.ninera_mi_perfil()
 returns table (id uuid, nombre text, telefono text, tipo text, zona text, barrios text,
                cuenta_bancaria text[], foto text, foto_propuesta_ruta text,
                foto_propuesta_en timestamp with time zone, perfil_app_en timestamp with time zone,
-               app_activada_en timestamp with time zone)
+               perfil_actualizado_en timestamp with time zone, app_activada_en timestamp with time zone)
 language sql
 stable
 security definer
 set search_path to 'public'
 as $function$
   select n.id, n.nombre, n.telefono, n.tipo, n.zona, n.barrios, n.cuenta_bancaria, n.foto,
-         n.foto_propuesta_ruta, n.foto_propuesta_en, n.perfil_app_en, n.app_activada_en
+         n.foto_propuesta_ruta, n.foto_propuesta_en, n.perfil_app_en, n.perfil_actualizado_en,
+         n.app_activada_en
     from public.ninieras n
    where n.id = (select public.ninera_actual())
 $function$;
@@ -169,9 +176,11 @@ grant execute on function public.ninera_zonas_disponibles() to authenticated;
 
 -- Guarda el perfil de la niñera de la sesión. Valida todo antes de escribir (nada a medias):
 -- tipo de la lista, al menos una zona y todas de zona_grupos (la app manda los nombres que le dio
--- ninera_zonas_disponibles), y la foto solo en su carpeta. La cuenta: una línea por renglón, sin
--- espacios de más ni renglones vacíos. perfil_app_en se pone una sola vez. Sin foto nueva, la
--- propuesta que haya queda como estaba.
+-- ninera_zonas_disponibles), y la foto solo en su ruta exacta (fotos/<su id>/propuesta.jpg, la
+-- que sube la app con upsert). Las zonas se guardan sin repetir, en el orden en que llegaron. La
+-- cuenta: una línea por renglón, sin espacios de más ni renglones vacíos, hasta 120 caracteres
+-- cada una. perfil_app_en se pone una sola vez; perfil_actualizado_en, en cada guardado. Sin foto
+-- nueva, la propuesta que haya queda como estaba.
 create or replace function public.ninera_guardar_perfil(p_tipo text, p_zonas text[], p_cuenta text[], p_foto_ruta text default null)
 returns void
 language plpgsql
@@ -181,6 +190,7 @@ set search_path to 'public'
 as $function$
 declare
   v_id uuid := public.ninera_actual();
+  v_zona text;
   v_cuenta text[];
 begin
   if v_id is null then
@@ -196,21 +206,25 @@ begin
               where not exists (select 1 from public.zona_grupos g where g.nombre = z)) then
     raise exception 'zona_desconocida';
   end if;
-  -- Solo en su carpeta, y sin "..": la ruta se guarda y la admin la abre después.
-  if p_foto_ruta is not null
-     and (not starts_with(p_foto_ruta, 'fotos/' || v_id::text || '/') or p_foto_ruta like '%..%') then
+  -- Solo la ruta exacta de su foto: la ruta se guarda y la admin la abre después, así que nada
+  -- de otra carpeta, otro nombre ni "..".
+  if p_foto_ruta is not null and p_foto_ruta <> 'fotos/' || v_id::text || '/propuesta.jpg' then
     raise exception 'foto_invalida';
   end if;
 
-  select array_agg(btrim(l, E' \t\r\n') order by o) into v_cuenta
+  select string_agg(z, '/' order by o) into v_zona
+    from (select z, min(o) as o from unnest(p_zonas) with ordinality u(z, o) group by z) x;
+
+  select array_agg(left(btrim(l, E' \t\r\n'), 120) order by o) into v_cuenta
     from unnest(p_cuenta) with ordinality u(l, o)
    where btrim(l, E' \t\r\n') <> '';
 
   update public.ninieras n
      set tipo = p_tipo,
-         zona = array_to_string(p_zonas, '/'),
+         zona = v_zona,
          cuenta_bancaria = v_cuenta,
          perfil_app_en = coalesce(n.perfil_app_en, now()),
+         perfil_actualizado_en = now(),
          foto_propuesta_ruta = coalesce(p_foto_ruta, n.foto_propuesta_ruta),
          foto_propuesta_en = case when p_foto_ruta is not null then now() else n.foto_propuesta_en end
    where n.id = v_id;
