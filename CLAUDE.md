@@ -314,6 +314,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   recalcula con la tarifa y los términos, medianoche, ya cobrado, otra admin, base que falla, traslado, 390 px).
 - `tests/ninieras-lista.spec.js`: lista de Niñeras por fecha de entrevista (sin entrevista al
   final), sittings y traslados de cada una en su fila, una sola fecha de nacimiento al editar.
+- `tests/parpadeo-ninieras.spec.js`: guardar en Niñeras repinta Utilización y Temporadas a lo sumo
+  una vez aunque vuelva el eco por Realtime (y no vuelve a armar el gráfico si el panel no cambió),
+  un cambio de otra admin después sí se refleja, y la base que falla al recargar (aviso, sin loop).
 - `tests/precio-a-mano.spec.js`: precio puesto a mano con motivo en el registro (pide el motivo, lo
   conserva, "Usar estos montos" lo saca, editar lo muestra, base sin migrar) y en "Editar
   movimiento"; "Revisar meses" no marca los que tienen motivo. En la base: `supabase/pruebas/precio_a_mano.sql`.
@@ -479,6 +482,12 @@ reporte.
 - Realtime tampoco repinta lo que se está escribiendo: RR.HH. en Entrevista y Finanzas usan
   recarga liviana (`RT_RECARGA_LIVIANA`, agenda.js); con un modal abierto el cambio se aplica al
   cerrarlo.
+- Eco del propio guardado (27/10/2026): una recarga liviana avisa cuándo empieza y termina con
+  `marcarRecargaLiviana(modulo, enCurso)` (agenda.js; hoy la llama `cargarNinieras`, que además
+  nunca corre dos veces a la vez) y Realtime ignora el evento que llega con esa recarga en curso o
+  hasta 1,5 s después (`esEcoDeRecargaPropia`); un cambio de otra admin después recarga igual. Un
+  panel que se repinta en cada recarga va con `pintarSiCambio(wrap, html)` (core.js): con el mismo
+  HTML no vuelve a crear la tarjeta ni su fundido.
 - Una función global nueva no puede repetir el nombre de otra en ningún archivo, de ninguna de las
   dos puertas. Una función de `js/comun.js` no se redefine en ningún otro archivo; `comun.js` no
   lleva nada de plata.
@@ -772,6 +781,10 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   sola fuente del precio del fijo.
 - Sittings no está en `RT_RECARGA_LIVIANA` (agenda.js): el propio guardado reconstruye el módulo y
   pierde los filtros del historial.
+- `reescribirZonasConTexto` / `refrescarTrasCambioDeZonas` (core.js, 27/10/2026): al corregir una zona
+  hace un UPDATE por ficha en un loop (cada evento vuelve por Realtime); conviene una sola escritura.
+- Niñeras baja toda la historia de `sittings_traslados` en cada recarga (`cargarUtilizacionNinieras`,
+  27/10/2026): conviene una vista o RPC con los conteos por niñera (30 días, total, última fecha).
 
 ### WhatsApp y automatización de mensajes
 - Línea de WhatsApp Business + API de Meta (Coexistence): bloqueado. Es la base del flujo de

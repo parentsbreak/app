@@ -292,8 +292,8 @@ function renderZonasNuevasPanel(){
   const wrap = document.getElementById('nin-zonasnuevas-wrap') || document.getElementById('fam-zonasnuevas-wrap');
   if(!wrap) return;
   const nuevas = zonasNuevasSinConfirmar();
-  if(!nuevas.length){ wrap.innerHTML = ''; return; }
-  wrap.innerHTML = `<div class="card" style="padding:12px 18px;border-left:3px solid var(--warn);border-radius:0 12px 12px 0;margin-bottom:10px;">
+  if(!nuevas.length){ pintarSiCambio(wrap, ''); return; }
+  pintarSiCambio(wrap, `<div class="card" style="padding:12px 18px;border-left:3px solid var(--warn);border-radius:0 12px 12px 0;margin-bottom:10px;">
     <div style="font-weight:600;margin-bottom:2px;">Barrios sin zona (${nuevas.length})</div>
     <div class="helper" style="margin:0 0 6px;">Aparecen en alguna ficha pero no pertenecen a ninguna zona. Elegí a qué zona van y se corrigen solas todas las fichas.</div>
     ${nuevas.map((z,i)=>`
@@ -306,7 +306,7 @@ function renderZonasNuevasPanel(){
         <button class="smallbtn" onclick="conGuardado(this, ()=>accionAsignarBarrioAZona(${argJs(z)},'zn-sel-${i}'))">Asignar</button>
         <button class="smallbtn" onclick="conGuardado(this, ()=>accionCrearZonaConBarrio(${argJs(z)}))">Crear zona nueva</button>
       </div>`).join('')}
-  </div>`;
+  </div>`);
 }
 /* Checklist de zonas compartido — reemplaza el texto libre de antes (donde
    escribir "Pocitos, Malvín" terminaba pisando otras zonas por error). Junta
@@ -784,6 +784,17 @@ function restaurarScrollMainarea(valor){
     const el = document.querySelector('.mainarea');
     if(el) el.scrollTop = valor;
   });
+}
+/* Pinta un bloque solo si su HTML cambió (27/10/2026, parpadeo en Niñeras). Cada
+   `wrap.innerHTML = ...` vuelve a crear la tarjeta con su fundido de entrada (.card tiene
+   animation fadeIn): los paneles de Niñeras se repintaban en cada recarga aunque no hubiera
+   cambiado nada y se veían prender y apagar. El último HTML pintado se guarda en el nodo (no se
+   compara con innerHTML, que el navegador normaliza al serializar). Devuelve true si pintó. */
+function pintarSiCambio(wrap, html){
+  if(wrap._htmlPintado === html) return false;
+  wrap.innerHTML = html;
+  wrap._htmlPintado = html;
+  return true;
 }
 
 /* ============================================================

@@ -1910,6 +1910,27 @@ const RT_RECARGA_LIVIANA = {
   finanzas: 'refrescarFinanzasCompleto',
   rrhh: 'refrescarRrhhSinPisarEntrevista',
 };
+// Eco del propio guardado (27/10/2026, parpadeo en Niñeras): guardar ya recarga la lista
+// (cargarNinieras), y el UPDATE propio volvía por Realtime 600 ms después y disparaba OTRA recarga
+// completa (y una tercera cuando también se tocaba la ficha de candidata). Cada una repintaba
+// Utilización y Temporadas con su fundido y, como cada carga tarda distinto, se veían prender y
+// apagar varias veces. La recarga liviana del módulo avisa cuándo empieza y termina
+// (marcarRecargaLiviana, desde cargarNinieras); un evento que llega con esa recarga en curso o
+// dentro de esta ventana es el eco del guardado y se ignora. Un cambio de otra admin que llega
+// después sigue recargando. Las recargas que lanza el propio Realtime no cuentan: si no, un
+// segundo cambio ajeno que llegara mientras se aplica el primero se perdería.
+const RT_VENTANA_ECO_MS = 1500;
+let rtRecargaPropia = {}; // módulo -> { enCurso: true } o { terminoEn: performance.now() }
+let rtRecargaDesdeRealtime = null; // módulo cuya recarga liviana lanzó Realtime (no es un guardado)
+function marcarRecargaLiviana(modulo, enCurso){
+  if(rtRecargaDesdeRealtime === modulo) return;
+  // performance.now(): es un intervalo, no una fecha (y los tests fijan el reloj de Date).
+  rtRecargaPropia[modulo] = enCurso ? { enCurso: true } : { terminoEn: performance.now() };
+}
+function esEcoDeRecargaPropia(modulo){
+  const r = rtRecargaPropia[modulo];
+  return !!r && (r.enCurso || performance.now() - r.terminoEn < RT_VENTANA_ECO_MS);
+}
 function suscribirRealtimeModuloActivo(){
   if(rtChannel){ sb.removeChannel(rtChannel); rtChannel = null; }
   const clave = moduloActivo && !moduloActivo.startsWith('pend-') ? moduloActivo : 'hoy';
@@ -1926,8 +1947,12 @@ function suscribirRealtimeModuloActivo(){
         // apenas se cierra (antes se descartaba y la pantalla quedaba vieja hasta recargar).
         if(document.querySelector('.confirmoverlay.show')){ rtRefrescarTimer = setTimeout(refrescar, 800); return; }
         const recargaLiviana = RT_RECARGA_LIVIANA[clave] && window[RT_RECARGA_LIVIANA[clave]];
+        if(recargaLiviana && esEcoDeRecargaPropia(clave)) return;
         const scrollRT = guardarScrollMainarea();
-        if(recargaLiviana){ await recargaLiviana(); }
+        if(recargaLiviana){
+          rtRecargaDesdeRealtime = clave;
+          try { await recargaLiviana(); } finally { rtRecargaDesdeRealtime = null; }
+        }
         else { renderModulo(); }
         restaurarScrollMainarea(scrollRT);
       };
