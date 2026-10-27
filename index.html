@@ -576,8 +576,10 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
      publica npm (dist/umd/supabase.js); tests/estatico.spec.js controla versión y sha256.
      Para actualizarlo: bajar la versión nueva de npm, reemplazar el archivo y el número acá.
      Va acá abajo (no en el <head>) para que la pantalla de carga se vea mientras se descarga;
-     el orden de los scripts es el mismo de siempre: primero esta librería, después core.js. -->
+     el orden de los scripts es el mismo de siempre: primero esta librería, después comun.js
+     (26/10/2026: helpers que comparte con la app de niñeras, ninera/index.html) y core.js. -->
 <script src="vendor/supabase-js-2.117.2.umd.js"></script>
+<script src="js/comun.js"></script>
 <script src="js/core.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app-shell.js"></script>

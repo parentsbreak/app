@@ -8,3 +8,7 @@ playwright-report/
 .env
 .env.*
 local/
+
+# Worktrees y archivos de trabajo de las sesiones de Claude: nunca al repo.
+.claude/worktrees/
+.superpowers/

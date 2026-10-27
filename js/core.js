@@ -1,5 +1,5 @@
-const SUPABASE_URL = 'https://wvewzamdohrpfhpccvcz.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_NX4E4FfAkwFQSFo4Rgl0Jg_IcebuaaI';
+// SUPABASE_URL, SUPABASE_KEY, el escape, las fechas, toast, conGuardado y sbGuardar están en
+// js/comun.js (26/10/2026), que se carga antes: los comparte la app de niñeras.
 // Si supabase-js no cargó, sb queda en null y boot() muestra un error claro en vez de dejar la
 // pantalla en blanco (antes: "supabase is not defined" y nada más).
 const sb = (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function')
@@ -133,7 +133,6 @@ function asegurarXLSX(){
   return _xlsxPromise;
 }
 
-function normaliza(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function zonasDe(zonaStr){ return (zonaStr||'').split(/[/,]/).map(z=>z.trim()).filter(Boolean); }
 /* ============================================================
    ZONAS (30/09/2026): todo el sistema trabaja por ZONA, no por barrio suelto.
@@ -681,27 +680,6 @@ function resumenHijosFamilia(hijos){
     return edad!==null ? `${h.nombre||'Hijo/a'} (${edad} años)` : (h.nombre||'Hijo/a');
   }).join(', ');
 }
-/* ============================================================
-   Escape de datos (05/10/2026, paso 4). Nombres, notas y URLs llegan de la base, y las
-   candidatas, desde un formulario público: un apóstrofo (D'Alessandro) rompía los
-   onclick y un "<img onerror=...>" se ejecutaba. Todo dato que va a innerHTML o a un
-   handler inline pasa por UNO de estos tres:
-   - escaparHtml(t): texto o valor de atributo (definida junto a la vigencia de fijos).
-   - argJs(v): un dato como argumento de un handler inline -> el handler queda como  f(${argJs(x)})  dentro del atributo.
-     Genera un literal JSON escapado para el atributo; el navegador lo desescapa antes
-     de correr el JS, así que llega exactamente el mismo valor (string, número o null).
-   - urlSegura(u): para href y src. Solo http(s), blob:, data:image, mailto:, tel: o
-     rutas relativas; cualquier otra cosa (javascript:...) queda vacía.
-   ============================================================ */
-function argJs(v){ return escaparHtml(JSON.stringify(v === undefined ? null : v)); }
-function urlSegura(u){
-  const t = String(u ?? '').trim();
-  // El navegador ignora tabs y saltos dentro del esquema ("java\nscript:"): se miran sin ellos.
-  const limpio = t.replace(/[\u0000-\u0020\u007f]/g, '');
-  if(!limpio) return '';
-  if(/^(https?:|blob:|mailto:|tel:|data:image\/)/i.test(limpio) || !/^[a-z][a-z0-9+.-]*:/i.test(limpio)) return escaparHtml(t);
-  return '';
-}
 /* Selector de zonas compartido (niñeras, familias, postulantes, Agenda): una casilla por
    zona, se pueden marcar varias. Lo que llega escrito como barrio ("Olivos") ya aparece
    marcado en su zona ("Carrasco"). Si algún texto viejo no pertenece a ninguna zona, se
@@ -917,19 +895,6 @@ function textoCuentasBancarias(cuentas){
   return lista.length ? lista.join(' · ') : '—';
 }
 
-// Calcula la edad a partir de una fecha de nacimiento (YYYY-MM-DD), a una fecha de
-// referencia dada (por default hoy). Reemplaza el viejo criterio de guardar "19 años" como
-// texto fijo, que quedaba vieja apenas la persona cumplía años.
-function calcularEdad(fechaNacISO, fechaRefISO){
-  if(!fechaNacISO) return null;
-  const nac = new Date(fechaNacISO+'T00:00:00');
-  const ref = new Date((fechaRefISO || todayISO())+'T00:00:00');
-  if(isNaN(nac)) return null;
-  let edad = ref.getFullYear() - nac.getFullYear();
-  const noLlegoAlCumple = (ref.getMonth() < nac.getMonth()) || (ref.getMonth()===nac.getMonth() && ref.getDate() < nac.getDate());
-  if(noLlegoAlCumple) edad--;
-  return edad;
-}
 // Cuántos años completos pasaron desde una fecha (mismo criterio que calcularEdad, pero
 // contando años transcurridos en vez de edad respecto a un nacimiento).
 function anosCompletosDesde(fechaISO){
@@ -954,33 +919,6 @@ function edadHijo(hijo){
   const porFecha = calcularEdad(hijo?.fecha_nacimiento);
   if(porFecha!==null) return porFecha;
   return edadDesdeDeclarada(hijo?.edad_declarada, hijo?.edad_declarada_en);
-}
-
-// opciones.deshacer (23/10/2026): suma un botón "Deshacer" y el aviso queda 8 segundos, para
-// volver atrás algo reversible (marcar cobrado / pagado) sin un diálogo previo.
-function toast(msg, type='good', opciones={}){
-  let stack = document.querySelector('.toaststack');
-  if(!stack){ stack = document.createElement('div'); stack.className='toaststack'; document.body.appendChild(stack); }
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = msg;
-  const irse = () => { if(!el.isConnected || el.classList.contains('leaving')) return; el.classList.add('leaving'); setTimeout(()=>el.remove(), 220); };
-  if(opciones.deshacer){
-    el.classList.add('con-accion');
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'toast-accion';
-    btn.textContent = 'Deshacer';
-    btn.addEventListener('click', async ()=>{
-      if(btn.disabled) return;
-      btn.disabled = true;
-      irse();
-      await opciones.deshacer();
-    });
-    el.appendChild(btn);
-  }
-  stack.appendChild(el);
-  setTimeout(irse, opciones.deshacer ? 8000 : 3200);
 }
 
 /* ============================================================
@@ -1043,63 +981,6 @@ async function leerTodasLasFilas(armar){
     if(error) return { data: null, error };
     filas.push(...(data||[]));
     if(!data || data.length < FILAS_POR_PEDIDO) return { data: filas, error: null };
-  }
-}
-
-/* Envoltorio para escrituras de Supabase (insert/update/delete/upsert): si falla, avisa con
-   un mensaje consistente y devuelve false para poder cortar el flujo. Antes algunas escrituras
-   sueltas no chequeaban error en absoluto (fallaban en silencio, la pantalla seguía como si
-   hubiera funcionado) o usaban un alert() feo del navegador en vez del aviso normal de la app.
-   Uso: if(!(await sbGuardar(sb.from('solicitudes').update({...}).eq('id', id), 'la solicitud'))) return; */
-/* Doble toque en "Guardar" (05/10/2026, paso 5). El 19/09 quedaron cuatro sittings iguales
-   guardados en medio segundo: cada toque disparaba otro insert. Todo botón que escribe en la
-   base llama a su función a través de conGuardado(this, ()=>guardarX(...)): el botón queda
-   deshabilitado y con la ruedita hasta que el guardado termina (bien o mal), y un segundo
-   toque mientras tanto no hace nada. La función de adentro tiene que devolver la promesa
-   (async/await) para que el botón se libere recién al final. */
-// Cuántos guardados hay en curso: un modal que se cierra o se reemplaza mientras tanto es porque
-// se guardó, y su borrador ya no hace falta (protegerModal).
-let guardandoActivo = 0;
-async function conGuardado(btn, accion){
-  if(btn && btn.dataset.guardando) return;
-  let htmlAntes = null;
-  if(btn){
-    btn.dataset.guardando = '1';
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    htmlAntes = btn.innerHTML;
-    const fondoOscuro = btn.classList.contains('primary') || (btn.classList.contains('btn') && btn.classList.contains('danger'));
-    // El ícono de algunos botones (tacho) se reemplaza; el texto queda, con la ruedita adelante.
-    const texto = btn.textContent.trim();
-    btn.innerHTML = `<span class="spinner${fondoOscuro?'':' dark'}"></span>${texto ? ' '+escaparHtml(texto) : ''}`;
-  }
-  guardandoActivo++;
-  try {
-    return await accion();
-  } finally {
-    guardandoActivo--;
-    // Si el modal se cerró, el botón ya no está en pantalla y no hay nada que restaurar.
-    if(btn && btn.isConnected){
-      btn.innerHTML = htmlAntes;
-      btn.disabled = false;
-      btn.removeAttribute('aria-busy');
-      delete btn.dataset.guardando;
-    }
-  }
-}
-async function sbGuardar(consulta, queCosa='los cambios'){
-  try {
-    const { error } = await consulta;
-    if(error){
-      console.error('[Supabase] al guardar', queCosa, error);
-      toast(`No se pudo guardar ${queCosa}: ${error.message}`, 'bad');
-      return false;
-    }
-    return true;
-  } catch(e){
-    console.error('[Supabase] al guardar', queCosa, e);
-    toast(`No se pudo guardar ${queCosa}. Revisá tu conexión.`, 'bad');
-    return false;
   }
 }
 
@@ -1256,31 +1137,7 @@ async function achicarFoto(file, ladoMax=800, calidad=0.82){
   }catch(e){ return file; }
 }
 function horaTxt(h){ return h ? h.slice(0,5) : '?'; }
-// Escapa texto que viene de datos antes de meterlo en innerHTML. (El PR 4 la usa en toda
-// la app; por ahora la usa el historial de sittings, que muestra notas tal cual se cargaron.)
-function escaparHtml(t){ return String(t ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-/* ============================================================
-   Fechas en hora de Montevideo (05/10/2026). todayISO() usaba
-   new Date().toISOString(), que es UTC: de 21:00 a 24:00 en Uruguay ya devolvía
-   el día de mañana (un sitting cargado de noche quedaba con la fecha siguiente).
-   Todo "hoy" sale de acá, fijado a America/Montevideo aunque el celular esté en
-   otra zona; para sumar días a una fecha "AAAA-MM-DD" usar sumarDiasISO().
-   ============================================================ */
-const ZONA_NEGOCIO = 'America/Montevideo';
-let _fmtFechaNegocio = null;
-function fechaNegocioISO(d){
-  d = d || new Date();
-  try{
-    if(!_fmtFechaNegocio) _fmtFechaNegocio = new Intl.DateTimeFormat('en-CA', {timeZone:ZONA_NEGOCIO, year:'numeric', month:'2-digit', day:'2-digit'});
-    const p = {};
-    _fmtFechaNegocio.formatToParts(d).forEach(x=>{ p[x.type] = x.value; });
-    if(p.year && p.month && p.day) return `${p.year}-${p.month}-${p.day}`;
-  }catch(e){}
-  // Navegador sin soporte de zonas horarias: la fecha local del aparato.
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function todayISO(){ return fechaNegocioISO(new Date()); }
 /* Precio puesto a mano (21/10/2026, Paulina y Delfina): cuando el precio de un sitting no es el de
    la tarifa, se anota por qué (sittings_traslados.precio_motivo). Lo piden el registro (si no
    coincide con el calculado) y "Editar movimiento" en Finanzas (si se cambia el monto). */
@@ -1303,8 +1160,6 @@ function minutosAhoraMontevideo(d=new Date()){
   }catch(e){}
   return d.getHours()*60 + d.getMinutes();
 }
-function currentMonthStr(){ return todayISO().slice(0,7); }
-function diaSemanaDeISO(fechaISO){ return ['D','L','M','X','J','V','S'][new Date(fechaISO+'T12:00:00').getDay()]; }
 
 /* ============================================================
    Vigencia de los fijos (05/10/2026, error E2). Cada asignación vale entre
@@ -1320,11 +1175,6 @@ function asignacionVigenteEn(a, fechaISO){
 }
 function asignacionTerminada(a, hoyISO){ return !!(a && a.vigente_hasta && a.vigente_hasta < hoyISO); }
 function tipoAsignacion(a){ return a && a.tipo==='traslado' ? 'traslado' : 'sitting'; }
-function sumarDiasISO(fechaISO, n){
-  const d = new Date(fechaISO+'T12:00:00'); // mediodía: sumar días nunca cruza de fecha por la zona horaria
-  d.setDate(d.getDate()+n);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
 function textoVigencia(a){
   const f = iso => iso ? new Date(iso+'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
   // "Empezó el" (10/10/2026): fecha real si el fijo arrancó antes de la app. Solo informativo.
@@ -1394,15 +1244,6 @@ function textoTotalConGastos(etiqueta, base, gastos){
   if(!g) return '';
   const b = Number(base)||0, f = n => '$'+Math.round(n).toLocaleString('es-UY');
   return `${etiqueta} ${f(b)} + gastos ${f(g)} = ${f(b+g)}`;
-}
-// Copia un dato con un toque (cuentas y montos para pagar desde el celular, 21/10/2026). Si el
-// navegador no deja usar el portapapeles, lo muestra seleccionado para copiarlo a mano.
-async function copiarAlPortapapeles(texto, aviso='Copiado.'){
-  try{ await navigator.clipboard.writeText(texto); toast(aviso); }
-  catch(e){
-    abrirModal(`<h2 style="margin:0 0 8px;">Copialo de acá</h2><input type="text" id="copiar-a-mano" readonly value="${escaparHtml(texto)}" style="font-family:'IBM Plex Mono',monospace;">`);
-    document.getElementById('copiar-a-mano')?.select();
-  }
 }
 /* Términos y condiciones (20/10/2026, regla de Paulina y Delfina). A las familias que los
    aceptaron (familias.terminos_aceptados_el) el fin de cada sitting se les COBRA redondeado a

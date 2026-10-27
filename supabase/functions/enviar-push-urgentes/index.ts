@@ -17,6 +17,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // 'cron_push_secret' (migración 20261013_cron_push_secreto); sin esa clave, 401.
 // V10 (23/10/2026): aviso del extracto apagado. Ya no usan Itaú y el lector de Mercado Pago
 // todavía no está (Pendientes, "Cambio de banco"). La app tiene la misma marca (app-shell.js).
+// V11 (26/10/2026, fase 1): solo dispositivos de admins (push_subscriptions.user_id vacío). Desde
+// la migración cuentas_ninieras las niñeras guardan sus propias suscripciones (con user_id) y
+// nunca tienen que recibir estos avisos del panel, que nombran familias y otras niñeras.
 const AVISO_EXTRACTO_ACTIVO = false;
 
 function mismoSecreto(recibido: string | null, esperado: string | undefined): boolean {
@@ -204,7 +207,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ enviados: 0, motivo: "ya se habia avisado de todas" }), { headers: { "Content-Type": "application/json" } });
     }
 
-    const { data: subs } = await sb.from("push_subscriptions").select("*");
+    const { data: subs } = await sb.from("push_subscriptions").select("*").is("user_id", null);
     if (!subs || !subs.length) {
       for (const c of nuevas) await sb.from("notif_push_enviadas").insert({ notif_id: c.id });
       return new Response(JSON.stringify({ enviados: 0, motivo: "nadie activo el push todavia" }), { headers: { "Content-Type": "application/json" } });

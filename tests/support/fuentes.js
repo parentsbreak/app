@@ -7,21 +7,39 @@ const RAIZ = path.resolve(__dirname, '..', '..');
 const leer = rel => fs.readFileSync(path.join(RAIZ, rel), 'utf8');
 
 // Orden de carga acordado (CLAUDE.md). Cambiarlo requiere consultarlo antes.
+// Dos puertas desde la fase 1 (26/10/2026): el panel de admins (index.html) y la app de
+// niñeras (ninera/index.html). Las dos cargan primero js/comun.js, con los helpers compartidos.
 const ORDEN_SCRIPTS = [
-  'js/core.js', 'js/auth.js', 'js/app-shell.js', 'js/finanzas.js', 'js/juguetes.js', 'js/agenda.js',
+  'js/comun.js', 'js/core.js', 'js/auth.js', 'js/app-shell.js', 'js/finanzas.js', 'js/juguetes.js', 'js/agenda.js',
   'js/contratos.js', 'js/marketing.js', 'js/postulantes.js', 'js/ninieras.js', 'js/familias.js',
   'js/sittings.js', 'js/intermediaciones.js', 'js/bootstrap.js',
 ];
+// Crece con cada etapa de la fase 1; arranque.js siempre al final.
+const ORDEN_SCRIPTS_NINERA = [
+  'js/comun.js', 'ninera/js/base.js', 'ninera/js/cuenta.js', 'ninera/js/inicio.js', 'ninera/js/arranque.js',
+];
+// Todos los archivos de las dos puertas, sin repetir (comun.js una sola vez).
+const TODOS_LOS_SCRIPTS = [...new Set([...ORDEN_SCRIPTS, ...ORDEN_SCRIPTS_NINERA])];
 
 function scriptsDeIndex() {
   return [...leer('index.html').matchAll(/<script\s+src="(js\/[^"]+)"/g)].map(m => m[1]);
 }
 
+// ninera/index.html pide sus archivos relativos a su carpeta: "js/base.js" es ninera/js/base.js
+// y "../js/comun.js" es el compartido. Se devuelven relativos a la raíz, como ORDEN_SCRIPTS_NINERA
+// (sin la librería de vendor/, que tiene su propio chequeo).
+function scriptsDeIndexNinera() {
+  return [...leer('ninera/index.html').matchAll(/<script\s+src="([^"]+)"/g)]
+    .map(m => m[1])
+    .filter(src => !src.startsWith('../vendor/'))
+    .map(src => src.startsWith('../') ? src.slice(3) : `ninera/${src}`);
+}
+
 // Declaraciones de nivel superior. El código de la app las escribe siempre en la columna 0
 // (function x / async function x / let|const|var x), así que alcanza con mirar esas líneas.
-function declaracionesTopLevel() {
+function declaracionesTopLevel(lista = TODOS_LOS_SCRIPTS) {
   const out = [];
-  for (const archivo of ORDEN_SCRIPTS) {
+  for (const archivo of lista) {
     leer(archivo).split('\n').forEach((linea, i) => {
       let m = linea.match(/^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/);
       if (m) { out.push({ nombre: m[1], archivo, linea: i + 1 }); return; }
@@ -45,9 +63,9 @@ function declaracionesTopLevel() {
 }
 
 // Handlers inline (onclick="...", onchange='...') dentro del HTML que arma el JS.
-function handlersInline() {
+function handlersInline(lista = TODOS_LOS_SCRIPTS) {
   const out = [];
-  for (const archivo of ORDEN_SCRIPTS) {
+  for (const archivo of lista) {
     const src = leer(archivo);
     const re = /\bon([a-z]+)=(["'])/g;
     let m;
@@ -75,9 +93,11 @@ const NO_SON_FUNCIONES_DE_LA_APP = new Set(['if', 'for', 'while', 'switch', 'ret
   'decodeURIComponent', 'isNaN', 'requestAnimationFrame', 'open']);
 
 // Nombres de funciones globales que llaman los handlers (sin contar métodos tipo this.x()).
-function funcionesLlamadasPorHandlers() {
+// Por defecto los del panel: humo.spec.js los busca en la página de admins, donde no están
+// las funciones de la app de niñeras.
+function funcionesLlamadasPorHandlers(lista = ORDEN_SCRIPTS) {
   const nombres = new Map();
-  for (const h of handlersInline()) {
+  for (const h of handlersInline(lista)) {
     const codigo = h.texto
       .replace(/\$\{(?:[^{}]|\{[^{}]*\})*\}/g, 'X')
       .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '""');
@@ -94,7 +114,8 @@ function funcionesLlamadasPorHandlers() {
 const RE_EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{FE0F}]/gu;
 const PERMITIDOS = new Set(['✕', '✓', '★']); // ✕ ✓ ★
 function emojisPorArchivo() {
-  const archivos = [...ORDEN_SCRIPTS, 'index.html', 'sw.js', 'manifest.json', 'temporada.html'];
+  const archivos = [...TODOS_LOS_SCRIPTS, 'index.html', 'sw.js', 'manifest.json', 'temporada.html',
+    'ninera/index.html', 'ninera/sw.js', 'ninera/manifest.json'];
   const out = {};
   for (const a of archivos) {
     const lista = (leer(a).match(RE_EMOJI) || []).filter(c => !PERMITIDOS.has(c) && c !== '️');
@@ -103,4 +124,4 @@ function emojisPorArchivo() {
   return out;
 }
 
-module.exports = { RAIZ, leer, ORDEN_SCRIPTS, scriptsDeIndex, declaracionesTopLevel, handlersInline, funcionesLlamadasPorHandlers, emojisPorArchivo };
+module.exports = { RAIZ, leer, ORDEN_SCRIPTS, ORDEN_SCRIPTS_NINERA, TODOS_LOS_SCRIPTS, scriptsDeIndex, scriptsDeIndexNinera, declaracionesTopLevel, handlersInline, funcionesLlamadasPorHandlers, emojisPorArchivo };
