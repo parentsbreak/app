@@ -4,7 +4,7 @@
 // foto del CV (la ven las madres) o la descarta. Todo contra el simulador: Carla completó el perfil
 // y mandó una foto; Ana no. Datos inventados.
 const { test, expect } = require('@playwright/test');
-const { abrirApp, irAModulo, verificarLimpio } = require('./support/app');
+const { abrirApp, irAModulo, verificarLimpio, REF_PROD } = require('./support/app');
 const { datosBase, ID } = require('./support/datos');
 
 const RUTA = `fotos/${ID.nCarla}/propuesta.jpg`;
@@ -135,6 +135,55 @@ test.describe('ficha de la niñera: foto propuesta', () => {
     expect(carla(e).foto).toBe(p.cuerpo.foto);
     expect(carla(e).foto_propuesta_ruta).toBeNull();
     verificarLimpio(e);
+  });
+
+  // Diego, 29/10/2026: al aprobar, la foto anterior del CV se borra del bucket público para no dejar
+  // archivos sueltos. Solo si es de ninieras-fotos de este proyecto y ninguna otra ficha la usa.
+  const FOTO_VIEJA = 'ninera-1700000000000-vieja.jpg';
+  const urlPublica = nombre => `https://${REF_PROD}.supabase.co/storage/v1/object/public/ninieras-fotos/${nombre}`;
+  const borradosPublicos = e => e.escrituras.filter(w => w.tabla === '/storage/v1/object/ninieras-fotos' && w.metodo === 'DELETE');
+  function conFotoCarla(foto, otra) {
+    const datos = datosBase();
+    datos.ninieras.find(n => n.id === ID.nCarla).foto = foto;
+    if (otra) datos.ninieras.find(n => n.id === ID.nBruno).foto = otra;
+    return datos;
+  }
+
+  test('"Usar" borra la foto anterior del CV después de guardar la nueva', async ({ page }) => {
+    const e = await abrirFicha(page, ID.nCarla, { datos: conFotoCarla(urlPublica(FOTO_VIEJA)) });
+    await botonUsar(page).click();
+    await expect(toasts(page).last()).toHaveText('Foto del CV actualizada.');
+    expect(borradosPublicos(e).map(w => JSON.parse(w.cuerpo))).toEqual([{ prefixes: [FOTO_VIEJA] }]);
+    const orden = e.escrituras.map(w => w.tabla + ' ' + w.metodo);
+    expect(orden.indexOf('ninieras PATCH')).toBeLessThan(orden.indexOf('/storage/v1/object/ninieras-fotos DELETE'));
+    verificarLimpio(e);
+  });
+
+  test('"Usar" no borra una foto anterior de otro bucket, de otro sitio ni una que usa otra ficha', async ({ page, browser }) => {
+    for (const [foto, otra] of [
+      [`https://${REF_PROD}.supabase.co/storage/v1/object/public/candidatas-fotos/c1.jpg`, null],
+      ['https://ejemplo.invalid/storage/v1/object/public/ninieras-fotos/x.jpg', null],
+      [urlPublica(FOTO_VIEJA), urlPublica(FOTO_VIEJA)],
+    ]) {
+      const pagina = await browser.newPage();
+      const e = await abrirFicha(pagina, ID.nCarla, { datos: conFotoCarla(foto, otra) });
+      await botonUsar(pagina).click();
+      await expect(toasts(pagina).last()).toHaveText('Foto del CV actualizada.');
+      expect(borradosPublicos(e)).toEqual([]);
+      // La foto de la dirección inventada no carga en la ficha: es ruido esperado.
+      verificarLimpio(e, { ignorar: RUIDO });
+      await pagina.close();
+    }
+  });
+
+  test('"Usar": si falla borrar la foto anterior, igual queda hecho (solo se anota)', async ({ page }) => {
+    const e = await abrirFicha(page, ID.nCarla, { datos: conFotoCarla(urlPublica(FOTO_VIEJA)) });
+    e.fallar = q => (q.tabla === '/storage/v1/object/ninieras-fotos' && q.metodo === 'DELETE' ? { status: 500, message: 'falla simulada' } : undefined);
+    await botonUsar(page).click();
+    await expect(toasts(page).last()).toHaveText('Foto del CV actualizada.');
+    expect(carla(e).foto).toMatch(/ninera-\d+-/);
+    expect(carla(e).foto).not.toBe(urlPublica(FOTO_VIEJA));
+    verificarLimpio(e, { ignorar: RUIDO });
   });
 
   test('si falla bajar la propuesta: aviso y nada subido ni guardado', async ({ page }) => {

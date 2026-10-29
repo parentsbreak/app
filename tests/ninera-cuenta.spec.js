@@ -9,10 +9,11 @@ const { ID, datosBase } = require('./support/datos');
 
 // Etapa 2 (27/10/2026): Ana todavía no completó su perfil y al entrar le sale "Completa esto una
 // sola vez". Estos tests miran la cuenta, los avisos y el inicio, así que entran con el perfil de
-// Ana ya completo (con zona); la primera vez se prueba en ninera-perfil.spec.js.
+// Ana ya completo (con zona y la fecha en que lo guardó desde la app); la primera vez se prueba en
+// ninera-perfil.spec.js.
 function abrirAppNinera(page, opciones = {}) {
   const datos = datosBase();
-  datos.ninieras.find(n => n.id === ID.nAna).zona = 'Pocitos';
+  Object.assign(datos.ninieras.find(n => n.id === ID.nAna), { zona: 'Pocitos', perfil_app_en: '2026-10-02T15:00:00+00:00' });
   return abrirAppNineraSimulador(page, { datos, ...opciones });
 }
 

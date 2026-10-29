@@ -971,6 +971,7 @@ async function aprobarFotoPropuesta(id, antes){
   const n = ninierasItems.find(x=>x.id===id);
   if(!n || !n.foto_propuesta_ruta) return;
   const ruta = n.foto_propuesta_ruta;
+  const fotoAnterior = n.foto;
   let blob = null;
   try {
     const { data, error } = await sb.storage.from('ninieras-privado').download(ruta);
@@ -1002,9 +1003,29 @@ async function aprobarFotoPropuesta(id, antes){
     if(error) console.warn('[foto propuesta] no se pudo borrar', error);
   } catch(e){ console.warn('[foto propuesta] no se pudo borrar', e); }
   Object.assign(n, cambios);
+  await borrarFotoAnteriorCv(fotoAnterior, id);
   filtrarNinieras();
   verNinera(id);
   toast('Foto del CV actualizada.');
+}
+// La ruta dentro de ninieras-fotos de una URL pública de este proyecto, o null si la foto es de otro
+// bucket (por ejemplo, la de la candidata) o de otro sitio. Pura, para poder probarla.
+function rutaEnFotosNinieras(url){
+  const prefijo = `${SUPABASE_URL}/storage/v1/object/public/ninieras-fotos/`;
+  if(typeof url !== 'string' || !url.startsWith(prefijo)) return null;
+  const ruta = decodeURIComponent(url.slice(prefijo.length).split(/[?#]/)[0]);
+  return ruta && !ruta.includes('..') ? ruta : null;
+}
+// Al aprobar una foto nueva, la anterior del CV se borra del bucket público para no dejar archivos
+// sueltos (Diego, 29/10/2026). Solo si es de ninieras-fotos y ninguna otra ficha la usa; va después
+// de guardar, así un fallo acá nunca deja la ficha sin foto. Si no se puede borrar, solo se anota.
+async function borrarFotoAnteriorCv(url, id){
+  const ruta = rutaEnFotosNinieras(url);
+  if(!ruta || ninierasItems.some(x => x.id !== id && x.foto === url)) return;
+  try {
+    const { error } = await sb.storage.from('ninieras-fotos').remove([ruta]);
+    if(error) console.warn('[foto del CV] no se pudo borrar la anterior', error);
+  } catch(e){ console.warn('[foto del CV] no se pudo borrar la anterior', e); }
 }
 // Primero limpia la ficha (con la condición de `antes`) y recién después borra el archivo: así nunca
 // se borra una foto que la niñera mandó mientras la admin miraba. Si el borrado falla, la ficha ya

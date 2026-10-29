@@ -33,9 +33,11 @@ async function cargarPerfilNinera(){
   return { perfil: (Array.isArray(data) ? data[0] : data) || null, sinMigrar: false };
 }
 
-// Sin zonas es que nunca lo completó: las fichas cargadas desde el panel ya tienen zona.
+// La primera vez que entra a la app, todas lo completan (Diego, 29/10/2026): perfil_app_en vacío es
+// que nunca lo guardó desde acá. Antes se miraba la zona, pero casi todas las fichas ya la tienen
+// cargada desde el panel y así nadie confirmaba sus servicios ni su cuenta.
 function perfilIncompleto(perfil){
-  return !perfil.zona;
+  return !perfil.perfil_app_en;
 }
 
 async function cargarZonasNinera(){

@@ -5,7 +5,7 @@
 // completó; Carla ya lo completó y mandó una foto.
 const { test, expect } = require('@playwright/test');
 const { abrirAppNinera, verificarLimpio } = require('./support/app');
-const { ID } = require('./support/datos');
+const { ID, datosBase } = require('./support/datos');
 
 const TITULO_PRIMERA = 'Completa esto una sola vez';
 const SIN_ZONA = 'Elige al menos una zona.';
@@ -78,6 +78,25 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     await expect(page.locator('#perfil-error')).toHaveText(SIN_ZONA);
     expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([]);
     expect(subidas(e)).toEqual([]);
+    verificarLimpio(e);
+  });
+
+  // Diego, 29/10/2026: la pantalla sale a TODAS la primera vez (perfil_app_en vacío), no solo a las
+  // que no tienen zona. En producción casi todas ya tienen zona cargada desde el panel, y así cada una
+  // confirma una vez sus servicios y su cuenta.
+  test('con zona cargada desde el panel pero sin perfil en la app: igual sale la primera vez, precargada', async ({ page }) => {
+    const datos = datosBase();
+    datos.ninieras.find(n => n.id === ID.nAna).zona = 'Pocitos';
+    const e = await abrir(page, { datos });
+    await expect(page.locator('h1')).toHaveText(TITULO_PRIMERA);
+    await expect(zona(page, 'Pocitos')).toBeChecked();
+    await expect(zona(page, 'Carrasco')).not.toBeChecked();
+    await expect(page.locator('#perfil-cuenta')).toHaveValue('0099887766');
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#proximos-sittings')).toBeVisible();
+    expect(rpcs(e, 'ninera_guardar_perfil')).toEqual([
+      { p_tipo: 'Niñera', p_zonas: ['Pocitos'], p_cuenta: ['0099887766'], p_foto_ruta: null },
+    ]);
     verificarLimpio(e);
   });
 

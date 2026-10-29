@@ -519,6 +519,9 @@ reporte.
   `confirmado`. La ficha muestra cuándo completó y editó el perfil (`perfil_app_en`, `perfil_actualizado_en`)
   porque ahí carga su cuenta bancaria: una cuenta por renglón, como la ficha y Por pagar, hasta 10
   (`demasiadas_cuentas`).
+  "Completa esto una sola vez" sale a todas la primera vez que entran (`perfil_app_en` vacío, Diego
+  29/10/2026), aunque ya tengan zona. Al aprobar, la foto anterior del CV se borra de `ninieras-fotos`
+  si es de ese bucket y ninguna otra ficha la usa (`borrarFotoAnteriorCv`).
 - Cuentas de niñeras (26/10/2026): usuario = celular + contraseña; por dentro, Auth usa el mail
   sintético `<celular normalizado>@ninieras.parentsbreak.invalid` (`MAIL_DOMINIO_NINERA` en
   `js/comun.js`, `mail_sintetico_ninera()` en SQL y la constante de `ninera-cuenta`: los tres
@@ -699,6 +702,11 @@ leela antes de proponer o tocar algo de apps, niñeras con usuario, WhatsApp o e
 o pagos automáticos. Va por etapas y Diego decide. El pago automático a niñeras quedó
 descartado (19/10/2026): no proponerlo de nuevo.
 - Niñeras que dicen que no (20/10/2026): va a la app de niñeras, como un contador.
+- Guía interactiva dentro de la app (29/10/2026, sin fecha): para niñeras y admins, que explique el
+  flujo (pedido, aceptar, el día, cierre). Va junto con la guía "Cómo se hace" de Funciones nuevas.
+- Login nuevo (29/10/2026, sin fecha): rediseñar la pantalla de login ahora que también la ven las
+  niñeras, y que a ellas la sesión les quede guardada sin Face ID ni passkey (hoy ya es así en
+  `ninera/`; revisar qué ven si abren el panel).
 
 ### Fase 1: app de niñeras + asistente de pedidos (26/10/2026)
 En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-negocio.md` (leerlas
