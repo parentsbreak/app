@@ -709,58 +709,233 @@ completó el perfil y aprueba o descarta la foto propuesta.
 
 ## Etapa 3: avisos y chat
 
-Rama `claude/fase1-avisos-chat`. Migración `AAAAMMDD_avisos_chat.sql`. Edge Function nueva
-`enviar-avisos`.
+Rama `claude/fase1-avisos-chat` (worktree `.claude/worktrees/avisos-chat`). Migración
+`20261029_avisos_chat.sql` + `_DESHACER.sql`. Edge Function nueva `enviar-avisos`. Detallada el
+29/10/2026. Nada se aplica ni se publica hasta después de la mudanza (#85) y con OK de Diego.
 
-### Tarea 3.1: tabla `avisos`, `chat_mensajes`, `programar_avisos()`, `reclamar_avisos()`, cron y trigger (SQL + pruebas)
-- `avisos` como `decisiones.md` 5.4, con `check` de que exactamente uno de `para_ninera_id` /
-  `para_admin` no es null; índices `(enviado_en, enviar_desde)`, `(para_ninera_id, creado_en desc)`.
+**Objetivo:** una cola de avisos en la base (`avisos`) que manda push a niñeras y a admins y que
+cada etapa siguiente usa para sus reglas, y un chat por niñera entre ella y las tres admins, en las
+dos puertas.
+
+**Decisiones de Diego (29/10/2026):**
+- Una admin le puede escribir a cualquier niñera que tenga la app. La regla "solo recibe mensajes
+  si tiene un pedido" (reglas, sección 3) se lee como "nada de mensajes masivos ni publicidad".
+- El chat es solo de texto en esta etapa; las fotos van después.
+- El aviso del chat llega siempre, también de noche.
+
+**Restricciones de la etapa (además de las globales):**
+- La niñera no toca `chat_mensajes` ni `avisos` de otra: RLS por `(select public.ninera_actual())`;
+  escribe solo por funciones `security definer` (no puede elegir `de`, `autor` ni `ninera_id`).
+- `encolar_aviso`, `reclamar_avisos`, `programar_avisos` y `admins_activas_mails` no las ejecuta
+  `authenticated` ni `anon` (solo triggers, el cron y la clave de servicio): no entran en la lista
+  permitida. Las de la niñera sí, con su prueba.
+- El push nunca lleva plata. El del chat lleva el texto recortado a 120 caracteres.
+- Textos de la niñera en "tú" (`textos.md` 1 y 6: "Contáctate con una operadora de Parents'
+  Break.", "[nombre de la admin] / [mensaje]"); los del panel en voseo ("[niñera] / [mensaje]").
+- Base sin migrar: la app de niñeras sin "Mensajes" ni "Avisos"; el panel sin la tarjeta, el chat de
+  la ficha ni los avisos nuevos en la campanita, sin errores.
+- Una Edge Function nueva: la lógica en `envio.ts` sin red, con tests de Deno; `index.ts` conecta.
+
+**Review Focus de la etapa:**
+1. Dos admins contestan a la vez, o la niñera escribe mientras la admin tiene el hilo abierto: los
+   mensajes aparecen por Realtime en orden, sin duplicarse y sin perder lo que se está escribiendo
+   (3.4 y 3.5).
+2. Un aviso que se manda dos veces (el trigger y el cron al mismo tiempo): `reclamar_avisos` lo
+   entrega una sola vez (3.1, prueba SQL con dos reclamos seguidos).
+3. Una suscripción vencida (404/410) se borra y no frena las demás; un error de push reintenta hasta
+   3 veces cada 2 minutos y después queda con `error` (3.2).
+4. Texto vacío, solo espacios, de más de 2.000 caracteres o con HTML: no se guarda lo vacío ni lo
+   largo, y todo se muestra como texto (3.1, 3.4, 3.5).
+5. Una admin dada de baja (`usuarias_autorizadas.activa = false`) no recibe push; la que escribió un
+   aviso con `datos.excepto` tampoco (3.2).
+
+### Tarea 3.1: migración `avisos_chat`, funciones y pruebas SQL
+
+**Archivos:**
+- Crear: `supabase/migraciones/20261029_avisos_chat.sql`, `..._DESHACER.sql`,
+  `supabase/pruebas/fase1_avisos_chat.sql`
+- Modificar: `supabase/schema.sql`, `supabase/pruebas/catalogo_seguridad.sql`
+
+**Interfaces (produce):**
+- `avisos` como `decisiones.md` 5.4 (`id, clave unique, para_ninera_id, para_admin, tipo, titulo,
+  cuerpo, url, datos jsonb, enviar_desde default now(), enviado_en, error, intentos default 0,
+  leido_en, creado_en default now()`), `check` de que exactamente uno de `para_ninera_id` /
+  `para_admin` no es null, FK `para_ninera_id → ninieras(id) on delete cascade`, índices
+  `(enviado_en, enviar_desde)` y `(para_ninera_id, creado_en desc)`. RLS: `avisos_ninera_leer`
+  (`select to authenticated using para_ninera_id = (select public.ninera_actual())`) y
+  `avisos_admins_leer` (`select to public using para_admin is not null and (select
+  public.es_usuaria_autorizada())`). Sin políticas de escritura.
+- `chat_mensajes (id uuid pk, ninera_id uuid not null → ninieras on delete cascade, de text check
+  in ('ninera','admin'), autor text not null, texto text not null check (char_length(btrim(texto))
+  between 1 and 2000), creado_en default now(), leido_ninera_en, leido_admin_en)`, índice
+  `(ninera_id, creado_en)`. RLS: `chat_ninera_leer` (select, `ninera_id = (select
+  ninera_actual())`), `chat_admins_leer` y `chat_admins_marcar` (select y update,
+  `(select es_usuaria_autorizada())`: marcan `leido_admin_en` también en los de la niñera) y
+  `chat_admins_escribir` (insert, `with check ((select es_usuaria_autorizada()) and de = 'admin')`).
+  Sin delete.
 - `encolar_aviso(p_clave text, p_para_ninera uuid, p_para_admin text, p_tipo text, p_titulo text,
-  p_cuerpo text, p_url text, p_datos jsonb, p_enviar_desde timestamptz) returns boolean`
-  (`security definer`, lo usan las otras funciones y los triggers; `on conflict (clave) do nothing`;
-  devuelve si insertó).
-- `reclamar_avisos(p_max int) returns setof avisos` (`security definer`, solo `service_role`:
-  `revoke from public, anon, authenticated`): `update ... where enviado_en is null and
-  enviar_desde <= now() ... for update skip locked returning *`.
-- `programar_avisos() returns int` (vacía en esta etapa: el chat encola directo): la estructura
-  (una función por regla, `programar_avisos` las llama y suma) para que cada etapa agregue las suyas.
-- `chat_mensajes` con RLS: niñera `select` donde `ninera_id = ninera_actual()`, `insert` con
-  `de = 'ninera'` y su id; admins todo. Trigger `after insert`: encola `chat:<id>` a la niñera si
-  `de = 'admin'` (título = `autor`, cuerpo = texto recortado a 120) o `admin:chat:<id>` a `'todas'`
-  si `de = 'ninera'`.
-- Trigger `after insert on avisos`: si `enviar_desde <= now()`, `net.http_post` a `enviar-avisos`
-  con `x-cron-secret` (misma clave que el cron). Cron `enviar-avisos` cada minuto: `select
-  public.programar_avisos(); select net.http_post(...)`.
-- Realtime: `alter publication supabase_realtime add table chat_mensajes, avisos`.
-- Pruebas: idempotencia de `encolar_aviso`, `reclamar_avisos` no devuelve dos veces la misma fila,
-  RLS del chat (la niñera no lee el hilo de otra ni inserta como admin), el trigger encola al
-  destinatario correcto.
+  p_cuerpo text, p_url text, p_datos jsonb default '{}', p_enviar_desde timestamptz default now())
+  returns boolean` (`security definer`; `on conflict (clave) do nothing`; devuelve si insertó;
+  `revoke ... from public, anon, authenticated`).
+- `reclamar_avisos(p_max int default 50) returns setof avisos` (`security definer`, solo
+  `service_role`): `update avisos set enviado_en = now(), intentos = intentos + 1 where id in
+  (select id from avisos where enviado_en is null and enviar_desde <= now() order by enviar_desde
+  limit p_max for update skip locked) returning *`.
+- `programar_avisos() returns int` (`security definer`, solo `service_role` y el cron): en esta
+  etapa devuelve 0; comentario con la estructura (una función `programar_avisos_<regla>()` por
+  regla, sumadas acá) para que las etapas 4 a 10 le agreguen las suyas.
+- `admins_activas_mails() returns setof text` (`security definer`, solo `service_role`): los mails de
+  `auth.users` de las filas activas de `usuarias_autorizadas`.
+- Niñera (`security definer`, `authenticated`, guardia `ninera_actual()`; en la lista permitida):
+  `ninera_enviar_mensaje(p_texto text) returns chat_mensajes` (`'no_autorizada'` si no es niñera,
+  `'mensaje_vacio'` / `'mensaje_largo'`; guarda `de = 'ninera'`, `autor` = nombre de la ficha,
+  el texto con `btrim`), `ninera_marcar_chat_leido() returns int` (pone `leido_ninera_en` a los de
+  `de = 'admin'` sin leer; devuelve cuántos) y `ninera_marcar_avisos_leidos() returns int` (pone
+  `leido_en` a sus avisos sin leer).
+- Trigger `chat_mensajes_aviso` (`after insert`, función `security definer` interna): `de =
+  'admin'` → `encolar_aviso('chat:' || id, ninera_id, null, 'chat', autor, left(texto, 120),
+  '#chat', jsonb_build_object('mensaje_id', id))`; `de = 'ninera'` → `encolar_aviso('admin:chat:'
+  || id, null, 'todas', 'chat', <nombre de la niñera>, left(texto, 120), '?ir=ninieras&ninera=' ||
+  ninera_id, jsonb_build_object('mensaje_id', id, 'ninera_id', ninera_id))`.
+- Trigger `avisos_enviar_ya` (`after insert on avisos`, `for each row when (new.enviar_desde <=
+  now())`): `net.http_post` a `<SUPABASE_URL>/functions/v1/enviar-avisos` con `x-cron-secret` de
+  `app_secrets 'cron_push_secret'` (misma URL fija que el cron de `enviar-push-urgentes`). Si
+  falla el post, el aviso queda para el cron (sin `raise`).
+- Cron `enviar-avisos` cada minuto: `select public.programar_avisos(); select net.http_post(...)`
+  como el de `enviar-push-urgentes`.
+- Realtime: `alter publication supabase_realtime add table public.chat_mensajes, public.avisos`.
+- Compatible con la app publicada (todo nuevo, no toca filas). El DESHACER saca el cron, la
+  publicación, triggers, funciones, políticas y las dos tablas (los mensajes se copian antes a
+  `respaldo_chat_<fecha>` con RLS y sin políticas, si hay alguno).
 
-### Tarea 3.2: Edge Function `enviar-avisos` (`index.ts` + `envio.ts` + tests)
-- Con `x-cron-secret`; `reclamar_avisos(50)`; para cada aviso resuelve suscripciones: niñera →
-  `push_subscriptions where user_id = (select user_id from ninieras where id = para_ninera_id)`;
-  admins → todas las de `usuarias_autorizadas` activas (por `usuario` = mail, como hoy) filtradas por
-  `notif_push_preferencias` del `tipo`; manda con `web-push` (`payload {id, titulo, mensaje, url}`
-  igual que hoy, así `sw.js` no cambia); 404/410 → borra la suscripción; error → `avisos.error`,
-  `intentos + 1`, y si `intentos < 3` vuelve a dejar `enviado_en = null` con `enviar_desde = now() +
-  2 min`. Responde `{enviados, fallidos}`.
-- Tests de Deno con `webpush` simulado.
+- [ ] **Paso 1:** `supabase/pruebas/fase1_avisos_chat.sql` (esqueleto de `fase1_perfil.sql`; una
+  admin, dos niñeras con cuenta). Casos: lo de la migración está (2 tablas con RLS, 6 políticas: 2 de avisos y 4 de chat,
+  las funciones, 2 triggers, el cron, la publicación); `encolar_aviso` dos veces con la misma clave
+  inserta una sola fila y devuelve `true` / `false`; el `check` de un solo destinatario;
+  `reclamar_avisos(50)` dos veces seguidas no devuelve dos veces la misma fila, no devuelve una con
+  `enviar_desde` en el futuro y suma `intentos`; como Ana: `ninera_enviar_mensaje('  hola  ')`
+  guarda `'hola'`, `de = 'ninera'`, `autor` de su ficha, y encola `admin:chat:<id>` para `'todas'`
+  con su nombre; vacío / solo espacios → `mensaje_vacio`; 2.001 caracteres → `mensaje_largo`;
+  `select` directo de `chat_mensajes` y `avisos` ve solo lo suyo (0 de Bruno); `insert` directo
+  en `chat_mensajes` falla (RLS); `ninera_marcar_chat_leido` y `ninera_marcar_avisos_leidos` tocan
+  solo lo suyo; como la admin: `insert` con `de = 'admin'` encola `chat:<id>` para Ana con
+  `titulo = autor` y el texto recortado a 120; `insert` con `de = 'ninera'` falla; lee los avisos
+  de `'todas'` y no los de Ana; anon no ejecuta nada ni lee nada; `encolar_aviso`,
+  `reclamar_avisos`, `programar_avisos` y `admins_activas_mails` no las ejecuta `authenticated`;
+  `admins_activas_mails()` no devuelve una admin con `activa = false`.
+- [ ] **Paso 2:** correrla sobre el schema de main con la migración. Esperado: falla.
+- [ ] **Paso 3:** migración, DESHACER, `schema.sql` y `catalogo_seguridad.sql` (las 3 de la niñera
+  con su guardia).
+- [ ] **Paso 4:** la prueba nueva, aplicar → deshacer → aplicar, `catalogo_seguridad.sql`, las de la
+  fase 1 con la migración y todas las de `supabase/pruebas/*.sql` sobre `schema.sql`. Esperado: OK.
+- [ ] **Paso 5:** commit `Etapa 3: migración avisos_chat (cola de avisos, chat y funciones de la
+  niñera) y pruebas SQL`.
 
-### Tarea 3.3: chat en la app de niñeras (`ninera/js/chat.js`) y lista de avisos
-- Pestaña "Equipo" con el hilo (Realtime por `ninera_id`), campo de texto, "Enviar" con
-  `conGuardado`; marca `leido_ninera_en` al abrir. Lista "Avisos" (de `avisos` propias, marca
-  `leido_en`). `sw.js` de niñeras: el click abre `url` del payload.
-- Tests: `tests/ninera-chat.spec.js` (enviar, recibir por Realtime simulado, sin conexión, 390 px,
-  escape de texto tramposo).
+### Tarea 3.2: Edge Function `enviar-avisos`
 
-### Tarea 3.4: panel: "Mensajes de niñeras" en Hoy, hilo en la ficha, tipos nuevos en Notificaciones
-- Tarjeta en Hoy con no leídos por niñera (`chat_mensajes where de = 'ninera' and leido_admin_en is
-  null`, agrupado); al tocar abre la ficha en el hilo. En `verNinera`, sección "Chat" con Realtime
-  (`RT_RECARGA_LIVIANA`: no repinta lo que se escribe). Tipos `chat` (y los de etapas siguientes) en
-  `NOTIF_TIPOS` con default `true`. La campanita suma los `avisos` con `para_admin`.
-- Tests: `tests/chat-admin.spec.js`.
+**Archivos:**
+- Crear: `supabase/functions/enviar-avisos/index.ts`, `envio.ts`, `envio_test.ts`
 
-### Tarea 3.5: PR, migración + publicación (OK), merge.
+**Interfaces (produce):**
+- `envio.ts` sin red: `procesarAvisos(deps, ahora)` con `deps = { reclamar(max), suscripciones
+  NineraPorId(nineraIds), suscripcionesAdmins(), mailsAdminsActivas(), preferencias(usuarios),
+  mandar(sub, payload), borrarSuscripcion(id), marcarError(id, error, reintentarDesde | null) }`.
+  Por cada aviso: niñera → las suscripciones con `user_id` de su ficha; `'todas'` → las de
+  `user_id is null` cuyo `usuario` está en `mailsAdminsActivas`, sin `datos.excepto`, filtradas por
+  `notif_push_preferencias` del `tipo` (sin fila: activado). Payload `{id, titulo, mensaje: cuerpo,
+  url}` (el formato de hoy: `sw.js` no cambia). 404/410 → `borrarSuscripcion`. Sin ninguna
+  suscripción: no es error (la niñera lo ve en su lista). Si todas las entregas fallan por otro
+  motivo: `marcarError` con reintento a `ahora + 2 min` si `intentos < 3`, si no `null` (queda con
+  `error`). Devuelve `{reclamados, enviados, fallidos, borradas}`.
+- `index.ts`: `x-cron-secret` contra `app_secrets 'cron_push_secret'` (comparación en tiempo
+  constante, como `enviar-push-urgentes`), VAPID de `app_secrets`, `web-push@3.6.7`, la base con la
+  clave de servicio; `reclamar` = RPC `reclamar_avisos(50)`, `mailsAdminsActivas` = RPC
+  `admins_activas_mails`, `marcarError` = update de `avisos` (`error`, y `enviado_en = null,
+  enviar_desde = <reintento>` si hay reintento). Sin secreto: 401.
+- Tests de Deno (copia fuera del repo, `npx deno@2 test --allow-env`): niñera con dos dispositivos;
+  admins con una inactiva, una con la preferencia apagada y la que está en `excepto`; 410 borra y
+  sigue; error de push reintenta y al tercero no; aviso sin suscripciones; payload sin campos de
+  más. `npx deno@2 check` de `index.ts`.
+- [ ] Pasos: tests rojos → `envio.ts` → verdes → `index.ts` + check → commit `Etapa 3: Edge Function
+  enviar-avisos (cola de avisos por push)`. Publicación: después de la mudanza, con OK.
+
+### Tarea 3.3: simulador de la etapa
+
+**Archivos:** `tests/support/rpc-ninera.js`, `tests/support/app.js`, `tests/support/datos.js`,
+`tests/support/fuentes.js`, `ninera/index.html` (`<script src="js/chat.js">` después de `inicio.js`,
+antes de `arranque.js`), crear `ninera/js/chat.js` con su cabecera.
+
+**Interfaces (produce):** `rpcNinera` suma `ninera_enviar_mensaje` (valida como la SQL, inserta en
+`db.chat_mensajes` con `autor` de la ficha y devuelve la fila), `ninera_marcar_chat_leido`,
+`ninera_marcar_avisos_leidos`; las lecturas de `chat_mensajes` y `avisos` de la niñera filtran por
+su `ninera_id` como la RLS; `baseSinMigrar` hace 404 en esas RPC y en las dos tablas. Datos: un
+hilo de Ana (dos de una admin "Paula Prueba", uno de Ana, el último sin leer por Ana) y un aviso
+sin leer para Ana; un mensaje sin leer de Carla para las admins. `estado.emitirRealtime` ya sirve
+para las dos puertas (comprobarlo con la de niñeras). Correr toda la suite: los datos nuevos no
+pueden romper otros tests (si alguno cuenta filas, se ajusta con el porqué).
+- [ ] Commit `Etapa 3: simulador de chat y avisos`.
+
+### Tarea 3.4: app de niñeras: chat y lista de avisos (`ninera/js/chat.js`)
+
+**Interfaces (produce):**
+- Inicio: debajo de "Próximos sittings", dos botones grandes: "Mensajes" (con la cantidad sin leer
+  si hay) → `#chat`, y "Avisos" (con la cantidad sin leer) → `#mis-avisos`. Sin migrar, no están.
+- `pantallaChatNinera()` (`#chat`): título "Equipo de Parents' Break", debajo "Contáctate con una
+  operadora de Parents' Break.", el hilo (los suyos a la derecha; los del equipo a la izquierda con
+  el `autor` arriba; fecha y hora cortas), un `textarea` y "Enviar" con `conGuardado` →
+  `ninera_enviar_mensaje`; vacío → no manda; error → "No pudimos enviar tu mensaje. Revisa tu
+  conexión a internet y vuelve a intentar." y el texto queda; al abrir, `ninera_marcar_chat_leido`.
+  Realtime: canal `chat-ninera` sobre `chat_mensajes` con `filter: ninera_id=eq.<id>`; un mensaje
+  nuevo se agrega al hilo sin repintar el `textarea` (no se pierde lo escrito) y sin duplicar el que
+  ella misma acaba de mandar (por `id`). Al salir, se quita el canal. "Volver" al inicio.
+- `pantallaAvisosNinera()` (`#mis-avisos`): lista de sus avisos (los últimos 50, el más nuevo
+  arriba), cada uno con título, texto y fecha; tocar uno con `url` va ahí; al abrir,
+  `ninera_marcar_avisos_leidos`. Vacía: "No tienes avisos."
+- `irA` suma `#chat` y `#mis-avisos`. Un push con `url '#chat'` abre directo el hilo.
+- Textos nuevos a `textos-provisorios.md` ("Etapa 3: chat y avisos"), en "tú".
+- Test `tests/ninera-chat.spec.js`: el hilo con autor y orden; mandar (RPC con el texto, aparece una
+  vez aunque llegue también por Realtime); recibir por Realtime con algo escrito en el `textarea`
+  (queda); marcar leído al abrir; vacío no manda; falla con aviso y texto intacto; doble toque una
+  sola RPC; HTML tramposo en el texto y en el autor se ve como texto; avisos: lista, vacía, marcar
+  leídos, tocar uno con url; base sin migrar; abrir con `#chat` en la URL; 390 px; ni `$\d` ni
+  "pago".
+- [ ] Commit `Etapa 3: chat con el equipo y lista de avisos en la app de niñeras`.
+
+### Tarea 3.5: panel: chat en la ficha, "Mensajes de niñeras" en Hoy y la campanita
+
+**Interfaces (produce):**
+- Ficha (`verNinera`): sección "Chat" (`#vn-chat`) debajo de "App". Con app (`n.user_id`): el hilo
+  (los del equipo con el autor; los de ella a la izquierda), `textarea` "Escribile a [nombre]" y
+  "Enviar" (`conGuardado` → `insert` con `de: 'admin'`, `autor: nombreUsuario()`, `texto` con trim;
+  vacío no manda; error con `toast` y el texto queda). Al abrir, marca `leido_admin_en` de los de
+  ella sin leer. Sin app: "Todavía no tiene la app: escribile por WhatsApp." Realtime: canal propio
+  del hilo mientras la ficha está abierta (se quita al cerrar el modal), que agrega mensajes sin
+  tocar el `textarea` y sin duplicar.
+- Hoy: tarjeta "Mensajes de niñeras" (`#dash-chat`, junto a `#dash-faltan`) con una fila por niñera
+  con mensajes sin leer (nombre, cantidad, el último recortado); tocar abre su ficha en el chat.
+  Sin mensajes, no se muestra.
+- `?ir=ninieras&ninera=<id>` (el `url` del push a admins): abre Niñeras y la ficha de esa niñera
+  en el chat.
+- Campanita: `TIPOS_NOTIF` suma `{tipo: 'chat', label: 'Mensajes de niñeras', sub: 'Cuando una
+  niñera escribe por el chat de la app', icono: 'ninieras', defaultPush: true}`;
+  `cargarNotificaciones` suma los `avisos` con `para_admin` de los últimos 3 días (`id 'aviso:' ||
+  id`, título, cuerpo, destino de su `url`), y los de tipo `chat` cuyo mensaje ya está leído no se
+  muestran (se resolvió, como los otros ítems de la campanita).
+- Test `tests/chat-admin.spec.js`: ficha con hilo y envío (cuerpo del insert), sin app, marcar
+  leído, Realtime con texto escrito, dos admins (un mensaje de otra admin aparece con su nombre),
+  vacío, falla, doble toque, escape; Hoy con la tarjeta y sin mensajes sin la tarjeta; `?ir=`; la
+  campanita con el aviso y sin él cuando se leyó; preferencias con el tipo nuevo; base sin migrar;
+  390 px.
+- [ ] Commit `Etapa 3: chat con las niñeras en la ficha, mensajes en Hoy y avisos en la campanita`.
+
+### Tarea 3.6: documentación, revisión final y PR (sin merge hasta después de la mudanza)
+
+- [ ] CLAUDE.md (orden de carga con `chat.js`, tests, convenciones de la cola de avisos y del chat,
+  Edge Function `enviar-avisos`, "Fase 1": etapa 3 hecha), `decisiones.md` 5.5 y el plan.
+- [ ] Revisión final de toda la rama (Opus), una ola de arreglos.
+- [ ] PR con el CI en verde, la migración y la verificación para Diego, y el orden después de la
+  mudanza: (1) migración, (2) publicar `enviar-avisos`, (3) merge. Sin merge hasta el "dale" del
+  #85 y el OK de la migración.
 
 ---
 
