@@ -48,7 +48,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `inicio` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -336,6 +336,17 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/invitar-app.spec.js`: ficha de la niñera: "Invitar a la app" (link y mensaje, link vigente,
   errores, doble toque), estado de la app, link para cambiar la contraseña, aviso de celular cambiado
   y login del panel con una cuenta de niñera o sin acceso.
+- `tests/ninera-perfil.spec.js`: "Completa esto una sola vez" y "Mi perfil" de la app de niñeras (servicios,
+  zonas, datos bancarios, foto opcional solo JPG / PNG / WEBP, fallas al subir o guardar sin perder lo
+  escrito, base sin migrar, sin montos, 390 px).
+- `tests/ninera-sittings.spec.js`: "Próximos sittings" en el inicio de la niñera (sin montos, dirección solo
+  confirmado, "Cómo llegar", `.ics`, sitting que cruza la medianoche, familia sin hijos cargados, base sin migrar).
+- `tests/foto-propuesta.spec.js`: ficha de la niñera en el panel: "Perfil completado en la app", foto
+  propuesta con "Usar como foto del CV" / "Descartar" (condicionados a `foto_propuesta_en`, fallas, 390 px).
+- `supabase/pruebas/fase1_perfil.sql`: las 4 funciones de la etapa 2 como niñera (sin columnas prohibidas,
+  dirección solo confirmada, tope de 10 cuentas), `madre_nombre_inicial`, `chicos_texto`, el bucket
+  `ninieras-privado` (solo `fotos/<su id>/propuesta.jpg`; otro nombre, otra carpeta o ruta ajena
+  rechazados) e ida y vuelta de la migración.
 - `supabase/pruebas/fase1_cuentas_ninieras.sql`: celular normalizado y mail sintético, invitaciones
   (solo la última sirve, una vez), `ninera_actual()` (una admin nunca es niñera), RLS y push como
   niñera, `generar_previstos_fijos` solo para admins y el cron, e ida y vuelta de la migración
@@ -347,7 +358,10 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   Ningún test llega a la base real: un pedido sin simular hace fallar el test.
   `abrirAppNinera(page, { datos, ninera, sesion, instalada, consulta, funciones })` abre `ninera/`
   con una niñera ficticia (su sesión bajo `sb-ninera-auth`); `estado.funciones[nombre]` simula una
-  Edge Function por nombre; las RPC de la niñera se simulan en `tests/support/rpc-ninera.js`.
+  Edge Function por nombre; las RPC de la niñera se simulan en `tests/support/rpc-ninera.js`
+  (`errorRpc(msg)` responde como Supabase, 400 P0001). `abrirAppNinera(..., { baseSinMigrar })`
+  simula la base sin la migración de la etapa 2 (las RPC dan 404 `PGRST202`); `e.fallar` y
+  `demoraEscrituras` también valen para RPC y storage.
 - `scripts/probar-sql.mjs` (26/10/2026): `--migracion` se puede repetir (aplicar → deshacer →
   aplicar) y una prueba "es" una cuenta con `set local role authenticated` y
   `set local request.jwt.claims` (de ahí salen `auth.uid()`, `auth.jwt()` y `auth.email()`).
@@ -495,6 +509,19 @@ reporte.
   `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
   equivocada. Una cuenta nunca tiene los dos roles.
+- Perfil y foto propuesta de la niñera (27/10/2026): la foto que sube la niñera NO reemplaza `foto` (la ven
+  las madres): queda en el bucket PRIVADO `ninieras-privado` (5 MB, JPG / PNG / WEBP; la niñera solo lee y
+  escribe `fotos/<su id>/propuesta.jpg`, y las etapas 4 y 10 amplían la política para sus rutas; la admin ve
+  y borra todo) como `foto_propuesta_ruta` y la admin la aprueba o descarta desde la ficha; las dos
+  acciones se escriben con la condición de `foto_propuesta_en` (si la niñera mandó otra mientras se miraba,
+  no se pisa). La niñera sube con `achicarFoto(file, 1600, 0.8)` (ahora en `js/comun.js`; el panel sigue con
+  800). `ninera_mis_sittings()` nunca devuelve plata ni notas y la dirección solo si el sitting está
+  `confirmado`. La ficha muestra cuándo completó y editó el perfil (`perfil_app_en`, `perfil_actualizado_en`)
+  porque ahí carga su cuenta bancaria: una cuenta por renglón, como la ficha y Por pagar, hasta 10
+  (`demasiadas_cuentas`).
+  "Completa esto una sola vez" sale a todas la primera vez que entran (`perfil_app_en` vacío, Diego
+  29/10/2026), aunque ya tengan zona. Al aprobar, la foto anterior del CV se borra de `ninieras-fotos`
+  si es de ese bucket y ninguna otra ficha la usa (`borrarFotoAnteriorCv`).
 - Cuentas de niñeras (26/10/2026): usuario = celular + contraseña; por dentro, Auth usa el mail
   sintético `<celular normalizado>@ninieras.parentsbreak.invalid` (`MAIL_DOMINIO_NINERA` en
   `js/comun.js`, `mail_sintetico_ninera()` en SQL y la constante de `ninera-cuenta`: los tres
@@ -675,15 +702,27 @@ leela antes de proponer o tocar algo de apps, niñeras con usuario, WhatsApp o e
 o pagos automáticos. Va por etapas y Diego decide. El pago automático a niñeras quedó
 descartado (19/10/2026): no proponerlo de nuevo.
 - Niñeras que dicen que no (20/10/2026): va a la app de niñeras, como un contador.
+- Guía interactiva dentro de la app (29/10/2026, sin fecha): para niñeras y admins, que explique el
+  flujo (pedido, aceptar, el día, cierre). Va junto con la guía "Cómo se hace" de Funciones nuevas.
+- Login nuevo (29/10/2026, sin fecha): rediseñar la pantalla de login ahora que también la ven las
+  niñeras, y que a ellas la sesión les quede guardada sin Face ID ni passkey (hoy ya es así en
+  `ninera/`; revisar qué ven si abren el panel).
 
 ### Fase 1: app de niñeras + asistente de pedidos (26/10/2026)
 En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-negocio.md` (leerlas
 antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los textos en
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
-`plan-implementacion.md`. Etapa 1 hecha (puerta `ninera/`, cuentas, invitación, instalar, avisos);
-etapas 2 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+`plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
+propuesta, próximos sittings) hechas; etapas 3 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
+- Perfil de la niñera (27/10/2026): un segmento de zona que no es un grupo de `zona_grupos` se pierde cuando
+  ella guarda desde la app. Pregunta de producto para Diego: ¿se conserva o se descarta?
+- `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.
+- "Editar" en la ficha de la niñera (panel, 27/10/2026) puede pisar un cambio que ella acaba de hacer desde
+  la app (cuenta bancaria, zonas, tipo): condicionar el guardado a `perfil_actualizado_en`, como la foto.
+- "Madre:" en los próximos sittings de la niñera (27/10/2026) muestra el nombre del padre en algunas
+  familias: confirmar el texto con las dueñas (¿"Familia:"?).
 - `ninera-cuenta`: con `email_exists` (cuenta huérfana de un alta anterior, por ejemplo si falló
   borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
 - `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene

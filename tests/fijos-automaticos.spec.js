@@ -18,7 +18,8 @@ const P = { lun5: 'a1000000-0000-4000-8000-000000000005', mie7: 'a1000000-0000-4
 function datosActivos() {
   const d = datosBase();
   d.app_config = [{ id: 'fijos_automaticos', valor: { activo: true, dias: 14 }, actualizado_at: '2026-10-04T06:00:00Z' }];
-  d.sittings_traslados = d.sittings_traslados.map(s => ({ ...s, estado: 'confirmado', generado_automatico: false, revisado_at: null }));
+  // Los que ya traen estado (el previsto de mañana de Ana, datos.js, etapa 2) lo conservan.
+  d.sittings_traslados = d.sittings_traslados.map(s => ({ ...s, estado: s.estado || 'confirmado', generado_automatico: false, revisado_at: null }));
   d.sittings_traslados.push(
     auto(P.mie30, '2026-09-30', { estado: 'confirmado' }), // ya pasó: confirmado solo, sin revisar
     auto(P.lun5, '2026-10-05'), auto(P.mie7, '2026-10-07'), auto(P.lun12, '2026-10-12'), auto(P.mie14, '2026-10-14'),
@@ -69,7 +70,8 @@ test.describe('previstos solo en la Agenda', () => {
     await verAgendaDesde(page, '2026-10-05');
     const items = await page.evaluate(() => agendaSolicitudes.filter(s => s.familia_nombre === 'Familia Prueba Uno').map(s => `${s.fecha} ${s._fuente} ${s._previsto ? 'previsto' : ''}`.trim()));
     expect(items).toEqual(['2026-10-05 asignacion previsto', '2026-10-07 asignacion previsto']);
-    await expect(page.locator('.agenda-previsto')).toHaveCount(2);
+    // Las del fijo (Prueba Uno): el previsto de mañana de Ana en otra familia (datos.js, etapa 2) es otra tarjeta.
+    await expect(page.locator('[onclick^="abrirModalSolicitud"]', { hasText: 'Familia Prueba Uno' }).locator('.agenda-previsto')).toHaveCount(2);
     await abrirDia(page, '2026-10-05');
     await expect(page.locator('#editmodal')).toContainText('ya está previsto con Ana Ficticia');
     await expect(page.locator('#editmodal')).toContainText('se confirma solo ese día');
@@ -81,7 +83,8 @@ test.describe('previstos solo en la Agenda', () => {
     await irAModulo(page, 'sittings');
     await page.evaluate(async () => { sitMes = '2026-10'; await cargarSitLista(); });
     await esperarQuieta(page);
-    expect(await page.evaluate(() => sitItems.map(s => s.fecha))).toEqual([]);
+    // Solo el de hoy de Ana (datos.js, etapa 2): hoy ya cuenta; los previstos de adelante, no.
+    expect(await page.evaluate(() => sitItems.map(s => s.fecha))).toEqual(['2026-10-04']);
     await page.evaluate(async () => { sitMes = '2026-09'; await cargarSitLista(); });
     await esperarQuieta(page);
     expect((await page.evaluate(() => sitItems.map(s => s.fecha))).sort()).toEqual(['2026-09-14', '2026-09-16', '2026-09-19', '2026-09-28', '2026-09-30']);

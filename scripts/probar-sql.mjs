@@ -49,6 +49,12 @@ create function auth.role() returns text language sql as $$ select 'authenticate
 create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects (id uuid default gen_random_uuid(), bucket_id text, name text, owner uuid);
 alter table storage.objects enable row level security;
+-- Como en Supabase (27/10/2026): las cuentas llegan a storage.objects y la RLS decide; y
+-- storage.foldername() da las carpetas de la ruta, sin el nombre del archivo
+-- ('fotos/<id>/propuesta.jpg' → {fotos,<id>}), para las políticas por carpeta.
+grant usage on schema storage to anon, authenticated, service_role;
+grant all on storage.objects, storage.buckets to anon, authenticated, service_role;
+create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:cardinality(string_to_array(name, '/')) - 1] $$;
 create table cron.job (jobid serial primary key, jobname text, schedule text, command text);
 create function cron.schedule(n text, s text, c text) returns bigint language sql as $$ insert into cron.job(jobname, schedule, command) values (n, s, c) returning jobid::bigint $$;
 create function cron.unschedule(n text) returns boolean language sql as $$ delete from cron.job where jobname = n returning true $$;

@@ -4,8 +4,18 @@
 // Edge Functions y las RPC de la niñera se simulen por nombre. Abajo, los de la invitación, el
 // login, instalar, los avisos y el inicio (tarea 1.5).
 const { test, expect } = require('@playwright/test');
-const { abrirApp, abrirAppNinera, verificarLimpio, REF_PROD, USUARIO_NINERA } = require('./support/app');
-const { ID } = require('./support/datos');
+const { abrirApp, abrirAppNinera: abrirAppNineraSimulador, verificarLimpio, REF_PROD, USUARIO_NINERA } = require('./support/app');
+const { ID, datosBase } = require('./support/datos');
+
+// Etapa 2 (27/10/2026): Ana todavía no completó su perfil y al entrar le sale "Completa esto una
+// sola vez". Estos tests miran la cuenta, los avisos y el inicio, así que entran con el perfil de
+// Ana ya completo (con zona y la fecha en que lo guardó desde la app); la primera vez se prueba en
+// ninera-perfil.spec.js.
+function abrirAppNinera(page, opciones = {}) {
+  const datos = datosBase();
+  Object.assign(datos.ninieras.find(n => n.id === ID.nAna), { zona: 'Pocitos', perfil_app_en: '2026-10-02T15:00:00+00:00' });
+  return abrirAppNineraSimulador(page, { datos, ...opciones });
+}
 
 const BASE = `https://${REF_PROD}.supabase.co`;
 
@@ -135,6 +145,11 @@ function loginsPedidos(e) {
 function rpcLlamadas(e) {
   return e.escrituras.filter(w => w.tabla.startsWith('rpc/')).map(w => w.tabla.slice(4));
 }
+// Los próximos sittings del inicio (etapa 2, 27/10/2026) se piden sin frenar lo de arriba: antes de
+// contar las RPC, que hayan llegado.
+async function esperarSittings(page) {
+  await expect(page.locator('#proximos-sittings-lista')).not.toContainText('Cargando');
+}
 // La función simulada: bienvenida sin contraseña, cuenta creada con contraseña.
 function funcionInvitacionOk(e, { nombre = 'Ana' } = {}) {
   e.funciones['ninera-cuenta'] = cuerpo => (cuerpo.password === undefined
@@ -198,7 +213,10 @@ test.describe('invitación: crear la contraseña desde el link', () => {
     expect(url.search).toBe('');
     expect(url.hash).toBe('#inicio');
     expect(await page.evaluate(() => [!!localStorage.getItem('sb-ninera-auth'), localStorage.getItem('sb-wvewzamdohrpfhpccvcz-auth-token')])).toEqual([true, null]);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app']);
+    // Etapa 2 (27/10/2026): antes del inicio lee el perfil (si no lo completó, va a completarlo) y
+    // el inicio pide sus próximos sittings.
+    await esperarSittings(page);
+    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     // Al volver a abrir la app, el nombre sigue (viene en la cuenta, user_metadata).
     await page.reload();
     await expect(page.locator('h1')).toHaveText('Hola, Ana');
@@ -601,10 +619,12 @@ test.describe('arranque con sesión', () => {
   test('ninera_activar_app se llama al entrar, después de ninera_actual, una vez por celular', async ({ page }) => {
     const e = await abrir(page);
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app']);
+    await esperarSittings(page);
+    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     await page.reload();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_actual']);
+    await esperarSittings(page);
+    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     verificarLimpio(e);
   });
 
@@ -617,11 +637,13 @@ test.describe('arranque con sesión', () => {
     await page.fill('#login-pass', 'clave-ficticia-1');
     await page.click('#login-btn');
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual']); // la que falló no llegó al simulador
+    await esperarSittings(page);
+    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']); // la que falló no llegó al simulador
     await page.unroute(/rpc\/ninera_activar_app/);
     await page.reload();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_actual', 'ninera_activar_app']);
+    await esperarSittings(page);
+    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     verificarLimpio(e, { ignorar: [/status of 500/, /\[ninera_activar_app\]/] });
   });
 
