@@ -46,6 +46,8 @@ drop trigger if exists avisos_enviar_ya on public.avisos;
 -- Las funciones antes que las tablas: ninera_enviar_mensaje y reclamar_avisos devuelven sus filas.
 drop function if exists public.chat_mensajes_encolar_aviso();
 drop function if exists public.avisos_disparar_envio();
+drop function if exists public.correr_cron_avisos();
+drop function if exists public.llamar_enviar_avisos();
 drop function if exists public.ninera_marcar_avisos_leidos();
 drop function if exists public.ninera_marcar_chat_leido();
 drop function if exists public.ninera_enviar_mensaje(text);

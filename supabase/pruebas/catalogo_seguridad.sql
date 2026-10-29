@@ -50,8 +50,8 @@ declare
     'ninera_mis_sittings()',                     -- niñera: solo los suyos, sin plata; vacío si no es niñera
     'ninera_zonas_disponibles()',                -- niñera: zona_grupos; vacío si no es niñera
     -- Etapa 3 (29/10/2026): chat y avisos, todas por ninera_actual(). encolar_aviso,
-    -- reclamar_avisos, programar_avisos y admins_activas_mails NO van: solo la base y la clave de
-    -- servicio.
+    -- reclamar_avisos, programar_avisos, admins_activas_mails, llamar_enviar_avisos y
+    -- correr_cron_avisos NO van: solo la base y la clave de servicio.
     'ninera_enviar_mensaje(p_texto text)',       -- niñera: raise 'no_autorizada' si ninera_actual() es null; escribe solo en su hilo, de y autor fijos
     'ninera_marcar_avisos_leidos()',             -- niñera: solo sus avisos; 0 si no es niñera
     'ninera_marcar_chat_leido()'                 -- niñera: solo su hilo; 0 si no es niñera

@@ -1843,9 +1843,10 @@ create policy ninieras_privado_admins on storage.objects as permissive for all t
   with check (((bucket_id = 'ninieras-privado'::text) AND ( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada)));
 
 -- Avisos y chat (29/10/2026, fase 1, etapa 3; ver 20261029_avisos_chat.sql). Van acá porque las
--- políticas usan ninera_actual(). encolar_aviso, reclamar_avisos, programar_avisos y
--- admins_activas_mails son internas (triggers, cron y clave de servicio); las de la niñera están en
--- la lista permitida de supabase/pruebas/catalogo_seguridad.sql.
+-- políticas usan ninera_actual(). encolar_aviso, reclamar_avisos, programar_avisos,
+-- admins_activas_mails, llamar_enviar_avisos y correr_cron_avisos son internas (triggers, cron y
+-- clave de servicio); las de la niñera están en la lista permitida de
+-- supabase/pruebas/catalogo_seguridad.sql.
 -- avisos: solo lectura desde la app. Lo escribe la base (triggers, programar_avisos) y lo marca
 -- enviar-avisos con la clave de servicio; la niñera marca leído con ninera_marcar_avisos_leidos.
 create policy avisos_ninera_leer on public.avisos as permissive for select to authenticated
@@ -1855,7 +1856,8 @@ create policy avisos_admins_leer on public.avisos as permissive for select to pu
 
 -- chat_mensajes: la niñera solo lee su hilo (escribe y marca leído por sus funciones). Las admins
 -- leen todo, escriben solo como admin y marcan leido_admin_en (también en los de la niñera). Nadie
--- borra.
+-- borra. Una admin le escribe a cualquier niñera activa que tenga la app (Diego, 29/10/2026): a una
+-- sin cuenta el mensaje no le llegaría nunca.
 create policy chat_ninera_leer on public.chat_mensajes as permissive for select to authenticated
   using ((ninera_id = ( SELECT public.ninera_actual() AS ninera_actual)));
 create policy chat_admins_leer on public.chat_mensajes as permissive for select to public
@@ -1864,10 +1866,14 @@ create policy chat_admins_marcar on public.chat_mensajes as permissive for updat
   using (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada))
   with check (( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada));
 create policy chat_admins_escribir on public.chat_mensajes as permissive for insert to public
-  with check ((( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada) AND (de = 'admin'::text)));
--- Lo único que se actualiza desde la app es leido_admin_en: así nadie cambia después el texto, el
--- autor ni lo leído por la niñera de un mensaje (la política de update sola no lo frena).
-revoke update on public.chat_mensajes from anon, authenticated;
+  with check ((( SELECT public.es_usuaria_autorizada() AS es_usuaria_autorizada) AND (de = 'admin'::text)
+    AND (EXISTS ( SELECT 1 FROM public.ninieras n
+                   WHERE ((n.id = chat_mensajes.ninera_id) AND n.activa AND (n.user_id IS NOT NULL))))));
+-- Desde la app, un mensaje nuevo trae solo ninera_id, de, autor y texto (id, creado_en y lo leído
+-- salen de la base), y lo único que se actualiza después es leido_admin_en: así nadie cambia el
+-- texto, el autor ni lo leído por la niñera (las políticas solas no lo frenan).
+revoke insert, update on public.chat_mensajes from anon, authenticated;
+grant insert (ninera_id, de, autor, texto) on public.chat_mensajes to authenticated;
 grant update (leido_admin_en) on public.chat_mensajes to authenticated;
 
 -- Encola un aviso; si la clave ya está no hace nada (devuelve false). Es la única forma de
@@ -2065,54 +2071,80 @@ revoke execute on function public.chat_mensajes_encolar_aviso() from public, ano
 create trigger chat_mensajes_aviso after insert on public.chat_mensajes
   for each row execute function public.chat_mensajes_encolar_aviso();
 
--- Un aviso para ya (chat, y en las etapas siguientes pedido nuevo, aceptó...) llama enseguida a
--- enviar-avisos, sin esperar al cron. Misma URL fija y misma clave (app_secrets
--- 'cron_push_secret') que el cron de enviar-push-urgentes. Si no está la clave o el post falla, el
--- aviso queda igual en la cola y lo manda el cron en el próximo minuto: nunca frena el insert (ni
--- el mensaje del chat que lo encoló).
-create or replace function public.avisos_disparar_envio()
-returns trigger
+-- Llama a enviar-avisos con la URL fija y la clave del cron de enviar-push-urgentes (app_secrets
+-- 'cron_push_secret'). Si no está la clave o el post falla, no hace nada: los avisos quedan en la
+-- cola y los manda el cron en el próximo minuto. Nunca frena a quien la llama (ni el mensaje del
+-- chat que encoló el aviso). La usan el trigger avisos_enviar_ya y correr_cron_avisos.
+create or replace function public.llamar_enviar_avisos()
+returns void
 language plpgsql
+volatile
 security definer
 set search_path to 'public'
 as $function$
 declare
   v_secreto text;
 begin
-  begin
-    select s.valor into v_secreto from public.app_secrets s where s.clave = 'cron_push_secret';
-    if v_secreto is not null then
-      perform net.http_post(
-        url := 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos',
-        headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', v_secreto),
-        body := '{}'::jsonb
-      );
-    end if;
-  exception when others then
-    raise warning 'avisos_enviar_ya: no se pudo llamar a enviar-avisos (%); lo manda el cron', sqlerrm;
-  end;
+  select s.valor into v_secreto from public.app_secrets s where s.clave = 'cron_push_secret';
+  if v_secreto is null then
+    return;
+  end if;
+  perform net.http_post(
+    url := 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', v_secreto),
+    body := '{}'::jsonb
+  );
+exception when others then
+  raise warning 'llamar_enviar_avisos: no se pudo llamar a enviar-avisos (%); lo manda el cron', sqlerrm;
+end
+$function$;
+revoke execute on function public.llamar_enviar_avisos() from public, anon, authenticated;
+
+-- Un aviso para ya (chat, y en las etapas siguientes pedido nuevo, aceptó...) llama enseguida a
+-- enviar-avisos, sin esperar al cron. Una vez por sentencia, no por fila (29/10/2026, revisión):
+-- un pedido a varias niñeras o programar_avisos encolan muchos de una vez y una sola llamada los
+-- reclama todos. Si la sentencia no insertó ninguno para ya (solo para más tarde, o "on conflict do
+-- nothing" que no insertó nada), no llama.
+create or replace function public.avisos_disparar_envio()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  if exists (select 1 from nuevos where nuevos.enviar_desde <= now()) then
+    perform public.llamar_enviar_avisos();
+  end if;
   return null;
 end
 $function$;
 revoke execute on function public.avisos_disparar_envio() from public, anon, authenticated;
 create trigger avisos_enviar_ya after insert on public.avisos
-  for each row when (new.enviar_desde <= now()) execute function public.avisos_disparar_envio();
+  referencing new table as nuevos
+  for each statement execute function public.avisos_disparar_envio();
 
--- Cada minuto: programa los avisos que tocan y, si hay alguno pendiente, llama a enviar-avisos
--- (como enviar-push-urgentes; en otro proyecto, cambiar la URL). Sin pendientes no la llama: así
--- no son 1.440 llamadas por día que no hacen nada.
-select cron.schedule('enviar-avisos', '* * * * *', $$
-  select public.programar_avisos();
-  select net.http_post(
-    url := 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-cron-secret', (select valor from public.app_secrets where clave = 'cron_push_secret')
-    ),
-    body := '{}'::jsonb
-  )
-  where exists (select 1 from public.avisos where enviado_en is null and enviar_desde <= now());
-$$);
+-- Lo que corre el cron cada minuto: programa los avisos que tocan y, si hay alguno pendiente, llama
+-- a enviar-avisos. Sin pendientes no la llama: así no son 1.440 llamadas por día que no hacen nada.
+-- En una función (y no en el texto del cron) para poder probarla.
+create or replace function public.correr_cron_avisos()
+returns void
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+begin
+  perform public.programar_avisos();
+  if exists (select 1 from public.avisos a where a.enviado_en is null and a.enviar_desde <= now()) then
+    perform public.llamar_enviar_avisos();
+  end if;
+end
+$function$;
+revoke execute on function public.correr_cron_avisos() from public, anon, authenticated;
+grant execute on function public.correr_cron_avisos() to service_role;
+
+-- Cada minuto (como enviar-push-urgentes; en otro proyecto, cambiar la URL en llamar_enviar_avisos).
+select cron.schedule('enviar-avisos', '* * * * *', $$select public.correr_cron_avisos();$$);
 
 
 -- Fijos automáticos (06/10/2026). El proceso. Lo corre pg_cron todos los días a las 03:00 de Montevideo (lo programa

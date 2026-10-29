@@ -13,6 +13,7 @@
 --     --migracion supabase/migraciones/20261029_avisos_chat_DESHACER.sql \
 --     --migracion supabase/migraciones/20261029_avisos_chat.sql supabase/pruebas/fase1_avisos_chat.sql
 -- (<schema de main>: git show origin/main:supabase/schema.sql guardado en una carpeta temporal.)
+-- El DESHACER con mensajes (respaldo_chat_20261029) se prueba aparte: supabase/pruebas/deshacer/.
 -- Para "ser" una cuenta: set local role authenticated + set local request.jwt.claims; reset role
 -- vuelve a postgres. Todo termina en rollback.
 -- ============================================================================
@@ -58,34 +59,39 @@ select pg_temp.verificar('avisos: solo políticas de lectura; chat: sin delete',
 select pg_temp.verificar('los tres índices',
   (select count(*) = 3 from pg_indexes where schemaname = 'public'
     and indexname in ('idx_avisos_pendientes', 'idx_avisos_ninera', 'idx_chat_mensajes_ninera')));
-select pg_temp.verificar('las nueve funciones: security definer con search_path fijo',
-  (select count(*) = 9 from pg_proc
+select pg_temp.verificar('las once funciones: security definer con search_path fijo',
+  (select count(*) = 11 from pg_proc
     where pronamespace = 'public'::regnamespace and prosecdef
       and proname in ('encolar_aviso', 'reclamar_avisos', 'programar_avisos', 'admins_activas_mails',
                       'ninera_enviar_mensaje', 'ninera_marcar_chat_leido', 'ninera_marcar_avisos_leidos',
-                      'chat_mensajes_encolar_aviso', 'avisos_disparar_envio')
+                      'chat_mensajes_encolar_aviso', 'avisos_disparar_envio', 'llamar_enviar_avisos',
+                      'correr_cron_avisos')
       and exists (select 1 from unnest(proconfig) c where c = 'search_path=public')));
 select pg_temp.verificar('los dos triggers',
   (select count(*) = 2 from pg_trigger where not tgisinternal
     and ((tgname = 'chat_mensajes_aviso' and tgrelid = 'public.chat_mensajes'::regclass)
       or (tgname = 'avisos_enviar_ya' and tgrelid = 'public.avisos'::regclass))));
-select pg_temp.verificar('el cron enviar-avisos cada minuto, una sola vez: programa y llama a la función',
-  (select count(*) = 1 and bool_and(schedule = '* * * * *' and command like '%public.programar_avisos()%'
-                                    and command like '%/functions/v1/enviar-avisos%' and command like '%cron_push_secret%')
+select pg_temp.verificar('avisos_enviar_ya: una vez por sentencia, con la tabla de las filas nuevas',
+  (select pg_get_triggerdef(oid) like '%REFERENCING NEW TABLE AS nuevos FOR EACH STATEMENT%'
+     from pg_trigger where tgname = 'avisos_enviar_ya' and tgrelid = 'public.avisos'::regclass));
+select pg_temp.verificar('el cron enviar-avisos cada minuto, una sola vez: corre correr_cron_avisos()',
+  (select count(*) = 1 and bool_and(schedule = '* * * * *' and command = 'select public.correr_cron_avisos();')
      from cron.job where jobname = 'enviar-avisos'));
 select pg_temp.verificar('Realtime: las dos tablas en la publicación',
   (select count(*) = 2 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public'
     and tablename in ('avisos', 'chat_mensajes')));
 
 -- Permisos: las internas, solo la base (triggers, cron) y la clave de servicio.
-select pg_temp.verificar('encolar_aviso, reclamar_avisos, programar_avisos, admins_activas_mails y los triggers: ni authenticated ni anon',
+select pg_temp.verificar('las internas y los triggers: ni authenticated ni anon',
   not exists (select 1 from pg_proc p, unnest(array['authenticated', 'anon']) r
                where p.pronamespace = 'public'::regnamespace
                  and p.proname in ('encolar_aviso', 'reclamar_avisos', 'programar_avisos', 'admins_activas_mails',
-                                   'chat_mensajes_encolar_aviso', 'avisos_disparar_envio')
+                                   'chat_mensajes_encolar_aviso', 'avisos_disparar_envio', 'llamar_enviar_avisos',
+                                   'correr_cron_avisos')
                  and has_function_privilege(r, p.oid, 'execute')));
-select pg_temp.verificar('reclamar_avisos, programar_avisos y admins_activas_mails: service_role sí',
+select pg_temp.verificar('reclamar_avisos, programar_avisos, admins_activas_mails y correr_cron_avisos: service_role sí',
   has_function_privilege('service_role', 'public.reclamar_avisos(integer)', 'execute')
+  and has_function_privilege('service_role', 'public.correr_cron_avisos()', 'execute')
   and has_function_privilege('service_role', 'public.programar_avisos()', 'execute')
   and has_function_privilege('service_role', 'public.admins_activas_mails()', 'execute'));
 select pg_temp.verificar('las tres de la niñera: authenticated sí, anon no',
@@ -101,9 +107,20 @@ select pg_temp.verificar('el chat: authenticated solo puede actualizar leido_adm
   and not has_column_privilege('authenticated', 'public.chat_mensajes', 'autor', 'update')
   and not has_column_privilege('authenticated', 'public.chat_mensajes', 'leido_ninera_en', 'update')
   and not has_column_privilege('anon', 'public.chat_mensajes', 'leido_admin_en', 'update'));
+select pg_temp.verificar('el chat: authenticated inserta solo ninera_id, de, autor y texto',
+  has_column_privilege('authenticated', 'public.chat_mensajes', 'ninera_id', 'insert')
+  and has_column_privilege('authenticated', 'public.chat_mensajes', 'de', 'insert')
+  and has_column_privilege('authenticated', 'public.chat_mensajes', 'autor', 'insert')
+  and has_column_privilege('authenticated', 'public.chat_mensajes', 'texto', 'insert')
+  and not has_column_privilege('authenticated', 'public.chat_mensajes', 'id', 'insert')
+  and not has_column_privilege('authenticated', 'public.chat_mensajes', 'creado_en', 'insert')
+  and not has_column_privilege('authenticated', 'public.chat_mensajes', 'leido_ninera_en', 'insert')
+  and not has_column_privilege('authenticated', 'public.chat_mensajes', 'leido_admin_en', 'insert')
+  and not has_column_privilege('anon', 'public.chat_mensajes', 'texto', 'insert'));
 
 -- ---------------------------------------------------------------------------
--- Datos inventados: dos admins (una dada de baja) y dos niñeras con cuenta (Ana y Bruno)
+-- Datos inventados: dos admins (una dada de baja), dos niñeras con cuenta (Ana y Bruno) y una sin
+-- la app (Carla)
 -- ---------------------------------------------------------------------------
 insert into auth.users (id, email) values
   ('e1000000-0000-4000-8000-0000000000a1', 'admin.prueba@ejemplo.invalid'),
@@ -115,7 +132,8 @@ insert into usuarias_autorizadas (user_id, rol, activa) values
   ('e1000000-0000-4000-8000-0000000000a2', 'socia', false);
 insert into ninieras (id, nombre, telefono, user_id) values
   ('e2000000-0000-4000-8000-000000000001', 'Ana Ficticia', '099000001', 'e1000000-0000-4000-8000-000000000001'),
-  ('e2000000-0000-4000-8000-000000000002', 'Bruno Ejemplo', '099000002', 'e1000000-0000-4000-8000-000000000002');
+  ('e2000000-0000-4000-8000-000000000002', 'Bruno Ejemplo', '099000002', 'e1000000-0000-4000-8000-000000000002'),
+  ('e2000000-0000-4000-8000-000000000003', 'Carla Sin App', '099000003', null);
 
 -- net.http_post de mentira que anota cada llamada, para ver qué dispara el trigger avisos_enviar_ya.
 create table public.prueba_http_posts (url text, headers jsonb, body jsonb);
@@ -203,6 +221,43 @@ select pg_temp.verificar('el del futuro sigue sin reclamar',
 update avisos set enviado_en = null, error = 'falló', enviar_desde = now() where clave = 'prueba:1';
 select pg_temp.verificar('un reintento se reclama de nuevo y suma intentos',
   (select count(*) = 1 and bool_and(clave = 'prueba:1' and intentos = 2) from public.reclamar_avisos(50)));
+
+-- El disparo es uno por sentencia (29/10/2026, revisión): un pedido a varias niñeras o
+-- programar_avisos encolan muchos de una vez.
+truncate public.prueba_http_posts;
+insert into avisos (clave, para_admin, tipo, titulo) values
+  ('prueba:lote:1', 'todas', 'prueba', 'x'), ('prueba:lote:2', 'todas', 'prueba', 'x'), ('prueba:lote:3', 'todas', 'prueba', 'x');
+select pg_temp.verificar('tres avisos para ya en una sola sentencia: una sola llamada',
+  (select count(*) = 1 from public.prueba_http_posts) and (select count(*) = 3 from avisos where clave like 'prueba:lote:%'));
+truncate public.prueba_http_posts;
+insert into avisos (clave, para_admin, tipo, titulo, enviar_desde) values
+  ('prueba:mas-tarde:1', 'todas', 'prueba', 'x', now() + interval '1 hour'),
+  ('prueba:mas-tarde:2', 'todas', 'prueba', 'x', now() + interval '2 hours');
+select pg_temp.verificar('solo avisos para más tarde: ninguna llamada',
+  (select count(*) = 0 from public.prueba_http_posts));
+select pg_temp.verificar('encolar_aviso con una clave repetida (no inserta nada)',
+  not public.encolar_aviso('prueba:lote:1', null, 'todas', 'prueba', 'x', 'y', null));
+select pg_temp.verificar('una clave repetida no llama a nada',
+  (select count(*) = 0 from public.prueba_http_posts));
+
+-- correr_cron_avisos (lo que corre el cron cada minuto): llama a enviar-avisos solo si hay algo
+-- pendiente para ya.
+select pg_temp.verificar('se reclaman los tres del lote', (select count(*) = 3 from public.reclamar_avisos(50)));
+select public.correr_cron_avisos();
+select pg_temp.verificar('cron sin pendientes para ya (solo los de más tarde): ninguna llamada',
+  (select count(*) = 0 from public.prueba_http_posts));
+update avisos set enviado_en = null where clave = 'prueba:lote:1';
+select public.correr_cron_avisos();
+select pg_temp.verificar('cron con uno pendiente: una llamada con x-cron-secret',
+  (select count(*) = 1 and bool_and(url = 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos'
+                                    and headers ->> 'x-cron-secret' = 'secreto-de-prueba')
+     from public.prueba_http_posts));
+delete from app_secrets where clave = 'cron_push_secret';
+select pg_temp.verificar('cron sin la clave: no falla y no llama',
+  pg_temp.error_de('select public.correr_cron_avisos()') is null);
+select pg_temp.verificar('cron sin la clave: sigue en una llamada', (select count(*) = 1 from public.prueba_http_posts));
+insert into app_secrets (clave, valor) values ('cron_push_secret', 'secreto-de-prueba');
+select pg_temp.verificar('se reclama el pendiente', (select count(*) = 1 from public.reclamar_avisos(50)));
 
 -- admins_activas_mails: solo las activas (como service_role, la que la usa).
 set local role service_role;
@@ -327,6 +382,21 @@ set local request.jwt.claims = '{"sub": "e1000000-0000-4000-8000-0000000000a1", 
 select pg_temp.verificar('la admin escribe a Ana (insert con de admin)',
   pg_temp.error_de($$insert into chat_mensajes (ninera_id, de, autor, texto)
                       values ('e2000000-0000-4000-8000-000000000001', 'admin', 'Paula Prueba', 'Mensaje largo ' || repeat('z', 200))$$) is null);
+select pg_temp.verificar('la admin no puede poner leido_ninera_en al escribir (sin permiso)',
+  pg_temp.error_de($$insert into chat_mensajes (ninera_id, de, autor, texto, leido_ninera_en)
+                      values ('e2000000-0000-4000-8000-000000000001', 'admin', 'Paula Prueba', 'ya leído', now())$$) like '%permission denied%');
+select pg_temp.verificar('la admin no le escribe a una niñera sin la app (RLS)',
+  pg_temp.error_de($$insert into chat_mensajes (ninera_id, de, autor, texto)
+                      values ('e2000000-0000-4000-8000-000000000003', 'admin', 'Paula Prueba', 'hola Carla')$$) like '%row-level security%');
+reset role;
+update ninieras set activa = false where id = 'e2000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select pg_temp.verificar('la admin no le escribe a una niñera dada de baja (RLS)',
+  pg_temp.error_de($$insert into chat_mensajes (ninera_id, de, autor, texto)
+                      values ('e2000000-0000-4000-8000-000000000002', 'admin', 'Paula Prueba', 'hola Bruno')$$) like '%row-level security%');
+reset role;
+update ninieras set activa = true where id = 'e2000000-0000-4000-8000-000000000002';
+set local role authenticated;
 select pg_temp.verificar('la admin no puede escribir como niñera (RLS)',
   pg_temp.error_de($$insert into chat_mensajes (ninera_id, de, autor, texto)
                       values ('e2000000-0000-4000-8000-000000000001', 'ninera', 'Ana Ficticia', 'trucho')$$) like '%row-level security%');
