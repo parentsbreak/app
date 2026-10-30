@@ -423,6 +423,7 @@ async function verNinera(id){
     ${htmlCambioTelefono(n)}
     ${cvDesactualizado ? `<div class="warnbox" style="margin-bottom:10px;">Cumplió años desde que se generó el CV — convendría rehacerlo.</div>` : ''}
     <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.cv_url?`<div><b>CV</b><a href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver CV</a></div>`:''}<div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
+    <div id="vn-chat" data-ninera="${escaparHtml(n.id)}" style="margin-top:18px;"></div>
     <div id="vn-carsitting"></div>
     <div id="vn-juguetes"></div>
     <div id="vn-saldo" style="margin-top:18px;"></div>
@@ -439,6 +440,7 @@ async function verNinera(id){
       <div id="vn-historial"><div class="empty"><span class="spinner dark"></span> Cargando…</div></div>
     </div>`);
   cargarEstadoAppNinera(n.id);
+  pintarChatFicha(n);
   if(n.foto_propuesta_ruta) cargarFotoPropuesta(n.id, n.foto_propuesta_ruta);
   cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
   cargarJuguetesDeNinera(n.nombre);
@@ -575,6 +577,211 @@ async function cargarEstadoAppNinera(id){
       ? `<button class="smallbtn" onclick="conGuardado(this, ()=>abrirInvitacionApp(${argJs(id)}, ${est.linkVigente}))">${etiqueta}</button>`
       : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`)
     + perfilHtml;
+}
+/* ---- Chat con la niñera en su ficha (fase 1, etapa 3, 30/10/2026) ----
+   Debajo de la fila "App". La admin escribe directo en chat_mensajes: la base deja solo de 'admin', a
+   una niñera activa con cuenta, y pone el id, la hora y lo leído. Lo de la niñera llega desde su app.
+   Mientras la ficha está abierta el hilo tiene su propio canal de Realtime (se quita al cerrarla o al
+   abrir otro modal: alCerrarModal, core.js): lo nuevo se suma como nodos, sin tocar lo que se está
+   escribiendo, y sin repetir (por id: lo propio también vuelve por Realtime). Sin la migración de la
+   etapa 3 (la tabla no existe) la sección no se muestra. */
+let chatTablasSinMigrar = null; // null: todavía no se sabe; true: la base no tiene la etapa 3; false: sí
+let aperturaChatFicha = 0;      // cada ficha pintada o cerrada suma uno: lo que llega tarde no pinta
+let canalChatFicha = null;
+let idsChatFicha = new Set();
+let chatFichaPorMarcar = null;  // id de la niñera si llegó algo suyo con el panel en segundo plano
+let chatFichaEnfocar = null;    // id de la niñera cuya ficha se abre "en el chat" (Hoy, campanita, push)
+
+// "HH:MM" si es de hoy; si no, "dd/mm HH:MM". Siempre en Montevideo, aunque el aparato tenga otra zona.
+function momentoChatFicha(ts){
+  const d = ts ? new Date(ts) : null;
+  if(!d || isNaN(d)) return '';
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_NEGOCIO, year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(d);
+  const p = t => (partes.find(x=>x.type===t)?.value || '');
+  const hora = `${p('hour')}:${p('minute')}`;
+  return `${p('year')}-${p('month')}-${p('day')}` === todayISO() ? hora : `${p('day')}/${p('month')} ${hora}`;
+}
+function asegurarEstilosChat(){
+  if(document.getElementById('estilos-chat-ficha')) return;
+  const st = document.createElement('style');
+  st.id = 'estilos-chat-ficha';
+  st.textContent = `
+.chatf-hilo{max-height:340px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;}
+.chatf-hilo .helper{margin:0;}
+.chatf-msg{max-width:85%;width:fit-content;margin:0 0 8px;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4;overflow-wrap:anywhere;box-sizing:border-box;}
+.chatf-msg:last-child{margin-bottom:0;}
+.chatf-msg span{display:block;}
+.chatf-msg.ella{margin-right:auto;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:4px;}
+.chatf-msg.equipo{margin-left:auto;background:var(--accent-soft);border-bottom-right-radius:4px;}
+.chatf-autor{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;}
+.chatf-texto{white-space:pre-wrap;}
+.chatf-hora{font-size:11.5px;color:var(--ink-soft);text-align:right;margin-top:2px;}
+.chatf-escribir{display:flex;gap:8px;align-items:flex-end;}
+.chatf-escribir textarea{flex:1;min-width:0;min-height:48px;max-height:140px;resize:vertical;font-size:16px;}
+.chatf-escribir .btn{flex:none;min-height:48px;}
+.chat-hoy-fila{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);padding:10px 2px;cursor:pointer;font-family:inherit;color:var(--ink);font-size:14px;}
+.chat-hoy-fila:last-child{border-bottom:none;}
+.chat-hoy-cuerpo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.chat-hoy-ultimo{color:var(--ink-soft);font-size:13px;overflow-wrap:anywhere;}
+.chat-hoy-cant{flex:none;min-width:24px;height:24px;border-radius:12px;background:var(--clay);color:#fff;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 7px;box-sizing:border-box;}
+`;
+  document.head.appendChild(st);
+}
+// Pinta la sección en la ficha recién abierta (verNinera). Sin cuenta no hay nada que leer: solo el aviso.
+function pintarChatFicha(n){
+  const cont = document.getElementById('vn-chat');
+  if(!cont || !n) return;
+  const apertura = ++aperturaChatFicha;
+  idsChatFicha = new Set();
+  chatFichaPorMarcar = null;
+  alCerrarModal(cerrarChatFicha);
+  const enfocar = chatFichaEnfocar === n.id;
+  chatFichaEnfocar = null;
+  if(chatTablasSinMigrar){ cont.innerHTML = ''; return; }
+  asegurarEstilosChat();
+  const titulo = '<h2 class="card-section-title" style="margin-top:0;">Chat</h2>';
+  if(!n.user_id){
+    cont.innerHTML = `${titulo}<div class="helper">Todavía no tiene la app: escribile por WhatsApp.</div>`;
+  } else {
+    const nombre = (n.nombre||'').trim().split(/\s+/)[0] || 'ella';
+    cont.innerHTML = `${titulo}
+      <div id="vn-chat-hilo" class="chatf-hilo" aria-live="polite"><div class="helper chatf-provisorio">Cargando…</div></div>
+      <div class="chatf-escribir">
+        <textarea id="vn-chat-texto" rows="2" maxlength="2000" placeholder="Escribile a ${escaparHtml(nombre)}" aria-label="Escribile a ${escaparHtml(nombre)}"></textarea>
+        <button class="btn primary" onclick="conGuardado(this, ()=>enviarMensajeChatFicha(${argJs(n.id)}))">Enviar</button>
+      </div>`;
+    // El canal antes que la lectura: lo que llegue mientras carga no se pierde (el id evita repetirlo).
+    abrirCanalChatFicha(n.id, apertura);
+    cargarHiloChatFicha(n.id, apertura);
+  }
+  if(enfocar) cont.scrollIntoView({ block: 'start' });
+}
+// Al cerrar la ficha o abrir otro modal encima: se quita el canal y lo que siga cargando ya no pinta.
+function cerrarChatFicha(){
+  aperturaChatFicha++;
+  chatFichaPorMarcar = null;
+  const canal = canalChatFicha;
+  canalChatFicha = null;
+  if(canal) sb.removeChannel(canal).catch(e=>console.error('[chat] al quitar el canal', e));
+}
+function abrirCanalChatFicha(id, apertura){
+  // Un nombre por apertura: con el mismo, supabase-js devolvería el canal anterior si todavía se está yendo.
+  canalChatFicha = sb.channel(`chat-ficha-${id}-${apertura}`)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_mensajes', filter:`ninera_id=eq.${id}` }, payload=>{
+      if(apertura !== aperturaChatFicha) return;
+      const m = payload && payload.new;
+      if(!agregarMensajesChatFicha([m]) || m.de !== 'ninera') return;
+      // Lo de ella con la ficha abierta y a la vista ya está leído; en segundo plano, al volver.
+      if(document.visibilityState === 'visible') marcarChatFichaLeido(id);
+      else chatFichaPorMarcar = id;
+    })
+    .subscribe();
+}
+async function cargarHiloChatFicha(id, apertura){
+  const { data, error } = await sb.from('chat_mensajes').select('id,de,autor,texto,creado_en,leido_admin_en')
+    .eq('ninera_id', id).order('creado_en', { ascending:false }).limit(200);
+  if(apertura !== aperturaChatFicha) return;
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return;
+  if(error){
+    if(esFaltaTabla(error)){
+      chatTablasSinMigrar = true;
+      cerrarChatFicha();
+      const cont = document.getElementById('vn-chat');
+      if(cont) cont.innerHTML = '';
+      return;
+    }
+    hilo.querySelectorAll('.chatf-provisorio, .chatf-falla').forEach(x=>x.remove());
+    hilo.insertAdjacentHTML('afterbegin', `<div class="helper chatf-falla">No se pudo cargar el chat. Revisá la conexión. <button class="smallbtn" onclick="reintentarHiloChatFicha(${argJs(id)})">Reintentar</button></div>`);
+    return;
+  }
+  chatTablasSinMigrar = false;
+  hilo.querySelectorAll('.chatf-provisorio, .chatf-falla').forEach(x=>x.remove());
+  const filas = (data||[]).slice().reverse();
+  agregarMensajesChatFicha(filas, { bajar:true });
+  if(!hilo.querySelector('.chatf-msg')) hilo.insertAdjacentHTML('afterbegin', '<div class="helper chatf-provisorio">Todavía no hay mensajes.</div>');
+  // Recién cuando se ven: si no cargó, siguen sin leer (en Hoy y en la campanita).
+  if(filas.some(m=>m.de==='ninera' && !m.leido_admin_en)) marcarChatFichaLeido(id);
+}
+function reintentarHiloChatFicha(id){
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return;
+  hilo.querySelectorAll('.chatf-falla').forEach(x=>x.remove());
+  if(!hilo.querySelector('.chatf-msg')) hilo.insertAdjacentHTML('afterbegin', '<div class="helper chatf-provisorio">Cargando…</div>');
+  return cargarHiloChatFicha(id, aperturaChatFicha);
+}
+// Un mensaje: los de ella a la izquierda; los del equipo a la derecha, con quién escribió. El texto
+// tal cual, escapado; los renglones los respeta el CSS (white-space: pre-wrap), sin <br> armados.
+function htmlMensajeChatFicha(m){
+  const deElla = m.de === 'ninera';
+  return `<div class="chatf-msg ${deElla ? 'ella' : 'equipo'}" data-t="${Date.parse(m.creado_en) || 0}">${
+    deElla ? '' : `<span class="chatf-autor">${escaparHtml(m.autor || 'Equipo')}</span>`
+  }<span class="chatf-texto">${escaparHtml(m.texto)}</span><span class="chatf-hora">${escaparHtml(momentoChatFicha(m.creado_en))}</span></div>`;
+}
+// Suma al hilo los que todavía no están, cada uno en su lugar por la hora, sin tocar el campo de texto.
+// Baja al último si se pide (al abrir, al mandar) o si ya estaba abajo. Devuelve cuántos sumó.
+function agregarMensajesChatFicha(filas, { bajar = false } = {}){
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return 0;
+  const estabaAbajo = hilo.scrollHeight - hilo.scrollTop - hilo.clientHeight < 60;
+  let nuevos = 0;
+  for(const m of filas){
+    if(!m || !m.id || idsChatFicha.has(m.id)) continue;
+    idsChatFicha.add(m.id);
+    const molde = document.createElement('div');
+    molde.innerHTML = htmlMensajeChatFicha(m);
+    const el = molde.firstElementChild;
+    const t = Number(el.dataset.t);
+    const siguiente = Array.from(hilo.querySelectorAll('.chatf-msg')).find(x=>Number(x.dataset.t) > t);
+    hilo.insertBefore(el, siguiente || null);
+    nuevos++;
+  }
+  if(nuevos){
+    hilo.querySelectorAll('.chatf-provisorio').forEach(x=>x.remove());
+    if(bajar || estabaAbajo) hilo.scrollTop = hilo.scrollHeight;
+  }
+  return nuevos;
+}
+// Marca leídos todos los de ella que falten. Si falla no se avisa: siguen en Hoy y en la campanita
+// hasta la próxima vez que se abra la ficha. Después la campanita se pone al día (el aviso sale).
+async function marcarChatFichaLeido(id){
+  const { error } = await sb.from('chat_mensajes').update({ leido_admin_en: new Date().toISOString() })
+    .eq('ninera_id', id).eq('de', 'ninera').is('leido_admin_en', null);
+  if(!error) cargarNotificaciones();
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState !== 'visible' || !chatFichaPorMarcar) return;
+  const id = chatFichaPorMarcar;
+  chatFichaPorMarcar = null;
+  if(document.getElementById('vn-chat-hilo')) marcarChatFichaLeido(id);
+});
+// "Enviar": el texto sin los blancos de alrededor. Si falla, el aviso y el texto queda para reintentar;
+// nunca un mensaje en el hilo que la base no devolvió.
+async function enviarMensajeChatFicha(id){
+  const campo = document.getElementById('vn-chat-texto');
+  if(!campo) return;
+  const escrito = campo.value;
+  const texto = escrito.trim();
+  if(!texto){ campo.focus(); return; }
+  const { data, error, status } = await sb.from('chat_mensajes')
+    .insert({ ninera_id: id, de: 'admin', autor: nombreUsuario(), texto })
+    .select('id,de,autor,texto,creado_en').single();
+  if(error || !data){
+    // Sin respuesta de la base (status 0) es la conexión: no se muestra el "TypeError: Failed to fetch".
+    const motivo = !error ? 'la base no devolvió el mensaje.'
+      : !status ? 'revisá la conexión e intentá de nuevo.'
+      : error.code === '42501' ? 'ya no tiene la app activa. Escribile por WhatsApp.'
+      : error.code === '23514' ? 'es muy largo o está vacío.'
+      : error.message;
+    toast('No se pudo enviar el mensaje: ' + motivo, 'bad');
+    return;
+  }
+  if(!document.getElementById('vn-chat-hilo')) return; // se cerró la ficha mientras se mandaba
+  agregarMensajesChatFicha([data], { bajar:true });
+  // Lo que escribió mientras se mandaba queda: se saca solo lo que ya salió.
+  const ahora = document.getElementById('vn-chat-texto');
+  if(ahora && ahora.value.startsWith(escrito)) ahora.value = ahora.value.slice(escrito.length).replace(/^\s+/, '');
 }
 const ERRORES_INVITACION = {
   ninera_inactiva: 'la niñera está inactiva',
