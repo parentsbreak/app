@@ -14,7 +14,7 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2 } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
@@ -158,15 +158,19 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *   ruta: path a abrir (por defecto '/')
  *   baseSinMigrar: true simula la base ANTES de la migración del 05/10/2026 (asignaciones
  *     sin vigencia/tipo, sin tabla sittings_historial) y de las siguientes (familias sin
- *     terminos_aceptados_el, 20/10/2026; ninieras sin las columnas de la etapa 2, 27/10/2026),
- *     con los mismos errores que Supabase
+ *     terminos_aceptados_el, 20/10/2026; ninieras sin las columnas de la etapa 2, 27/10/2026;
+ *     sin chat_mensajes ni avisos, 30/10/2026), con los mismos errores que Supabase.
+ *     'etapa3' simula la base con todo menos la migración de la etapa 3 (sin chat_mensajes ni
+ *     avisos): es como va a estar producción entre que se publica la app y se aplica la migración.
  */
 async function abrirApp(page, opciones = {}) {
   const { datos = {}, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/', baseSinMigrar = false } = opciones;
   const estado = crearEstado(datos);
-  if (baseSinMigrar) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
-  if (baseSinMigrar) sacarColumnasEtapa2(estado.db);
-  await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora, baseSinMigrar });
+  const sinMigrarTodo = baseSinMigrar === true;
+  if (sinMigrarTodo) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
+  if (sinMigrarTodo) sacarColumnasEtapa2(estado.db);
+  await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
+    baseSinMigrar: sinMigrarTodo, tablasSinMigrar: baseSinMigrar ? TABLAS_ETAPA_3 : [] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -182,8 +186,10 @@ async function abrirApp(page, opciones = {}) {
  *   ninera: id de la niñera de la sesión (su fila queda con user_id = USUARIO_NINERA.id)
  *   sesion: false para entrar sin sesión (invitación, login)
  *   ruta, consulta: path y query a abrir (consulta: '?i=<token>' para un link de invitación)
- *   baseSinMigrar: true simula la base sin la migración de la etapa 2 (27/10/2026): sus RPC dan
- *     404 PGRST202 y ninieras no tiene sus columnas; las de la etapa 1 andan
+ *   baseSinMigrar: true simula la base sin las migraciones de las etapas 2 (27/10/2026) y 3
+ *     (30/10/2026): sus RPC dan 404 PGRST202, ninieras no tiene las columnas de la etapa 2 y
+ *     chat_mensajes y avisos dan 404 PGRST205; las de la etapa 1 andan. 'etapa3': solo falta la
+ *     de la etapa 3 (el perfil y los próximos sittings andan)
  *   funciones: Edge Functions simuladas por nombre desde el primer pedido (como estado.funciones,
  *     pero antes de navegar: con consulta, la app llama a la función apenas abre)
  *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
@@ -198,13 +204,16 @@ async function abrirAppNinera(page, opciones = {}) {
     if (fila) fila.user_id = USUARIO_NINERA.id;
   }
   Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined));
-  if (baseSinMigrar) {
+  if (baseSinMigrar === true) {
     RPC_ETAPA_2.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     sacarColumnasEtapa2(estado.db);
   }
+  if (baseSinMigrar) RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   // Clave propia de la sesión (storageKey 'sb-ninera-auth'): el panel y la app de niñeras nunca
-  // comparten sesión en el mismo navegador.
-  await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora });
+  // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
+  // pasan por la RLS de la niñera (30/10/2026).
+  await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
+    sesionNinera: ninera, tablasSinMigrar: baseSinMigrar ? TABLAS_ETAPA_3 : [] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
   // navigator.standalone (el que mira Safari del iPhone).
@@ -248,9 +257,12 @@ function crearEstado(datos) {
  * simulado y la sesión. Cada puerta navega y espera lo suyo después.
  *   usuario: el que responden /auth/v1/user y /auth/v1/token
  *   claveSesion: dónde guarda supabase-js la sesión (la storageKey de cada puerta)
+ *   sesionNinera: id de la niñera de la sesión (app de niñeras); sin eso, la sesión es de una admin
+ *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
+  const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
   page.on('pageerror', e => estado.errores.push('excepción: ' + e.message));
 
@@ -289,8 +301,15 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
   });
   estado.emitirRealtime = (tabla, tipo = 'INSERT', fila = {}) => {
     let enviados = 0;
+    // Como Realtime (30/10/2026): no manda lo que la RLS no deja leer a esa sesión, ni lo que no
+    // cumple el filter del canal (solo col=eq.valor, el único que usa la app).
+    if (!rls.visible(tabla, fila)) return 0;
+    const cumpleFiltro = filtro => {
+      const m = /^(\w+)=eq\.(.*)$/.exec(filtro || '');
+      return !m || String(fila[m[1]]) === m[2];
+    };
     for (const [topic, c] of canalesRT) {
-      const ids = c.cambios.filter(x => x.table === tabla).map(x => x.id);
+      const ids = c.cambios.filter(x => x.table === tabla && cumpleFiltro(x.filter)).map(x => x.id);
       if (!ids.length) continue;
       c.ws.send(JSON.stringify([c.joinRef, null, topic, 'postgres_changes', { ids, data: {
         schema: 'public', table: tabla, commit_timestamp: new Date().toISOString(), type: tipo,
@@ -390,7 +409,8 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       }
       return route.fulfill({ json: resultado });
     }
-    if (baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores'].includes(tabla)) {
+    if ((baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores'].includes(tabla))
+      || tablasSinMigrar.includes(tabla)) {
       return route.fulfill({ status: 404, json: { code: 'PGRST205', message: `Could not find the table 'public.${tabla}' in the schema cache` } });
     }
     // Términos y condiciones (20/10/2026): sin la migración, familias no tiene la columna.
@@ -431,7 +451,7 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
 
     if (metodo === 'GET' || metodo === 'HEAD') {
       if (estado.demoraLecturas) await new Promise(r => setTimeout(r, estado.demoraLecturas * (0.5 + Math.random())));
-      let filas = ordenar(filtrar(db[tabla], params), url.searchParams.get('order'));
+      let filas = ordenar(filtrar(db[tabla].filter(f => rls.visible(tabla, f)), params), url.searchParams.get('order'));
       const total = filas.length;
       const offset = Number(url.searchParams.get('offset') || 0);
       const limit = url.searchParams.get('limit');
@@ -450,9 +470,19 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       estado.fallidas = (estado.fallidas || 0) + 1;
       return route.fulfill({ status: falla.status || 500, json: { code: falla.code || 'XX000', message: falla.message || 'falla simulada' } });
     }
+    // Lo que la base de la etapa 3 no deja escribir (permisos por columna, RLS y checks): mismo error
+    // que Supabase y, como las de asignaciones sin migrar, no queda anotado en escrituras.
+    const rechazo = rls.rechazo(tabla, metodo, cuerpo);
+    if (rechazo) {
+      estado.rechazadas = (estado.rechazadas || 0) + 1;
+      return route.fulfill({ status: rechazo.status, json: { code: rechazo.code, details: null, hint: null, message: rechazo.message } });
+    }
     estado.escrituras.push({ tabla, metodo, params: Object.fromEntries(params), cuerpo });
     let afectadas = [];
-    if (metodo === 'POST') {
+    if (metodo === 'POST' && tabla === 'chat_mensajes') {
+      // id, creado_en y lo leído los pone la base, y el trigger encola el aviso.
+      afectadas = [].concat(cuerpo).map(f => insertarMensajeChat(db, f, ahora));
+    } else if (metodo === 'POST') {
       const lista = Array.isArray(cuerpo) ? cuerpo : [cuerpo];
       const conflicto = url.searchParams.get('on_conflict');
       for (const fila of lista) {
@@ -465,10 +495,10 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         db[tabla].push(nueva); afectadas.push(nueva);
       }
     } else if (metodo === 'PATCH') {
-      afectadas = filtrar(db[tabla], params);
+      afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       afectadas.forEach(f => Object.assign(f, cuerpo));
     } else if (metodo === 'DELETE') {
-      afectadas = filtrar(db[tabla], params);
+      afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       db[tabla] = db[tabla].filter(f => !afectadas.includes(f));
     }
     if (prefer.includes('return=representation')) return responder(afectadas, { status: metodo === 'POST' ? 201 : 200 });
@@ -483,6 +513,50 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       }
     }, [claveSesion, JSON.stringify(sesionFalsa(usuario))]);
   }
+}
+
+/* ---- Etapa 3 (30/10/2026): la RLS y los permisos de chat_mensajes y avisos ----
+   Imitan 20261029_avisos_chat.sql. La niñera de la sesión lee solo su hilo y sus avisos y no
+   escribe en ninguna de las dos (lo hace por sus RPC, rpc-ninera.js). Una admin lee todo el chat y
+   solo los avisos con para_admin; en el chat inserta solo ninera_id, de, autor y texto (de 'admin',
+   a una niñera activa con cuenta) y solo actualiza leido_admin_en. Nadie inserta en avisos (lo hace
+   la base) ni borra. Un update o un delete que la RLS no deja no da error: no toca ninguna fila. Las
+   demás tablas, como siempre. */
+const COLUMNAS_INSERT_CHAT = ['ninera_id', 'de', 'autor', 'texto'];
+function reglasEtapa3(db, sesionNinera) {
+  const esNinera = !!sesionNinera;
+  const permisoDenegado = tabla => ({ status: 403, code: '42501', message: `permission denied for table ${tabla}` });
+  const violaRls = tabla => ({ status: 403, code: '42501', message: `new row violates row-level security policy for table "${tabla}"` });
+  return {
+    visible(tabla, fila) {
+      if (tabla === 'chat_mensajes') return !esNinera || fila.ninera_id === sesionNinera;
+      if (tabla === 'avisos') return esNinera ? fila.para_ninera_id === sesionNinera : fila.para_admin != null;
+      return true;
+    },
+    modificable(tabla, metodo, fila) {
+      if (tabla === 'chat_mensajes') return metodo === 'PATCH' && !esNinera;
+      if (tabla === 'avisos') return false;
+      return true;
+    },
+    // Error de PostgREST para una escritura que la base rechaza, o null si pasa.
+    rechazo(tabla, metodo, cuerpo) {
+      if (tabla === 'avisos') return metodo === 'POST' ? violaRls(tabla) : null;
+      if (tabla !== 'chat_mensajes') return null;
+      const filas = [].concat(cuerpo || []);
+      if (metodo === 'PATCH' && filas.some(f => Object.keys(f).some(c => c !== 'leido_admin_en'))) return permisoDenegado(tabla);
+      if (metodo !== 'POST') return null;
+      // En el orden de Postgres: permisos por columna, la política (with check) y los checks.
+      if (filas.some(f => Object.keys(f).some(c => !COLUMNAS_INSERT_CHAT.includes(c)))) return permisoDenegado(tabla);
+      const destinoValido = f => (db.ninieras || []).some(n => n.id === f.ninera_id && n.activa && n.user_id != null);
+      if (esNinera || filas.some(f => f.de !== 'admin' || !destinoValido(f))) return violaRls(tabla);
+      const nula = COLUMNAS_INSERT_CHAT.find(c => filas.some(f => f[c] == null));
+      if (nula) return { status: 400, code: '23502', message: `null value in column "${nula}" of relation "chat_mensajes" violates not-null constraint` };
+      if (filas.some(f => { const n = largo(recortarBlancos(f.texto)); return n < 1 || n > 2000; })) {
+        return { status: 400, code: '23514', message: 'new row for relation "chat_mensajes" violates check constraint "chat_mensajes_texto_check"' };
+      }
+      return null;
+    },
+  };
 }
 
 // Espera a que no queden spinners de "Cargando…" en pantalla.

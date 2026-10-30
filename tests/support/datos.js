@@ -15,6 +15,16 @@ const ID = {
   cIntake: '50000000-0000-4000-8000-000000000001',
   // Cuenta de la niñera en los tests de la app de niñeras (abrirAppNinera la ata a una niñera).
   uNinera: '00000000-0000-4000-8000-000000000002',
+  // Cuenta de Carla (etapa 3, 30/10/2026): completó el perfil y escribe por el chat desde su app.
+  uCarla: '00000000-0000-4000-8000-000000000003',
+  // Chat y avisos (etapa 3, 30/10/2026).
+  chAna1: '93000000-0000-4000-8000-000000000001',
+  chAna2: '93000000-0000-4000-8000-000000000002',
+  chAna3: '93000000-0000-4000-8000-000000000003',
+  chCarla: '93000000-0000-4000-8000-000000000004',
+  avAna: '94000000-0000-4000-8000-000000000001',
+  avAnaChat: '94000000-0000-4000-8000-000000000002',
+  avCarlaChat: '94000000-0000-4000-8000-000000000003',
 };
 
 function sitting(id, fecha, extra = {}) {
@@ -46,11 +56,14 @@ function datosBase() {
       { id: '21000000-0000-4000-8000-000000000002', familia_id: ID.fUno, nombre: 'Nico Ficticio', fecha_nacimiento: '2021-06-15', colegio: null, orden: 2, created_at: '2026-09-01T00:00:00Z', edad_declarada: null, edad_declarada_en: null },
     ],
     // Ana sin zona ni perfil: su primer ingreso a la app de niñeras (etapa 2, 27/10/2026). Carla ya
-    // completó el perfil y tiene una foto propuesta esperando a la admin.
+    // completó el perfil y tiene una foto propuesta esperando a la admin. Desde la etapa 3
+    // (30/10/2026) Carla tiene su cuenta (user_id y app abierta): completó el perfil y escribe por el
+    // chat desde la app, y una admin solo le puede escribir a una niñera con cuenta. Ana sigue sin
+    // cuenta en el panel (los tests de "Invitar a la app" la usan así); abrirAppNinera le pone la suya.
     ninieras: [
       { id: ID.nAna, candidata_id: null, nombre: 'Ana Ficticia', telefono: '098000001', zona: null, tipo: 'Niñera', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: ['0099887766'], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000001', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: null, perfil_actualizado_en: null, foto_propuesta_ruta: null, foto_propuesta_en: null },
       { id: ID.nBruno, candidata_id: null, nombre: 'Bruno Inventado', telefono: '098000002', zona: 'Carrasco', tipo: 'Traslados', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000002', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: null, perfil_actualizado_en: null, foto_propuesta_ruta: null, foto_propuesta_en: null },
-      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos/Carrasco', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: '2026-10-02T15:00:00+00:00', perfil_actualizado_en: '2026-10-02T15:00:00+00:00', foto_propuesta_ruta: `fotos/${ID.nCarla}/propuesta.jpg`, foto_propuesta_en: '2026-10-02T15:00:00+00:00' },
+      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos/Carrasco', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: ID.uCarla, app_activada_en: '2026-10-02T14:00:00+00:00', perfil_app_en: '2026-10-02T15:00:00+00:00', perfil_actualizado_en: '2026-10-02T15:00:00+00:00', foto_propuesta_ruta: `fotos/${ID.nCarla}/propuesta.jpg`, foto_propuesta_en: '2026-10-02T15:00:00+00:00' },
     ],
     asignaciones: [
       { id: ID.aFijo, familia_id: ID.fUno, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', cobro_hora: null, pago_hora: null, created_at: '2026-09-01T00:00:00Z', dias: ['L', 'X'], hora_inicio: '16:00:00', hora_fin: '19:00:00', vigente_desde: '2026-09-01', vigente_hasta: null, tipo: 'sitting' },
@@ -109,6 +122,24 @@ function datosBase() {
     intermediaciones_eventos_ninieras: [],
     variantes_precio: [],
     ninera_invitaciones: [],
+    // Chat (etapa 3, 30/10/2026): el hilo de Ana con una admin, el último sin leer por Ana, y un
+    // mensaje de Carla que las admins todavía no leyeron. Todo antes del reloj de los tests
+    // (04/10 a las 12:00 de Montevideo): lo que se manda en un test queda después.
+    chat_mensajes: [
+      { id: ID.chAna1, ninera_id: ID.nAna, de: 'admin', autor: 'Paula Prueba', texto: 'Hola Ana, ¿te queda bien el sitting de mañana?', creado_en: '2026-10-03T13:00:00+00:00', leido_ninera_en: '2026-10-03T13:10:00+00:00', leido_admin_en: null },
+      { id: ID.chAna2, ninera_id: ID.nAna, de: 'ninera', autor: 'Ana Ficticia', texto: 'Sí, ahí estaré.', creado_en: '2026-10-03T13:15:00+00:00', leido_ninera_en: null, leido_admin_en: '2026-10-03T14:00:00+00:00' },
+      { id: ID.chAna3, ninera_id: ID.nAna, de: 'admin', autor: 'Paula Prueba', texto: 'Gracias, te mandamos la dirección más tarde.', creado_en: '2026-10-04T13:00:00+00:00', leido_ninera_en: null, leido_admin_en: null },
+      { id: ID.chCarla, ninera_id: ID.nCarla, de: 'ninera', autor: 'Carla Ejemplo', texto: 'Hola, ¿me confirman el horario del lunes?', creado_en: '2026-10-04T14:00:00+00:00', leido_ninera_en: null, leido_admin_en: null },
+    ],
+    // Avisos (etapa 3): uno sin leer para Ana, y los dos que el trigger del chat encoló para las
+    // admins por los mensajes de las niñeras (el de Ana ya leído en el chat, el de Carla no). Los
+    // avisos de chat para Ana no se cargan: su lista arranca con uno solo, y cada test suma los que
+    // necesite.
+    avisos: [
+      { id: ID.avAna, clave: 'sitting:70000000-0000-4000-8000-000000000005:recordatorio', para_ninera_id: ID.nAna, para_admin: null, tipo: 'recordatorio', titulo: 'Hoy tienes un sitting', cuerpo: 'A las 18:00 en Pocitos.', url: '#inicio', datos: { sitting_id: '70000000-0000-4000-8000-000000000005' }, enviar_desde: '2026-10-04T12:00:00+00:00', enviado_en: '2026-10-04T12:00:00+00:00', error: null, intentos: 1, leido_en: null, creado_en: '2026-10-04T12:00:00+00:00' },
+      { id: ID.avAnaChat, clave: `admin:chat:${ID.chAna2}`, para_ninera_id: null, para_admin: 'todas', tipo: 'chat', titulo: 'Ana Ficticia', cuerpo: 'Sí, ahí estaré.', url: `?ir=ninieras&ninera=${ID.nAna}`, datos: { mensaje_id: ID.chAna2, ninera_id: ID.nAna }, enviar_desde: '2026-10-03T13:15:00+00:00', enviado_en: '2026-10-03T13:15:00+00:00', error: null, intentos: 1, leido_en: null, creado_en: '2026-10-03T13:15:00+00:00' },
+      { id: ID.avCarlaChat, clave: `admin:chat:${ID.chCarla}`, para_ninera_id: null, para_admin: 'todas', tipo: 'chat', titulo: 'Carla Ejemplo', cuerpo: 'Hola, ¿me confirman el horario del lunes?', url: `?ir=ninieras&ninera=${ID.nCarla}`, datos: { mensaje_id: ID.chCarla, ninera_id: ID.nCarla }, enviar_desde: '2026-10-04T14:00:00+00:00', enviado_en: '2026-10-04T14:00:00+00:00', error: null, intentos: 1, leido_en: null, creado_en: '2026-10-04T14:00:00+00:00' },
+    ],
   };
 }
 

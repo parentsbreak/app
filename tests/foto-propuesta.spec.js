@@ -66,7 +66,8 @@ test.describe('ficha de la niñera: perfil completado en la app', () => {
     const d = datosBase();
     d.ninieras.find(n => n.id === ID.nCarla).perfil_actualizado_en = '2026-10-03T20:00:00+00:00';
     const e = await abrirFicha(page, ID.nCarla, { datos: d });
-    await expect(page.locator('#vn-app')).toContainText('Sin app');
+    // Desde la etapa 3 (30/10/2026) Carla tiene cuenta en los datos de prueba (escribe por el chat).
+    await expect(page.locator('#vn-app')).toContainText('App activa desde 02/10');
     await expect(page.locator('#vn-app')).toContainText('Perfil completado en la app el 02/10, editado el 03/10');
     await page.evaluate(i => verNinera(i), ID.nAna);
     await expect(page.locator('#vn-app')).toContainText('Sin app');
@@ -350,7 +351,8 @@ test.describe('ficha de la niñera: foto propuesta', () => {
 
   test('base sin migrar: la ficha sin el bloque ni el perfil completado, y sin errores', async ({ page }) => {
     const e = await abrirFicha(page, ID.nCarla, { baseSinMigrar: true });
-    await expect(page.locator('#vn-app')).toContainText('Sin app');
+    // Carla tiene cuenta desde los datos de la etapa 3 (30/10/2026); la etapa 1 sí está migrada.
+    await expect(page.locator('#vn-app')).toContainText('App activa desde 02/10');
     await expect(page.locator('#vn-app')).not.toContainText('Perfil');
     await expect(bloque(page)).toHaveCount(0);
     expect(e.escrituras.filter(w => w.tabla.startsWith('/storage/'))).toEqual([]);
