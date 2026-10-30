@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -366,6 +366,21 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   (`errorRpc(msg)` responde como Supabase, 400 P0001). `abrirAppNinera(..., { baseSinMigrar })`
   simula la base sin la migración de la etapa 2 (las RPC dan 404 `PGRST202`); `e.fallar` y
   `demoraEscrituras` también valen para RPC y storage.
+- `tests/simulador-chat.spec.js`, `tests/ninera-chat.spec.js`, `tests/chat-admin.spec.js` (30/10/2026): el
+  simulador del chat y los avisos (`emitirRealtime` aplica la RLS y el filtro del canal), "Mensajes" y
+  "Avisos" de la app de niñeras (`#chat`, `#mis-avisos`, push con la app abierta, base sin migrar, 390 px) y
+  el chat en la ficha, "Mensajes de niñeras" en Hoy y la campanita (`?ir=`, Realtime con texto escrito).
+  `abrirAppNinera(..., { baseSinMigrar: 'etapa3' })` simula la base sin la migración de la etapa 3 (sin
+  `chat_mensajes` ni `avisos`; lo demás anda). `estado.emitirRealtime` ahora respeta la RLS (una niñera
+  solo recibe lo suyo) y el filtro del canal que abrió la pantalla.
+- `supabase/pruebas/fase1_avisos_chat.sql` (30/10/2026): `encolar_aviso` idempotente, `reclamar_avisos`
+  (dos reclamos seguidos, una sola entrega), trigger por sentencia, `correr_cron_avisos`, las funciones de
+  la niñera (vacío, largo, ajeno), columnas permitidas a las admins, solo a niñeras con app y ida y vuelta
+  de la migración. La prueba del DESHACER con mensajes está en `supabase/pruebas/deshacer/`, fuera del
+  glob, y se corre a mano (comando en su encabezado: migración, `..._datos.sql`, DESHACER y la prueba,
+  en ese orden, con `--migracion` repetido).
+- `supabase/functions/enviar-avisos/envio_test.ts`: la lógica de envío sin red (Deno, desde una copia fuera
+  del repo, como `pedido-whatsapp`).
 - `scripts/probar-sql.mjs` (26/10/2026): `--migracion` se puede repetir (aplicar → deshacer →
   aplicar) y una prueba "es" una cuenta con `set local role authenticated` y
   `set local request.jwt.claims` (de ahí salen `auth.uid()`, `auth.jwt()` y `auth.email()`).
@@ -439,6 +454,16 @@ reporte.
 - `enviar-push-urgentes` V11 (26/10/2026) manda solo a `push_subscriptions` con `user_id` nulo
   (admins). Se publica después de la migración `cuentas_ninieras` y antes de `ninera-cuenta`.
 
+- `enviar-avisos` (30/10/2026): manda los push de la cola `avisos` (chat, y las reglas de las etapas
+  siguientes). Pide `x-cron-secret` (app_secrets 'cron_push_secret'); lo llaman el trigger del chat y el
+  cron de cada minuto (`llamar_enviar_avisos`, que solo llama si hay algo pendiente). VAPID de
+  `app_secrets`, como `enviar-push-urgentes`. Reclama con `reclamar_avisos` (una entrega por aviso), 10 s
+  de tope por push, TTL de 1 día el chat y 1 semana el resto, hasta 3 reintentos cada 2 min y después
+  queda con `error` (un envío bueno lo limpia). Suscripción vencida (404/410): se borra. La lógica en
+  `envio.ts`, sin red, con tests de Deno. Se publica con el OK de Diego después de la mudanza, junto con la
+  migración `avisos_chat` o enseguida después (sin la tabla falla; sin la función los avisos quedan
+  pendientes).
+
 ## Convenciones
 - UI y comentarios en español rioplatense (voseo). Los comentarios explican el porqué y
   fechan los incidentes reales; mantener ese estilo.
@@ -509,6 +534,19 @@ reporte.
 - Una función global nueva no puede repetir el nombre de otra en ningún archivo, de ninguna de las
   dos puertas. Una función de `js/comun.js` no se redefine en ningún otro archivo; `comun.js` no
   lleva nada de plata.
+- Cola de avisos y chat (29-30/10/2026): todo aviso nuevo pasa por `encolar_aviso()` con una `clave`
+  idempotente (mismo hecho, misma clave: no se duplica); las reglas de tiempo viven en
+  `programar_avisos_<regla>()` y las llama `programar_avisos()` (cron). `encolar_aviso`, `reclamar_avisos`,
+  `programar_avisos` y `admins_activas_mails` no las ejecuta `authenticated`. La niñera escribe el chat solo
+  por RPC (`ninera_enviar_mensaje`, `ninera_marcar_chat_leido`, `ninera_marcar_avisos_leidos`): no elige
+  `de`, `autor` ni `ninera_id`. Las admins insertan solo `ninera_id, de, autor, texto` y actualizan solo
+  `leido_admin_en`, y solo le escriben a una niñera con app (Diego, 29/10: cualquiera con app; solo texto;
+  el push del chat llega también de noche). El push nunca lleva plata y el del chat va recortado a 120
+  caracteres. Realtime por pantalla (canal propio por apertura de la ficha), con dedupe por id y sin
+  repintar el textarea. `alCerrarModal(fn)` (core.js) suelta el canal al cerrar la ficha. La campanita tiene
+  su canal aparte, que se abre solo si la tabla `avisos` existe (con la base sin migrar no se une y no
+  tumba nada); `avisos` y el tipo `chat` están en `TIPOS_NOTIF`. Una niñera inactiva fuera de la lista se
+  busca con `nineraPorId`.
 - Dos puertas, una sesión cada una (26/10/2026): el cliente de `ninera/` usa
   `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
@@ -717,9 +755,15 @@ En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-neg
 antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los textos en
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
-propuesta, próximos sittings) hechas; etapas 3 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha en la rama
+`claude/fase1-avisos-chat`, sin mergear hasta después de la mudanza y el OK de la migración; etapas 4 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
+- Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
+  Pregunta para Diego: ¿tope de mensajes por niñera o por día? Hoy no hay. Sin borrador del cuadro del
+  chat en la ficha del panel (si se cierra, se pierde lo escrito). Probar en un iPhone real: el textarea
+  del chat con el teclado abierto (`100dvh`) y un push con la app ya abierta. Publicar `enviar-avisos`
+  junto con la migración.
 - Perfil de la niñera (27/10/2026): un segmento de zona que no es un grupo de `zona_grupos` se pierde cuando
   ella guarda desde la app. Pregunta de producto para Diego: ¿se conserva o se descarta?
 - `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.

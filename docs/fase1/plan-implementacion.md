@@ -808,7 +808,7 @@ dos puertas.
   publicación, triggers, funciones, políticas y las dos tablas (los mensajes se copian antes a
   `respaldo_chat_<fecha>` con RLS y sin políticas, si hay alguno).
 
-- [ ] **Paso 1:** `supabase/pruebas/fase1_avisos_chat.sql` (esqueleto de `fase1_perfil.sql`; una
+- [x] **Paso 1:** `supabase/pruebas/fase1_avisos_chat.sql` (esqueleto de `fase1_perfil.sql`; una
   admin, dos niñeras con cuenta). Casos: lo de la migración está (2 tablas con RLS, 6 políticas: 2 de avisos y 4 de chat,
   las funciones, 2 triggers, el cron, la publicación); `encolar_aviso` dos veces con la misma clave
   inserta una sola fila y devuelve `true` / `false`; el `check` de un solo destinatario;
@@ -823,12 +823,12 @@ dos puertas.
   de `'todas'` y no los de Ana; anon no ejecuta nada ni lee nada; `encolar_aviso`,
   `reclamar_avisos`, `programar_avisos` y `admins_activas_mails` no las ejecuta `authenticated`;
   `admins_activas_mails()` no devuelve una admin con `activa = false`.
-- [ ] **Paso 2:** correrla sobre el schema de main con la migración. Esperado: falla.
-- [ ] **Paso 3:** migración, DESHACER, `schema.sql` y `catalogo_seguridad.sql` (las 3 de la niñera
+- [x] **Paso 2:** correrla sobre el schema de main con la migración. Esperado: falla.
+- [x] **Paso 3:** migración, DESHACER, `schema.sql` y `catalogo_seguridad.sql` (las 3 de la niñera
   con su guardia).
-- [ ] **Paso 4:** la prueba nueva, aplicar → deshacer → aplicar, `catalogo_seguridad.sql`, las de la
+- [x] **Paso 4:** la prueba nueva, aplicar → deshacer → aplicar, `catalogo_seguridad.sql`, las de la
   fase 1 con la migración y todas las de `supabase/pruebas/*.sql` sobre `schema.sql`. Esperado: OK.
-- [ ] **Paso 5:** commit `Etapa 3: migración avisos_chat (cola de avisos, chat y funciones de la
+- [x] **Paso 5:** commit `Etapa 3: migración avisos_chat (cola de avisos, chat y funciones de la
   niñera) y pruebas SQL`.
 
 ### Tarea 3.2: Edge Function `enviar-avisos`
@@ -856,7 +856,7 @@ dos puertas.
   admins con una inactiva, una con la preferencia apagada y la que está en `excepto`; 410 borra y
   sigue; error de push reintenta y al tercero no; aviso sin suscripciones; payload sin campos de
   más. `npx deno@2 check` de `index.ts`.
-- [ ] Pasos: tests rojos → `envio.ts` → verdes → `index.ts` + check → commit `Etapa 3: Edge Function
+- [x] Pasos: tests rojos → `envio.ts` → verdes → `index.ts` + check → commit `Etapa 3: Edge Function
   enviar-avisos (cola de avisos por push)`. Publicación: después de la mudanza, con OK.
 
 ### Tarea 3.3: simulador de la etapa
@@ -873,7 +873,7 @@ hilo de Ana (dos de una admin "Paula Prueba", uno de Ana, el último sin leer po
 sin leer para Ana; un mensaje sin leer de Carla para las admins. `estado.emitirRealtime` ya sirve
 para las dos puertas (comprobarlo con la de niñeras). Correr toda la suite: los datos nuevos no
 pueden romper otros tests (si alguno cuenta filas, se ajusta con el porqué).
-- [ ] Commit `Etapa 3: simulador de chat y avisos`.
+- [x] Commit `Etapa 3: simulador de chat y avisos`.
 
 ### Tarea 3.4: app de niñeras: chat y lista de avisos (`ninera/js/chat.js`)
 
@@ -899,7 +899,7 @@ pueden romper otros tests (si alguno cuenta filas, se ajusta con el porqué).
   sola RPC; HTML tramposo en el texto y en el autor se ve como texto; avisos: lista, vacía, marcar
   leídos, tocar uno con url; base sin migrar; abrir con `#chat` en la URL; 390 px; ni `$\d` ni
   "pago".
-- [ ] Commit `Etapa 3: chat con el equipo y lista de avisos en la app de niñeras`.
+- [x] Commit `Etapa 3: chat con el equipo y lista de avisos en la app de niñeras`.
 
 ### Tarea 3.5: panel: chat en la ficha, "Mensajes de niñeras" en Hoy y la campanita
 
@@ -926,11 +926,11 @@ pueden romper otros tests (si alguno cuenta filas, se ajusta con el porqué).
   vacío, falla, doble toque, escape; Hoy con la tarjeta y sin mensajes sin la tarjeta; `?ir=`; la
   campanita con el aviso y sin él cuando se leyó; preferencias con el tipo nuevo; base sin migrar;
   390 px.
-- [ ] Commit `Etapa 3: chat con las niñeras en la ficha, mensajes en Hoy y avisos en la campanita`.
+- [x] Commit `Etapa 3: chat con las niñeras en la ficha, mensajes en Hoy y avisos en la campanita`.
 
 ### Tarea 3.6: documentación, revisión final y PR (sin merge hasta después de la mudanza)
 
-- [ ] CLAUDE.md (orden de carga con `chat.js`, tests, convenciones de la cola de avisos y del chat,
+- [x] CLAUDE.md (orden de carga con `chat.js`, tests, convenciones de la cola de avisos y del chat,
   Edge Function `enviar-avisos`, "Fase 1": etapa 3 hecha), `decisiones.md` 5.5 y el plan.
 - [ ] Revisión final de toda la rama (Opus), una ola de arreglos.
 - [ ] PR con el CI en verde, la migración y la verificación para Diego, y el orden después de la
