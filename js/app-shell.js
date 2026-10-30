@@ -539,6 +539,7 @@ async function abrirFichaDesdeHoy(tipo, id){
 // El módulo carga su lista después de dibujarse: se espera a que esté (hasta 5 s).
 async function abrirFichaCuandoCargue(tipo, id){
   const esFamilia = tipo==='familia';
+  if(!esFamilia) return abrirFichaNineraCuandoCargue(id);
   for(let i=0; i<50; i++){
     const lista = esFamilia ? familiasItems : ninierasItems;
     if((lista||[]).some(x=>x.id===id)) break;
@@ -547,6 +548,19 @@ async function abrirFichaCuandoCargue(tipo, id){
   if(esFamilia) verFamilia(id); else if((ninierasItems||[]).some(x=>x.id===id)) await verNinera(id);
 }
 
+// Niñeras: se espera la carga de la lista que está en curso. Si no está en la lista (dada de baja:
+// cargarNinieras trae solo las activas, 30/10/2026), su fila se lee una vez y se abre igual, en vez de
+// esperar 5 s y no hacer nada (llega desde Hoy o del push del chat). Va con el mismo select que la
+// lista: la ficha usa casi todas las columnas, y una lista a mano se rompería con una base sin migrar.
+async function abrirFichaNineraCuandoCargue(id){
+  if(!nineraPorId(id) && ninCargaEnVuelo) await ninCargaEnVuelo.catch(()=>{});
+  if(!nineraPorId(id)){
+    const { data } = await sb.from('ninieras').select('*, candidatas(*)').eq('id', id).maybeSingle();
+    if(!data) return;
+    nineraFueraDeLista = data;
+  }
+  await verNinera(id);
+}
 // Abre la ficha de la niñera en el chat: tarjeta de Hoy, campanita y el push a las admins (30/10/2026).
 // cambiarModulo false: Niñeras ya se está pintando (el link del push) y solo falta esperar la lista.
 async function abrirChatDeNinera(id, { cambiarModulo = true } = {}){
@@ -564,6 +578,7 @@ async function abrirChatDeNinera(id, { cambiarModulo = true } = {}){
    Tocarla abre su ficha en el chat, que los marca leídos. Se carga aparte, sin frenar el resto de
    Hoy. Sin mensajes, si la lectura falla o sin la migración de la etapa 3, no se muestra. */
 let dashChatNinieras = [];
+let dashChatLectura = 0; // cada lectura suma uno: solo pinta la última (vuelven en desorden)
 function recortarMensajeHoy(texto, max = 90){
   const t = String(texto||'').replace(/\s+/g, ' ').trim();
   return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
@@ -571,6 +586,7 @@ function recortarMensajeHoy(texto, max = 90){
 async function cargarMensajesNinerasHoy(){
   const box = document.getElementById('dash-chat');
   if(!box) return;
+  const lectura = ++dashChatLectura;
   if(chatTablasSinMigrar){ pintarSiCambio(box, ''); return; }
   const { data, error } = await sb.from('chat_mensajes').select('ninera_id,texto,creado_en')
     .eq('de', 'ninera').is('leido_admin_en', null).order('creado_en', { ascending:false }).limit(500);
@@ -590,7 +606,7 @@ async function cargarMensajesNinerasHoy(){
     (ns||[]).forEach(n=>nombres.set(n.id, n.nombre));
   }
   const caja = document.getElementById('dash-chat');
-  if(!caja) return;
+  if(!caja || lectura !== dashChatLectura) return;
   dashChatNinieras = [...grupos.values()].map(g=>({ ...g, nombre: nombres.get(g.id) || 'Niñera' }));
   if(!dashChatNinieras.length){ pintarSiCambio(caja, ''); return; }
   asegurarEstilosChat();

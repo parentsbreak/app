@@ -234,6 +234,24 @@ test.describe('ficha de la niñera: chat', () => {
     verificarLimpio(e);
   });
 
+  test('mandar y cambiar de ficha antes de que conteste la base: el mensaje no cae en el hilo de la otra', async ({ page }) => {
+    const e = await abrirChat(page, ID.nCarla, { datos: datosConCuentaAna() });
+    await expect.poll(() => marcas(e).length).toBe(1);
+    e.demoraEscrituras = 800;
+    await campo(page).fill('Para Carla');
+    await enviar(page).click();
+    // Antes de que la base conteste: se cierra la ficha y se abre la de Ana.
+    await page.evaluate(i => verNinera(i), ID.nAna);
+    await expect(mensajes(page)).toHaveCount(3);
+    await expect(toasts(page).last()).toHaveText('Mensaje enviado a Carla Ejemplo.');
+    await expect(mensajes(page)).toHaveCount(3);
+    await expect(page.locator('#vn-chat')).not.toContainText('Para Carla');
+    await expect(campo(page)).toHaveValue('');
+    expect(inserts(e).map(w => w.cuerpo)).toEqual([{ ninera_id: ID.nCarla, de: 'admin', autor: YO, texto: 'Para Carla' }]);
+    expect(e.db.chat_mensajes.find(m => m.texto === 'Para Carla').ninera_id).toBe(ID.nCarla);
+    verificarLimpio(e);
+  });
+
   test('escape: HTML en el texto y en el autor se muestra como texto', async ({ page }) => {
     const d = datosBase();
     const tramposo = '<img src=x onerror="window.__xss=1">\n"comillas" & </div>';
@@ -348,6 +366,49 @@ test.describe('Hoy: Mensajes de niñeras', () => {
     e.emitirRealtime('avisos', 'INSERT', avisoChat(12, nuevo));
     await expect(filasHoy(page).first().locator('.chat-hoy-cant')).toHaveText('2');
     await expect(filasHoy(page).first().locator('.chat-hoy-ultimo')).toHaveText('Ya llegué');
+    verificarLimpio(e);
+  });
+
+  test('dos lecturas que vuelven en desorden: queda la última', async ({ page }) => {
+    let primera = true;
+    const e = await abrirApp(page, { ruta: '/?ir=agenda' });
+    // La primera lectura de la tarjeta tarda y trae lo de antes; la segunda, al toque, lo nuevo.
+    await page.route(/rest\/v1\/chat_mensajes\?.*de=eq\.ninera/, async r => {
+      if (!primera) return r.fallback();
+      primera = false;
+      const viejo = e.db.chat_mensajes.filter(m => m.de === 'ninera' && !m.leido_admin_en).map(m => ({ ...m }));
+      await new Promise(res => setTimeout(res, 1500));
+      return r.fulfill({ json: viejo });
+    });
+    await page.evaluate(() => { setModulo(null); });
+    const nuevo = mensaje(17, { texto: 'Lo más nuevo' });
+    e.db.chat_mensajes.push(nuevo);
+    await page.evaluate(() => cargarMensajesNinerasHoy());
+    await expect(filasHoy(page).first().locator('.chat-hoy-ultimo')).toHaveText('Lo más nuevo');
+    await page.waitForTimeout(1800);
+    await expect(filasHoy(page).first().locator('.chat-hoy-ultimo')).toHaveText('Lo más nuevo');
+    await expect(filasHoy(page).first().locator('.chat-hoy-cant')).toHaveText('2');
+    verificarLimpio(e);
+  });
+
+  test('de una niñera inactiva: tocar la fila abre igual su ficha (solo para leer el chat)', async ({ page }) => {
+    const d = datosBase();
+    d.ninieras.find(n => n.id === ID.nCarla).activa = false;
+    const e = await abrirApp(page, { datos: d });
+    await expect(filasHoy(page)).toHaveCount(1);
+    await expect(filasHoy(page).first()).toContainText('Carla Ejemplo');
+    const t0 = Date.now();
+    await filasHoy(page).first().click();
+    await expect(page.locator('#editmodal.show')).toBeVisible({ timeout: 2500 });
+    expect(Date.now() - t0).toBeLessThan(4000);
+    await expect(page.locator('#editmodal h2').first()).toContainText('Carla Ejemplo');
+    await expect(mensajes(page)).toHaveCount(1);
+    await expect(campo(page)).toHaveCount(0);
+    await expect(page.locator('#vn-chat')).toContainText('Está inactiva: no se le puede escribir por el chat.');
+    await expect(page.locator('#vn-app')).toContainText('Está inactiva');
+    await expect.poll(() => e.db.chat_mensajes.find(m => m.id === ID.chCarla).leido_admin_en).toBeTruthy();
+    // No entra en la lista de Niñeras, que sigue siendo solo de las activas.
+    expect(await page.evaluate(i => ninierasItems.some(n => n.id === i), ID.nCarla)).toBe(false);
     verificarLimpio(e);
   });
 
