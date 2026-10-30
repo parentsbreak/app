@@ -890,7 +890,12 @@ CREATE INDEX idx_candidatas_estado ON public.candidatas USING btree (estado);
 CREATE INDEX idx_carsitting_ninera_id ON public.carsitting_datos USING btree (ninera_id);
 CREATE INDEX idx_avisos_pendientes ON public.avisos USING btree (enviado_en, enviar_desde);
 CREATE INDEX idx_avisos_ninera ON public.avisos USING btree (para_ninera_id, creado_en DESC);
+-- Los avisos de las admins, los más nuevos primero: los lee la campanita todo el tiempo (30/10/2026).
+CREATE INDEX idx_avisos_admins ON public.avisos USING btree (creado_en DESC) WHERE (para_admin IS NOT NULL);
 CREATE INDEX idx_chat_mensajes_ninera ON public.chat_mensajes USING btree (ninera_id, creado_en);
+-- Los mensajes de niñeras sin leer por las admins: los leen Hoy y la campanita todo el tiempo (30/10/2026).
+CREATE INDEX idx_chat_mensajes_sin_leer_admin ON public.chat_mensajes USING btree (creado_en DESC)
+  WHERE ((de = 'ninera'::text) AND (leido_admin_en IS NULL));
 CREATE INDEX idx_contratos_parte ON public.contratos USING btree (parte_nombre);
 CREATE INDEX entrevistas_candidata_id_idx ON public.entrevistas USING btree (candidata_id);
 CREATE INDEX idx_fechas_marketing_fecha ON public.fechas_marketing USING btree (fecha);
@@ -2092,7 +2097,10 @@ begin
   perform net.http_post(
     url := 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos',
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', v_secreto),
-    body := '{}'::jsonb
+    body := '{}'::jsonb,
+    -- pg_net corta a los 5 s por defecto; enviar-avisos tarda hasta su plazo total de un minuto
+    -- (PLAZO_TOTAL_MS en envio.ts, 30/10/2026). Si no espera, la respuesta queda como timeout.
+    timeout_milliseconds := 60000
   );
 exception when others then
   raise warning 'llamar_enviar_avisos: no se pudo llamar a enviar-avisos (%); lo manda el cron', sqlerrm;
@@ -2143,7 +2151,9 @@ $function$;
 revoke execute on function public.correr_cron_avisos() from public, anon, authenticated;
 grant execute on function public.correr_cron_avisos() to service_role;
 
--- Cada minuto (como enviar-push-urgentes; en otro proyecto, cambiar la URL en llamar_enviar_avisos).
+-- Cada minuto (enviar-push-urgentes corre cada 10; este va cada minuto para que los avisos programados
+-- salgan a tiempo). Deja 1.440 filas por día en cron.job_run_details: ver Pendientes en CLAUDE.md.
+-- En otro proyecto, cambiar la URL en llamar_enviar_avisos.
 select cron.schedule('enviar-avisos', '* * * * *', $$select public.correr_cron_avisos();$$);
 
 

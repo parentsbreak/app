@@ -115,6 +115,19 @@ Deno.serve(async (req: Request) => {
         const { error } = await sb.from("avisos").update({ error: null }).eq("id", id);
         if (error) throw error;
       },
+      // PostgREST no hace "intentos = intentos - 1": se escribe el valor reclamado menos uno, con un
+      // update por cada valor (casi siempre uno solo). Nadie más toca esas filas mientras están
+      // reclamadas (enviado_en puesto), así que el valor no cambió en el medio.
+      devolverACola: async (avisos) => {
+        const porIntentos = new Map<number, string[]>();
+        for (const a of avisos) porIntentos.set(a.intentos, [...(porIntentos.get(a.intentos) ?? []), a.id]);
+        const resultados = await Promise.all([...porIntentos].map(([intentos, ids]) =>
+          sb.from("avisos").update({ enviado_en: null, intentos: Math.max(intentos - 1, 0) }).in("id", ids)
+        ));
+        const fallo = resultados.find((r) => r.error);
+        if (fallo) throw fallo.error;
+      },
+      ahora: () => Date.now(),
     };
 
     return json(await procesarAvisos(deps, new Date()));

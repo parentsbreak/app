@@ -412,6 +412,25 @@ test.describe('Hoy: Mensajes de niñeras', () => {
     verificarLimpio(e);
   });
 
+  // Revisión final de la etapa 3 (30/10/2026): si no se podía leer su fila, tocar la fila no hacía nada.
+  for (const [caso, responder] of [
+    ['la base falla', r => r.fulfill({ status: 500, json: { code: 'XX000', message: 'falla simulada' } })],
+    ['sin conexión', r => r.abort('failed')],
+  ]) {
+    test(`niñera inactiva y su fila no se puede leer (${caso}): aviso, sin ficha`, async ({ page }) => {
+      const d = datosBase();
+      d.ninieras.find(n => n.id === ID.nCarla).activa = false;
+      const e = await abrirApp(page, { datos: d });
+      await expect(filasHoy(page)).toHaveCount(1);
+      await page.route(new RegExp(`/rest/v1/ninieras\\?.*id=eq\\.${ID.nCarla}`), responder);
+      await filasHoy(page).first().click();
+      // Sin conexión, supabase-js reintenta la lectura unos segundos antes de dar el error.
+      await expect(toasts(page).last()).toHaveText('No se pudo abrir la ficha de la niñera. Revisá tu conexión.', { timeout: 15_000 });
+      await expect(page.locator('#editmodal.show')).toHaveCount(0);
+      verificarLimpio(e, { ignorar: [...RUIDO, /\[ficha niñera\]/] });
+    });
+  }
+
   test('niñera inactiva: editarla y volver a abrirla muestra lo editado (su fila se vuelve a leer)', async ({ page }) => {
     const d = datosBase();
     d.ninieras.find(n => n.id === ID.nCarla).activa = false;

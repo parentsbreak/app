@@ -459,7 +459,10 @@ reporte.
   cron de cada minuto (`llamar_enviar_avisos`, que solo llama si hay algo pendiente). VAPID de
   `app_secrets`, como `enviar-push-urgentes`. Reclama con `reclamar_avisos` (una entrega por aviso), 10 s
   de tope por push, TTL de 1 día el chat y 1 semana el resto, hasta 3 reintentos cada 2 min y después
-  queda con `error` (un envío bueno lo limpia). Suscripción vencida (404/410): se borra. La lógica en
+  queda con `error` (un envío bueno lo limpia). Plazo total de 60 s por tanda (`PLAZO_TOTAL_MS`): lo que
+  falta vuelve a la cola sin gastar intento; pg_net espera lo mismo (`timeout_milliseconds` 60000).
+  Suscripción vencida (404/410): se borra. Al cerrar sesión, la app de niñeras borra la fila de ese
+  celular (por `endpoint`) y lo desuscribe (`quitarAvisosDeEsteCelular`). La lógica en
   `envio.ts`, sin red, con tests de Deno. Se publica con el OK de Diego después de la mudanza, junto con la
   migración `avisos_chat` o enseguida después (sin la tabla falla; sin la función los avisos quedan
   pendientes).
@@ -764,6 +767,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   chat en la ficha del panel (si se cierra, se pierde lo escrito). Probar en un iPhone real: el textarea
   del chat con el teclado abierto (`100dvh`) y un push con la app ya abierta. Publicar `enviar-avisos`
   junto con la migración.
+- Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
+  `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
+  entero) antes de que pese.
 - Perfil de la niñera (27/10/2026): un segmento de zona que no es un grupo de `zona_grupos` se pierde cuando
   ella guarda desde la app. Pregunta de producto para Diego: ¿se conserva o se descarta?
 - `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.
@@ -775,10 +781,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
 - `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene
   marcar el link usado antes de actuar y liberarlo si falla.
-- Push al cerrar sesión (antes de la etapa 3, que manda avisos): al cerrar sesión en la app de
-  niñeras, borrar la suscripción de ese dispositivo (`push_subscriptions` por `endpoint`) y
-  desuscribirlo. Hoy un celular compartido por dos niñeras deja la fila con el `user_id` de la
-  primera y la segunda ve un error de conexión engañoso.
 - Un reset de contraseña no cierra las sesiones viejas de la niñera en otros dispositivos.
 - `eliminarNinera` con cuenta deja el usuario de Auth y sus suscripciones push.
 - Simulador: las llamadas de auth (`/auth/v1/token`, `/logout`) van a `estado.escrituras` y pasan

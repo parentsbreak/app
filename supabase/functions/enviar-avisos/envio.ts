@@ -13,6 +13,8 @@
 // Una suscripción vencida (404/410) se borra y no frena las demás. Si había dispositivos y no llegó
 // a ninguno por otro error, el aviso vuelve a la cola a los 2 minutos, hasta 3 intentos; después
 // queda con el error anotado. Sin dispositivos no es error: la niñera lo ve en su lista de avisos.
+// Pasado el plazo total (PLAZO_TOTAL_MS), lo que falta de la tanda vuelve a la cola sin gastar un
+// intento y lo levanta el cron del minuto siguiente.
 
 // Lo que reclama cada tanda (reclamar_avisos(p_max)). 50 por minuto sobra: son pocas niñeras.
 export const MAX_RECLAMO = 50;
@@ -20,6 +22,12 @@ export const MAX_RECLAMO = 50;
 export const INTENTOS_MAX = 3;
 // Espera antes de reintentar un aviso que no llegó a ningún dispositivo.
 export const REINTENTO_MS = 2 * 60 * 1000;
+// Plazo total de una tanda (revisión final de la etapa 3, 30/10/2026): los avisos salen de a uno con
+// hasta 10 s por push, así que 50 con un servicio de push lento pasaban el límite de tiempo de la
+// Edge Function y los que faltaban quedaban "enviados" para siempre. Pasado un minuto desde que
+// arrancó, no se manda ninguno más: vuelven a la cola. Es el mismo minuto que espera pg_net
+// (llamar_enviar_avisos) y el del cron.
+export const PLAZO_TOTAL_MS = 60 * 1000;
 // Cuánto guarda el servicio de push un mensaje si el dispositivo está apagado (30/10/2026): un
 // mensaje del chat viejo ya no sirve al día siguiente; el resto aguanta una semana.
 export const TTL_CHAT_S = 86400;
@@ -69,6 +77,11 @@ export type Deps = {
   marcarError(id: string, error: string, reintentarDesde: Date | null): Promise<void>;
   // Un aviso reintentado que por fin llegó: borra el error viejo (error = null).
   marcarEnviado(id: string): Promise<void>;
+  // Pasado el plazo total: vuelven a la cola (enviado_en vacío) con el intento que les sumó el
+  // reclamo devuelto (intentos - 1, con el valor reclamado). Sin error ni espera.
+  devolverACola(avisos: { id: string; intentos: number }[]): Promise<void>;
+  // El reloj, en ms (Date.now en index.ts; uno de mentira en los tests).
+  ahora(): number;
 };
 
 export type Resultado = {
@@ -80,6 +93,8 @@ export type Resultado = {
   fallidos: number;
   // Suscripciones vencidas borradas.
   borradas: number;
+  // Solo si venció el plazo total: los que volvieron a la cola sin mandarse.
+  devueltos?: number;
 };
 
 const minuscula = (s: string) => s.trim().toLowerCase();
@@ -109,6 +124,7 @@ function payloadDe(a: Aviso): string {
 }
 
 export async function procesarAvisos(deps: Deps, ahora: Date): Promise<Resultado> {
+  const limite = deps.ahora() + PLAZO_TOTAL_MS;
   const avisos = await deps.reclamar(MAX_RECLAMO);
   const res: Resultado = { reclamados: avisos.length, enviados: 0, fallidos: 0, borradas: 0 };
   if (!avisos.length) return res;
@@ -168,7 +184,18 @@ export async function procesarAvisos(deps: Deps, ahora: Date): Promise<Resultado
   // ---- Mandar. Los avisos de a uno (en orden) y los dispositivos de cada aviso en paralelo. Una
   // suscripción vencida se borra una sola vez y no se vuelve a usar en el resto de la tanda.
   const vencidas = new Set<string>();
-  for (const a of avisos) {
+  for (const [n, a] of avisos.entries()) {
+    if (deps.ahora() >= limite) {
+      const resto = avisos.slice(n).map((r) => ({ id: r.id, intentos: r.intentos }));
+      try {
+        await deps.devolverACola(resto);
+        res.devueltos = resto.length;
+      } catch (e) {
+        // Quedan como enviados sin error: se pierden estos avisos, pero no la respuesta.
+        console.error("enviar-avisos", "devolverACola", { avisos: resto.length, mensaje: textoError(e) });
+      }
+      break;
+    }
     const errorBusqueda = sinBuscar.get(a.id);
     if (errorBusqueda) { await fallar(a, errorBusqueda); continue; }
     const subs = (destinos.get(a.id) ?? []).filter((s) => !vencidas.has(s.id));

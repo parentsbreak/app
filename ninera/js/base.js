@@ -22,6 +22,7 @@ const NINERA_URL_BASE = new URL('./', location.href).href;
 // imprescindible, así que si falla se sigue sin eso.
 function leerLocalNinera(clave){ try{ return localStorage.getItem(clave); }catch(e){ return null; } }
 function guardarLocalNinera(clave, valor){ try{ localStorage.setItem(clave, valor); }catch(e){} }
+function borrarLocalNinera(clave){ try{ localStorage.removeItem(clave); }catch(e){} }
 
 // Lee la sesión que supabase-js guarda bajo 'sb-ninera-auth', con el mismo criterio que
 // leerSesionGuardada() del panel (auth.js). Solo sirve para decidir qué pintar primero: sin

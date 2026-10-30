@@ -36,6 +36,10 @@ select pg_temp.verificar('los tres mensajes, tal cual (autor, de, texto y lo le�
                 and texto = '<b>sin</b> perder nada'));
 select pg_temp.verificar('no quedan las tablas avisos ni chat_mensajes',
   to_regclass('public.avisos') is null and to_regclass('public.chat_mensajes') is null);
+select pg_temp.verificar('no queda ninguno de sus cinco índices (se van con las tablas)',
+  not exists (select 1 from pg_indexes where schemaname = 'public'
+               and indexname in ('idx_avisos_pendientes', 'idx_avisos_ninera', 'idx_avisos_admins',
+                                 'idx_chat_mensajes_ninera', 'idx_chat_mensajes_sin_leer_admin')));
 select pg_temp.verificar('no queda el cron enviar-avisos',
   not exists (select 1 from cron.job where jobname = 'enviar-avisos'));
 select pg_temp.verificar('no queda nada en Realtime de la migración',

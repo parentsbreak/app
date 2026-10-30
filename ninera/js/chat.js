@@ -291,6 +291,8 @@ async function enviarMensajeNinera(){
     const motivo = (e && e.message) || '';
     // Solo blancos que el navegador no ve como tales: no hay nada que mandar.
     if(/mensaje_vacio/.test(motivo)) return;
+    // La dieron de baja con el chat abierto (30/10/2026): reintentar no sirve, que lo sepa.
+    if(/no_autorizada/.test(motivo)){ aviso.textContent = CUENTA_NO_ACTIVA; return; }
     console.error('[chat] al enviar', e);
     aviso.textContent = /mensaje_largo/.test(motivo) ? MENSAJE_MUY_LARGO : FALLA_ENVIAR_MENSAJE;
     return;

@@ -309,6 +309,20 @@ test.describe('chat con el equipo', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
+  // Revisión final de la etapa 3 (30/10/2026): la dieron de baja con el chat abierto. Antes le
+  // hablaba de la conexión y reintentar no servía de nada.
+  test('cuenta dada de baja con el chat abierto (no_autorizada): lo dice, no habla de la conexión', async ({ page }) => {
+    const e = await abrirChat(page);
+    e.rpc.ninera_enviar_mensaje = () => { throw errorRpc('no_autorizada'); };
+    await page.fill('#chat-texto', 'Un mensaje');
+    await page.getByRole('button', { name: 'Enviar' }).click();
+    await expect(page.locator('#chat-error')).toHaveText('Tu cuenta no está activa. Escríbenos por WhatsApp.');
+    await expect(page.locator('#chat-error')).not.toContainText('conexión');
+    await expect(page.locator('#chat-texto')).toHaveValue('Un mensaje');
+    await expect(page.locator('#chat-hilo')).not.toContainText('Un mensaje');
+    verificarLimpio(e, { ignorar: RUIDO });
+  });
+
   test('doble toque en "Enviar" con la base lenta: una sola RPC y un solo mensaje', async ({ page }) => {
     const e = await abrirChat(page);
     e.demoraEscrituras = 500;

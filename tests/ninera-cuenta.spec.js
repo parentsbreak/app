@@ -105,7 +105,9 @@ async function fingirAvisos(page, { permiso = 'granted', suscripta = false } = {
     const suscripcion = {
       endpoint: 'https://push.ejemplo.test/suscripcion-1',
       toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'clave-p256dh-ficticia', auth: 'clave-auth-ficticia' } }; },
+      async unsubscribe() { window.__desuscripciones++; actual = null; return true; },
     };
+    window.__desuscripciones = 0;
     let actual = suscripta ? suscripcion : null;
     let permisoActual = suscripta ? 'granted' : 'default';
     // La marca que deja la app al guardar la suscripción: la cuenta y el endpoint.
@@ -353,10 +355,17 @@ test.describe('login con el celular', () => {
     const e = await abrir(page, { sesion: false });
     await expect(page.locator('#login-celular')).toBeVisible();
     expect(new URL(page.url()).hash).toBe('#login');
-    for (const celular of ['+598 99 000 001', '099000001', '99 000 001']) {
+    for (const [i, celular] of ['+598 99 000 001', '099000001', '99 000 001'].entries()) {
       await page.fill('#login-celular', celular);
       await page.fill('#login-pass', 'clave-ficticia-1');
       await page.click('#login-btn');
+      // Cerrar sesión desuscribe este celular (30/10/2026): al volver a entrar, los avisos están
+      // apagados y, como nunca vio la pantalla de avisos, se la ofrece una vez (la tercera entra
+      // directo al inicio, con "Avisos apagados").
+      if (i === 1) {
+        await expect(page.locator('h1')).toHaveText('Activa los avisos');
+        await page.getByRole('button', { name: 'Ahora no' }).click();
+      }
       await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
       // El nombre viene en la cuenta: saluda también después de un login sin invitación.
       await expect(page.locator('h1')).toHaveText('Hola, Ana');
@@ -549,6 +558,65 @@ test.describe('avisos', () => {
     await page.locator('#inicio-avisos').getByRole('button', { name: 'Activar avisos' }).click();
     await expect(page.locator('#app')).not.toContainText('Avisos apagados');
     verificarLimpio(e, { ignorar: [/status of 500/, RUIDO_RED, /\[avisos\]/] });
+  });
+
+  // Push al cerrar sesión (revisión final de la etapa 3, 30/10/2026): un celular compartido por dos
+  // niñeras dejaba la fila con el user_id de la primera; la segunda no podía guardar la suya (la RLS
+  // no deja pisar una fila ajena) y le salía un error de conexión. Al cerrar sesión se borra la fila
+  // de este celular (por endpoint), se desuscribe y se borra la marca de avisos guardados.
+  async function cerrarSesionDesdeMiCuenta(page) {
+    await page.getByRole('button', { name: 'Mi cuenta' }).click();
+    await page.locator('#modal-ninera').getByRole('button', { name: 'Cerrar sesión' }).click();
+    await expect(page.locator('#login-celular')).toBeVisible();
+  }
+  function borradosPush(e) {
+    return e.escrituras.filter(w => w.tabla === 'push_subscriptions' && w.metodo === 'DELETE');
+  }
+
+  test('cerrar sesión borra la suscripción de este celular por endpoint y lo desuscribe', async ({ page }) => {
+    const e = await abrir(page, {}, { suscripta: true });
+    e.db.push_subscriptions.push(
+      { id: 'sub-este', endpoint: 'https://push.ejemplo.test/suscripcion-1', user_id: '00000000-0000-4000-8000-000000000002' },
+      { id: 'sub-otro', endpoint: 'https://push.ejemplo.test/otro-celular', user_id: '00000000-0000-4000-8000-000000000002' });
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await cerrarSesionDesdeMiCuenta(page);
+    const borrados = borradosPush(e);
+    expect(borrados).toHaveLength(1);
+    expect(borrados[0].params).toEqual({ endpoint: 'eq.https://push.ejemplo.test/suscripcion-1' });
+    expect(e.db.push_subscriptions.map(f => f.id)).toEqual(['sub-otro']);
+    expect(await page.evaluate(() => window.__desuscripciones)).toBe(1);
+    expect(await page.evaluate(() => localStorage.getItem('pb-ninera-push-guardado'))).toBeNull();
+    // Borra antes de cerrar la sesión: sin sesión, la RLS no la deja borrar su fila.
+    const orden = e.escrituras.map(w => w.tabla).filter(t => t === 'push_subscriptions' || t === '/auth/v1/logout');
+    expect(orden).toEqual(['push_subscriptions', '/auth/v1/logout']);
+    expect(await page.evaluate(() => localStorage.getItem('sb-ninera-auth'))).toBeNull();
+    verificarLimpio(e);
+  });
+
+  for (const [caso, falla] of [['la base falla', { status: 500, message: 'falla simulada' }], ['sin conexión', 'red']]) {
+    test(`si borrar la suscripción no anda (${caso}), la sesión se cierra igual`, async ({ page }) => {
+      const e = await abrir(page, {}, { suscripta: true });
+      await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+      e.fallar = p => (p.tabla === 'push_subscriptions' ? falla : undefined);
+      await cerrarSesionDesdeMiCuenta(page);
+      expect(e.escrituras.filter(w => w.tabla === '/auth/v1/logout')).toHaveLength(1);
+      expect(await page.evaluate(() => localStorage.getItem('sb-ninera-auth'))).toBeNull();
+      // El celular se desuscribe igual: la fila que quedó vence sola (410) y enviar-avisos la borra.
+      expect(await page.evaluate(() => window.__desuscripciones)).toBe(1);
+      expect(await page.evaluate(() => localStorage.getItem('pb-ninera-push-guardado'))).toBeNull();
+      verificarLimpio(e, { ignorar: [/status of 500/, RUIDO_RED, /\[cerrar sesión\]/] });
+    });
+  }
+
+  test('sin suscripción en este celular, cerrar sesión no borra nada', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
+    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
+    await cerrarSesionDesdeMiCuenta(page);
+    expect(borradosPush(e)).toHaveLength(0);
+    expect(await page.evaluate(() => window.__desuscripciones)).toBe(0);
+    expect(e.escrituras.filter(w => w.tabla === '/auth/v1/logout')).toHaveLength(1);
+    verificarLimpio(e);
   });
 
   test('avisos que se apagaron después en Ajustes: el inicio lo dice', async ({ page }) => {

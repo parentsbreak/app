@@ -552,12 +552,19 @@ async function abrirFichaCuandoCargue(tipo, id){
 // 5 s y no hacer nada (llega desde Hoy o del push del chat). Se lee cada vez que se abre: la copia de
 // antes puede estar vieja (se editó, o la cambió otra admin) y "Editar" guardaría encima. Va con el
 // mismo select que la lista: la ficha usa casi todas las columnas, y una lista a mano se rompería con
-// una base sin migrar.
+// una base sin migrar. Si la lectura falla, se avisa (30/10/2026): antes tocar la fila no hacía nada.
 async function abrirFichaNineraCuandoCargue(id){
   const enLista = () => (ninierasItems||[]).some(x=>x.id===id);
   if(!enLista() && ninCargaEnVuelo) await ninCargaEnVuelo.catch(()=>{});
   if(!enLista()){
-    const { data } = await sb.from('ninieras').select('*, candidatas(*)').eq('id', id).maybeSingle();
+    let data = null, error = null;
+    try{ ({ data, error } = await sb.from('ninieras').select('*, candidatas(*)').eq('id', id).maybeSingle()); }
+    catch(e){ error = e; }
+    if(error){
+      console.error('[ficha niñera]', error);
+      toast('No se pudo abrir la ficha de la niñera. Revisá tu conexión.', 'bad');
+      return;
+    }
     if(!data) return;
     nineraFueraDeLista = data;
   }

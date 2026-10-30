@@ -56,9 +56,17 @@ select pg_temp.verificar('las seis políticas: 2 de avisos y 4 del chat, una vez
 select pg_temp.verificar('avisos: solo políticas de lectura; chat: sin delete',
   not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'avisos' and cmd <> 'SELECT')
   and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'chat_mensajes' and cmd in ('DELETE', 'ALL')));
-select pg_temp.verificar('los tres índices',
-  (select count(*) = 3 from pg_indexes where schemaname = 'public'
-    and indexname in ('idx_avisos_pendientes', 'idx_avisos_ninera', 'idx_chat_mensajes_ninera')));
+select pg_temp.verificar('los cinco índices',
+  (select count(*) = 5 from pg_indexes where schemaname = 'public'
+    and indexname in ('idx_avisos_pendientes', 'idx_avisos_ninera', 'idx_chat_mensajes_ninera',
+                      'idx_chat_mensajes_sin_leer_admin', 'idx_avisos_admins')));
+-- Los parciales que leen Hoy y la campanita todo el tiempo (revisión final, 30/10/2026).
+select pg_temp.verificar('índice parcial de los mensajes de niñeras sin leer por las admins',
+  (select indexdef ilike '%chat_mensajes%(creado_en DESC)%WHERE%de = ''ninera''%leido_admin_en IS NULL%'
+     from pg_indexes where schemaname = 'public' and indexname = 'idx_chat_mensajes_sin_leer_admin'));
+select pg_temp.verificar('índice parcial de los avisos para las admins',
+  (select indexdef ilike '%avisos%(creado_en DESC)%WHERE%para_admin IS NOT NULL%'
+     from pg_indexes where schemaname = 'public' and indexname = 'idx_avisos_admins'));
 select pg_temp.verificar('las once funciones: security definer con search_path fijo',
   (select count(*) = 11 from pg_proc
     where pronamespace = 'public'::regnamespace and prosecdef
@@ -136,11 +144,11 @@ insert into ninieras (id, nombre, telefono, user_id) values
   ('e2000000-0000-4000-8000-000000000003', 'Carla Sin App', '099000003', null);
 
 -- net.http_post de mentira que anota cada llamada, para ver qué dispara el trigger avisos_enviar_ya.
-create table public.prueba_http_posts (url text, headers jsonb, body jsonb);
+create table public.prueba_http_posts (url text, headers jsonb, body jsonb, timeout_ms int);
 create or replace function net.http_post(url text, headers jsonb default '{}', body jsonb default '{}', params jsonb default '{}', timeout_milliseconds int default 1000)
 returns bigint language plpgsql as $$
 begin
-  insert into public.prueba_http_posts values (url, headers, body);
+  insert into public.prueba_http_posts values (url, headers, body, timeout_milliseconds);
   return 1;
 end $$;
 
@@ -180,6 +188,9 @@ select pg_temp.verificar('con la clave: un aviso para ya llama una vez a enviar-
               and bool_and(url = 'https://wvewzamdohrpfhpccvcz.supabase.co/functions/v1/enviar-avisos'
                            and headers ->> 'x-cron-secret' = 'secreto-de-prueba')
          from public.prueba_http_posts));
+-- pg_net corta a los 5 s por defecto y enviar-avisos tarda hasta su plazo total de un minuto (30/10/2026).
+select pg_temp.verificar('la llamada espera hasta un minuto (timeout_milliseconds 60000)',
+  (select bool_and(timeout_ms = 60000) from public.prueba_http_posts));
 select pg_temp.verificar('encolar_aviso para dentro de una hora',
   public.encolar_aviso('prueba:futuro', 'e2000000-0000-4000-8000-000000000001', null, 'prueba', 'x', 'y', null,
                        '{}'::jsonb, now() + interval '1 hour'));
@@ -195,7 +206,7 @@ select pg_temp.verificar('si net.http_post falla, el aviso queda en la cola para
 create or replace function net.http_post(url text, headers jsonb default '{}', body jsonb default '{}', params jsonb default '{}', timeout_milliseconds int default 1000)
 returns bigint language plpgsql as $$
 begin
-  insert into public.prueba_http_posts values (url, headers, body);
+  insert into public.prueba_http_posts values (url, headers, body, timeout_milliseconds);
   return 1;
 end $$;
 

@@ -3,7 +3,7 @@
 // confunde a Deno), por ejemplo: npx deno@2 test --allow-env <carpeta>/enviar-avisos/
 import { assert, assertEquals } from "jsr:@std/assert@1.0.13";
 import {
-  type Aviso, type Deps, INTENTOS_MAX, MAX_RECLAMO, procesarAvisos, TTL_CHAT_S, TTL_OTROS_S, type Suscripcion, type SuscripcionNinera,
+  type Aviso, type Deps, INTENTOS_MAX, MAX_RECLAMO, PLAZO_TOTAL_MS, procesarAvisos, TTL_CHAT_S, TTL_OTROS_S, type Suscripcion, type SuscripcionNinera,
 } from "./envio.ts";
 
 const AHORA = new Date("2026-10-29T15:00:00Z");
@@ -41,11 +41,15 @@ function simulado(op: {
   prefs?: { usuario: string; tipo: string; activado: boolean }[];
   respuestas?: Record<string, Respuesta | Respuesta[]>;
   falla?: (keyof Deps)[];
+  // Cuántos ms tarda cada push en el reloj de mentira (por defecto 0: el plazo total nunca vence).
+  demoraMandarMs?: number;
 } = {}) {
+  let reloj = AHORA.getTime();
   const llamadas = {
     reclamar: [] as number[], ninieras: [] as string[][], admins: 0, activas: 0, prefs: [] as string[][],
     mandar: [] as { sub: string; payload: string; ttl: number }[], borrar: [] as string[], enviados: [] as string[],
     errores: [] as { id: string; error: string; reintentar: Date | null }[],
+    devueltos: [] as { id: string; intentos: number }[][],
   };
   const intentosPorSub: Record<string, number> = {};
   const falla = (nombre: keyof Deps) => {
@@ -65,6 +69,7 @@ function simulado(op: {
     },
     mandar: async (s, payload, opciones) => {
       llamadas.mandar.push({ sub: s.id, payload, ttl: opciones.ttl });
+      reloj += op.demoraMandarMs ?? 0;
       const r = op.respuestas?.[s.id] ?? "ok";
       const n = intentosPorSub[s.id] = (intentosPorSub[s.id] ?? 0) + 1;
       const esta = Array.isArray(r) ? r[Math.min(n, r.length) - 1] : r;
@@ -75,6 +80,8 @@ function simulado(op: {
     borrarSuscripcion: async (id) => { llamadas.borrar.push(id); falla("borrarSuscripcion"); },
     marcarError: async (id, error, reintentar) => { llamadas.errores.push({ id, error, reintentar }); falla("marcarError"); },
     marcarEnviado: async (id) => { llamadas.enviados.push(id); falla("marcarEnviado"); },
+    devolverACola: async (avisos) => { llamadas.devueltos.push(avisos.map((a) => ({ ...a }))); falla("devolverACola"); },
+    ahora: () => reloj,
   };
   return { deps, llamadas };
 }
@@ -356,4 +363,56 @@ Deno.test("textoError: un error de PostgREST (objeto plano) anota message y code
   const e = llamadas.errores[0].error;
   assert(e.includes("permission denied for table x") && e.includes("42501"), e);
   assert(!e.includes("[object Object]"), e);
+});
+
+// ------------------------------------------------------------ plazo total (revisión final, 30/10/2026)
+// Los avisos salen de a uno con hasta 10 s por push: 50 lentos pasaban el límite de la Edge Function y
+// los que faltaban quedaban "enviados" para siempre. Pasado el plazo, vuelven a la cola sin gastar
+// un intento.
+Deno.test("plazo total: pasado el minuto, lo que falta vuelve a la cola con su intento devuelto", async () => {
+  assertEquals(PLAZO_TOTAL_MS, 60_000);
+  const avisos = [aviso(), aviso(), aviso(), aviso({ intentos: 1 }), aviso({ intentos: 2 })];
+  // Cada push tarda 25 s: el 1 sale en 0, el 2 en 25, el 3 en 50; el 4 llegaría en 75 (pasado el plazo).
+  const { deps, llamadas } = simulado({ avisos, ninieras: [subNinera("s1", ANA)], demoraMandarMs: 25_000 });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 5, enviados: 3, fallidos: 0, borradas: 0, devueltos: 2 });
+  assertEquals(llamadas.mandar.length, 3);
+  assertEquals(llamadas.devueltos, [[{ id: avisos[3].id, intentos: 1 }, { id: avisos[4].id, intentos: 2 }]]);
+  // No se anotan como error ni se reintentan con espera: vuelven tal cual.
+  assertEquals(llamadas.errores.length, 0);
+});
+
+Deno.test("plazo total: justo en el minuto ya no se manda el siguiente", async () => {
+  const avisos = [aviso(), aviso(), aviso()];
+  const { deps, llamadas } = simulado({ avisos, ninieras: [subNinera("s1", ANA)], demoraMandarMs: 30_000 });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 3, enviados: 2, fallidos: 0, borradas: 0, devueltos: 1 });
+  assertEquals(llamadas.devueltos.map((l) => l.map((a) => a.id)), [[avisos[2].id]]);
+});
+
+Deno.test("plazo total: los que fallaron la búsqueda y quedan después del plazo también vuelven sin gastar intento", async () => {
+  const avisos = [aviso({ para_ninera_id: ANA }), aviso({ para_ninera_id: null, para_admin: "todas", intentos: 3 })];
+  const { deps, llamadas } = simulado({
+    avisos, ninieras: [subNinera("s1", ANA)], falla: ["suscripcionesAdmins"], demoraMandarMs: 61_000,
+  });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 2, enviados: 1, fallidos: 0, borradas: 0, devueltos: 1 });
+  assertEquals(llamadas.devueltos, [[{ id: avisos[1].id, intentos: 3 }]]);
+  assertEquals(llamadas.errores.length, 0);
+});
+
+Deno.test("plazo total: una tanda normal no devuelve nada", async () => {
+  const avisos = [aviso(), aviso(), aviso()];
+  const { deps, llamadas } = simulado({ avisos, ninieras: [subNinera("s1", ANA)], demoraMandarMs: 5_000 });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 3, enviados: 3, fallidos: 0, borradas: 0 });
+  assertEquals(llamadas.devueltos.length, 0);
+});
+
+Deno.test("plazo total: si devolver a la cola falla, la tanda termina igual (sin tirar) y no los cuenta", async () => {
+  const avisos = [aviso(), aviso()];
+  const { deps, llamadas } = simulado({ avisos, ninieras: [subNinera("s1", ANA)], demoraMandarMs: 60_000, falla: ["devolverACola"] });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 2, enviados: 1, fallidos: 0, borradas: 0 });
+  assertEquals(llamadas.devueltos.length, 1);
 });
