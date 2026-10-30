@@ -770,6 +770,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.
+- Push del chat a admins (30/10/2026): `admins_activas_mails()` incluye toda cuenta activa de
+  `usuarias_autorizadas`, también la de desarrollo. Pregunta para Diego: filtrar por rol (solo
+  duena / socia) o que él apague "Mensajes de niñeras" en sus preferencias.
 - Perfil de la niñera (27/10/2026): un segmento de zona que no es un grupo de `zona_grupos` se pierde cuando
   ella guarda desde la app. Pregunta de producto para Diego: ¿se conserva o se descarta?
 - `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.
