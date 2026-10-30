@@ -404,6 +404,7 @@ async function cargarCarsittingSeccion(nombre, boxId, tipo, mail){
 async function verNinera(id){
   await esperarConfigFijos(); // fijos automáticos: saber si hay que sacar los previstos
   const n = nineraPorId(id);
+  if(!n){ toast('No se encontró la niñera.', 'bad'); return; }
   const cd = datosFichaCandidata(n.candidatas);
   const edadCalculada = calcularEdad(cd.fecha_nacimiento);
   // Si hay fecha de nacimiento cargada, la edad calculada pisa al texto viejo ("19 años")
@@ -579,8 +580,11 @@ async function cargarEstadoAppNinera(id){
     + perfilHtml;
 }
 /* Niñera dada de baja abierta desde Hoy o el push del chat (30/10/2026): la lista (ninierasItems) es
-   solo de activas, así que su fila se lee aparte (abrirFichaCuandoCargue, app-shell.js) y queda acá,
-   sin entrar a la lista. Todo lo de la ficha la busca con nineraPorId. */
+   solo de activas, así que su fila se lee aparte (abrirFichaNineraCuandoCargue, app-shell.js) y queda
+   acá, sin entrar a la lista. Todo lo de la ficha la busca con nineraPorId. Se vuelve a leer cada vez
+   que se abre y se suelta al guardar "Editar". No se suelta al cerrar el modal: alCerrarModal corre
+   también cuando "Editar" (o el paso de la temporada) reemplaza la ficha, y esos necesitan la fila
+   para guardar sobre la misma niñera (sin ella, guardar crearía una candidata nueva). */
 let nineraFueraDeLista = null;
 function nineraPorId(id){
   return ninierasItems.find(x=>x.id===id) || (nineraFueraDeLista && nineraFueraDeLista.id===id ? nineraFueraDeLista : undefined);
@@ -1347,6 +1351,8 @@ async function guardarEdicionNinera(id){
     }
   }
   cerrarModal();
+  // La copia de una niñera dada de baja ya no sirve: la próxima vez que se abra se lee de nuevo.
+  if(nineraFueraDeLista && nineraFueraDeLista.id === id) nineraFueraDeLista = null;
   if(errExtra) toast('Se guardó lo básico, pero no las categorías extra: '+errExtra.message, 'bad');
   else toast('Cambios guardados.');
   if(cambioCelularConApp) toast('Cambió el celular: va a necesitar un link nuevo para entrar (Invitar a la app).');

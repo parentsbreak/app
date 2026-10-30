@@ -412,6 +412,42 @@ test.describe('Hoy: Mensajes de niñeras', () => {
     verificarLimpio(e);
   });
 
+  test('niñera inactiva: editarla y volver a abrirla muestra lo editado (su fila se vuelve a leer)', async ({ page }) => {
+    const d = datosBase();
+    d.ninieras.find(n => n.id === ID.nCarla).activa = false;
+    const e = await abrirApp(page, { datos: d });
+    await filasHoy(page).first().click();
+    await expect(mensajes(page)).toHaveCount(1);
+    await expect(page.locator('#editmodal .fichadl')).toContainText('Notas—');
+    // "Editar" encima de la ficha: arranca con su fila y guarda sobre la misma niñera.
+    // Primero pide la temporada (no la tiene): "Omitir por ahora" vuelve a abrir "Editar" con su fila.
+    await page.evaluate(i => editarNinera(i), ID.nCarla);
+    await page.locator('#editmodal button', { hasText: 'Omitir por ahora' }).click();
+    await page.fill('#ed-notas', 'Nota editada');
+    await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
+    await expect(toasts(page).last()).toHaveText('Cambios guardados.');
+    expect(e.db.ninieras.find(n => n.id === ID.nCarla).notas).toBe('Nota editada');
+    expect(e.escrituras.filter(w => w.tabla === 'candidatas')).toEqual([]);
+    // Al volver a abrirla se ve lo editado, no la fila de antes.
+    await page.evaluate(i => abrirChatDeNinera(i, { cambiarModulo: false }), ID.nCarla);
+    await expect(page.locator('#editmodal .fichadl')).toContainText('Nota editada');
+    // Y si alguien la cambia desde otro lado, al abrirla de nuevo también.
+    e.db.ninieras.find(n => n.id === ID.nCarla).notas = 'Cambiada por otra admin';
+    await page.evaluate(() => cerrarModal());
+    await page.evaluate(i => abrirChatDeNinera(i, { cambiarModulo: false }), ID.nCarla);
+    await expect(page.locator('#editmodal .fichadl')).toContainText('Cambiada por otra admin');
+    verificarLimpio(e);
+  });
+
+  test('verNinera de una niñera que no está: aviso, sin romper', async ({ page }) => {
+    const e = await abrirApp(page);
+    await irAModulo(page, 'ninieras');
+    await page.evaluate(() => verNinera('30000000-0000-4000-8000-0000000000ff'));
+    await expect(toasts(page).last()).toHaveText('No se encontró la niñera.');
+    await expect(page.locator('#editmodal.show')).toHaveCount(0);
+    verificarLimpio(e);
+  });
+
   test('si falla la lectura: Hoy anda igual, sin la tarjeta', async ({ page }) => {
     const e = await abrirApp(page);
     await expect(filasHoy(page)).toHaveCount(1);

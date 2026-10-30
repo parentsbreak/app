@@ -541,20 +541,22 @@ async function abrirFichaCuandoCargue(tipo, id){
   const esFamilia = tipo==='familia';
   if(!esFamilia) return abrirFichaNineraCuandoCargue(id);
   for(let i=0; i<50; i++){
-    const lista = esFamilia ? familiasItems : ninierasItems;
-    if((lista||[]).some(x=>x.id===id)) break;
+    if((familiasItems||[]).some(x=>x.id===id)) break;
     await new Promise(r=>setTimeout(r, 100));
   }
-  if(esFamilia) verFamilia(id); else if((ninierasItems||[]).some(x=>x.id===id)) await verNinera(id);
+  verFamilia(id);
 }
 
 // Niñeras: se espera la carga de la lista que está en curso. Si no está en la lista (dada de baja:
-// cargarNinieras trae solo las activas, 30/10/2026), su fila se lee una vez y se abre igual, en vez de
-// esperar 5 s y no hacer nada (llega desde Hoy o del push del chat). Va con el mismo select que la
-// lista: la ficha usa casi todas las columnas, y una lista a mano se rompería con una base sin migrar.
+// cargarNinieras trae solo las activas, 30/10/2026), su fila se lee y se abre igual, en vez de esperar
+// 5 s y no hacer nada (llega desde Hoy o del push del chat). Se lee cada vez que se abre: la copia de
+// antes puede estar vieja (se editó, o la cambió otra admin) y "Editar" guardaría encima. Va con el
+// mismo select que la lista: la ficha usa casi todas las columnas, y una lista a mano se rompería con
+// una base sin migrar.
 async function abrirFichaNineraCuandoCargue(id){
-  if(!nineraPorId(id) && ninCargaEnVuelo) await ninCargaEnVuelo.catch(()=>{});
-  if(!nineraPorId(id)){
+  const enLista = () => (ninierasItems||[]).some(x=>x.id===id);
+  if(!enLista() && ninCargaEnVuelo) await ninCargaEnVuelo.catch(()=>{});
+  if(!enLista()){
     const { data } = await sb.from('ninieras').select('*, candidatas(*)').eq('id', id).maybeSingle();
     if(!data) return;
     nineraFueraDeLista = data;
