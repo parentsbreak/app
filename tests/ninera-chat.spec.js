@@ -22,6 +22,8 @@ const SIN_AVISOS = 'No tienes avisos.';
 // Chromium anota en consola toda respuesta 4xx/5xx simulada y todo pedido cortado; la app anota el
 // error con su etiqueta.
 const RUIDO = [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed to fetch/, /\[chat\]|\[avisos\]/];
+// Sin la migración, solo el 404 de la tabla que no existe: la app no anota ningún error suyo.
+const RUIDO_SIN_MIGRAR = [/Failed to load resource: the server responded with a status of 404/];
 // Nunca plata en la app de niñeras.
 const PLATA = /\$\d/;
 const PAGO = /\bpago/i;
@@ -219,6 +221,30 @@ test.describe('chat con el equipo', () => {
     expect(e.db.chat_mensajes.find(m => m.id === nuevo.id).leido_ninera_en).not.toBeNull();
     // El de otra niñera no llega (filtro del canal y RLS).
     expect(e.emitirRealtime('chat_mensajes', 'INSERT', { ...mensajeEquipo('02', 'Para Carla'), ninera_id: ID.nCarla })).toBe(0);
+    verificarLimpio(e);
+  });
+
+  test('con la app en segundo plano: el mensaje se suma pero no se marca leído hasta volver', async ({ page }) => {
+    const e = await abrirChat(page);
+    await expect.poll(() => rpcs(e, 'ninera_marcar_chat_leido').length).toBe(1);
+    const fijarVisibilidad = estado => page.evaluate(v => {
+      Object.defineProperty(document, 'visibilityState', { value: v, configurable: true });
+      Object.defineProperty(document, 'hidden', { value: v === 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, estado);
+    await fijarVisibilidad('hidden');
+    const nuevo = mensajeEquipo('09', 'Mensaje con la pantalla apagada');
+    e.db.chat_mensajes.push(nuevo);
+    expect(e.emitirRealtime('chat_mensajes', 'INSERT', nuevo)).toBe(1);
+    await expect(mensajes(page)).toHaveCount(4);
+    await page.waitForTimeout(300);
+    expect(rpcs(e, 'ninera_marcar_chat_leido')).toHaveLength(1);
+    expect(e.db.chat_mensajes.find(m => m.id === nuevo.id).leido_ninera_en).toBeNull();
+    // Vuelve al frente: se relee el hilo (ya estaba) y se marca leído.
+    await fijarVisibilidad('visible');
+    await expect.poll(() => rpcs(e, 'ninera_marcar_chat_leido').length).toBe(2);
+    expect(e.db.chat_mensajes.find(m => m.id === nuevo.id).leido_ninera_en).not.toBeNull();
+    await expect(mensajes(page)).toHaveCount(4);
     verificarLimpio(e);
   });
 
@@ -528,6 +554,40 @@ test.describe('entrar directo, base sin migrar, celular y textos', () => {
     verificarLimpio(e);
   });
 
+  test('un push con la app abierta (solo cambia el hash): desde el inicio abre el hilo; desde los avisos, también', async ({ page }) => {
+    const e = await abrir(page);
+    await expect(boton(page, 'Mensajes')).toBeVisible();
+    await page.evaluate(() => { location.hash = '#chat'; });
+    await expect(page.locator('h1')).toHaveText(TITULO_CHAT);
+    await expect(mensajes(page)).toHaveCount(3);
+    await esperarCanal(page);
+    await page.evaluate(() => { location.hash = '#mis-avisos'; });
+    await expect(page.locator('h1')).toHaveText('Avisos');
+    await expect(avisos(page)).toHaveCount(1);
+    // Salió del chat: el canal ya no está.
+    await expect.poll(() => page.evaluate(() => sbn.getChannels().length)).toBe(0);
+    await page.evaluate(() => { location.hash = '#chat'; });
+    await expect(page.locator('h1')).toHaveText(TITULO_CHAT);
+    verificarLimpio(e);
+  });
+
+  test('un push con la app abierta en el perfil de la primera vez: no se saltea el perfil', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+    const e = await abrirAppNinera(page);
+    await expect(page.locator('h1')).toHaveText('Completa esto una sola vez');
+    await page.evaluate(() => { location.hash = '#chat'; });
+    await page.waitForTimeout(300);
+    await expect(page.locator('h1')).toHaveText('Completa esto una sola vez');
+    expect(new URL(page.url()).hash).toBe('#perfil');
+    expect(rpcs(e, 'ninera_marcar_chat_leido')).toEqual([]);
+    // Al guardar, el inicio de siempre (el hash cambiado no quedó como pendiente).
+    await page.getByRole('radio', { name: 'Sittings', exact: true }).check();
+    await page.locator('.perfil-zona[value="Pocitos"]').check();
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    verificarLimpio(e);
+  });
+
   test('base sin la migración de la etapa 3: sin Mensajes ni Avisos, y #chat abre el inicio', async ({ page, browser }) => {
     const e = await abrir(page, { baseSinMigrar: 'etapa3' });
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
@@ -535,7 +595,7 @@ test.describe('entrar directo, base sin migrar, celular y textos', () => {
     await expect(page.getByRole('button', { name: 'Mi perfil' })).toBeVisible();
     await expect(page.locator('#inicio-accesos')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Mensajes|Avisos/ })).toHaveCount(0);
-    verificarLimpio(e, { ignorar: RUIDO });
+    verificarLimpio(e, { ignorar: RUIDO_SIN_MIGRAR });
 
     const otra = await browser.newPage();
     const e2 = await abrir(otra, { baseSinMigrar: 'etapa3', consulta: '#chat' });
@@ -546,7 +606,7 @@ test.describe('entrar directo, base sin migrar, celular y textos', () => {
     await expect(otra.locator('#app')).toContainText('No tienes pedidos por ahora.');
     expect(new URL(otra.url()).hash).toBe('#inicio');
     expect(rpcs(e2, 'ninera_marcar_chat_leido')).toEqual([]);
-    verificarLimpio(e2, { ignorar: RUIDO });
+    verificarLimpio(e2, { ignorar: RUIDO_SIN_MIGRAR });
     await otra.close();
   });
 

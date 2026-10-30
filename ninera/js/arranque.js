@@ -6,6 +6,9 @@
 // ".../ninera/#chat". Se guarda antes de arrancar porque el login, instalar o los avisos cambian el
 // hash; después de esas puertas se va ahí en vez del inicio, una sola vez.
 let rutaPedidaAlAbrir = ['#chat', '#mis-avisos'].includes(location.hash) ? location.hash : null;
+// Ya pasó todas las puertas de arriba con esta sesión: recién ahí un cambio de hash (un push con la
+// app abierta, chat.js) puede llevarla a otra pantalla.
+let puertasPasadasNinera = false;
 
 async function bootNinera(){
   if(!sbn){
@@ -53,6 +56,7 @@ function escucharSesionNinera(){
   sbn.auth.onAuthStateChange((evento, sesion) => {
     sesionNinera = sesion || null;
     if(evento !== 'SIGNED_OUT') return;
+    puertasPasadasNinera = false;
     if(rutaActual() === '#login' || rutaActual() === '#invitacion') return;
     cerrarModalNinera();
     pantallaLogin();
@@ -121,6 +125,7 @@ async function continuarDespuesDeInstalar(){
 // El inicio, o la pantalla que pidió el link (rutaPedidaAlAbrir). También al terminar el perfil de
 // la primera vez (perfil.js).
 async function abrirPrimeraPantallaNinera(){
+  puertasPasadasNinera = true;
   const pedida = rutaPedidaAlAbrir;
   rutaPedidaAlAbrir = null;
   if(pedida) return irA(pedida);

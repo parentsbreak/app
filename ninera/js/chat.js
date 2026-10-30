@@ -92,6 +92,8 @@ let aperturaChatNinera = 0;
 let idsChatNinera = new Set();
 let canalChatNinera = null;
 let cierreCanalChatNinera = Promise.resolve();
+// Llegó algo del equipo con la app en segundo plano: no lo vio, se marca leído al volver al frente.
+let chatPorMarcarNinera = false;
 
 async function pantallaChatNinera(){
   if(chatNineraSinMigrar) return renderInicio();
@@ -160,7 +162,10 @@ async function cargarHiloChatNinera(apertura, { silencioso = false } = {}){
     hilo.insertAdjacentHTML('afterbegin', '<p class="vacio chat-provisorio">Todavía no hay mensajes.</p>');
   }
   // Recién cuando los vio: si no cargó, siguen sin leer.
-  if(!silencioso || nuevos) marcarChatLeidoNinera();
+  if(!silencioso || nuevos || chatPorMarcarNinera){
+    chatPorMarcarNinera = false;
+    marcarChatLeidoNinera();
+  }
 }
 
 function reintentarHiloChatNinera(){
@@ -219,8 +224,11 @@ async function abrirCanalChatNinera(apertura){
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_mensajes', filter: `ninera_id=eq.${id}` }, payload => {
       if(apertura !== aperturaChatNinera) return;
       const m = payload && payload.new;
-      // Uno del equipo con el hilo abierto: ya lo vio.
-      if(agregarMensajesChatNinera([m]) && m.de === 'admin') marcarChatLeidoNinera();
+      // Uno del equipo con el hilo abierto y la app a la vista: ya lo vio. En segundo plano no (con la
+      // pantalla apagada el número de "Mensajes" tiene que seguir): se marca al volver.
+      if(!agregarMensajesChatNinera([m]) || m.de !== 'admin') return;
+      if(document.visibilityState === 'visible') marcarChatLeidoNinera();
+      else chatPorMarcarNinera = true;
     })
     .subscribe();
 }
@@ -229,6 +237,7 @@ async function abrirCanalChatNinera(apertura){
 // esta apertura ya no pinta nada.
 function cerrarCanalChatNinera(){
   aperturaChatNinera++;
+  chatPorMarcarNinera = false;
   const canal = canalChatNinera;
   canalChatNinera = null;
   if(canal) cierreCanalChatNinera = sbn.removeChannel(canal).catch(e => console.error('[chat] al quitar el canal', e));
@@ -238,6 +247,19 @@ function cerrarCanalChatNinera(){
 // pantalla apagada, y lo que llegó mientras tanto no vino por el canal.
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible' && hiloChatVigente(aperturaChatNinera)) cargarHiloChatNinera(aperturaChatNinera, { silencioso: true });
+});
+
+// Un push con la app ya abierta (30/10/2026): en el iPhone, la app instalada puede reusar la ventana
+// y solo cambiar el hash a #chat, sin volver a cargar. Se sigue solo si ya pasó todas las puertas
+// del arranque (login, cuenta activa, instalar, avisos, perfil de la primera vez) y está en el
+// inicio, el chat o los avisos; si no, el hash vuelve a decir la pantalla que está a la vista.
+// marcarRuta() usa replaceState, que no dispara este evento.
+window.addEventListener('hashchange', ev => {
+  const pedida = location.hash;
+  if(pedida !== '#chat' && pedida !== '#mis-avisos') return;
+  const anterior = new URL(ev.oldURL).hash;
+  if(puertasPasadasNinera && nineraIdSesion && ['#inicio', '#chat', '#mis-avisos'].includes(anterior)) irA(pedida);
+  else marcarRuta(anterior);
 });
 
 // Si falla no se avisa: lo único que pasa es que el número de "Mensajes" sigue hasta la próxima vez.
