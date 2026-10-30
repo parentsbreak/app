@@ -139,6 +139,45 @@ textarea{resize:vertical;min-height:54px;}
 a.btn.ancho{display:flex;align-items:center;justify-content:center;text-align:center;}
 a.btn.primary:hover{text-decoration:none;}
 
+/* ---- Mensajes y avisos (etapa 3, 30/10/2026, chat.js) ----
+   En el inicio, dos botones grandes con lo que falta leer. El chat ocupa la pantalla del celular: el
+   hilo se desplaza solo y el campo con "Enviar" queda siempre abajo, a la vista. */
+.accesos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:28px;}
+.accesos[hidden]{display:none;}
+.acceso{display:flex;align-items:center;justify-content:center;gap:8px;min-height:60px;padding:12px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);font:700 17px 'Inter',sans-serif;color:var(--ink);cursor:pointer;transition:border-color var(--ease);}
+.acceso:hover{border-color:var(--accent);}
+.contador{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--bad);color:#fff;font-size:14px;font-weight:700;}
+.solo-lector{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+.link-boton.volver{display:inline-flex;align-items:center;margin:0 0 6px -8px;}
+.pantalla-chat{display:flex;flex-direction:column;height:100vh;height:100dvh;padding-top:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom));}
+.chat-cabecera{flex:none;}
+.chat-cabecera h1{font-size:23px;margin:0;}
+.chat-cabecera .helper{margin:2px 0 10px;font-size:14.5px;}
+.chat-hilo{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 0 8px;}
+.chat-hilo .vacio{margin-bottom:10px;}
+.chat-falla .reintentar{margin-bottom:12px;}
+.chat-msg{max-width:85%;width:fit-content;margin:0 0 8px;padding:9px 13px;border-radius:14px;font-size:16px;line-height:1.4;overflow-wrap:anywhere;}
+.chat-msg span{display:block;}
+.chat-msg.equipo{margin-right:auto;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:4px;}
+.chat-msg.mio{margin-left:auto;background:#666EAE;color:#fff;border-bottom-right-radius:4px;}
+.chat-autor{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:2px;}
+.chat-texto{white-space:pre-wrap;}
+.chat-hora{font-size:12px;text-align:right;opacity:.75;margin-top:3px;}
+.chat-escribir{flex:none;padding-top:8px;border-top:1px solid var(--line);}
+.chat-escribir .error-form{margin:0 0 8px;}
+.chat-fila{display:flex;gap:8px;align-items:flex-end;}
+.pantalla-chat .chat-fila textarea{flex:1;min-width:0;min-height:50px;max-height:140px;resize:none;padding:12px 13px;border-radius:12px;}
+.chat-fila .btn{flex:none;min-height:50px;font-size:16px;}
+.aviso-item{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;margin:0 0 10px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);font:400 15px/1.4 'Inter',sans-serif;color:var(--ink);text-align:left;overflow-wrap:anywhere;}
+.aviso-item span{max-width:100%;}
+button.aviso-item{min-height:56px;cursor:pointer;transition:border-color var(--ease);}
+button.aviso-item:hover{border-color:var(--accent);}
+.aviso-item.sin-leer{border-left:4px solid var(--accent);}
+.aviso-titulo{font-size:16px;font-weight:700;}
+.aviso-cuerpo{white-space:pre-wrap;}
+.aviso-fecha{font-size:13px;color:var(--ink-soft);}
+.avisos-lista .vacio + .reintentar{margin-top:12px;}
+
 /* Modal (abrirModalNinera, ninera/js/base.js): el mismo del panel. */
 .confirmoverlay{position:fixed;inset:0;background:rgba(49,47,69,.35);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;transition:opacity 180ms ease;padding:16px;}
 .confirmoverlay.show{opacity:1;}

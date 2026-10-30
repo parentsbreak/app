@@ -2,6 +2,11 @@
 // archivos de cada etapa se cargan antes). Orden (decisiones.md 6.1): link de invitación → sesión
 // → ¿es una niñera activa? → primer ingreso → instalar → avisos (una vez por celular) → inicio.
 
+// La pantalla que pidió el link con que se abrió la app (30/10/2026): el push del chat abre
+// ".../ninera/#chat". Se guarda antes de arrancar porque el login, instalar o los avisos cambian el
+// hash; después de esas puertas se va ahí en vez del inicio, una sola vez.
+let rutaPedidaAlAbrir = ['#chat', '#mis-avisos'].includes(location.hash) ? location.hash : null;
+
 async function bootNinera(){
   if(!sbn){
     mostrarErrorNinera('No pudimos abrir la app.', 'Revisa tu conexión a internet y vuelve a intentar.');
@@ -68,6 +73,7 @@ async function seguirConSesionNinera(){
   }
   // Dada de baja (activa = false) o sin ficha: la base no le muestra nada (decisiones.md 5.2).
   if(!nineraId){ pantallaCuentaInactiva(); return; }
+  nineraIdSesion = nineraId;
   await activarAppNinera();
   if(!esAppInstalada()){ pantallaInstalar(); return; }
   await continuarDespuesDeInstalar();
@@ -109,7 +115,16 @@ async function continuarDespuesDeInstalar(){
     await pantallaPerfil('primera', cargado.perfil);
     return;
   }
-  await renderInicio();
+  await abrirPrimeraPantallaNinera();
+}
+
+// El inicio, o la pantalla que pidió el link (rutaPedidaAlAbrir). También al terminar el perfil de
+// la primera vez (perfil.js).
+async function abrirPrimeraPantallaNinera(){
+  const pedida = rutaPedidaAlAbrir;
+  rutaPedidaAlAbrir = null;
+  if(pedida) return irA(pedida);
+  return renderInicio();
 }
 
 bootNinera();

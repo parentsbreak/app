@@ -136,8 +136,8 @@ function limpiarFotoPerfil(){
 // Primero la foto (si eligió una) y después el perfil. Si algo falla no se repinta nada: el aviso
 // queda arriba del botón y lo escrito sigue ahí para reintentar. La foto va siempre a la misma ruta
 // con upsert (decisiones de la etapa 2, 27/10/2026): si subió y después falló el perfil, el
-// reintento la pisa, nunca quedan fotos huérfanas. Los dos modos terminan en el inicio; `modo`
-// viaja desde el botón por si la primera vez tiene que seguir a otra pantalla en una etapa próxima.
+// reintento la pisa, nunca quedan fotos huérfanas. "Mi perfil" vuelve al inicio; la primera vez
+// sigue a donde iba la app cuando se abrió (el hilo, si la abrió el push del chat; 30/10/2026).
 async function guardarPerfilNinera(modo){
   const aviso = document.getElementById('perfil-error');
   const perfil = perfilNineraActual;
@@ -182,7 +182,8 @@ async function guardarPerfilNinera(modo){
   }
   limpiarFotoPerfil();
   toast('¡Listo! Tu perfil quedó guardado.');
-  await renderInicio();
+  if(modo === 'primera') await abrirPrimeraPantallaNinera();
+  else await renderInicio();
 }
 
 // "Mi perfil" (pie del inicio): lo lee de nuevo, por si cambió desde otro celular o desde el panel.

@@ -2,7 +2,8 @@
 // el aviso si los avisos están apagados, "No tienes pedidos por ahora." y Mi cuenta. Sin montos ni
 // fechas de pago, nunca (textos.md, sección 3). Los pedidos llegan en las etapas 5 y 6. Desde la
 // etapa 2 (27/10/2026) el pie suma "Mi perfil" (perfil.js) y debajo de lo de hoy van los "Próximos
-// sittings" (ninera_mis_sittings), las dos cosas salvo con la base sin migrar.
+// sittings" (ninera_mis_sittings), las dos cosas salvo con la base sin migrar. Desde la etapa 3
+// (30/10/2026), debajo de los sittings, "Mensajes" y "Avisos" con lo que falta leer (chat.js).
 
 // El nombre viene en la cuenta (user_metadata, lo pone ninera-cuenta al crearla o al cambiar la
 // contraseña): sirve en cualquier celular y en la app instalada. Se saluda con el primero.
@@ -25,6 +26,7 @@ async function renderInicio(){
       <h2>Próximos sittings</h2>
       <div id="proximos-sittings-lista"><p class="vacio">Cargando…</p></div>
     </section>`}
+    ${htmlAccesosInicio()}
     <footer class="pie">
       ${perfilNineraSinMigrar ? '' : '<button type="button" class="link-boton" onclick="conGuardado(this, ()=>abrirMiPerfil())">Mi perfil</button>'}
       <button type="button" class="link-boton" onclick="abrirMiCuentaNinera()">Mi cuenta</button>
@@ -33,6 +35,8 @@ async function renderInicio(){
   // Sin esperar: los sittings llegan solos a su sección y lo de arriba ya está en pantalla. Con la
   // base sin la migración de la etapa 2 ni se piden (ya se supo al leer el perfil).
   if(!perfilNineraSinMigrar) cargarProximosSittings();
+  // Lo mismo con lo que falta leer del chat y de los avisos (chat.js).
+  cargarContadoresInicio();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){
