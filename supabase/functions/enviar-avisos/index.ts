@@ -88,8 +88,15 @@ Deno.serve(async (req: Request) => {
         if (error) throw error;
         return data || [];
       },
-      mandar: async (sub, payload) => {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } }, payload);
+      // timeout (30/10/2026): sin tope, un servicio de push colgado agotaba el tiempo de la función y
+      // los avisos ya reclamados que faltaban quedaban "enviados" sin reintento. Con el tope, vence
+      // como un error más y va al reintento.
+      mandar: async (sub, payload, { ttl }) => {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
+          payload,
+          { timeout: 10_000, TTL: ttl },
+        );
       },
       borrarSuscripcion: async (id) => {
         const { error } = await sb.from("push_subscriptions").delete().eq("id", id);
@@ -103,6 +110,10 @@ Deno.serve(async (req: Request) => {
           : { error };
         const { error: errUpd } = await sb.from("avisos").update(cambios).eq("id", id);
         if (errUpd) throw errUpd;
+      },
+      marcarEnviado: async (id) => {
+        const { error } = await sb.from("avisos").update({ error: null }).eq("id", id);
+        if (error) throw error;
       },
     };
 

@@ -3,7 +3,7 @@
 // confunde a Deno), por ejemplo: npx deno@2 test --allow-env <carpeta>/enviar-avisos/
 import { assert, assertEquals } from "jsr:@std/assert@1.0.13";
 import {
-  type Aviso, type Deps, INTENTOS_MAX, MAX_RECLAMO, procesarAvisos, type Suscripcion, type SuscripcionNinera,
+  type Aviso, type Deps, INTENTOS_MAX, MAX_RECLAMO, procesarAvisos, TTL_CHAT_S, TTL_OTROS_S, type Suscripcion, type SuscripcionNinera,
 } from "./envio.ts";
 
 const AHORA = new Date("2026-10-29T15:00:00Z");
@@ -44,7 +44,7 @@ function simulado(op: {
 } = {}) {
   const llamadas = {
     reclamar: [] as number[], ninieras: [] as string[][], admins: 0, activas: 0, prefs: [] as string[][],
-    mandar: [] as { sub: string; payload: string }[], borrar: [] as string[],
+    mandar: [] as { sub: string; payload: string; ttl: number }[], borrar: [] as string[], enviados: [] as string[],
     errores: [] as { id: string; error: string; reintentar: Date | null }[],
   };
   const intentosPorSub: Record<string, number> = {};
@@ -63,8 +63,8 @@ function simulado(op: {
       llamadas.prefs.push([...usuarios]); falla("preferencias");
       return (op.prefs ?? []).filter((p) => usuarios.includes(p.usuario));
     },
-    mandar: async (s, payload) => {
-      llamadas.mandar.push({ sub: s.id, payload });
+    mandar: async (s, payload, opciones) => {
+      llamadas.mandar.push({ sub: s.id, payload, ttl: opciones.ttl });
       const r = op.respuestas?.[s.id] ?? "ok";
       const n = intentosPorSub[s.id] = (intentosPorSub[s.id] ?? 0) + 1;
       const esta = Array.isArray(r) ? r[Math.min(n, r.length) - 1] : r;
@@ -74,6 +74,7 @@ function simulado(op: {
     },
     borrarSuscripcion: async (id) => { llamadas.borrar.push(id); falla("borrarSuscripcion"); },
     marcarError: async (id, error, reintentar) => { llamadas.errores.push({ id, error, reintentar }); falla("marcarError"); },
+    marcarEnviado: async (id) => { llamadas.enviados.push(id); falla("marcarEnviado"); },
   };
   return { deps, llamadas };
 }
@@ -309,4 +310,50 @@ Deno.test("si reclamar falla, el error sube (index.ts responde 500)", async () =
   let fallo = false;
   try { await procesarAvisos(deps, AHORA); } catch { fallo = true; }
   assert(fallo);
+});
+
+// ------------------------------------------------------------ TTL, error limpio y textoError (30/10/2026)
+Deno.test("TTL del push: 1 día para el chat, 1 semana para los demás", async () => {
+  const chat = aviso({ tipo: "chat" }), otro = aviso({ tipo: "sin_asignar" });
+  const { deps, llamadas } = simulado({ avisos: [chat, otro], ninieras: [subNinera("s1", ANA)] });
+  await procesarAvisos(deps, AHORA);
+  assertEquals(llamadas.mandar.map((m) => m.ttl), [86400, 604800]);
+  assertEquals([TTL_CHAT_S, TTL_OTROS_S], [86400, 604800]);
+});
+
+Deno.test("aviso reintentado que llega: se limpia el error viejo; el de primer intento no escribe nada", async () => {
+  const reintentado = aviso({ intentos: 2, error: "push 500: viejo" }), primero = aviso({ intentos: 1 });
+  const { deps, llamadas } = simulado({ avisos: [reintentado, primero], ninieras: [subNinera("s1", ANA)] });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r.enviados, 2);
+  assertEquals(llamadas.enviados, [reintentado.id]);
+});
+
+Deno.test("si limpiar el error falla, el aviso igual cuenta como enviado y la tanda sigue", async () => {
+  const a = aviso({ intentos: 3 }), b = aviso({ para_ninera_id: BETO });
+  const { deps, llamadas } = simulado({
+    avisos: [a, b], ninieras: [subNinera("s1", ANA), subNinera("s2", BETO)], falla: ["marcarEnviado"],
+  });
+  const r = await procesarAvisos(deps, AHORA);
+  assertEquals(r, { reclamados: 2, enviados: 2, fallidos: 0, borradas: 0 });
+  assertEquals(llamadas.errores.length, 0);
+});
+
+Deno.test("no se limpia el error si no llegó a ningún dispositivo", async () => {
+  const { deps, llamadas } = simulado({ avisos: [aviso({ intentos: 2 })], ninieras: [subNinera("s1", ANA)], respuestas: { s1: 500 } });
+  await procesarAvisos(deps, AHORA);
+  assertEquals(llamadas.enviados.length, 0);
+});
+
+Deno.test("textoError: un error de PostgREST (objeto plano) anota message y code, no [object Object]", async () => {
+  const a = aviso({ intentos: 1 });
+  const { deps, llamadas } = simulado({ avisos: [a], falla: ["suscripcionesNineraPorId"] });
+  const original = deps.suscripcionesNineraPorId;
+  deps.suscripcionesNineraPorId = async (ids) => {
+    try { return await original(ids); } catch { throw { message: "permission denied for table x", code: "42501" }; }
+  };
+  await procesarAvisos(deps, AHORA);
+  const e = llamadas.errores[0].error;
+  assert(e.includes("permission denied for table x") && e.includes("42501"), e);
+  assert(!e.includes("[object Object]"), e);
 });

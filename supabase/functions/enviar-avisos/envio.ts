@@ -20,6 +20,10 @@ export const MAX_RECLAMO = 50;
 export const INTENTOS_MAX = 3;
 // Espera antes de reintentar un aviso que no llegó a ningún dispositivo.
 export const REINTENTO_MS = 2 * 60 * 1000;
+// Cuánto guarda el servicio de push un mensaje si el dispositivo está apagado (30/10/2026): un
+// mensaje del chat viejo ya no sirve al día siguiente; el resto aguanta una semana.
+export const TTL_CHAT_S = 86400;
+export const TTL_OTROS_S = 604800;
 // Largo máximo del error que se anota en avisos.error.
 const MAX_ERROR = 300;
 
@@ -57,10 +61,14 @@ export type Deps = {
   mailsAdminsActivas(): Promise<string[]>;
   preferencias(usuarios: string[]): Promise<Preferencia[]>;
   // Tira el error de web-push (con statusCode si el servidor de push respondió).
-  mandar(sub: Suscripcion, payload: string): Promise<void>;
+  // ttl en segundos; el tiempo máximo de espera lo pone quien lo conecta (index.ts), y si vence
+  // tira un error como cualquier otro (va al reintento).
+  mandar(sub: Suscripcion, payload: string, opciones: { ttl: number }): Promise<void>;
   borrarSuscripcion(id: string): Promise<void>;
   // Anota el error; con reintentarDesde, además lo devuelve a la cola (enviado_en vacío).
   marcarError(id: string, error: string, reintentarDesde: Date | null): Promise<void>;
+  // Un aviso reintentado que por fin llegó: borra el error viejo (error = null).
+  marcarEnviado(id: string): Promise<void>;
 };
 
 export type Resultado = {
@@ -85,7 +93,12 @@ function statusDe(e: unknown): number | undefined {
 // traer el endpoint, que es la credencial del dispositivo).
 function textoError(e: unknown): string {
   const status = statusDe(e);
-  const msg = e instanceof Error ? e.message : String(e);
+  // Los errores de PostgREST son objetos planos con message y code, no Error: sin esto salía
+  // "[object Object]" (30/10/2026).
+  const obj = typeof e === "object" && e !== null ? e as { message?: unknown; code?: unknown } : null;
+  const msg = e instanceof Error ? e.message
+    : typeof obj?.message === "string" ? obj.message + (obj.code != null ? ` (${String(obj.code)})` : "")
+    : String(e);
   return ((status !== undefined ? `push ${status}: ` : "") + msg).slice(0, MAX_ERROR);
 }
 
@@ -162,7 +175,8 @@ export async function procesarAvisos(deps: Deps, ahora: Date): Promise<Resultado
     if (!subs.length) continue;
 
     const payload = payloadDe(a);
-    const resultados = await Promise.allSettled(subs.map((s) => deps.mandar(s, payload)));
+    const ttl = a.tipo === "chat" ? TTL_CHAT_S : TTL_OTROS_S;
+    const resultados = await Promise.allSettled(subs.map((s) => deps.mandar(s, payload, { ttl })));
     let llegaron = 0;
     let otroError: unknown = null;
     for (let i = 0; i < subs.length; i++) {
@@ -181,7 +195,18 @@ export async function procesarAvisos(deps: Deps, ahora: Date): Promise<Resultado
         otroError = r.reason;
       }
     }
-    if (llegaron > 0) res.enviados++;
+    if (llegaron > 0) {
+      res.enviados++;
+      // Solo si venía de un reintento (intentos > 1): el primer intento no tiene error que limpiar.
+      if (a.intentos > 1) {
+        try {
+          await deps.marcarEnviado(a.id);
+        } catch (e) {
+          // El aviso salió igual: solo queda el error viejo anotado.
+          console.error("enviar-avisos", "marcarEnviado", { aviso: a.id, mensaje: textoError(e) });
+        }
+      }
+    }
     // Solo vencidas: es como no tener dispositivos, no se reintenta.
     else if (otroError !== null) await fallar(a, textoError(otroError));
   }
