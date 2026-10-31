@@ -5,28 +5,14 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { abrirApp, esperarQuieta, verificarLimpio } = require('./support/app');
+const { abrirApp, esperarQuieta, verificarLimpio, servirAppEnDireccionPublicada } = require('./support/app');
 const { RAIZ, leer } = require('./support/fuentes');
 
 const ORIGEN_NUEVO = 'https://parentsbreak.github.io';
 const APP_NUEVA = ORIGEN_NUEVO + '/app/';
 const REDIRECCION = 'docs/mudanza-redireccion/';
 
-// Sirve la app desde el repo bajo la dirección nueva: cada pedido a /app/<archivo> se responde con el
-// archivo local. El service worker se registra por fuera de page.route (iría a internet de verdad):
-// se anula, estos tests no lo necesitan.
-async function servirAppEnDireccionNueva(page) {
-  await page.addInitScript(() => {
-    if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error('sin service worker en el test'));
-  });
-  await page.route(ORIGEN_NUEVO + '/**', r => {
-    let ruta = new URL(r.request().url()).pathname.replace(/^\/app\/?/, '');
-    if (ruta === '' || ruta.endsWith('/')) ruta += 'index.html';
-    const archivo = path.join(RAIZ, ruta);
-    if (!archivo.startsWith(RAIZ) || !fs.existsSync(archivo)) return r.fulfill({ status: 404, body: 'No encontrado' });
-    return r.fulfill({ path: archivo });
-  });
-}
+const servirAppEnDireccionNueva = servirAppEnDireccionPublicada;
 
 test('hayQueAvisarMudanza: solo en la dirección nueva y mientras no esté la marca', async ({ page }) => {
   const e = await abrirApp(page);

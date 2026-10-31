@@ -276,7 +276,10 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
 .tablecell-btns{display:inline-flex;gap:6px;}
 .margenpos{color:var(--good);font-weight:600;}
 .margenneg{color:var(--bad);font-weight:600;}
-.loginstage{position:fixed;inset:0;display:grid;grid-template-columns:1fr 1fr;background:var(--paper);}
+/* El login y sus pantallas (Un paso más, Confirmá que sos vos, contraseña nueva) scrollean: con el
+   aviso "La app se mudó" o en un celular chico el contenido mide más que la pantalla y, sin scroll,
+   "Entrar" quedaba fuera de la vista sin forma de alcanzarlo (31/10/2026). */
+.loginstage{position:fixed;inset:0;display:grid;grid-template-columns:1fr 1fr;background:var(--paper);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 .loginbrand{position:relative;overflow:hidden;background:var(--accent);display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:60px;}
 .blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.6;animation:drift 20s ease-in-out infinite;}
 .blob-a{width:380px;height:380px;background:var(--clay);top:-100px;right:-80px;animation-duration:22s;}
@@ -286,8 +289,10 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
 @keyframes logoIn{from{opacity:0;transform:translateY(-8px) scale(.94);}to{opacity:1;transform:translateY(0) scale(1);}}
 .loginbrand h1{position:relative;z-index:1;color:#fff;font-size:32px;max-width:380px;line-height:1.25;animation:fadeIn 500ms 100ms both;}
 .loginbrand p{position:relative;z-index:1;color:rgba(255,255,255,.85);font-size:14.5px;max-width:340px;line-height:1.6;margin-top:14px;animation:fadeIn 500ms 180ms both;}
-.loginformside{display:flex;align-items:center;justify-content:center;padding:40px;}
-.loginwrap{width:100%;max-width:340px;animation:fadeIn 500ms 200ms both;}
+/* Centrado con márgenes automáticos y no con align-items:center: si el formulario no entra, los
+   márgenes quedan en 0 y no se corta arriba (con center, lo de arriba quedaba fuera del scroll). */
+.loginformside{display:flex;align-items:flex-start;justify-content:center;padding:40px;}
+.loginwrap{width:100%;max-width:340px;margin:auto 0;animation:fadeIn 500ms 200ms both;}
 .loginwrap h2{font-size:22px;margin-bottom:6px;}
 .loginwrap .helper{margin-bottom:26px;}
 .inputicon{position:relative;}
@@ -296,7 +301,7 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:2px;}
 .spinner.dark{border-color:var(--line);border-top-color:var(--accent);}
 @keyframes spin{to{transform:rotate(360deg);}}
-@media (max-width:760px){.loginstage{grid-template-columns:1fr;grid-template-rows:auto 1fr;}.loginbrand{padding:36px 28px;min-height:180px;}.loginbrand h1{font-size:22px;}.loginbrand p{display:none;}.loginformside{padding:28px;}}
+@media (max-width:760px){.loginstage{grid-template-columns:1fr;grid-template-rows:auto 1fr;}.loginbrand{padding:36px 28px;min-height:180px;}.loginbrand h1{font-size:22px;}.loginbrand p{display:none;}.loginformside{padding:28px;}.loginwrap{margin:0;}}
 .toaststack{position:fixed;top:18px;right:18px;z-index:200;display:flex;flex-direction:column;gap:10px;}
 #aviso-volviste{position:fixed;top:0;left:0;right:0;z-index:210;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.15);}
 #aviso-volviste button{background:#fff;color:var(--accent);border:none;border-radius:8px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:12.5px;}
