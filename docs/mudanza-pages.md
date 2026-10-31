@@ -122,7 +122,7 @@ Lo manda Diego antes de la noche (y de nuevo cuando la app ya está en la direcc
 > 3. Tocá Compartir y después Agregar a pantalla de inicio.
 > 4. Abrí la app desde el ícono nuevo y entrá con tu mail y contraseña. Te va a pedir activar Face ID
 > de nuevo, como la primera vez.
-> 5. Activá los avisos desde la campanita.
+> 5. En el menú, Notificaciones, y tocá Activar notificaciones push.
 > Si el ícono viejo te abre una página que dice "La app se mudó", es eso mismo: seguí esos pasos.
 > Cualquier cosa me escribís.
 

@@ -65,7 +65,7 @@ test.describe('en la dirección nueva', () => {
       'Abrí parentsbreak.github.io/app en Safari (en Android, en Chrome).',
       'Tocá Compartir y después Agregar a pantalla de inicio.',
       'Abrí la app desde el ícono nuevo y entrá con tu mail y contraseña.',
-      'Activá los avisos desde la campanita.',
+      'En el menú, Notificaciones, y tocá Activar notificaciones push.',
     ]);
     // Arriba de todo
     expect(await page.evaluate(() => document.getElementById('modcontent').firstElementChild.id)).toBe('aviso-mudanza');
@@ -146,7 +146,7 @@ test.describe('páginas del repo de redirección (la dirección vieja)', () => {
       await expect(page.getByRole('heading', { name: 'La app se mudó' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Abrir la app nueva' })).toHaveAttribute('href', APP_NUEVA + '?x=1');
       await expect(page.locator('ol li')).toHaveCount(5);
-      await expect(page.locator('ol li').last()).toHaveText('Activá los avisos desde la campanita.');
+      await expect(page.locator('ol li').last()).toHaveText('En el menú, Notificaciones, y tocá Activar notificaciones push.');
 
       await page.goto('/' + REDIRECCION + 'ninera/index.html');
       await expect(page.getByRole('heading', { name: 'La app se mudó' })).toBeVisible();

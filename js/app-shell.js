@@ -193,7 +193,7 @@ function avisoMudanzaHoyHtml(){
         <li>Abrí ${escaparHtml(DIRECCION_MUDANZA)} en Safari (en Android, en Chrome).</li>
         <li>Tocá Compartir y después Agregar a pantalla de inicio.</li>
         <li>Abrí la app desde el ícono nuevo y entrá con tu mail y contraseña.</li>
-        <li>Activá los avisos desde la campanita.</li>
+        <li>En el menú, Notificaciones, y tocá Activar notificaciones push.</li>
       </ol>
       <button class="btn primary" onclick="cerrarAvisoMudanza()">Entendido</button>
     </div>`;
