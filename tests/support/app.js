@@ -503,4 +503,24 @@ function verificarLimpio(estado, { ignorar = [] } = {}) {
   expect(errores, 'errores en consola o excepciones').toEqual([]);
 }
 
-module.exports = { abrirApp, abrirAppNinera, irAModulo, esperarQuieta, verificarLimpio, REF_PROD, USUARIO_NINERA };
+// La app servida bajo la dirección publicada (https://parentsbreak.github.io/app/), desde los archivos
+// del repo: cada pedido a /app/<archivo> se responde con el archivo local. Lo usan los tests que miran
+// algo que solo pasa en ese host (el aviso "La app se mudó"). El service worker se registra por fuera
+// de page.route (iría a internet de verdad): se anula, estos tests no lo necesitan.
+const ORIGEN_PUBLICADO = 'https://parentsbreak.github.io';
+const APP_PUBLICADA = ORIGEN_PUBLICADO + '/app/';
+async function servirAppEnDireccionPublicada(page) {
+  const raiz = path.resolve(__dirname, '..', '..');
+  await page.addInitScript(() => {
+    if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error('sin service worker en el test'));
+  });
+  await page.route(ORIGEN_PUBLICADO + '/**', r => {
+    let ruta = new URL(r.request().url()).pathname.replace(/^\/app\/?/, '');
+    if (ruta === '' || ruta.endsWith('/')) ruta += 'index.html';
+    const archivo = path.join(raiz, ruta);
+    if (!archivo.startsWith(raiz) || !fs.existsSync(archivo)) return r.fulfill({ status: 404, body: 'No encontrado' });
+    return r.fulfill({ path: archivo });
+  });
+}
+
+module.exports = { abrirApp, abrirAppNinera, irAModulo, esperarQuieta, verificarLimpio, REF_PROD, USUARIO_NINERA, servirAppEnDireccionPublicada, APP_PUBLICADA, ORIGEN_PUBLICADO };

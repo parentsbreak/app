@@ -311,6 +311,8 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/filtro-punta.spec.js`: filtro de Niñeras por Punta del Este y por meses (vive en Punta sin
   temporada, temporada por quincenas, "Dijo que no va", Montevideo sin temporada aparte, la zona
   escrita en el buscador, 390 px).
+- `tests/login-alcanzable.spec.js`: el login y sus pantallas (Un paso más, Confirmá que sos vos, contraseña
+  nueva) scrollean y el botón principal se alcanza a 375×560 y 390×664, con y sin el aviso de mudanza.
 - `tests/modo-claro.spec.js`: con el aparato en modo oscuro, Hoy, Postulantes y Finanzas se ven claros.
 - `tests/cierre-fijos.spec.js`: "Cierre de los fijos" en Hoy (Sí, terminó / Otra hora con entrada y fin que
   recalcula con la tarifa y los términos, medianoche, ya cobrado, otra admin, base que falla, traslado, 390 px).
