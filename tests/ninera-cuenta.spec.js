@@ -99,9 +99,10 @@ const RUIDO_RED = /Failed to load resource|ERR_FAILED|Failed to fetch/;
 
 // En Chromium headless no hay servicio de push: se reemplazan el permiso y el registro del service
 // worker por unos de mentira. permiso: lo que responde requestPermission; suscripta: el registro ya
-// tiene una suscripción (y su endpoint quedó guardado en la base desde este celular).
-async function fingirAvisos(page, { permiso = 'granted', suscripta = false } = {}) {
-  await page.addInitScript(({ permiso, suscripta, uid }) => {
+// tiene una suscripción (y su endpoint quedó guardado en la base desde este celular). bloqueado: el
+// permiso ya está en 'denied' al abrir (Notification.permission), como un celular donde lo bloqueó antes.
+async function fingirAvisos(page, { permiso = 'granted', suscripta = false, bloqueado = false } = {}) {
+  await page.addInitScript(({ permiso, suscripta, bloqueado, uid }) => {
     const suscripcion = {
       endpoint: 'https://push.ejemplo.test/suscripcion-1',
       toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'clave-p256dh-ficticia', auth: 'clave-auth-ficticia' } }; },
@@ -109,7 +110,7 @@ async function fingirAvisos(page, { permiso = 'granted', suscripta = false } = {
     };
     window.__desuscripciones = 0;
     let actual = suscripta ? suscripcion : null;
-    let permisoActual = suscripta ? 'granted' : 'default';
+    let permisoActual = bloqueado ? 'denied' : (suscripta ? 'granted' : 'default');
     // La marca que deja la app al guardar la suscripción: la cuenta y el endpoint.
     if (suscripta) localStorage.setItem('pb-ninera-push-guardado', `${uid}|${suscripcion.endpoint}`);
     window.__pedidosDePermiso = 0;
@@ -129,7 +130,7 @@ async function fingirAvisos(page, { permiso = 'granted', suscripta = false } = {
     navigator.serviceWorker.getRegistration = async () => registro;
     Object.defineProperty(Notification, 'permission', { get: () => permisoActual, configurable: true });
     Notification.requestPermission = async () => { window.__pedidosDePermiso++; permisoActual = permiso; return permiso; };
-  }, { permiso, suscripta, uid: USUARIO_NINERA.id });
+  }, { permiso, suscripta, bloqueado, uid: USUARIO_NINERA.id });
 }
 
 // Abre la app de niñeras con los avisos ya activos (lo normal en los tests que miran otra cosa).
@@ -360,11 +361,11 @@ test.describe('login con el celular', () => {
       await page.fill('#login-pass', 'clave-ficticia-1');
       await page.click('#login-btn');
       // Cerrar sesión desuscribe este celular (30/10/2026): al volver a entrar, los avisos están
-      // apagados y, como nunca vio la pantalla de avisos, se la ofrece una vez (la tercera entra
-      // directo al inicio, con "Avisos apagados").
+      // apagados y, se la ofrece (los avisos son obligatorios, etapa 9); si dice "Seguir sin avisos" la
+      // marca vale hasta recargar, así que la tercera entra directo al inicio, con "Avisos apagados".
       if (i === 1) {
         await expect(page.locator('h1')).toHaveText('Activa los avisos');
-        await page.getByRole('button', { name: 'Ahora no' }).click();
+        await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
       }
       await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
       // El nombre viene en la cuenta: saluda también después de un login sin invitación.
@@ -513,26 +514,117 @@ test.describe('avisos', () => {
       user_id: '00000000-0000-4000-8000-000000000002',
     });
     expect(await page.evaluate(() => window.__suscripcionPedida)).toEqual({ userVisibleOnly: true, largoClave: 65 });
-    expect(await page.evaluate(() => localStorage.getItem('pb-ninera-avisos-vistos'))).toBe('1');
+    // Ya no se guarda ninguna marca de "avisos vistos" (etapa 9, 31/10/2026).
+    expect(await page.evaluate(() => localStorage.getItem('pb-ninera-avisos-vistos'))).toBeNull();
     verificarLimpio(e);
   });
 
-  test('permiso denegado: el inicio muestra "Avisos apagados" y la pantalla de avisos no vuelve a salir', async ({ page }) => {
-    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Activar avisos' }).click();
+  test('permiso denegado: sale directo con los pasos de Ajustes, sin pedir el permiso; "Seguir sin avisos" lleva al inicio', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false, bloqueado: true });
+    await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
+    expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(0);
+    expect(new URL(page.url()).hash).toBe('#avisos');
+    await expect(page.locator('#app')).toContainText("iPhone: Ajustes > Notificaciones > Parents' Break > Permitir notificaciones.");
+    await expect(page.locator('#app')).toContainText('Android: mantén apretado el ícono de la app > Información de la app > Notificaciones > actívalas.');
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     expect(e.escrituras.filter(w => w.tabla === 'push_subscriptions')).toHaveLength(0);
-    await page.reload();
-    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
-    await expect(page.locator('h1')).toHaveText('Hola, Ana');
-    expect(new URL(page.url()).hash).toBe('#inicio'); // no #avisos
     verificarLimpio(e);
   });
 
-  test('"Ahora no" va al inicio con el aviso, y desde ahí se pueden activar', async ({ page }) => {
+  test('"Activar avisos" con el permiso que queda bloqueado: pasos; "Ya los activé" se queda mientras siga bloqueado y sigue cuando se concede', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
+    await page.getByRole('button', { name: 'Activar avisos' }).click();
+    await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
+    expect(new URL(page.url()).hash).toBe('#avisos');
+    await page.getByRole('button', { name: 'Ya los activé' }).click();
+    await expect(page.locator('.toaststack')).toContainText('Los avisos siguen apagados. Actívalos en Ajustes.');
+    await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
+    expect(e.escrituras.filter(w => w.tabla === 'push_subscriptions')).toHaveLength(0);
+    // La niñera los activa en Ajustes: al volver, el permiso está concedido.
+    await page.evaluate(() => {
+      Notification.requestPermission = async () => {
+        Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true });
+        return 'granted';
+      };
+    });
+    await page.getByRole('button', { name: 'Ya los activé' }).click();
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await expect(page.locator('#app')).not.toContainText('Avisos apagados');
+    expect(e.escrituras.filter(w => w.tabla === 'push_subscriptions')).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('sale cada vez que entra con los avisos apagados; con "Seguir sin avisos" no insiste hasta recargar', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    await expect(page.getByRole('button', { name: 'Ahora no' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    expect(await page.evaluate(() => localStorage.getItem('pb-ninera-avisos-vistos'))).toBeNull();
+    verificarLimpio(e);
+  });
+
+  test('"Seguir sin avisos" va al inicio con el aviso rojo, y con el permiso bloqueado su botón lleva a los pasos', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
+    await page.evaluate(() => Object.defineProperty(Notification, 'permission', { get: () => 'denied', configurable: true }));
+    const pedidos = await page.evaluate(() => window.__pedidosDePermiso);
+    await page.locator('#inicio-avisos').getByRole('button', { name: 'Activar avisos' }).click();
+    await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
+    expect(new URL(page.url()).hash).toBe('#avisos');
+    expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(pedidos);
+    verificarLimpio(e);
+  });
+
+  test('celular que no puede recibir avisos: sin pantalla de avisos', async ({ page }) => {
+    await page.addInitScript(() => { delete window.PushManager; });
+    const e = await abrir(page, {}, { permiso: 'default', suscripta: false });
+    await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await expect(page.locator('#app')).not.toContainText('Activa los avisos');
+    verificarLimpio(e);
+  });
+
+  test('si falla guardar la suscripción, se queda en la pantalla y "Seguir sin avisos" siempre sale (390 px)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 664 });
+    const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
+    e.fallar = () => 'red';
+    await page.getByRole('button', { name: 'Activar avisos' }).click();
+    await expect(page.locator('.toaststack')).toContainText('No pudimos activar los avisos.');
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    const link = page.getByRole('button', { name: 'Seguir sin avisos' });
+    await link.scrollIntoViewIfNeeded();
+    await expect(link).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    e.fallar = null;
+    await link.click();
+    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
+    verificarLimpio(e, { ignorar: [RUIDO_RED, /\[avisos\]/] });
+  });
+
+  test('pantalla de pasos a 390 px: botón y link alcanzables, sin scroll horizontal', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 664 });
+    const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
+    await page.getByRole('button', { name: 'Activar avisos' }).click();
+    await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
+    for (const n of ['Ya los activé', 'Seguir sin avisos']) {
+      const b = page.getByRole('button', { name: n });
+      await b.scrollIntoViewIfNeeded();
+      await expect(b).toBeInViewport();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    verificarLimpio(e);
+  });
+
+  test('"Seguir sin avisos" no pide el permiso, y desde el inicio se pueden activar', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(0);
     await page.locator('#inicio-avisos').getByRole('button', { name: 'Activar avisos' }).click();
@@ -548,6 +640,9 @@ test.describe('avisos', () => {
     await page.getByRole('button', { name: 'Activar avisos' }).click();
     await expect(page.locator('.toaststack')).toContainText('No pudimos activar los avisos. Revisa tu conexión a internet y vuelve a intentar.');
     await expect(page.locator('.toaststack')).not.toContainText('Avisos activados');
+    // Se queda en la pantalla de avisos; sigue sin ellos y el inicio dice que están apagados.
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     // Sin conexión, igual.
     e.fallar = () => 'red';
@@ -610,7 +705,7 @@ test.describe('avisos', () => {
 
   test('sin suscripción en este celular, cerrar sesión no borra nada', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     await cerrarSesionDesdeMiCuenta(page);
     expect(borradosPush(e)).toHaveLength(0);
@@ -750,7 +845,7 @@ test.describe('inicio vacío, celular y textos', () => {
   test('inicio a 390 px y la invitación: capturas, sin scroll horizontal (390 y 1280)', async ({ page, browser }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -790,7 +885,7 @@ test.describe('inicio vacío, celular y textos', () => {
     await page.getByRole('button', { name: 'Ya la instalé' }).click();
     await expect(page.locator('#app')).toContainText('Activa los avisos');
     await juntar();
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await juntar();
     await page.getByRole('button', { name: 'Mi cuenta' }).click();

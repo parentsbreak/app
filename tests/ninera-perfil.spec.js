@@ -20,7 +20,7 @@ const RUIDO = [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed 
 
 // Abre la app con la pantalla de avisos ya vista en este celular (estos tests miran el perfil).
 async function abrir(page, opciones = {}) {
-  await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+  await page.addInitScript(() => { delete window.PushManager; });
   return abrirAppNinera(page, opciones);
 }
 function rpcs(e, nombre) {
@@ -262,11 +262,11 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
-  test('después de "Ahora no" en los avisos, la primera vez sigue al perfil', async ({ page }) => {
-    // Sin la marca de avisos vistos: Chromium headless tiene push, sin permiso.
+  test('después de "Seguir sin avisos", la primera vez sigue al perfil', async ({ page }) => {
+    // Chromium headless tiene push y el permiso en 'denied': sale la pantalla de los pasos (#avisos).
     const e = await abrirAppNinera(page);
-    await expect(page.locator('#app')).toContainText('Activa los avisos');
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await expect(page.locator('#app')).toContainText('Los avisos están bloqueados');
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('h1')).toHaveText(TITULO_PRIMERA);
     verificarLimpio(e);
   });

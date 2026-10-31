@@ -25,7 +25,7 @@ const PAGO = /\bpago/i;
 async function abrir(page, opciones = {}) {
   const datos = opciones.datos || datosBase();
   (datos.ninieras || []).forEach(n => { if (n.id === ID.nAna) Object.assign(n, { zona: 'Pocitos', perfil_app_en: '2026-10-02T15:00:00+00:00' }); });
-  await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+  await page.addInitScript(() => { delete window.PushManager; });
   return abrirAppNinera(page, { ...opciones, datos });
 }
 function llamadas(e) {

@@ -98,11 +98,12 @@ async function activarAppNinera(){
   }
 }
 
-// Después de instalar (o si ya estaba instalada): la pantalla de avisos una sola vez por celular,
+// Después de instalar (o si ya estaba instalada): la pantalla de avisos cada vez que entra con los avisos
+// apagados (etapa 9, 31/10/2026; salvo "Seguir sin avisos" en esta apertura),
 // el perfil si todavía no lo completó (etapa 2, 27/10/2026) y el inicio. Con la base sin la
 // migración de la etapa 2, el inicio de siempre.
 async function continuarDespuesDeInstalar(){
-  if(avisosSoportados() && leerLocalNinera('pb-ninera-avisos-vistos') !== '1' && !(await avisosActivados())){
+  if(avisosSoportados() && !avisosSalteadosEstaVez && !(await avisosActivados())){
     pantallaAvisos();
     return;
   }

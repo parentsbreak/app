@@ -125,3 +125,15 @@ Los avisos ("Avisos"):
 - Sin avisos: "No tienes avisos."
 - Si no carga: "No pudimos cargar tus avisos. Revisa tu conexión a internet y vuelve a intentar." con
   el botón "Reintentar".
+
+## Etapa 9: temporada y avisos
+
+Avisos obligatorios al entrar a la app (31/10/2026):
+- La pantalla "Activa los avisos" sale cada vez que entra con los avisos apagados. Ya no tiene "Ahora no":
+  queda "Activar avisos" y, abajo, un link chico "Seguir sin avisos" (vale solo hasta cerrar o recargar la app).
+- Si el permiso quedó bloqueado: título "Los avisos están bloqueados" y "Para recibir tus pedidos, actívalos
+  desde los Ajustes de tu celular."
+- "iPhone: Ajustes > Notificaciones > Parents' Break > Permitir notificaciones."
+- "Android: mantén apretado el ícono de la app > Información de la app > Notificaciones > actívalas."
+- Botón "Ya los activé" (vuelve a probar; si siguen apagados, "Los avisos siguen apagados. Actívalos en
+  Ajustes.") y el mismo link "Seguir sin avisos".
