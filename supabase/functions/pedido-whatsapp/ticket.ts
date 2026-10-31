@@ -45,6 +45,7 @@ export const RespuestaModelo = z.object({
   chicos_cantidad: z.number().int().nullable().describe("Cuántos chicos, si lo dicen."),
   chicos_edades: z.string().nullable().describe("Edades como las dicen, por ejemplo '2 y 5 años'."),
   zona: z.string().nullable().describe("Barrio o dirección si lo mencionan."),
+  ninera_pedida: z.string().nullable().describe("Nombre de la niñera, solo si la madre pide a una por su nombre; copialo tal cual. Si no pide a ninguna, null."),
   notas: z.string().nullable().describe("Datos útiles para la niñera (primero salud y alergias), en pocas frases."),
   dudas: z.array(z.string()).describe("Lo que falta o no queda claro, en frases cortas. Vacío si está todo."),
 });
@@ -62,6 +63,7 @@ Reglas:
 - Horas en 24 horas (HH:MM). "A las 8 de la noche" es 20:00. Si no dicen hasta qué hora, hora_fin es null, horario_aproximado es true y en horario_nota va lo que digan ("sin hora de fin, no antes de las 2").
 - Si piden llevar o buscar a los chicos a algún lado, servicio es traslado; si piden que alguien los cuide, sitting.
 - Si en vez de un pedido nuevo cambian o cancelan uno anterior, marcá cambio o cancelacion. Si no es un pedido, otra_cosa.
+- Niñera pedida: si la madre pide a una niñera por su nombre, copiá el nombre tal cual en ninera_pedida; si no pide a ninguna, null.
 - Respondé solo con el ticket, en español rioplatense.`;
 
 // "Hoy" en Montevideo (UTC-3 todo el año): de 21:00 a 24:00 la fecha UTC ya es la de mañana.
@@ -107,6 +109,7 @@ export type Ticket = {
   chicos_cantidad: number | null;
   chicos_edades: string | null;
   zona: string | null;
+  ninera_pedida: string | null;
   notas: string | null;
   dudas: string[];
 };
@@ -141,6 +144,7 @@ export function validarRespuesta(r: Respuesta, familias: Familia[], elegida: Fam
     chicos_cantidad: cantidad,
     chicos_edades: recortar(r.chicos_edades),
     zona: recortar(r.zona),
+    ninera_pedida: recortar(r.ninera_pedida, 80),
     notas: recortar(r.notas, MAX_NOTAS),
     dudas,
   };
