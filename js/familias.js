@@ -327,6 +327,7 @@ function verFamilia(id){
     </div>
     <div class="helper">${escaparHtml(f.zona||'zona s/d')} ${escaparHtml(f.telefono?'· '+f.telefono:'')}</div>
     ${precioHtml}
+    <div id="fam-precios-nin" data-familia="${escaparHtml(f.id)}" style="margin:10px 0 14px;"></div>
     ${'terminos_aceptados_el' in f ? htmlTerminosFamilia(f) : ''}
     ${f.frecuencia_cobro?`<div class="helper">Frecuencia de cobro: ${escaparHtml(f.frecuencia_cobro)}</div>`:''}
     ${f.direccion?`<div class="helper">Dirección: ${escaparHtml(f.direccion)}</div>`:''}
@@ -369,6 +370,7 @@ function verFamilia(id){
   renderIncidentesEnFicha('fam-incidentes', 'familia', f.id, f.nombre);
   pintarSaldoEnFicha('fam-saldo', 'familia', f.id, f.nombre);
   pintarVariantesEnFicha(f.id);
+  pintarPreciosNineraEnFicha(f.id);
 }
 /* Términos y condiciones (20/10/2026): la admin marca que la familia los aceptó y desde qué
    fecha. Desde ese día, el fin de cada sitting se le cobra redondeado (horasSitting, core.js).
@@ -882,4 +884,223 @@ async function moverVariantesAlFijoNuevo(viejoId, nuevoId){
   if(!variantesPrecioDisponible || !viejoId || !nuevoId) return;
   const { error } = await sb.from('variantes_precio').update({ asignacion_id: nuevoId, updated_at: new Date().toISOString() }).eq('asignacion_id', viejoId);
   if(error && !esFaltaTabla(error)) toast('El fijo cambió, pero sus variantes de precio quedaron en el anterior: revisalas en la ficha de la familia.', 'bad');
+}
+
+/* ---- Precio por niñera, en la ficha de la familia (01/11/2026, docs/precio-ninera-familia.md) ----
+   Lo que cobra cada niñera por hora con esta familia cuando no es la tarifa (regla 2: cantidad de
+   chicos, antigüedad, fuera de Montevideo). Lo usan el registro, la Agenda y los fijos
+   (precioHoraNinera, core.js). Agregar precarga el pago de su último sitting con esta familia; editar
+   y borrar van con la condición de actualizado_en (lo pone un trigger en cada cambio), como todo lo
+   que dos admins pueden cambiar a la vez. El formulario va en una capa encima de la ficha, como el de
+   las variantes. Sin la tabla (base sin migrar) no se muestra; si la lectura falla se dice, nunca la
+   lista vacía: se creería que todas cobran la tarifa. */
+let preciosFichaFamilia = { familiaId: null, filas: null }; // lo último que pintó la sección
+let precioNinUi = null;        // el formulario abierto
+let canalPreciosFicha = null;  // Realtime de la sección mientras la ficha está abierta
+const ESTILO_FILA_PRECIO_NIN = 'width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);font-family:inherit;color:inherit;cursor:pointer;';
+async function pintarPreciosNineraEnFicha(familiaId){
+  if(!document.getElementById('fam-precios-nin') || !preciosNineraDisponible) return;
+  const { data, error } = await sb.from('precios_ninera_familia').select('id,ninera_id,pago_hora,nota,actualizado_en,ninieras(nombre)').eq('familia_id', familiaId);
+  if(error && esFaltaTabla(error)) preciosNineraDisponible = false;
+  // La ficha pudo cerrarse, repintarse o pasar a otra familia mientras se leía.
+  const cont = document.getElementById('fam-precios-nin');
+  if(!cont || cont.dataset.familia !== familiaId) return;
+  if(!preciosNineraDisponible){ cont.innerHTML = ''; return; }
+  const titulo = '<div class="card-section-title" style="margin:0;">Precio por niñera</div>';
+  if(error){
+    preciosFichaFamilia = { familiaId, filas: null };
+    pintarSiCambio(cont, `${titulo}<div class="warnbox" style="margin-top:6px;">No se pudieron leer los precios por niñera.</div>
+      <button class="smallbtn" style="min-height:36px;margin-top:8px;" onclick="pintarPreciosNineraEnFicha(${argJs(familiaId)})">Reintentar</button>`);
+    return;
+  }
+  const filas = (data||[]).map(p=>({ ...p, nombre: p.ninieras?.nombre || 'Niñera sin nombre' })).sort((a, b)=>a.nombre.localeCompare(b.nombre, 'es'));
+  preciosFichaFamilia = { familiaId, filas };
+  const f = familiasItems.find(x=>x.id===familiaId);
+  const tarifa = Number(f?.pago_hora) > 0 ? `$${Number(f.pago_hora).toLocaleString('es-UY')}/h (tarifa de la familia)` : 'sin tarifa cargada';
+  pintarSiCambio(cont, `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">
+      ${titulo}
+      <button class="smallbtn" style="min-height:36px;" onclick="abrirModalPrecioNinera(${argJs(familiaId)}, null)">+ Agregar</button>
+    </div>
+    ${filas.map(p=>`<button type="button" class="agendarow precio-nin-fila" style="${ESTILO_FILA_PRECIO_NIN}" onclick="abrirModalPrecioNinera(${argJs(familiaId)}, ${argJs(p.id)})">
+      ${htmlRenglonPrecioNinera(p.nombre, p)}<span class="helper" style="margin:0;">Cambiar</span></button>`).join('')}
+    <div class="helper" style="margin:6px 0 0;">${filas.length ? 'Las demás niñeras' : 'Todas las niñeras'}: ${tarifa}</div>`);
+  // El canal se abre con la primera lectura buena (sin la tabla no hay a qué suscribirse) y se suelta al
+  // cerrar la ficha (alCerrarModal, core.js). El Realtime del módulo espera a que se cierre la ficha;
+  // este repinta solo la sección, también con el formulario abierto encima (que no se toca). Sin filtro
+  // por familia: un DELETE no la trae, y la sección se vuelve a leer en una consulta chica.
+  if(!canalPreciosFicha){
+    let espera = null;
+    const canal = sb.channel(`precios-ficha-${familiaId}-${Date.now()}`)
+      .on('postgres_changes', { event:'*', schema:'public', table:'precios_ninera_familia' }, ()=>{
+        clearTimeout(espera);
+        espera = setTimeout(()=>{ if(canalPreciosFicha === canal) pintarPreciosNineraEnFicha(familiaId); }, 300);
+      });
+    canalPreciosFicha = canal;
+    canal.subscribe();
+    alCerrarModal(cerrarCanalPreciosFicha);
+  }
+}
+function cerrarCanalPreciosFicha(){
+  const canal = canalPreciosFicha;
+  canalPreciosFicha = null;
+  if(canal) sb.removeChannel(canal).catch(e=>console.error('[precios] al quitar el canal', e));
+}
+function abrirModalPrecioNinera(familiaId, id){
+  const f = familiasItems.find(x=>x.id===familiaId);
+  const p = id ? (preciosFichaFamilia.familiaId===familiaId && preciosFichaFamilia.filas || []).find(x=>x.id===id) : null;
+  if(id && !p){ toast('Ese precio ya no existe.', 'bad'); pintarPreciosNineraEnFicha(familiaId); return; }
+  precioNinUi = { familiaId, id: p?.id || null, antes: p?.actualizado_en || null, nineraId: p?.ninera_id || null, nineraNombre: p?.nombre || '',
+    ninieras: [], lectura: 0, pagoTocado: false, notaTocada: false };
+  const ui = precioNinUi;
+  const overlay = document.createElement('div');
+  overlay.className = 'confirmoverlay';
+  overlay.id = 'precio-nin-overlay';
+  overlay.innerHTML = `
+    <div class="confirmbox" role="dialog" aria-label="Precio por niñera">
+      <h2 style="margin:0 0 4px;">${p ? 'Cambiar el precio' : 'Precio de una niñera'}</h2>
+      <div class="helper" style="margin:0 0 12px;">${escaparHtml(f?.nombre || '')} · lo que cobra esa niñera por hora con esta familia.</div>
+      ${p ? `<div class="field"><label>Niñera</label><div style="font-weight:600;overflow-wrap:anywhere;">${escaparHtml(p.nombre)}</div></div>`
+        : `<div class="field" style="position:relative;"><label for="pnf-ninera">Niñera</label><input type="text" id="pnf-ninera" autocomplete="off" placeholder="Buscar por nombre">
+          <div id="pnf-ninera-dropdown" class="autocomplete-dropdown" style="display:none;"></div></div>`}
+      <div id="pnf-ya-tiene" class="helper" style="display:none;margin:-6px 0 10px;">Ya tiene un precio con esta familia: lo estás cambiando.</div>
+      <div class="field"><label for="pnf-pago">Pago por hora</label>
+        <div class="moneyfield por-hora"><input type="number" id="pnf-pago" inputmode="decimal" value="${escaparHtml(p ? p.pago_hora : '')}" oninput="if(precioNinUi) precioNinUi.pagoTocado = true"></div>
+        <div id="pnf-origen" class="helper" style="margin:4px 0 0;"></div></div>
+      <div class="field"><label for="pnf-nota">Nota (opcional)</label><input type="text" id="pnf-nota" maxlength="200" placeholder="ej. 3 chicos" value="${escaparHtml(p?.nota || '')}" oninput="if(precioNinUi) precioNinUi.notaTocada = true"></div>
+      <div id="pnf-warn"></div>
+      <div class="confirmbtns" style="flex-wrap:wrap;">
+        <button class="btn ghost" id="pnf-cancelar">Cancelar</button>
+        <button class="btn danger" id="pnf-borrar" style="${p ? '' : 'display:none;'}" onclick="conGuardado(this, ()=>eliminarPrecioNineraFicha())">Borrar</button>
+        <button class="btn primary" id="pnf-guardar" onclick="conGuardado(this, ()=>guardarPrecioNineraFicha())">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(()=>overlay.classList.add('show'));
+  overlay.querySelector('#pnf-cancelar').addEventListener('click', cerrarModalPrecioNinera);
+  if(p) return;
+  // Buscador de la app (sin tildes en el iPhone, 25/10/2026), solo con las activas que hacen sittings.
+  // Sin el aviso de "sin coincidencias": mientras carga la lista lo diría de cualquier nombre.
+  attachAutocomplete('pnf-ninera', 'pnf-ninera-dropdown', ()=>ui.ninieras, elegirNineraPrecio, {sinCoincidencias:''});
+  sb.from('ninieras').select('id,nombre,tipo').eq('activa', true).order('nombre').then(({ data, error })=>{
+    if(ui !== precioNinUi) return;
+    if(error){ document.getElementById('pnf-warn').innerHTML = '<div class="warnbox">No se pudo leer la lista de niñeras. Cerrá y probá de nuevo.</div>'; return; }
+    ui.ninieras = (data||[]).filter(n=>nineraHaceTipo(n, 'sitting'));
+    // Lo que se escribió mientras cargaba: con el campo enfocado, como si se tipeara de nuevo (muestra
+    // la lista y, escrito entero, la elige).
+    const input = document.getElementById('pnf-ninera');
+    if(input && input.value && document.activeElement === input) input.dispatchEvent(new Event('input'));
+    else elegirNineraPrecio(null);
+  });
+}
+function cerrarModalPrecioNinera(){
+  precioNinUi = null;
+  const o = document.getElementById('precio-nin-overlay');
+  if(!o) return;
+  o.classList.remove('show');
+  o.id = '';
+  setTimeout(()=>o.remove(), 180);
+}
+// Elegida de la lista o escrita entera (sin tildes ni mayúsculas). Si ya tiene precio con esta familia,
+// el formulario pasa a cambiar esa fila (ahorra volver a la lista); si no, es un alta con el pago precargado.
+function elegirNineraPrecio(elegida){
+  const ui = precioNinUi;
+  const input = document.getElementById('pnf-ninera');
+  if(!ui || !input) return;
+  const escrito = normaliza(input.value.trim());
+  const n = elegida || (escrito ? ui.ninieras.find(x=>normaliza(x.nombre)===escrito) : null) || null;
+  if((n?.id || null) === ui.nineraId) return;
+  const lectura = ++ui.lectura; // lo que llegue tarde de la niñera anterior no pisa nada
+  const eraCambio = !!ui.id;
+  const existente = n ? (preciosFichaFamilia.filas || []).find(p=>p.ninera_id===n.id) : null;
+  Object.assign(ui, { nineraId: n?.id || null, nineraNombre: n?.nombre || '', id: existente?.id || null, antes: existente?.actualizado_en || null });
+  document.getElementById('pnf-ya-tiene').style.display = existente ? '' : 'none';
+  document.getElementById('pnf-borrar').style.display = existente ? '' : 'none';
+  document.getElementById('pnf-origen').textContent = '';
+  const pago = document.getElementById('pnf-pago'), nota = document.getElementById('pnf-nota');
+  if(existente){
+    pago.value = existente.pago_hora;
+    nota.value = existente.nota || '';
+    ui.pagoTocado = ui.notaTocada = false;
+    return;
+  }
+  // Vuelve a ser un alta: lo que vino de la fila que se estaba cambiando no queda.
+  if(eraCambio){ if(!ui.pagoTocado) pago.value = ''; if(!ui.notaTocada) nota.value = ''; }
+  if(n) precargarPagoPrecioNinera(ui, lectura);
+}
+// El pago por hora de su último sitting con esta familia (sin previstos, cancelados ni futuros; de los
+// últimos 5, el primero con horario y pago), sin variantes y sin centavos; si no hubo, la tarifa.
+async function precargarPagoPrecioNinera(ui, lectura){
+  const { data, error } = await sinPrevistos(sb.from('sittings_traslados').select('fecha,hora_inicio,hora_fin,termina_dia_siguiente,pago_ninera,precio_variantes'))
+    .eq('familia_id', ui.familiaId).eq('ninera_id', ui.nineraId).eq('tipo', 'sitting').eq('cancelado', false).lte('fecha', todayISO())
+    .order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }).limit(5);
+  if(ui !== precioNinUi || lectura !== ui.lectura || ui.pagoTocado) return;
+  // Las variantes (un extra de ese día) se le sumaron al pago: cuenta la base, como al registrar.
+  const porHora = s=>{
+    const horas = horasSitting(s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, null, s.fecha);
+    const pago = Number(s.precio_variantes?.base?.pago ?? s.pago_ninera);
+    return horas && pago > 0 ? redondearPago(pago / horas.real) : 0;
+  };
+  const ultimo = (data || []).find(s=>porHora(s) > 0);
+  const f = familiasItems.find(x=>x.id===ui.familiaId);
+  const pago = document.getElementById('pnf-pago'), origen = document.getElementById('pnf-origen');
+  if(ultimo){
+    pago.value = porHora(ultimo);
+    origen.textContent = `Lo que cobró por hora en su último sitting con esta familia (${ultimo.fecha.slice(8,10)}/${ultimo.fecha.slice(5,7)}).`;
+    return;
+  }
+  const sinSitting = error ? 'No se pudo leer su último sitting con esta familia' : 'No tuvo sittings con esta familia';
+  if(Number(f?.pago_hora) > 0){
+    pago.value = redondearPago(Number(f.pago_hora));
+    origen.textContent = `${sinSitting}: va la tarifa de la familia.`;
+  } else origen.textContent = `${sinSitting} y la familia no tiene tarifa cargada.`;
+}
+async function guardarPrecioNineraFicha(){
+  const ui = precioNinUi;
+  if(!ui) return;
+  const warn = document.getElementById('pnf-warn');
+  const aviso = t=>{ warn.innerHTML = `<div class="warnbox">${escaparHtml(t)}</div>`; };
+  if(!ui.nineraId) return aviso('Elegí la niñera de la lista.');
+  const txt = document.getElementById('pnf-pago').value.trim();
+  if(txt==='' || !isFinite(Number(txt))) return aviso('Poné el pago por hora.');
+  const pago = redondearPago(Number(txt)); // sin centavos, como todo monto tipeado a mano
+  if(pago <= 0) return aviso('El pago por hora tiene que ser más que $0.');
+  if(pago >= 100000) return aviso('El pago por hora tiene que ser menor que $100.000.');
+  const nota = document.getElementById('pnf-nota').value.trim();
+  if([...nota].length > 200) return aviso('La nota puede tener hasta 200 letras.');
+  const cambios = { pago_hora: pago, nota: nota || null };
+  const { data, error } = ui.id
+    ? await sb.from('precios_ninera_familia').update(cambios).eq('id', ui.id).eq('actualizado_en', ui.antes).select('id')
+    : await sb.from('precios_ninera_familia').insert({ familia_id: ui.familiaId, ninera_id: ui.nineraId, ...cambios, creado_por: registradoPorUsuario() || null });
+  if(ui !== precioNinUi) return;
+  if(error?.code === '23505') return conflictoPrecioNinera(ui, 'Otra admin le cargó un precio a esta niñera recién. Abrilo de nuevo para verlo.');
+  if(error){ warn.innerHTML = errBox(error); return; }
+  if(ui.id && !(data || []).length) return conflictoPrecioNinera(ui, 'Otra admin cambió este precio. Volvé a abrirlo.');
+  await terminarPrecioNinera(ui, ui.id ? 'Precio cambiado' : 'Precio guardado');
+}
+async function eliminarPrecioNineraFicha(){
+  const ui = precioNinUi;
+  if(!ui || !ui.id) return;
+  if(!(await confirmarAccion(`¿Borrar el precio de ${ui.nineraNombre} con esta familia?`, 'Borrar el precio'))) return;
+  if(ui !== precioNinUi) return;
+  const { data, error } = await sb.from('precios_ninera_familia').delete().eq('id', ui.id).eq('actualizado_en', ui.antes).select('id');
+  if(ui !== precioNinUi) return;
+  if(error){ document.getElementById('pnf-warn').innerHTML = errBox(error); return; }
+  if(!(data || []).length) return conflictoPrecioNinera(ui, 'Otra admin cambió este precio. Volvé a abrirlo.');
+  await terminarPrecioNinera(ui, 'Precio borrado');
+}
+// Otra admin llegó antes: no se guarda nada y la lista muestra lo que hay.
+function conflictoPrecioNinera(ui, texto){
+  cerrarModalPrecioNinera();
+  toast(texto, 'bad');
+  pintarPreciosNineraEnFicha(ui.familiaId);
+}
+// Los días previstos de su fijo con esta familia (si tiene) se recalculan ya, como al registrar.
+async function terminarPrecioNinera(ui, hecho){
+  cerrarModalPrecioNinera();
+  toast(hecho + '.');
+  await pintarPreciosNineraEnFicha(ui.familiaId);
+  if(!(await recalcularPrevistosDelPar(ui.familiaId, ui.nineraId))){
+    toast(`${hecho}; si ${ui.nineraNombre} tiene un fijo con esta familia, sus próximos días se actualizan esta noche.`, 'bad');
+  }
 }

@@ -127,6 +127,9 @@ function embebidos(select) {
   return out.map(p => p.match(/^(?:\w+:)?(\w+)(?:!\w+)?\((.*)\)$/)).filter(Boolean).map(m => m[1]);
 }
 function singular(tabla) { return tabla.replace(/es$/, '').replace(/s$/, ''); }
+// La columna que apunta a una tabla cuando no sale de su nombre: ninieras -> ninera_id (01/11/2026,
+// precios_ninera_familia con ninieras(nombre)).
+const FK_EMBEBIDO = { ninieras: 'ninera_id' };
 function resolverEmbebidos(filas, tabla, select, db) {
   const embs = embebidos(select);
   if (!embs.length) return filas;
@@ -134,7 +137,7 @@ function resolverEmbebidos(filas, tabla, select, db) {
     const copia = { ...f };
     for (const emb of embs) {
       const hijos = db[emb] || [];
-      const fk = Object.keys(f).find(k => k === singular(emb) + '_id' || k === emb.replace(/s$/, '') + '_id');
+      const fk = Object.keys(f).find(k => k === singular(emb) + '_id' || k === emb.replace(/s$/, '') + '_id' || k === FK_EMBEBIDO[emb]);
       if (fk) copia[emb] = hijos.find(h => h.id === f[fk]) || null;
       else {
         const clavePadre = Object.keys(hijos[0] || {}).find(k => k.endsWith('_id') && (k === singular(tabla) + '_id' || k === tabla.replace(/s$/, '') + '_id' || k === 'evento_id'));
@@ -479,6 +482,10 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       return route.fulfill({ status: rechazo.status, json: { code: rechazo.code, details: null, hint: null, message: rechazo.message } });
     }
     estado.escrituras.push({ tabla, metodo, params: Object.fromEntries(params), cuerpo });
+    // Lo que pone la base: precios_ninera_familia nace con creado_en y actualizado_en, y un trigger
+    // vuelve a poner actualizado_en en cada cambio (01/11/2026: la ficha guarda con esa condición).
+    const conFechas = tabla === 'precios_ninera_familia';
+    const ahoraIso = () => new Date().toISOString();
     let afectadas = [];
     if (metodo === 'POST' && tabla === 'chat_mensajes') {
       // id, creado_en y lo leído los pone la base, y el trigger encola el aviso.
@@ -490,14 +497,14 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         if (prefer.includes('merge-duplicates') && conflicto) {
           const claves = conflicto.split(',');
           const existente = db[tabla].find(f => claves.every(c => String(f[c]) === String(fila[c])));
-          if (existente) { Object.assign(existente, fila); afectadas.push(existente); continue; }
+          if (existente) { Object.assign(existente, fila, conFechas ? { actualizado_en: ahoraIso() } : {}); afectadas.push(existente); continue; }
         }
-        const nueva = { id: nuevoId(), created_at: new Date().toISOString(), ...fila };
+        const nueva = { id: nuevoId(), created_at: new Date().toISOString(), ...(conFechas ? { creado_en: ahoraIso(), actualizado_en: ahoraIso() } : {}), ...fila };
         db[tabla].push(nueva); afectadas.push(nueva);
       }
     } else if (metodo === 'PATCH') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
-      afectadas.forEach(f => Object.assign(f, cuerpo));
+      afectadas.forEach(f => Object.assign(f, cuerpo, conFechas ? { actualizado_en: ahoraIso() } : {}));
     } else if (metodo === 'DELETE') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       db[tabla] = db[tabla].filter(f => !afectadas.includes(f));

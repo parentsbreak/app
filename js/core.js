@@ -1288,14 +1288,20 @@ async function guardarPrecioNineraFamilia({familiaId, nineraId, pagoHora, nueva}
   if(nueva) fila.creado_por = registradoPorUsuario() || null; // en un cambio no se pisa quién la cargó
   const { error } = await sb.from('precios_ninera_familia').upsert(fila, { onConflict: 'familia_id,ninera_id' });
   if(error) return { error };
+  return (await recalcularPrevistosDelPar(familiaId, nineraId)) ? {} : { previstosSinActualizar: true };
+}
+// Después de guardar o borrar el precio de una niñera con una familia (al registrar o en la ficha,
+// 01/11/2026): si esa niñera tiene un fijo vigente con esa familia, sus días previstos se recalculan ya
+// (el fijo sin precio propio paga con este). false si no se pudo ver si tiene un fijo: los previstos se
+// corrigen solos a la noche.
+async function recalcularPrevistosDelPar(familiaId, nineraId){
   await esperarConfigFijos();
-  if(fijosAutomaticosActivos){
-    const { data: fijos, error: errFijos } = await sb.from('asignaciones').select('id,vigente_hasta').eq('familia_id', familiaId).eq('ninera_id', nineraId);
-    if(errFijos) return { previstosSinActualizar: true };
-    const hoy = todayISO();
-    if((fijos||[]).some(a=>!a.vigente_hasta || a.vigente_hasta >= hoy)) await sincronizarPrevistosFijos();
-  }
-  return {};
+  if(!fijosAutomaticosActivos) return true;
+  const { data: fijos, error } = await sb.from('asignaciones').select('id,vigente_hasta').eq('familia_id', familiaId).eq('ninera_id', nineraId);
+  if(error) return false;
+  const hoy = todayISO();
+  if((fijos||[]).some(a=>!a.vigente_hasta || a.vigente_hasta >= hoy)) await sincronizarPrevistosFijos();
+  return true;
 }
 // El aviso después de guardar el precio: null si salió todo bien, o {texto, tipo}.
 function avisoPrecioGuardado(res, nineraNombre, prefijoError){
