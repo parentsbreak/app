@@ -149,6 +149,9 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
 - Si el permiso queda bloqueado (lo rechazó, o el navegador no pregunta más): pantalla con los pasos para
   activarlos en Ajustes (iPhone y Android) y "Ya los activé" (vuelve a probar). Abajo, chico, "Seguir sin
   avisos": pasa al inicio, que muestra un aviso rojo fijo, sin cerrar, con "Activar avisos".
+- Resuelto al construir (31/10/2026): la pantalla principal muestra solo "Activar avisos". "Seguir sin avisos"
+  está siempre en la pantalla de permiso bloqueado y en la principal recién cuando un intento de activar falló
+  por algo que no es el permiso (red, base), para que nunca quede atrapada.
 - Si el celular no puede recibir avisos (`avisosSoportados()` falso, por ejemplo Safari sin instalar), pasa
   como hoy (el paso de instalar ya lo empuja a instalarla).
 - Textos en "tú"; los nuevos van a `textos-provisorios.md`.
