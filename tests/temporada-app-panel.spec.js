@@ -44,6 +44,10 @@ function datos({ extra = [], sinColumnas = false } = {}) {
     nin(6, 'Julia Otro Tramposo', 'Pocitos', {
       user_id: ID.uCarla, temporada: {}, temporada_actualizada_en: ACTUAL, temporada_fuente: 'app',
       temporada_lugares: lugares({ 2: { otro: '<img src=x onerror=window.__xss=1> "Tigre"' } }), temporada_lugares_en: ACTUAL }),
+    // Este año, pero la respondió por la página después (fuente 'ninera'): sus lugares no valen.
+    nin(7, 'Kira Por la Página', 'Pocitos', {
+      user_id: ID.uCarla, temporada: {}, temporada_actualizada_en: ACTUAL, temporada_fuente: 'ninera',
+      temporada_lugares: lugares({ 4: 'fuera_pais' }), temporada_lugares_en: ACTUAL }),
     ...extra,
   ];
   if (sinColumnas) d.ninieras.forEach(n => { delete n.temporada_lugares; delete n.temporada_lugares_en; });
@@ -233,5 +237,36 @@ test('390 px: fila del panel y sección de la ficha, sin scroll horizontal', asy
   await sec.scrollIntoViewIfNeeded();
   await sec.screenshot({ path: '.superpowers/sdd/plan-implementacion/task-9.5-ficha-390.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  verificarLimpio(e);
+});
+
+test('con app y sin temporada: sin aviso en la lista, fuera del panel por defecto y dentro de "Ver todas"', async ({ page }) => {
+  const e = await abrir(page);
+  await expect(filaLista(page, 'Fina App Sin Cargar')).not.toContainText('Sin temporada cargada');
+  await expect(filaLista(page, 'Ines Temporada Anterior')).toContainText('Temporada sin actualizar');
+  await expect(filaLista(page, 'Gina Sin App')).toContainText('Sin temporada cargada');
+  await page.evaluate(() => { ninTempAbierto = true; ninTempVerTodas = false; renderTemporadasPanel(); });
+  await expect(filaPanel(page, 'Fina App Sin Cargar')).toHaveCount(0);
+  await expect(filaPanel(page, 'Gina Sin App')).toHaveCount(1);
+  await page.evaluate(() => toggleTemporadasVerTodas());
+  await expect(filaPanel(page, 'Fina App Sin Cargar')).toContainText('Se la pide la app');
+  verificarLimpio(e);
+});
+
+test('lugares de este año pero respondidos por la página: no valen en el filtro, la ficha ni al corregir', async ({ page }) => {
+  const e = await abrir(page);
+  await page.evaluate(() => { toggleFiltroZonaNin(claveZona('Pocitos'), true); toggleFiltroMes(2); });
+  expect(await nombresFiltro(page)).toContain('Kira Por la Página');
+  await page.evaluate(id => verNinera(id), ID_N(7));
+  await expect(page.locator('#vn-temporada')).not.toContainText('Fuera del país');
+  await expect(page.locator('#vn-temporada')).toContainText('Toda la temporada en Montevideo.');
+  await page.evaluate(() => cerrarModal());
+  await abrirPanel(page);
+  await filaPanel(page, 'Kira Por la Página').getByRole('button', { name: 'Todo el año' }).click();
+  await filaPanel(page, 'Kira Por la Página').getByRole('button', { name: /Guardar/ }).click();
+  await expect.poll(() => patchesNinera(e).length).toBe(1);
+  const c = cuerpo(patchesNinera(e)[0]);
+  expect(c.temporada_lugares).toBeNull();
+  expect(c.temporada_lugares_en).toBeNull();
   verificarLimpio(e);
 });

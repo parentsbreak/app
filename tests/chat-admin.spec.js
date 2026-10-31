@@ -434,7 +434,7 @@ test.describe('Hoy: Mensajes de niñeras', () => {
   test('niñera inactiva: editarla y volver a abrirla muestra lo editado (su fila se vuelve a leer)', async ({ page }) => {
     const d = datosBase();
     d.ninieras.find(n => n.id === ID.nCarla).activa = false;
-    // Sin temporada cargada (en datos.js Carla ya la cargó, etapa 9): el paso previo la pide.
+    // Sin temporada cargada (en datos.js Carla ya la cargó, etapa 9): Carla tiene app, así que no hay paso previo.
     Object.assign(d.ninieras.find(n => n.id === ID.nCarla), { temporada_actualizada_en: null, temporada_fuente: null, temporada_lugares: null, temporada_lugares_en: null });
     const e = await abrirApp(page, { datos: d });
     await filasHoy(page).first().click();

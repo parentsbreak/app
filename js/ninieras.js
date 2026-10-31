@@ -1694,6 +1694,8 @@ function limpiarFiltroMeses(){ ninFiltroMeses.clear(); pintarFiltroMeses(); filt
 
 /* ---- Badge en la fila de la lista ---- */
 function badgeTemporada(n){
+  // Con app se la pide la app: a las admins no se les muestra ningún aviso de ella (Diego, 31/10/2026).
+  if(n.user_id) return '';
   const est = estadoTemporada(n);
   if(est==='sin') return `<span class="badge warn" style="font-size:10px;padding:2px 8px;">Sin temporada cargada</span>`;
   if(est==='vieja') return `<span class="badge warn" style="font-size:10px;padding:2px 8px;">Temporada sin actualizar</span>`;
@@ -1717,7 +1719,8 @@ function renderTemporadasPanel(){
   const inicio = inicioTemporadaActual();
   // Las que tienen app se la pide la app: no cuentan entre las que hay que pedir (31/10/2026).
   const faltanPedir = faltan.filter(n=>!n.user_id);
-  const lista = ninTempVerTodas ? [...faltan, ...alDia] : faltan;
+  // Las que tienen app solo con "Ver todas" (para poder corregirlas), igual que el contador.
+  const lista = ninTempVerTodas ? [...faltan, ...alDia] : faltanPedir;
   pintarSiCambio(wrap, `
     <div class="card" style="padding:14px 18px;margin-bottom:14px;${faltanPedir.length?'border-left:3px solid var(--warn);border-radius:0 12px 12px 0;':''}">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;cursor:pointer;" onclick="toggleTemporadasPanel()">
@@ -1758,7 +1761,7 @@ function htmlLugaresTemporada(n, estilo='margin:2px 0 0;'){
 function htmlFichaTemporada(n){
   const alDia = estadoTemporada(n)==='ok';
   const cuerpo = alDia
-    ? (htmlLugaresTemporada(n, 'margin:2px 0;') || `<div class="helper" style="margin:2px 0;">No va a Punta del Este ni a otro lugar.</div>`) + `<div class="helper" style="margin:2px 0;">${escaparHtml(textoFuenteTemporada(n))}</div>`
+    ? (htmlLugaresTemporada(n, 'margin:2px 0;') || `<div class="helper" style="margin:2px 0;">Toda la temporada en Montevideo.</div>`) + `<div class="helper" style="margin:2px 0;">${escaparHtml(textoFuenteTemporada(n))}</div>`
     : `<div class="helper" style="margin:2px 0;">Sin temporada cargada</div>`;
   return `<div id="vn-temporada" style="margin-top:18px;"><div style="font-weight:600;">Temporada</div>${cuerpo}</div>`;
 }
