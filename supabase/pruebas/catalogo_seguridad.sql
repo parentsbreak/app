@@ -48,7 +48,13 @@ declare
     'ninera_guardar_perfil(p_tipo text, p_zonas text[], p_cuenta text[], p_foto_ruta text)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su ficha
     'ninera_mi_perfil()',                        -- niñera: solo su fila; vacío si no es niñera
     'ninera_mis_sittings()',                     -- niñera: solo los suyos, sin plata; vacío si no es niñera
-    'ninera_zonas_disponibles()'                 -- niñera: zona_grupos; vacío si no es niñera
+    'ninera_zonas_disponibles()',                -- niñera: zona_grupos; vacío si no es niñera
+    -- Etapa 3 (29/10/2026): chat y avisos, todas por ninera_actual(). encolar_aviso,
+    -- reclamar_avisos, programar_avisos, admins_activas_mails, llamar_enviar_avisos y
+    -- correr_cron_avisos NO van: solo la base y la clave de servicio.
+    'ninera_enviar_mensaje(p_texto text)',       -- niñera: raise 'no_autorizada' si ninera_actual() es null; escribe solo en su hilo, de y autor fijos
+    'ninera_marcar_avisos_leidos()',             -- niñera: solo sus avisos; 0 si no es niñera
+    'ninera_marcar_chat_leido()'                 -- niñera: solo su hilo; 0 si no es niñera
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

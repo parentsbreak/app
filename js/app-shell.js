@@ -71,7 +71,11 @@ function renderApp(){
   `;
   // Si venimos de tocar una notificación push (sw.js abre "?ir=agenda"), arrancamos
   // directo en ese módulo en vez de Hoy, y limpiamos el parámetro de la URL.
-  const irParam = new URLSearchParams(window.location.search).get('ir');
+  const params = new URLSearchParams(window.location.search);
+  const irParam = params.get('ir');
+  // El push del chat a las admins (30/10/2026) trae "?ir=ninieras&ninera=<id>": además del módulo,
+  // abre la ficha de esa niñera en el chat apenas carga la lista.
+  const nineraParam = irParam==='ninieras' ? params.get('ninera') : null;
   if(irParam){
     window.history.replaceState({}, '', window.location.pathname);
     moduloActivo = irParam;
@@ -81,6 +85,7 @@ function renderApp(){
   if(moduloActivo===null && hayBorradorEntrevistaReciente()){ moduloActivo = 'rrhh'; rrhhTab = 'entrevista'; }
   if(!zonaGruposCache) cargarZonaGrupos(); // las zonas se usan en casi todas las pantallas: se piden una sola vez al entrar
   cubrirHastaQueCargue(renderModulo());
+  if(nineraParam) abrirChatDeNinera(nineraParam, { cambiarModulo:false });
   cargarNotificaciones();
   suscribirNotifRealtime();
 }
@@ -230,12 +235,15 @@ async function renderDashboard(cont){
       <div class="pendbanner-link">Ver</div>
     </button>
     <div id="dash-autoconf"></div>
+    <div id="dash-chat"></div>
     <div id="dash-faltan"></div>
     <div class="card">
       <h2>Sin resolver · hoy y mañana</h2>
       <div id="agenda" class="agendabox"><div class="empty">Cargando…</div></div>
     </div>
   `;
+  // Los mensajes de niñeras van aparte: no frenan el resto de Hoy ni la pantalla de entrada.
+  cargarMensajesNinerasHoy();
   // Se devuelve la carga para que la pantalla de entrada y el indicador de sección sepan
   // cuándo Hoy ya tiene sus datos (15/10/2026).
   return loadDashboardData();
@@ -525,15 +533,99 @@ async function cargarDatosQueFaltan(){
   </div>`;
 }
 async function abrirFichaDesdeHoy(tipo, id){
-  // El módulo carga su lista después de dibujarse: se espera a que esté (hasta 5 s).
+  await setModulo(tipo==='familia' ? 'familias' : 'ninieras');
+  await abrirFichaCuandoCargue(tipo, id);
+}
+// El módulo carga su lista después de dibujarse: se espera a que esté (hasta 5 s).
+async function abrirFichaCuandoCargue(tipo, id){
   const esFamilia = tipo==='familia';
-  await setModulo(esFamilia ? 'familias' : 'ninieras');
+  if(!esFamilia) return abrirFichaNineraCuandoCargue(id);
   for(let i=0; i<50; i++){
-    const lista = esFamilia ? familiasItems : ninierasItems;
-    if((lista||[]).some(x=>x.id===id)) break;
+    if((familiasItems||[]).some(x=>x.id===id)) break;
     await new Promise(r=>setTimeout(r, 100));
   }
-  if(esFamilia) verFamilia(id); else if((ninierasItems||[]).some(x=>x.id===id)) await verNinera(id);
+  verFamilia(id);
+}
+
+// Niñeras: se espera la carga de la lista que está en curso. Si no está en la lista (dada de baja:
+// cargarNinieras trae solo las activas, 30/10/2026), su fila se lee y se abre igual, en vez de esperar
+// 5 s y no hacer nada (llega desde Hoy o del push del chat). Se lee cada vez que se abre: la copia de
+// antes puede estar vieja (se editó, o la cambió otra admin) y "Editar" guardaría encima. Va con el
+// mismo select que la lista: la ficha usa casi todas las columnas, y una lista a mano se rompería con
+// una base sin migrar. Si la lectura falla, se avisa (30/10/2026): antes tocar la fila no hacía nada.
+async function abrirFichaNineraCuandoCargue(id){
+  const enLista = () => (ninierasItems||[]).some(x=>x.id===id);
+  if(!enLista() && ninCargaEnVuelo) await ninCargaEnVuelo.catch(()=>{});
+  if(!enLista()){
+    let data = null, error = null;
+    try{ ({ data, error } = await sb.from('ninieras').select('*, candidatas(*)').eq('id', id).maybeSingle()); }
+    catch(e){ error = e; }
+    if(error){
+      console.error('[ficha niñera]', error);
+      toast('No se pudo abrir la ficha de la niñera. Revisá tu conexión.', 'bad');
+      return;
+    }
+    if(!data) return;
+    nineraFueraDeLista = data;
+  }
+  await verNinera(id);
+}
+// Abre la ficha de la niñera en el chat: tarjeta de Hoy, campanita y el push a las admins (30/10/2026).
+// cambiarModulo false: Niñeras ya se está pintando (el link del push) y solo falta esperar la lista.
+async function abrirChatDeNinera(id, { cambiarModulo = true } = {}){
+  chatFichaEnfocar = id; // pintarChatFicha (ninieras.js) lleva la ficha hasta el chat
+  try {
+    if(cambiarModulo) await abrirFichaDesdeHoy('ninera', id);
+    else await abrirFichaCuandoCargue('ninera', id);
+  } finally {
+    if(chatFichaEnfocar === id) chatFichaEnfocar = null; // no se abrió: que no la lleve otra ficha
+  }
+}
+
+/* Mensajes de niñeras (fase 1, etapa 3, 30/10/2026): una fila por niñera con mensajes del chat que
+   ninguna admin leyó todavía, con cuántos y el último recortado; la que escribió último, arriba.
+   Tocarla abre su ficha en el chat, que los marca leídos. Se carga aparte, sin frenar el resto de
+   Hoy. Sin mensajes, si la lectura falla o sin la migración de la etapa 3, no se muestra. */
+let dashChatNinieras = [];
+let dashChatLectura = 0; // cada lectura suma uno: solo pinta la última (vuelven en desorden)
+function recortarMensajeHoy(texto, max = 90){
+  const t = String(texto||'').replace(/\s+/g, ' ').trim();
+  return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+}
+async function cargarMensajesNinerasHoy(){
+  const box = document.getElementById('dash-chat');
+  if(!box) return;
+  const lectura = ++dashChatLectura;
+  if(chatTablasSinMigrar){ pintarSiCambio(box, ''); return; }
+  const { data, error } = await sb.from('chat_mensajes').select('ninera_id,texto,creado_en')
+    .eq('de', 'ninera').is('leido_admin_en', null).order('creado_en', { ascending:false }).limit(500);
+  if(error && esFaltaTabla(error)) chatTablasSinMigrar = true;
+  else if(!error) chatTablasSinMigrar = false;
+  const grupos = new Map();
+  (error ? [] : data||[]).forEach(m=>{
+    const g = grupos.get(m.ninera_id);
+    if(g) g.cant++;
+    else grupos.set(m.ninera_id, { id:m.ninera_id, cant:1, ultimo:m.texto });
+  });
+  // Los nombres, de la lista de Niñeras si ya está; si no, una sola lectura para las que falten.
+  const nombres = new Map((ninierasItems||[]).map(n=>[n.id, n.nombre]));
+  const faltan = [...grupos.keys()].filter(id=>!nombres.has(id));
+  if(faltan.length){
+    const { data: ns } = await sb.from('ninieras').select('id,nombre').in('id', faltan);
+    (ns||[]).forEach(n=>nombres.set(n.id, n.nombre));
+  }
+  const caja = document.getElementById('dash-chat');
+  if(!caja || lectura !== dashChatLectura) return;
+  dashChatNinieras = [...grupos.values()].map(g=>({ ...g, nombre: nombres.get(g.id) || 'Niñera' }));
+  if(!dashChatNinieras.length){ pintarSiCambio(caja, ''); return; }
+  asegurarEstilosChat();
+  pintarSiCambio(caja, `<div class="card chat-hoy-card">
+    <h2 style="margin:0 0 6px;">Mensajes de niñeras</h2>
+    ${dashChatNinieras.map(g=>`<button type="button" class="chat-hoy-fila" onclick="abrirChatDeNinera(${argJs(g.id)})">
+      <span class="chat-hoy-cuerpo"><b>${escaparHtml(g.nombre)}</b><span class="chat-hoy-ultimo">${escaparHtml(recortarMensajeHoy(g.ultimo))}</span></span>
+      <span class="chat-hoy-cant" aria-label="${g.cant} sin leer">${g.cant}</span>
+    </button>`).join('')}
+  </div>`);
 }
 
 /* Confirmados automáticamente (fijos automáticos, 06/10/2026): los días de los fijos se
@@ -837,17 +929,23 @@ const TIPOS_NOTIF = [
   {tipo:'cv_desactualizado', label:'CV de niñera desactualizado', sub:'Cumplió años después de generarlo', icono:'ninieras', defaultPush:true},
   ...(AVISO_EXTRACTO_ACTIVO ? [{tipo:'extracto', label:'Falta subir extracto Itaú', sub:'Hace más de 15 días que no se sube uno nuevo', icono:'finanzas', defaultPush:true}] : []),
   {tipo:'temporada', label:'Pedir la temporada de Punta', sub:'Cada 1 de octubre, con el mensaje listo para mandar', icono:'ninieras', defaultPush:true},
+  {tipo:'chat', label:'Mensajes de niñeras', sub:'Cuando una niñera escribe por el chat de la app', icono:'ninieras', defaultPush:true},
 ];
 
 async function cargarNotificaciones(){
   if(!session) return;
   const hoyStr = todayISO();
-  const [{data:sinAsignar}, {data:sitsHoy}, {data:solConfHoy}] = await Promise.all([
+  const [{data:sinAsignar}, {data:sitsHoy}, {data:solConfHoy}, avisosR] = await Promise.all([
     sb.from('solicitudes').select('id,familia_nombre,hora_inicio,tipo').eq('fecha', hoyStr).in('estado', ['sin_asignar','pendiente_confirmar']),
     sb.from('sittings_traslados').select('familia_nombre').eq('fecha', hoyStr),
     sb.from('solicitudes').select('id,familia_nombre,hora_inicio').eq('fecha', hoyStr).eq('estado','confirmada'),
+    // Sin la migración de la etapa 3 no se vuelve a pedir (sería un 404 en cada cambio).
+    chatTablasSinMigrar ? { data: null, error: null }
+      : sb.from('avisos').select('id,tipo,titulo,cuerpo,url,datos,creado_en').not('para_admin', 'is', null)
+        .gte('creado_en', new Date(Date.now() - 3*86400000).toISOString()).order('creado_en', { ascending:false }).limit(50),
   ]);
-  const items = [];
+  // Los avisos de la cola para las admins van primero: son de personas (el chat) y no esperan.
+  const items = await itemsAvisosAdmin(avisosR);
   (sinAsignar||[]).forEach(s=>{
     items.push({
       id: 'sol:'+s.id,
@@ -943,6 +1041,37 @@ async function cargarNotificaciones(){
   renderNotifBell();
 }
 
+/* Avisos de la cola para las admins (fase 1, etapa 3, 30/10/2026): los de los últimos 3 días, con su
+   título, su cuerpo y el destino de su url ("?ir=ninieras&ninera=<id>" abre la ficha en el chat). Los
+   del chat cuyo mensaje ya leyó alguna admin no se muestran: se resolvieron, como los demás ítems de
+   la campanita. Sin la migración (la tabla no existe) la campanita sigue como antes. */
+async function itemsAvisosAdmin({ data, error }){
+  if(error){ if(esFaltaTabla(error)) chatTablasSinMigrar = true; return []; }
+  if(!Array.isArray(data)) return [];
+  chatTablasSinMigrar = false;
+  suscribirAvisosRealtime();
+  const idsMensajes = [...new Set(data.filter(a=>a.tipo==='chat' && a.datos?.mensaje_id).map(a=>a.datos.mensaje_id))];
+  const leidos = new Set();
+  if(idsMensajes.length){
+    const { data: ms, error: e2 } = await sb.from('chat_mensajes').select('id,leido_admin_en').in('id', idsMensajes);
+    if(!e2) (ms||[]).forEach(m=>{ if(m.leido_admin_en) leidos.add(m.id); });
+  }
+  return data.filter(a=>!(a.tipo==='chat' && leidos.has(a.datos?.mensaje_id))).map(a=>{
+    const { destino, ninera } = destinoDeUrlAviso(a.url);
+    return { id: 'aviso:'+a.id, tipo: a.tipo, titulo: a.titulo || 'Aviso', mensaje: a.cuerpo || '', destino, abrirChat: ninera };
+  });
+}
+// "?ir=<módulo>&ninera=<id>" (lo mismo que abre el push): a qué módulo va y qué ficha abre en el chat.
+function destinoDeUrlAviso(url){
+  const q = String(url||'');
+  const i = q.indexOf('?');
+  if(i < 0) return { destino: null, ninera: null };
+  const p = new URLSearchParams(q.slice(i+1));
+  const ir = p.get('ir');
+  const valido = !!ir && (ir==='pend-hoy' || MODULOS.some(m=>m.key===ir));
+  return { destino: valido ? ir : null, ninera: valido && ir==='ninieras' ? p.get('ninera') : null };
+}
+
 async function cargarNotifLeidas(){
   if(!notifItems.length){ notifLeidas = new Set(); return; }
   const { data } = await sb.from('notificaciones_leidas').select('notif_id').eq('usuario', notifUsuario()).in('notif_id', notifItems.map(i=>i.id));
@@ -1010,6 +1139,7 @@ async function irANotificacion(id){
   if(item.abrirId && item.destino==='ninieras' && typeof verNinera==='function'){
     verNinera(item.abrirId);
   }
+  if(item.abrirChat && item.destino==='ninieras') await abrirChatDeNinera(item.abrirChat, { cambiarModulo:false });
   if(item.accion==='temporada' && typeof abrirRecordatorioTemporada==='function'){
     abrirRecordatorioTemporada();
   }
@@ -1040,6 +1170,7 @@ document.addEventListener('click', (e)=>{
 
 function suscribirNotifRealtime(){
   if(notifChannel){ sb.removeChannel(notifChannel); notifChannel = null; }
+  if(notifAvisosChannel){ sb.removeChannel(notifAvisosChannel); notifAvisosChannel = null; } // vuelve con la próxima lectura de avisos
   notifChannel = sb.channel('rt-notif-'+Date.now());
   ['solicitudes','solicitud_ninieras','sittings_traslados'].forEach(t=>{
     notifChannel.on('postgres_changes', {event:'*', schema:'public', table:t}, ()=>{
@@ -1048,6 +1179,28 @@ function suscribirNotifRealtime(){
     });
   });
   notifChannel.subscribe();
+}
+
+/* Avisos y chat en vivo (30/10/2026): un canal aparte del de arriba, que se abre recién cuando la
+   lectura de avisos anduvo. En Realtime, un canal con una tabla que no existe no se une, y se
+   llevaría puesta la campanita entera mientras la base no tenga la migración de la etapa 3. Un
+   aviso nuevo, un mensaje o uno marcado leído ponen al día la campanita y, si está a la vista, la
+   tarjeta "Mensajes de niñeras" de Hoy. */
+let notifAvisosChannel = null;
+let notifAvisosTimer = null;
+function suscribirAvisosRealtime(){
+  if(notifAvisosChannel) return;
+  const alCambiar = ()=>{
+    clearTimeout(notifAvisosTimer);
+    notifAvisosTimer = setTimeout(()=>{
+      cargarNotificaciones();
+      if(document.getElementById('dash-chat')) cargarMensajesNinerasHoy();
+    }, 600);
+  };
+  notifAvisosChannel = sb.channel('rt-notif-avisos-'+Date.now())
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'avisos' }, alCambiar)
+    .on('postgres_changes', { event:'*', schema:'public', table:'chat_mensajes' }, alCambiar);
+  notifAvisosChannel.subscribe();
 }
 
 /* ---- Push real al celular (Web Push + VAPID) ----

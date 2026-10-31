@@ -6,6 +6,8 @@
 // niñera que usa, imitando lo que hace la función SQL real (supabase/migraciones) sobre la base
 // ficticia `db`: mismos argumentos y misma forma de la respuesta. Nada de esto llega a la base real.
 
+const { randomUUID } = require('crypto');
+
 // Un "raise exception" de la función SQL (27/10/2026): PostgREST lo devuelve como 400 con el
 // código P0001 y el texto de la excepción en message. Una simulación lo tira con
 // `throw errorRpc('sin_zonas')` y app.js responde ese error, como Supabase.
@@ -77,8 +79,47 @@ const TIPOS_PERFIL = ['Niñera', 'Traslados', 'Ambas'];
 // abrirApp / abrirAppNinera sacan las columnas de las filas de ninieras.
 const RPC_ETAPA_2 = ['ninera_mi_perfil', 'ninera_zonas_disponibles', 'ninera_guardar_perfil', 'ninera_mis_sittings'];
 const COLUMNAS_NINIERAS_ETAPA_2 = ['perfil_app_en', 'perfil_actualizado_en', 'foto_propuesta_ruta', 'foto_propuesta_en'];
+// Lo que suma la migración de la etapa 3 (20261029_avisos_chat.sql, 30/10/2026): las funciones de la
+// niñera y las dos tablas. Con baseSinMigrar las RPC dan 404 PGRST202 y las tablas 404 PGRST205.
+const RPC_ETAPA_3 = ['ninera_enviar_mensaje', 'ninera_marcar_chat_leido', 'ninera_marcar_avisos_leidos'];
+const TABLAS_ETAPA_3 = ['chat_mensajes', 'avisos'];
 function rpcNoExiste(nombre) {
   return () => { throw errorRpc(`Could not find the function public.${nombre} in the schema cache`, { status: 404, code: 'PGRST202' }); };
+}
+
+/* ---- Etapa 3 (30/10/2026): chat y avisos, lo que comparten la RPC de la niñera y el insert de
+   las admins (app.js) ---- */
+// btrim(texto, E' \t\r\n') de la SQL: solo espacios, tabs y saltos, no cualquier blanco (un espacio
+// duro queda, como en la base).
+function recortarBlancos(texto) { return String(texto ?? '').replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ''); }
+// char_length / left() cuentan caracteres, no unidades UTF-16.
+function largo(texto) { return Array.from(String(texto)).length; }
+// El now() del servidor para una fila nueva: el reloj fijo del test, pero siempre después del último
+// mensaje. En la base cada insert tiene su propio now(); con el reloj fijo, dos mensajes del mismo
+// test quedarían con la misma hora y el orden del hilo dependería de la suerte.
+function momentoNuevo(db, ahora) {
+  const ultimo = Math.max(0, ...(db.chat_mensajes || []).map(m => Date.parse(m.creado_en) || 0));
+  return new Date(Math.max(new Date(ahora ?? Date.now()).getTime(), ultimo + 1)).toISOString();
+}
+// Inserta un mensaje como la base (id y creado_en por defecto, nada leído) y hace lo del trigger
+// chat_mensajes_aviso: de una admin, el aviso a la niñera ('chat:<id>', título el autor, '#chat');
+// de la niñera, a 'todas' ('admin:chat:<id>', título el nombre de su ficha, link a su ficha). El
+// cuerpo, el texto recortado a 120. Devuelve la fila.
+function insertarMensajeChat(db, { ninera_id, de, autor, texto }, ahora) {
+  const creado = momentoNuevo(db, ahora);
+  const fila = { id: randomUUID(), ninera_id, de, autor, texto, creado_en: creado, leido_ninera_en: null, leido_admin_en: null };
+  (db.chat_mensajes = db.chat_mensajes || []).push(fila);
+  const deAdmin = de === 'admin';
+  const nombreFicha = (db.ninieras || []).find(n => n.id === ninera_id)?.nombre;
+  (db.avisos = db.avisos || []).push({
+    id: randomUUID(), clave: (deAdmin ? 'chat:' : 'admin:chat:') + fila.id,
+    para_ninera_id: deAdmin ? ninera_id : null, para_admin: deAdmin ? null : 'todas', tipo: 'chat',
+    titulo: deAdmin ? autor : (nombreFicha ?? autor), cuerpo: Array.from(texto).slice(0, 120).join(''),
+    url: deAdmin ? '#chat' : `?ir=ninieras&ninera=${ninera_id}`,
+    datos: deAdmin ? { mensaje_id: fila.id } : { mensaje_id: fila.id, ninera_id },
+    enviar_desde: creado, enviado_en: null, error: null, intentos: 0, leido_en: null, creado_en: creado,
+  });
+  return fila;
 }
 
 // ahora: el reloj fijo del test (ISO con zona), para "hoy" y para el now() de los guardados.
@@ -162,7 +203,34 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
           };
         });
     },
+
+    // Etapa 3 (30/10/2026), migración 20261029_avisos_chat.sql. Le escribe al equipo: guarda el texto
+    // sin blancos alrededor, de 'ninera' y el nombre de su ficha como autor, y devuelve la fila (un
+    // objeto, no una lista: la función devuelve un chat_mensajes, no un setof).
+    ninera_enviar_mensaje: (cuerpo = {}) => {
+      if (!nineraId) throw errorRpc('no_autorizada');
+      const texto = recortarBlancos(cuerpo.p_texto);
+      if (texto === '') throw errorRpc('mensaje_vacio');
+      if (largo(texto) > 2000) throw errorRpc('mensaje_largo');
+      const n = miFila();
+      if (!n) return null;
+      return insertarMensajeChat(db, { ninera_id: nineraId, de: 'ninera', autor: n.nombre, texto }, ahora);
+    },
+    // Marca leídos los del equipo en su hilo; devuelve cuántos (0 si no es niñera).
+    ninera_marcar_chat_leido: () => {
+      if (!nineraId) return 0;
+      const sinLeer = (db.chat_mensajes || []).filter(m => m.ninera_id === nineraId && m.de === 'admin' && m.leido_ninera_en == null);
+      sinLeer.forEach(m => { m.leido_ninera_en = ahoraISO; });
+      return sinLeer.length;
+    },
+    // Marca leídos sus avisos; devuelve cuántos (0 si no es niñera).
+    ninera_marcar_avisos_leidos: () => {
+      if (!nineraId) return 0;
+      const sinLeer = (db.avisos || []).filter(a => a.para_ninera_id === nineraId && a.leido_en == null);
+      sinLeer.forEach(a => { a.leido_en = ahoraISO; });
+      return sinLeer.length;
+    },
   };
 }
 
-module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2 };
+module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, recortarBlancos, largo, insertarMensajeChat };

@@ -202,16 +202,21 @@ function olvideContrasena(){
 }
 
 // Con su propia ruta: si quedaba la de antes (#login), cerrar sesión no volvía a pintar el login.
+// También lo dice el chat si la dan de baja con el hilo abierto (chat.js, 30/10/2026).
+const CUENTA_NO_ACTIVA = 'Tu cuenta no está activa. Escríbenos por WhatsApp.';
+
 function pantallaCuentaInactiva(){
   marcarRuta('#inactiva');
-  pintarMensajeNinera('Tu cuenta no está activa. Escríbenos por WhatsApp.',
+  pintarMensajeNinera(CUENTA_NO_ACTIVA,
     '<button class="btn ghost ancho" onclick="conGuardado(this, ()=>cerrarSesionNinera())">Cerrar sesión</button>');
 }
 
 // scope 'local' (regla del panel, 21/10/2026): cierra solo este celular. Si no se pudo (sin
 // conexión), supabase-js deja la sesión abierta: se avisa y no se muestra el login como si nada.
 // Si se cerró, el login se pinta siempre, aunque el aviso de SIGNED_OUT ya lo haya hecho.
+// Antes, los avisos de este celular (30/10/2026): ver quitarAvisosDeEsteCelular.
 async function cerrarSesionNinera(){
+  await quitarAvisosDeEsteCelular();
   let error = null;
   try{ ({ error } = await sbn.auth.signOut({ scope: 'local' })); }catch(e){ error = e; }
   if(error){
@@ -222,6 +227,29 @@ async function cerrarSesionNinera(){
   sesionNinera = null;
   cerrarModalNinera();
   pantallaLogin();
+}
+
+// Al cerrar sesión (revisión final de la etapa 3, 30/10/2026): con un celular compartido, la fila de
+// push_subscriptions quedaba con el user_id de la primera niñera y la segunda no podía guardar la suya
+// (la RLS no deja pisar una fila ajena): veía un error de conexión y le llegaban los avisos de la
+// otra. Se borra la fila de este celular por endpoint (antes del signOut: sin sesión la RLS no deja),
+// se desuscribe y se borra la marca de avisos guardados. Cada paso por su cuenta y nada frena el
+// cierre de sesión: si el borrado falla, la desuscripción hace que el endpoint venza (410) y
+// enviar-avisos borra la fila la próxima vez que intente mandarle algo.
+async function quitarAvisosDeEsteCelular(){
+  borrarLocalNinera('pb-ninera-push-guardado');
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  let sub = null;
+  try{
+    const reg = await navigator.serviceWorker.getRegistration(NINERA_URL_BASE);
+    if(reg && reg.scope === NINERA_URL_BASE) sub = await reg.pushManager.getSubscription();
+  }catch(e){ console.error('[cerrar sesión] suscripción', e); }
+  if(!sub) return;
+  try{
+    const { error } = await sbn.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+    if(error) console.error('[cerrar sesión] borrar la suscripción', error);
+  }catch(e){ console.error('[cerrar sesión] borrar la suscripción', e); }
+  try{ await sub.unsubscribe(); }catch(e){ console.error('[cerrar sesión] desuscribir', e); }
 }
 
 /* ---- Instalar la app ---- */

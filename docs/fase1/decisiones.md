@@ -357,8 +357,12 @@ leido_en timestamptz, creado_en timestamptz default now()
   `madre_nombre_inicial(nombre)`, `chicos_texto(familia_id)`, `hoy_mvd()`; columnas `ninieras.perfil_app_en`,
   `perfil_actualizado_en`, `foto_propuesta_ruta`, `foto_propuesta_en`; bucket `ninieras-privado` (5 MB,
   imágenes) con la foto propuesta.
-- Etapa 3: `avisos`, `chat_mensajes`, `programar_avisos()`, `reclamar_avisos()`, cron
-  `enviar-avisos` cada minuto, trigger de disparo inmediato.
+- Etapa 3 (migración `20261029_avisos_chat`): tablas `avisos` y `chat_mensajes`; funciones internas
+  `encolar_aviso`, `reclamar_avisos`, `programar_avisos` (las reglas van en `programar_avisos_<regla>()`),
+  `admins_activas_mails`, `llamar_enviar_avisos`, `correr_cron_avisos`; de la niñera
+  `ninera_enviar_mensaje`, `ninera_marcar_chat_leido`, `ninera_marcar_avisos_leidos`; trigger por sentencia
+  que llama a la Edge Function una vez, y cron de cada minuto que solo llama si hay pendientes. Las admins
+  insertan solo `ninera_id, de, autor, texto` y actualizan solo `leido_admin_en`.
 - Etapa 4: `guia_progreso`, `guia_repasos`, `guia_firmas`, `ninieras.rcp_presencial`,
   `ninieras.rcp_certificado_ruta`, `ninera_puede_recibir_pedidos()`,
   `app_config 'guia'` (plazo_dias, gracia_anual_dias, version_vigente).
@@ -563,6 +567,10 @@ leido_ninera_en, leido_admin_en)`. Realtime en las dos puertas (RLS filtra). Pus
 admin] / [mensaje]" a la niñera y "[niñera] / [mensaje]" a las admins. En Hoy, "Mensajes de
 niñeras" con los no leídos; en la ficha de la niñera, el hilo completo. Niñera: "Contáctate con
 una operadora de Parents' Break."
+
+Decisiones de Diego (29/10/2026): (1) una admin puede escribirle a cualquier niñera que tenga la app (la
+regla de "solo con un pedido" se lee como "nada de mensajes masivos ni publicidad"); (2) el chat es solo
+de texto en esta etapa, las fotos van después; (3) el aviso del chat llega siempre, también de noche.
 
 ## 7. Catálogo de avisos (clave, cuándo, a quién, etapa)
 Niñera (todos con los textos de `textos.md`, sección 1; cuerpo en "tú"):

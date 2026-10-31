@@ -1554,7 +1554,18 @@ async function cerrarModalPreguntando(){
      && !(await confirmarAccion('Tenés cambios sin guardar. Si cerrás, se pierden.', 'Cerrar sin guardar'))) return;
   cerrarModal();
 }
+/* Lo que hay que soltar cuando el modal se cierra o se reemplaza por otro (30/10/2026, chat de la
+   ficha de la niñera: su canal de Realtime vive mientras la ficha está a la vista). Uno solo a la
+   vez: lo registra quien pinta el modal, después de abrirlo, y corre una sola vez. */
+let alCerrarModalActual = null;
+function alCerrarModal(fn){ alCerrarModalActual = fn; }
+function soltarAlCerrarModal(){
+  const fn = alCerrarModalActual;
+  alCerrarModalActual = null;
+  if(fn) try { fn(); } catch(e){ console.error('[modal] al cerrar', e); }
+}
 function abrirModal(html){
+  soltarAlCerrarModal();
   modalToken++;
   let overlay = document.getElementById('editmodal');
   if(!overlay){
@@ -1566,6 +1577,7 @@ function abrirModal(html){
 }
 let modalNodoOrigen = null;
 function abrirModalConNodo(node, headerHtml=''){
+  soltarAlCerrarModal();
   modalToken++;
   let overlay = document.getElementById('editmodal');
   if(!overlay){
@@ -1583,6 +1595,7 @@ function abrirModalConNodo(node, headerHtml=''){
   requestAnimationFrame(()=>overlay.classList.add('show'));
 }
 function cerrarModal(){
+  soltarAlCerrarModal();
   const overlay = document.getElementById('editmodal');
   if(!overlay) return;
   // Se cerró porque se guardó o porque se eligió no guardar: el borrador ya no sirve.

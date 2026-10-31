@@ -249,7 +249,7 @@ function mensajeUtilizacionPara(n){
   return `¡Hola ${primerNombre}! Somos de Parents’ Break 💛 Hace un tiempo que no te agendamos ningún sitting y queríamos saber cómo estás y si seguís con ganas de tomar changas. ¡Contanos!`;
 }
 function enviarWhatsappNinera(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const tel = formatearTelefonoWhatsApp(n.telefono);
   if(!tel){ toast('Esta niñera no tiene teléfono cargado — agregalo en su ficha primero.', 'bad'); return; }
@@ -403,7 +403,8 @@ async function cargarCarsittingSeccion(nombre, boxId, tipo, mail){
 }
 async function verNinera(id){
   await esperarConfigFijos(); // fijos automáticos: saber si hay que sacar los previstos
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
+  if(!n){ toast('No se encontró la niñera.', 'bad'); return; }
   const cd = datosFichaCandidata(n.candidatas);
   const edadCalculada = calcularEdad(cd.fecha_nacimiento);
   // Si hay fecha de nacimiento cargada, la edad calculada pisa al texto viejo ("19 años")
@@ -423,6 +424,7 @@ async function verNinera(id){
     ${htmlCambioTelefono(n)}
     ${cvDesactualizado ? `<div class="warnbox" style="margin-bottom:10px;">Cumplió años desde que se generó el CV — convendría rehacerlo.</div>` : ''}
     <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.cv_url?`<div><b>CV</b><a href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver CV</a></div>`:''}<div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
+    <div id="vn-chat" data-ninera="${escaparHtml(n.id)}" style="margin-top:18px;"></div>
     <div id="vn-carsitting"></div>
     <div id="vn-juguetes"></div>
     <div id="vn-saldo" style="margin-top:18px;"></div>
@@ -439,6 +441,7 @@ async function verNinera(id){
       <div id="vn-historial"><div class="empty"><span class="spinner dark"></span> Cargando…</div></div>
     </div>`);
   cargarEstadoAppNinera(n.id);
+  pintarChatFicha(n);
   if(n.foto_propuesta_ruta) cargarFotoPropuesta(n.id, n.foto_propuesta_ruta);
   cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
   cargarJuguetesDeNinera(n.nombre);
@@ -494,7 +497,7 @@ function htmlCambioTelefono(n){
     </div>`;
 }
 async function resolverCambioTelefono(id, aceptar){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n || !n.telefono_pendiente) return;
   const cambios = { telefono_pendiente: null, telefono_pendiente_en: null };
   if(aceptar) cambios.telefono = n.telefono_pendiente;
@@ -554,7 +557,7 @@ function textoPerfilApp(n){
   return texto;
 }
 async function cargarEstadoAppNinera(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const [inv, push] = await Promise.all([
     sb.from('ninera_invitaciones').select('vence_en,usada_en,reemplazada_en,creada_en')
@@ -576,6 +579,229 @@ async function cargarEstadoAppNinera(id){
       : `<button class="smallbtn" disabled>${etiqueta}</button><div class="helper" style="margin-top:4px;">${escaparHtml(est.motivo)}</div>`)
     + perfilHtml;
 }
+/* Niñera dada de baja abierta desde Hoy o el push del chat (30/10/2026): la lista (ninierasItems) es
+   solo de activas, así que su fila se lee aparte (abrirFichaNineraCuandoCargue, app-shell.js) y queda
+   acá, sin entrar a la lista. Todo lo de la ficha la busca con nineraPorId. Se vuelve a leer cada vez
+   que se abre y se suelta al guardar "Editar". No se suelta al cerrar el modal: alCerrarModal corre
+   también cuando "Editar" (o el paso de la temporada) reemplaza la ficha, y esos necesitan la fila
+   para guardar sobre la misma niñera (sin ella, guardar crearía una candidata nueva). */
+let nineraFueraDeLista = null;
+function nineraPorId(id){
+  return ninierasItems.find(x=>x.id===id) || (nineraFueraDeLista && nineraFueraDeLista.id===id ? nineraFueraDeLista : undefined);
+}
+/* ---- Chat con la niñera en su ficha (fase 1, etapa 3, 30/10/2026) ----
+   Debajo de la fila "App". La admin escribe directo en chat_mensajes: la base deja solo de 'admin', a
+   una niñera activa con cuenta, y pone el id, la hora y lo leído. Lo de la niñera llega desde su app.
+   Mientras la ficha está abierta el hilo tiene su propio canal de Realtime (se quita al cerrarla o al
+   abrir otro modal: alCerrarModal, core.js): lo nuevo se suma como nodos, sin tocar lo que se está
+   escribiendo, y sin repetir (por id: lo propio también vuelve por Realtime). Sin la migración de la
+   etapa 3 (la tabla no existe) la sección no se muestra. */
+let chatTablasSinMigrar = null; // null: todavía no se sabe; true: la base no tiene la etapa 3; false: sí
+let aperturaChatFicha = 0;      // cada ficha pintada o cerrada suma uno: lo que llega tarde no pinta
+let canalChatFicha = null;
+let idsChatFicha = new Set();
+let chatFichaPorMarcar = null;  // id de la niñera si llegó algo suyo con el panel en segundo plano
+let chatFichaEnfocar = null;    // id de la niñera cuya ficha se abre "en el chat" (Hoy, campanita, push)
+
+// "HH:MM" si es de hoy; si no, "dd/mm HH:MM". Siempre en Montevideo, aunque el aparato tenga otra zona.
+function momentoChatFicha(ts){
+  const d = ts ? new Date(ts) : null;
+  if(!d || isNaN(d)) return '';
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_NEGOCIO, year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(d);
+  const p = t => (partes.find(x=>x.type===t)?.value || '');
+  const hora = `${p('hour')}:${p('minute')}`;
+  return `${p('year')}-${p('month')}-${p('day')}` === todayISO() ? hora : `${p('day')}/${p('month')} ${hora}`;
+}
+function asegurarEstilosChat(){
+  if(document.getElementById('estilos-chat-ficha')) return;
+  const st = document.createElement('style');
+  st.id = 'estilos-chat-ficha';
+  st.textContent = `
+.chatf-hilo{max-height:340px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;}
+.chatf-hilo .helper{margin:0;}
+.chatf-msg{max-width:85%;width:fit-content;margin:0 0 8px;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4;overflow-wrap:anywhere;box-sizing:border-box;}
+.chatf-msg:last-child{margin-bottom:0;}
+.chatf-msg span{display:block;}
+.chatf-msg.ella{margin-right:auto;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:4px;}
+.chatf-msg.equipo{margin-left:auto;background:var(--accent-soft);border-bottom-right-radius:4px;}
+.chatf-autor{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;}
+.chatf-texto{white-space:pre-wrap;}
+.chatf-hora{font-size:11.5px;color:var(--ink-soft);text-align:right;margin-top:2px;}
+.chatf-escribir{display:flex;gap:8px;align-items:flex-end;}
+.chatf-escribir textarea{flex:1;min-width:0;min-height:48px;max-height:140px;resize:vertical;font-size:16px;}
+.chatf-escribir .btn{flex:none;min-height:48px;}
+.chat-hoy-fila{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);padding:10px 2px;cursor:pointer;font-family:inherit;color:var(--ink);font-size:14px;}
+.chat-hoy-fila:last-child{border-bottom:none;}
+.chat-hoy-cuerpo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.chat-hoy-ultimo{color:var(--ink-soft);font-size:13px;overflow-wrap:anywhere;}
+.chat-hoy-cant{flex:none;min-width:24px;height:24px;border-radius:12px;background:var(--clay);color:#fff;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 7px;box-sizing:border-box;}
+`;
+  document.head.appendChild(st);
+}
+// Pinta la sección en la ficha recién abierta (verNinera). Sin cuenta no hay nada que leer: solo el aviso.
+function pintarChatFicha(n){
+  const cont = document.getElementById('vn-chat');
+  if(!cont || !n) return;
+  const apertura = ++aperturaChatFicha;
+  idsChatFicha = new Set();
+  chatFichaPorMarcar = null;
+  alCerrarModal(cerrarChatFicha);
+  const enfocar = chatFichaEnfocar === n.id;
+  chatFichaEnfocar = null;
+  if(chatTablasSinMigrar){ cont.innerHTML = ''; return; }
+  asegurarEstilosChat();
+  const titulo = '<h2 class="card-section-title" style="margin-top:0;">Chat</h2>';
+  if(!n.user_id){
+    cont.innerHTML = `${titulo}<div class="helper">Todavía no tiene la app: escribile por WhatsApp.</div>`;
+  } else {
+    const nombre = (n.nombre||'').trim().split(/\s+/)[0] || 'ella';
+    const hilo = '<div id="vn-chat-hilo" class="chatf-hilo" aria-live="polite"><div class="helper chatf-provisorio">Cargando…</div></div>';
+    // Dada de baja: la base no deja escribirle; el hilo queda para leer lo que mandó.
+    cont.innerHTML = n.activa === false ? `${titulo}${hilo}<div class="helper">Está inactiva: no se le puede escribir por el chat.</div>` : `${titulo}
+      ${hilo}
+      <div class="chatf-escribir">
+        <textarea id="vn-chat-texto" rows="2" maxlength="2000" placeholder="Escribile a ${escaparHtml(nombre)}" aria-label="Escribile a ${escaparHtml(nombre)}"></textarea>
+        <button class="btn primary" onclick="conGuardado(this, ()=>enviarMensajeChatFicha(${argJs(n.id)}))">Enviar</button>
+      </div>`;
+    // El canal antes que la lectura: lo que llegue mientras carga no se pierde (el id evita repetirlo).
+    abrirCanalChatFicha(n.id, apertura);
+    cargarHiloChatFicha(n.id, apertura);
+  }
+  if(enfocar) cont.scrollIntoView({ block: 'start' });
+}
+// Al cerrar la ficha o abrir otro modal encima: se quita el canal y lo que siga cargando ya no pinta.
+function cerrarChatFicha(){
+  aperturaChatFicha++;
+  chatFichaPorMarcar = null;
+  const canal = canalChatFicha;
+  canalChatFicha = null;
+  if(canal) sb.removeChannel(canal).catch(e=>console.error('[chat] al quitar el canal', e));
+}
+function abrirCanalChatFicha(id, apertura){
+  // Un nombre por apertura: con el mismo, supabase-js devolvería el canal anterior si todavía se está yendo.
+  canalChatFicha = sb.channel(`chat-ficha-${id}-${apertura}`)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_mensajes', filter:`ninera_id=eq.${id}` }, payload=>{
+      if(apertura !== aperturaChatFicha) return;
+      const m = payload && payload.new;
+      if(!agregarMensajesChatFicha([m]) || m.de !== 'ninera') return;
+      // Lo de ella con la ficha abierta y a la vista ya está leído; en segundo plano, al volver.
+      if(document.visibilityState === 'visible') marcarChatFichaLeido(id);
+      else chatFichaPorMarcar = id;
+    })
+    .subscribe();
+}
+async function cargarHiloChatFicha(id, apertura){
+  const { data, error } = await sb.from('chat_mensajes').select('id,de,autor,texto,creado_en,leido_admin_en')
+    .eq('ninera_id', id).order('creado_en', { ascending:false }).limit(200);
+  if(apertura !== aperturaChatFicha) return;
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return;
+  if(error){
+    if(esFaltaTabla(error)){
+      chatTablasSinMigrar = true;
+      cerrarChatFicha();
+      const cont = document.getElementById('vn-chat');
+      if(cont) cont.innerHTML = '';
+      return;
+    }
+    hilo.querySelectorAll('.chatf-provisorio, .chatf-falla').forEach(x=>x.remove());
+    hilo.insertAdjacentHTML('afterbegin', `<div class="helper chatf-falla">No se pudo cargar el chat. Revisá la conexión. <button class="smallbtn" onclick="reintentarHiloChatFicha(${argJs(id)})">Reintentar</button></div>`);
+    return;
+  }
+  chatTablasSinMigrar = false;
+  hilo.querySelectorAll('.chatf-provisorio, .chatf-falla').forEach(x=>x.remove());
+  const filas = (data||[]).slice().reverse();
+  agregarMensajesChatFicha(filas, { bajar:true });
+  if(!hilo.querySelector('.chatf-msg')) hilo.insertAdjacentHTML('afterbegin', '<div class="helper chatf-provisorio">Todavía no hay mensajes.</div>');
+  // Recién cuando se ven: si no cargó, siguen sin leer (en Hoy y en la campanita).
+  if(filas.some(m=>m.de==='ninera' && !m.leido_admin_en)) marcarChatFichaLeido(id);
+}
+function reintentarHiloChatFicha(id){
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return;
+  hilo.querySelectorAll('.chatf-falla').forEach(x=>x.remove());
+  if(!hilo.querySelector('.chatf-msg')) hilo.insertAdjacentHTML('afterbegin', '<div class="helper chatf-provisorio">Cargando…</div>');
+  return cargarHiloChatFicha(id, aperturaChatFicha);
+}
+// Un mensaje: los de ella a la izquierda; los del equipo a la derecha, con quién escribió. El texto
+// tal cual, escapado; los renglones los respeta el CSS (white-space: pre-wrap), sin <br> armados.
+function htmlMensajeChatFicha(m){
+  const deElla = m.de === 'ninera';
+  return `<div class="chatf-msg ${deElla ? 'ella' : 'equipo'}" data-t="${Date.parse(m.creado_en) || 0}">${
+    deElla ? '' : `<span class="chatf-autor">${escaparHtml(m.autor || 'Equipo')}</span>`
+  }<span class="chatf-texto">${escaparHtml(m.texto)}</span><span class="chatf-hora">${escaparHtml(momentoChatFicha(m.creado_en))}</span></div>`;
+}
+// Suma al hilo los que todavía no están, cada uno en su lugar por la hora, sin tocar el campo de texto.
+// Baja al último si se pide (al abrir, al mandar) o si ya estaba abajo. Devuelve cuántos sumó.
+function agregarMensajesChatFicha(filas, { bajar = false } = {}){
+  const hilo = document.getElementById('vn-chat-hilo');
+  if(!hilo) return 0;
+  const estabaAbajo = hilo.scrollHeight - hilo.scrollTop - hilo.clientHeight < 60;
+  let nuevos = 0;
+  for(const m of filas){
+    if(!m || !m.id || idsChatFicha.has(m.id)) continue;
+    idsChatFicha.add(m.id);
+    const molde = document.createElement('div');
+    molde.innerHTML = htmlMensajeChatFicha(m);
+    const el = molde.firstElementChild;
+    const t = Number(el.dataset.t);
+    const siguiente = Array.from(hilo.querySelectorAll('.chatf-msg')).find(x=>Number(x.dataset.t) > t);
+    hilo.insertBefore(el, siguiente || null);
+    nuevos++;
+  }
+  if(nuevos){
+    hilo.querySelectorAll('.chatf-provisorio').forEach(x=>x.remove());
+    if(bajar || estabaAbajo) hilo.scrollTop = hilo.scrollHeight;
+  }
+  return nuevos;
+}
+// Marca leídos todos los de ella que falten. Si falla no se avisa: siguen en Hoy y en la campanita
+// hasta la próxima vez que se abra la ficha. Después la campanita se pone al día (el aviso sale).
+async function marcarChatFichaLeido(id){
+  const { error } = await sb.from('chat_mensajes').update({ leido_admin_en: new Date().toISOString() })
+    .eq('ninera_id', id).eq('de', 'ninera').is('leido_admin_en', null);
+  if(!error) cargarNotificaciones();
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState !== 'visible' || !chatFichaPorMarcar) return;
+  const id = chatFichaPorMarcar;
+  chatFichaPorMarcar = null;
+  if(document.getElementById('vn-chat-hilo')) marcarChatFichaLeido(id);
+});
+// "Enviar": el texto sin los blancos de alrededor. Si falla, el aviso y el texto queda para reintentar;
+// nunca un mensaje en el hilo que la base no devolvió.
+async function enviarMensajeChatFicha(id){
+  const campo = document.getElementById('vn-chat-texto');
+  if(!campo) return;
+  const escrito = campo.value;
+  const texto = escrito.trim();
+  if(!texto){ campo.focus(); return; }
+  const apertura = aperturaChatFicha; // la ficha desde la que se manda
+  const { data, error, status } = await sb.from('chat_mensajes')
+    .insert({ ninera_id: id, de: 'admin', autor: nombreUsuario(), texto })
+    .select('id,de,autor,texto,creado_en').single();
+  if(error || !data){
+    // Sin respuesta de la base (status 0) es la conexión: no se muestra el "TypeError: Failed to fetch".
+    const motivo = !error ? 'la base no devolvió el mensaje.'
+      : !status ? 'revisá la conexión e intentá de nuevo.'
+      : error.code === '42501' ? 'ya no tiene la app activa. Escribile por WhatsApp.'
+      : error.code === '23514' ? 'es muy largo o está vacío.'
+      : error.message;
+    toast('No se pudo enviar el mensaje: ' + motivo, 'bad');
+    return;
+  }
+  // Se cerró la ficha (o se abrió la de otra niñera) mientras se mandaba: el mensaje se guardó, pero no
+  // va en el hilo que está a la vista ni se toca lo que se escribe ahí.
+  if(apertura !== aperturaChatFicha || !document.getElementById('vn-chat-hilo')){
+    toast(`Mensaje enviado a ${(nineraPorId(id)||{}).nombre || 'la niñera'}.`);
+    return;
+  }
+  agregarMensajesChatFicha([data], { bajar:true });
+  // Lo que escribió mientras se mandaba queda: se saca solo lo que ya salió.
+  const ahora = document.getElementById('vn-chat-texto');
+  if(ahora && ahora.value.startsWith(escrito)) ahora.value = ahora.value.slice(escrito.length).replace(/^\s+/, '');
+}
 const ERRORES_INVITACION = {
   ninera_inactiva: 'la niñera está inactiva',
   celular_invalido: 'el celular no es válido',
@@ -596,7 +822,7 @@ async function fichasConMismoCelular(id, telefono){
   return data.filter(x=>x.id!==id && normalizarCelular(x.telefono)===propio);
 }
 async function abrirInvitacionApp(id, linkVigente=false){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   // Nunca se invita sin saber si el celular está repetido: si la lectura falla, no se crea el link.
   const repetidas = await fichasConMismoCelular(id, n.telefono);
@@ -735,7 +961,7 @@ async function addNinera(){
   await cargarNinieras();
 }
 function editarNinera(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   // Si le falta la temporada, se pide antes de la edición normal (con "Omitir por ahora").
   if(n && estadoTemporada(n)!=='ok' && !ninTempOmitidas.has(id) && gruposParaEditor(n).length){
     abrirPasoTemporada(id);
@@ -957,7 +1183,7 @@ async function guardarSiFotoPropuestaNoCambio(id, antes, cambios, queCosa){
 // Relee solo las columnas de la foto (no toda la lista) y repinta: la ficha muestra lo que hay ahora.
 async function avisarFotoPropuestaCambiada(id){
   toast('La niñera mandó otra foto mientras la mirabas. Volvé a abrir la ficha.', 'bad');
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const { data, error } = await sb.from('ninieras').select('foto,foto_propuesta_ruta,foto_propuesta_en').eq('id', id);
   if(!error && data && data[0]) Object.assign(n, data[0]);
@@ -968,7 +1194,7 @@ async function avisarFotoPropuestaCambiada(id){
 // subirFotoNinera: pisar un nombre fijo cambiaría la foto del CV antes del update (y si el update
 // falla quedaría a medias), y el navegador seguiría mostrando la vieja desde su caché.
 async function aprobarFotoPropuesta(id, antes){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n || !n.foto_propuesta_ruta) return;
   const ruta = n.foto_propuesta_ruta;
   const fotoAnterior = n.foto;
@@ -1031,7 +1257,7 @@ async function borrarFotoAnteriorCv(url, id){
 // se borra una foto que la niñera mandó mientras la admin miraba. Si el borrado falla, la ficha ya
 // no la muestra y la próxima foto de la niñera la pisa (misma ruta): solo se anota.
 async function descartarFotoPropuesta(id, antes){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n || !n.foto_propuesta_ruta) return;
   const ruta = n.foto_propuesta_ruta;
   if(!(await confirmarAccion('¿Descartar la foto propuesta?', 'Descartar la foto'))) return;
@@ -1067,13 +1293,13 @@ async function guardarEdicionNinera(id){
   // y se tocó -- abrir "Editar" para cambiar el teléfono no tiene que dar la temporada por revisada.
   const editorTemp = document.querySelector('[data-temp-guardar="ed-temp"]');
   if(hayEditorTemporada('ed-temp') && editorTemp && editorTemp.dataset.tocado==='1'){
-    const nPrev = ninierasItems.find(x=>x.id===id);
+    const nPrev = nineraPorId(id);
     cambios.temporada = leerEditorTemporada('ed-temp', nPrev?.temporada);
     cambios.temporada_actualizada_en = new Date().toISOString();
     cambios.temporada_fuente = 'sistema';
     cambios.zona = zonaConTemporada(cambios.zona, cambios.temporada);
   }
-  const nAntes = ninierasItems.find(x=>x.id===id);
+  const nAntes = nineraPorId(id);
   // Con la app activa, la cuenta está atada al celular (el mail de la cuenta sale de él): si cambia,
   // la niñera ya no entra con el número nuevo hasta que le manden un link (26/10/2026).
   // Se compara el número normalizado: '098 000 001' y '098000001' son la misma cuenta.
@@ -1104,7 +1330,7 @@ async function guardarEdicionNinera(id){
   });
   let errExtra = null; // si falla lo de la ficha de candidata, se avisa en vez de "Cambios guardados"
   if(Object.keys(extra).length){
-    const n = ninierasItems.find(x=>x.id===id);
+    const n = nineraPorId(id);
     let candidataId = n?.candidata_id;
     if(!candidataId){
       const partes = (cambios.nombre||'').trim().split(' ');
@@ -1125,6 +1351,8 @@ async function guardarEdicionNinera(id){
     }
   }
   cerrarModal();
+  // La copia de una niñera dada de baja ya no sirve: la próxima vez que se abra se lee de nuevo.
+  if(nineraFueraDeLista && nineraFueraDeLista.id === id) nineraFueraDeLista = null;
   if(errExtra) toast('Se guardó lo básico, pero no las categorías extra: '+errExtra.message, 'bad');
   else toast('Cambios guardados.');
   if(cambioCelularConApp) toast('Cambió el celular: va a necesitar un link nuevo para entrar (Invitar a la app).');
@@ -1146,7 +1374,7 @@ async function eliminarNinera(id){
 const CV_CANVA_DESIGN_ID = 'DAHUzD60KqA';
 const CV_CANVA_DESIGN_NOMBRE = 'PLANTILLA BASE v2 - CV niñeras';
 function generarMensajeCV(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const cd = datosFichaCandidata(n.candidatas);
   // Importante: NUNCA incluir teléfono, mail ni zona acá — esos son datos internos
@@ -1195,11 +1423,11 @@ async function copiarMensajeCV(id){
 async function marcarCvGenerado(id){
   const { error } = await sb.from('ninieras').update({ cv_generado_en: todayISO() }).eq('id', id);
   if(error){ toast('No se pudo anotar la fecha del CV: '+error.message, 'bad'); return; }
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(n) n.cv_generado_en = todayISO();
 }
 function descargarMensajeCV(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   const ta = document.getElementById('cv-msg-'+id);
   if(!ta) return;
   const blob = new Blob([ta.value], {type:'text/plain;charset=utf-8;'});
@@ -1514,7 +1742,7 @@ function filaTemporadaPanel(n){
     </div>`;
 }
 async function guardarTemporadaEnBase(id, temporada, extra={}){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   const cambios = {
     temporada,
     zona: zonaConTemporada(n?.zona, temporada),
@@ -1529,7 +1757,7 @@ async function guardarTemporadaEnBase(id, temporada, extra={}){
   return true;
 }
 async function guardarTemporadaPanel(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const temporada = leerEditorTemporada('tp-'+id, n.temporada);
   if(!(await guardarTemporadaEnBase(id, temporada))) return;
@@ -1537,7 +1765,7 @@ async function guardarTemporadaPanel(id){
   refrescarTrasTemporada();
 }
 async function repetirTemporadaAnterior(id, despues){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   // Mismas quincenas que ya tenía -- solo se renueva la fecha de actualización.
   if(!(await guardarTemporadaEnBase(id, n.temporada || {}, { temporada_fuente: n.temporada_fuente || 'sistema' }))) return;
@@ -1577,7 +1805,7 @@ function abrirRecordatorioTemporada(){
 /* Paso previo al abrir "Editar" de una niñera sin temporada: se pide primero, con la opción
    de omitirlo por ahora (no se vuelve a pedir en esta sesión). */
 function abrirPasoTemporada(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   asegurarEstilosTemporada();
   const est = estadoTemporada(n);
@@ -1600,7 +1828,7 @@ function abrirPasoTemporada(id){
 }
 function omitirPasoTemporada(id){ ninTempOmitidas.add(id); editarNinera(id); }
 async function guardarPasoTemporada(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   const temporada = leerEditorTemporada('paso-temp', n.temporada);
   if(!(await guardarTemporadaEnBase(id, temporada))) return;
@@ -1626,7 +1854,7 @@ function mensajeTemporadaPara(n){
   return `Hola ${primerNombre}! Te escribimos de Parents’ Break. Estamos armando la agenda de la temporada en Punta del Este y queremos saber en qué fechas vas a estar por allá. Nos marcás las quincenas acá? Es un minuto:\n\n${linkTemporadaNinera(n)}\n\nGracias!`;
 }
 function pedirTemporadaWhatsapp(id){
-  const n = ninierasItems.find(x=>x.id===id);
+  const n = nineraPorId(id);
   if(!n) return;
   if(!n.temporada_token){ toast('Falta el link de esta niñera. Recargá la página e intentá de nuevo.', 'bad'); return; }
   const tel = formatearTelefonoWhatsApp(n.telefono);

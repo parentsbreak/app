@@ -10,6 +10,9 @@ const sbn = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY, 
   auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage, storageKey: 'sb-ninera-auth' },
 }) : null;
 let sesionNinera = null;
+// El id de su ficha, de ninera_actual() al entrar (arranque.js): el chat filtra su canal de Realtime
+// con eso (30/10/2026), sin otra consulta.
+let nineraIdSesion = null;
 
 // La carpeta de la app (…/ninera/), resuelta desde donde se abrió: en GitHub Pages vive dentro del
 // subpath del repo. Es el link para abrir en Safari y el alcance de su service worker.
@@ -19,6 +22,7 @@ const NINERA_URL_BASE = new URL('./', location.href).href;
 // imprescindible, así que si falla se sigue sin eso.
 function leerLocalNinera(clave){ try{ return localStorage.getItem(clave); }catch(e){ return null; } }
 function guardarLocalNinera(clave, valor){ try{ localStorage.setItem(clave, valor); }catch(e){} }
+function borrarLocalNinera(clave){ try{ localStorage.removeItem(clave); }catch(e){} }
 
 // Lee la sesión que supabase-js guarda bajo 'sb-ninera-auth', con el mismo criterio que
 // leerSesionGuardada() del panel (auth.js). Solo sirve para decidir qué pintar primero: sin
@@ -32,7 +36,16 @@ function leerSesionNineraGuardada(){
   }catch(e){ return null; }
 }
 
+// Lo que la pantalla abierta deja para hacer cuando se va de ella (30/10/2026): el chat quita su canal
+// de Realtime. Pasa por acá porque toda pantalla se pinta con pintar(), también el login si la
+// sesión se cierra o el error que no deja seguir.
+let alSalirDePantallaNinera = null;
 function pintar(html){
+  if(alSalirDePantallaNinera){
+    const salir = alSalirDePantallaNinera;
+    alSalirDePantallaNinera = null;
+    try{ salir(); }catch(e){ console.error('[pantalla] al salir', e); }
+  }
   const app = document.getElementById('app');
   if(app) app.innerHTML = html;
 }
@@ -69,7 +82,7 @@ function pintarMensajeNinera(texto, acciones = ''){
   </main>`);
 }
 
-/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #inactiva, #error ----
+/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #inactiva, #error ----
    La URL dice en qué pantalla está. Se cambia con replaceState, sin sumar pasos al historial:
    "Atrás" en el celular no tiene que volver a una pantalla vieja (el login después de entrar). */
 function marcarRuta(hash){
@@ -77,7 +90,9 @@ function marcarRuta(hash){
 }
 function rutaActual(){ return location.hash; }
 function irA(hash){
-  const pantallas = { '#inicio': renderInicio, '#login': pantallaLogin, '#instalar': pantallaInstalar, '#avisos': pantallaAvisos, '#perfil': abrirMiPerfil };
+  // #avisos es la pantalla para activar los avisos del celular; #mis-avisos, la lista (etapa 3).
+  const pantallas = { '#inicio': renderInicio, '#login': pantallaLogin, '#instalar': pantallaInstalar, '#avisos': pantallaAvisos, '#perfil': abrirMiPerfil,
+    '#chat': pantallaChatNinera, '#mis-avisos': pantallaAvisosNinera };
   return pantallas[hash] ? pantallas[hash]() : undefined;
 }
 

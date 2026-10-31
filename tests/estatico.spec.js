@@ -38,7 +38,7 @@ test.describe('estático', () => {
     // escriben en la base; un <button> que las llama tiene que hacerlo con
     // conGuardado(this, ()=>...). Login y contraseñas manejan su botón por su cuenta.
     // Vale para las dos puertas (panel y app de niñeras).
-    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|reactivarRegistroDesdeAgenda|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones|crearCuentaDesdeInvitacion|activarAvisosNinera|abrirInvitacionApp)$/;
+    const ESCRIBEN = /^(guardar\w*|add(Asignacion|Contrato|Familia|FechaMarketing|Intake|Ninera)|contratar|crear(FamiliaRapida|NineraRapida)|registrar(ExcepcionFija|SittingFijoDeHoy|PasskeyDispositivo)|confirmar(Ninera|ReemplazoFijoHoy)|cambiarNineraAsignacionFija|cancelarSolicitud|marcar(GrupoResuelto|ContactadaRiesgo|Pendiente|TodoPendiente)|resolverCambioTelefono|repetirTemporadaAnterior|descartarIntake|eliminar\w+|reactivarRegistroDesdeAgenda|terminarFijoDesde|accion(AsignarBarrioAZona|CrearZonaConBarrio)|cambiarEstadoPoolEnrique|procesarExtractoConciliacion|confirmarConciliacion|activarPushNotificaciones|crearCuentaDesdeInvitacion|activarAvisosNinera|abrirInvitacionApp|enviarMensaje\w*)$/;
     const PROPIOS = new Set(['guardarNuevaContrasena']);
     const malos = [];
     for (const archivo of TODOS_LOS_SCRIPTS) {

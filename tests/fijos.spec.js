@@ -288,7 +288,9 @@ test.describe('app nueva con la base todavía sin migrar', () => {
     await cambiarNinera(page, ID.aFijo, '2026-10-05', 'Carla Ejemplo');
     await expect(page.locator('#editmodal')).toHaveCount(0);
     expect(e.escrituras.filter(w => w.tabla === 'asignaciones').map(w => w.metodo)).toEqual(['PATCH']);
-    verificarLimpio(e, { ignorar: [/status of 400/] }); // familias sin terminos_aceptados_el: se reintenta sin la columna
+    // 400: familias sin terminos_aceptados_el (se reintenta sin la columna). 404: sin la etapa 3 no
+    // existen chat_mensajes ni avisos (Hoy y la campanita las leen una vez y siguen sin ellas, 30/10/2026).
+    verificarLimpio(e, { ignorar: [/status of 400/, /status of 404/] });
   });
 
   test('el historial avisa que todavía no está activado', async ({ page }) => {

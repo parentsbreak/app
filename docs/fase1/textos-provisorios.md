@@ -99,3 +99,29 @@ Al tocar un sitting (detalle):
   calendario".
 - En el calendario el evento se llama "Sitting Parents' Break" (o "Traslado Parents' Break"), con la
   dirección y en la descripción la madre y los chicos.
+
+## Etapa 3: chat y avisos
+
+En el inicio, debajo de "Próximos sittings": dos botones grandes, "Mensajes" y "Avisos", cada uno con
+un número si hay algo sin leer. Los avisos de mensajes del chat no se cuentan en "Avisos" (ya están en
+"Mensajes").
+
+El chat ("Mensajes"):
+- Arriba "Volver", el título "Equipo de Parents' Break" y debajo "Contáctate con una operadora de
+  Parents' Break." (de `textos.md`).
+- Los mensajes del equipo a la izquierda con el nombre de quien escribió; los suyos a la derecha. Cada
+  uno con la hora ("10:00") o, si no es de hoy, la fecha y la hora ("03/10 10:00").
+- Mientras carga, "Cargando…". Sin mensajes: "Todavía no hay mensajes."
+- Si no carga: "No pudimos cargar los mensajes. Revisa tu conexión a internet y vuelve a intentar." con
+  el botón "Reintentar".
+- Abajo, el campo con "Escribe tu mensaje" y el botón "Enviar".
+- Si falla al mandar: "No pudimos enviar tu mensaje. Revisa tu conexión a internet y vuelve a
+  intentar." (lo escrito queda).
+- Si el mensaje pasa de 2.000 caracteres: "Tu mensaje es muy largo. Escríbelo en partes más cortas."
+
+Los avisos ("Avisos"):
+- Arriba "Volver" y el título "Avisos". Cada aviso con su título, el texto y la hora o la fecha (como
+  en el chat); los que no había leído, marcados con una raya de color al costado.
+- Sin avisos: "No tienes avisos."
+- Si no carga: "No pudimos cargar tus avisos. Revisa tu conexión a internet y vuelve a intentar." con
+  el botón "Reintentar".
