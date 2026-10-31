@@ -45,17 +45,40 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
    les muestra nada de ellas, aunque no contesten. Para eso los avisos pasan a ser obligatorios al
    entrar (ver "Avisos obligatorios"); si después los apaga desde Ajustes, es cosa de ella.
 
-## La base (migración `AAAAMMDD_temporada_app.sql`)
+## Respuestas de Diego al diseño (31/10/2026)
+1. **Precarga:** las 8 quincenas de diciembre a marzo vienen vacías y hay que elegir cada una (o el atajo);
+   no se puede guardar con alguna vacía. Si ya cargó esta temporada, viene lo que cargó. El resto del año
+   (plegado) viene en Montevideo.
+2. **Quincenas sin año**, con tres condiciones: la columna nueva guarda cuándo la cargó
+   (`temporada_lugares_en`), "ya cargó esta temporada" se calcula desde el inicio de cada temporada, y el
+   filtro y la ficha del panel no toman como vigente lo cargado en una temporada anterior (se ve como "sin
+   temporada cargada").
+   - Diego pidió el corte en el 1/10. Lo dejamos en el **1/9**, como el panel de hoy: 18 de las 26 niñeras
+     al día cargaron su temporada el 29 y el 30/9/2026 (el formulario sale a fin de setiembre) y con el 1/10
+     quedarían como "temporada anterior". Hoy ninguna activa tiene una temporada de un año anterior, así que
+     el cambio del filtro no esconde a nadie el día que se publica. (Para que Diego lo confirme.)
+3. "Todo el verano en Punta", de la 2da de diciembre a la 2da de febrero: OK.
+4. Avisos obligatorios sin "Ahora no", con "Seguir sin avisos" y el aviso rojo: OK.
+5. Decisiones 2, 3 y 5 del constructor: OK.
+
+## La base (migración `20261101_temporada_app.sql`)
 - `ninieras.temporada_lugares jsonb` (nula). Claves "0".."23" (mismas quincenas que `temporada`),
   valores `"montevideo" | "punta" | "la_paloma" | "fuera_pais" | {"otro": "<texto>"}`. Siempre las 24.
-- **Cuál manda:** `temporada_lugares` vale si no es nula y la última carga NO fue de la página ni del
-  formulario (`temporada_fuente` 'app' o 'sistema'). Si después la carga la página ('ninera'), manda lo
-  que mandó ahí (su respuesta más nueva) y `temporada_lugares` se ignora (no se borra).
-- **Correcciones de las admins** (panel de temporadas, paso previo, "Repetir lo del año pasado"): si la
-  niñera tiene `temporada_lugares`, el panel la actualiza junto con `temporada`: las quincenas que la admin
-  marca en Punta pasan a "punta", las que desmarca y estaban en "punta" pasan a "montevideo" y el resto
-  (Fuera del país, Otro, La Paloma) queda como estaba. Fuente 'sistema' (o la que tenía, al repetir). Así
-  una corrección de Punta no borra lo demás que marcó ella.
+- `ninieras.temporada_lugares_en timestamptz`: cuándo la cargó ella en la app. Una corrección de una
+  admin no lo cambia.
+- **Inicio de la temporada:** el 1/9 a las 0:00 de Montevideo (de setiembre a agosto), igual que
+  `inicioTemporadaActual` del panel. En la base, `inicio_temporada_mvd()`.
+- **Cuál manda (lugares vigentes):** `temporada_lugares` vale si no es nula, `temporada_lugares_en` es de
+  esta temporada y la última carga NO fue de la página ni del formulario (`temporada_fuente` 'app' o
+  'sistema'). Si después la carga la página ('ninera'), manda lo que mandó ahí (su respuesta más nueva) y
+  `temporada_lugares` se ignora (no se borra).
+- **Correcciones de las admins** (panel de temporadas, paso previo, "Repetir lo del año pasado"): si los
+  lugares están vigentes, el panel los actualiza junto con `temporada`: las quincenas que la admin marca en
+  Punta pasan a "punta", las que desmarca y estaban en "punta" pasan a "montevideo" y el resto (Fuera del
+  país, Otro, La Paloma) queda como estaba; `temporada_lugares_en` no cambia. Si no están vigentes (de otra
+  temporada, o la última carga fue de la página), la corrección los borra (`temporada_lugares` y
+  `temporada_lugares_en` nulos): así no vuelven a valer viejos. Fuente 'sistema' (o la que tenía, al
+  repetir). Así una corrección de Punta no borra lo demás que marcó ella.
 - `ninera_guardar_temporada(p_lugares jsonb)` (security definer, solo `ninera_actual()`, en la lista de
   `catalogo_seguridad.sql`):
   - valida: las 24 claves, valores de la lista, "otro" con texto de 1 a 80 caracteres (recortado);
@@ -63,17 +86,17 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
   - escribe `temporada_lugares`, `temporada` en el formato de hoy (`{<id grupo Punta>: [quincenas
     "punta"]}`; el grupo es el de `zona_grupos` "de afuera" llamado Punta del Este, buscado por
     nombre normalizado; si un día existe un grupo La Paloma, lo mismo con "la_paloma"),
-    `temporada_actualizada_en = now()`, `temporada_fuente = 'app'`, `temporada_propuesta = null`.
+    `temporada_lugares_en = now()`, `temporada_actualizada_en = now()`, `temporada_fuente = 'app'`,
+    `temporada_propuesta = null`, `temporada_propuesta_en = null`.
   - si marcó Punta y su zona no tiene ninguna zona de ese grupo, le agrega "Punta del Este" a `zona`,
     igual que la página y el panel (`zonaConTemporada`).
   - no toca `temporada_comentario` ni `temporada_token`.
 - `ninera_mi_temporada()` (security definer, solo la suya): `{lugares, al_dia, solo_afuera}`.
-  `lugares`: si `temporada_lugares` manda (regla de arriba), esa; si no, armados de `temporada`: con
-  temporada cargada, "punta" en sus quincenas de Punta y "montevideo" en el resto; sin temporada cargada,
-  "punta" en todas si vive solo en zonas de afuera, si no "montevideo" en todas. Es una precarga que ella
-  ve y confirma. `al_dia`:
-  `temporada_actualizada_en` ≥ 1/9 de la temporada actual (setiembre a agosto, hora de Montevideo).
-  Nada de plata ni de otras niñeras.
+  `al_dia`: `temporada_actualizada_en` ≥ `inicio_temporada_mvd()`. `lugares`: solo si está al día; si los
+  lugares están vigentes, esos; si no, armados de `temporada`: "punta" en sus quincenas de Punta ("la_paloma"
+  si un día hay ese grupo) y "montevideo" en el resto. Sin estar al día, `lugares` es null y la app arma la
+  precarga (ver "La app de la niñera"). `solo_afuera`: todas sus zonas son de grupos de afuera. Nada de
+  plata ni de otras niñeras.
 - Regla de avisos `programar_avisos_temporada()`, sumada a `programar_avisos()`:
   - Para cada niñera activa con app (`user_id`) y sin la temporada al día, entre el 1/10 y el 31/12 de
     la temporada, solo de 9:00 a 21:00 de Montevideo:
@@ -107,8 +130,12 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
   estaba. Abajo, "Ver el resto del año" despliega las otras 16 quincenas (de abril a noviembre, en
   orden de calendario empezando en abril), sin año, como el panel: las quincenas no tienen año en
   ningún lado del sistema. Botón "Guardar".
-- Precarga: lo que devuelve `ninera_mi_temporada` (la primera vez, "montevideo" en todas, o "punta" si
-  vive solo en Punta). Guardar = confirmar: aunque no cambie nada, cuenta como cargada.
+- Precarga (Diego, 31/10/2026): si está al día, lo que devuelve `ninera_mi_temporada`. Si no, las 8 de
+  diciembre a marzo vacías (ninguna opción marcada) y las 16 del resto del año en Montevideo ("punta" si vive
+  solo en zonas de afuera: decisión del constructor, para que las que viven en Punta no desaparezcan del
+  filtro de Punta de abril a noviembre). "Guardar" con alguna de diciembre a marzo vacía no guarda: marca las
+  que faltan y dice "Te falta marcar X quincenas". Estando al día, guardar sin cambios cuenta como
+  confirmada.
 - Pensada primero para 390 px: las 5 opciones como botones grandes en una fila que se ajusta (no un
   select), con la elegida marcada. Textos en "tú", de `textos.md` 6; los que falten van a
   `textos-provisorios.md`.
@@ -132,10 +159,13 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
   fuera de la cuenta "Hoy hay X sin temporada al día" del aviso anual. Las admins pueden seguir
   corrigiéndola desde el panel de temporadas como hoy (queda con fuente 'sistema').
 - **Fuente:** `textoFuenteTemporada` dice "la cargó ella en la app" para 'app'.
-- **Filtro de Niñeras** (`nineraPresenteEnZona`): con fuente 'app', una quincena con "fuera_pais",
+- **Filtro de Niñeras** (`nineraPresenteEnZona`): solo cuenta la temporada de esta temporada
+  (`estadoTemporada` 'ok'); una de una temporada anterior se trata como "sin temporada cargada" (Diego,
+  31/10/2026), para todas, con app o sin app. Con los lugares vigentes, una quincena con "fuera_pais",
   "otro", "la_paloma" o "punta" la saca de las zonas de Montevideo; Punta sigue saliendo de `temporada`
-  como hoy. Con otra fuente, igual que hoy.
-- **Ficha de la niñera** (sección nueva y chica "Temporada", hoy no muestra nada) **y panel de temporadas:**
+  como hoy. Sin lugares vigentes, igual que hoy.
+- **Ficha de la niñera** (sección nueva y chica "Temporada", hoy no muestra nada; una temporada anterior se
+  ve como "Sin temporada cargada") **y panel de temporadas:**
   las quincenas en Punta (`textoQuincenas`) y, si `temporada_lugares` manda, una línea por lugar distinto de
   Montevideo: "Fuera del país: 1ra de marzo", "Otro (Rocha): 2da de marzo",
   "La Paloma: enero" (`textoQuincenas` para las fechas). Escapado.
@@ -167,7 +197,8 @@ el pendiente ya hecho "Publicar `enviar-avisos` junto con la migración").
 - `tests/filtro-punta.spec.js` y el resto de la suite siguen igual.
 
 ## Decisiones del constructor (Claude, para revisar)
-- Precarga con "montevideo" (o "punta" si vive en Punta) y guardar sin cambios cuenta como cargada.
+- El resto del año (abril a noviembre) precargado en "punta" para las que viven solo en zonas de afuera.
+- El corte de la temporada queda en el 1/9 (ver "Respuestas de Diego al diseño", 2).
 - `temporada_lugares` manda salvo que la última carga sea de la página; las admins la corrigen sin borrar lo que no es Punta.
 - Recordatorios contados desde el primer aviso de cada niñera; avisos de temporada solo de 9 a 21.
 - La tarjeta del inicio solo de setiembre a marzo.
