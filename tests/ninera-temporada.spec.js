@@ -43,6 +43,12 @@ const fila = (page, q) => page.locator(`.temp-fila[data-q="${q}"]`);
 const opcion = (page, q, nombre) => fila(page, q).getByRole('button', { name: nombre, exact: true });
 const guardar = page => page.getByRole('button', { name: 'Guardar' });
 const error = page => page.locator('#temporada-error');
+// La tarjeta se pide sin frenar el inicio: antes de mirarla, que la lectura haya salido.
+async function esperarLecturaTemporada(page, e) {
+  await expect.poll(() => e.escrituras.some(w => w.tabla === 'rpc/ninera_mi_temporada')).toBe(true);
+  // Y que la app haya terminado de procesarla (la respuesta llega después de salir el pedido).
+  await page.waitForTimeout(300);
+}
 function rpcs(e, nombre) {
   return e.escrituras.filter(w => w.tabla === `rpc/${nombre}`).map(w => w.cuerpo);
 }
@@ -114,10 +120,11 @@ test.describe('tarjeta de la temporada en el inicio', () => {
   });
 
   test('setiembre y marzo sí, abril no (mes de todayISO en Montevideo)', async ({ page, browser }) => {
-    for (const [ahora, hay] of [['2026-09-01T00:30:00-03:00', true], ['2027-03-31T23:30:00-03:00', true], ['2027-04-01T00:30:00-03:00', false]]) {
+    for (const [ahora, hay] of [['2026-08-31T23:30:00-03:00', false], ['2026-09-01T00:30:00-03:00', true], ['2027-03-31T23:30:00-03:00', true], ['2027-04-01T00:30:00-03:00', false]]) {
       const p = await browser.newPage();
       const e = await abrir(p, { ahora });
       await expect(p.locator('#app')).toContainText('No tienes pedidos por ahora.');
+      if (!hay) await p.waitForTimeout(300); // si hubiera pedido la tarjeta, ya habría llegado
       if (hay) await expect(p.locator('#inicio-temporada')).toContainText(TITULO);
       else await expect(p.locator('#inicio-temporada')).toBeEmpty();
       verificarLimpio(e);
@@ -128,6 +135,7 @@ test.describe('tarjeta de la temporada en el inicio', () => {
   test('base sin la migración: sin tarjeta y sin aviso', async ({ page }) => {
     const e = await abrir(page, { baseSinMigrar: 'etapa9' });
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await esperarLecturaTemporada(page, e);
     await expect(page.locator('#inicio-temporada')).toBeEmpty();
     verificarLimpio(e, { ignorar: RUIDO_SIN_MIGRAR });
   });
@@ -142,6 +150,8 @@ test.describe('tarjeta de la temporada en el inicio', () => {
     e.fallar = p => (p.tabla === 'rpc/ninera_mi_temporada' ? 'red' : undefined);
     await page.evaluate(() => renderInicio());
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    // La lectura que falla no llega al simulador: se sabe que corrió porque la app anota el error.
+    await expect.poll(() => e.errores.some(m => /\[temporada\] al leer/.test(m))).toBe(true);
     await expect(page.locator('#inicio-temporada')).toBeEmpty();
     verificarLimpio(e, { ignorar: RUIDO });
   });
@@ -420,6 +430,7 @@ test.describe('en el celular', () => {
 
   test('la tarjeta tampoco muestra plata ni pagos', async ({ page }) => {
     const e = await abrir(page, { ninera: ID.nCarla });
+    await expect(page.locator('#inicio-temporada')).toContainText('Tu temporada');
     const texto = await page.locator('#inicio-temporada').innerText();
     expect(texto).not.toMatch(PLATA);
     expect(texto).not.toMatch(PAGO);

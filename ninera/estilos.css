@@ -194,8 +194,8 @@ button.aviso-item:hover{border-color:var(--accent);}
 .tarjeta-temporada h2{font-size:20px;margin:0 0 4px;}
 .tarjeta-temporada .helper{font-size:15px;margin:4px 0 12px;}
 .temp-resumen{margin:6px 0 14px;padding-left:20px;font-size:15.5px;line-height:1.5;overflow-wrap:anywhere;}
-.pantalla .helper{font-size:15px;}
-.pantalla > .btn.ghost.ancho{margin-bottom:6px;}
+.pantalla-temporada .helper{font-size:15px;}
+.pantalla-temporada > .btn.ghost.ancho{margin-bottom:6px;}
 .temp-filas{margin-top:14px;}
 .temp-filas[hidden]{display:none;}
 .temp-fila{padding:12px 0;border-bottom:1px solid var(--line);}

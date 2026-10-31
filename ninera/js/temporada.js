@@ -127,7 +127,7 @@ async function pantallaTemporadaNinera(){
   if(!t){ await renderInicio(); return; }
   precargarTemporadaNinera(t);
   marcarRuta('#temporada');
-  pintar(`<main class="pantalla">
+  pintar(`<main class="pantalla pantalla-temporada">
     <header class="cabecera">
       <img src="../logo-simbolo.png" alt="" class="cabecera-simbolo">
       <h1>${escaparHtml(TITULO_TEMPORADA_NINERA)}</h1>

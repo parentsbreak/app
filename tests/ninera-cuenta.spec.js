@@ -159,10 +159,13 @@ function llamadasFuncion(e) {
 function loginsPedidos(e) {
   return e.escrituras.filter(w => w.tabla === '/auth/v1/token' && /grant_type=password/.test(w.params || ''));
 }
-// Sin la lectura de la tarjeta de la temporada (etapa 9, 31/10/2026): llega sin frenar nada y se
-// prueba en tests/ninera-temporada.spec.js; acá contaría de más según cuándo llegue.
 function rpcLlamadas(e) {
-  return e.escrituras.filter(w => w.tabla.startsWith('rpc/') && w.tabla !== 'rpc/ninera_mi_temporada').map(w => w.tabla.slice(4));
+  return e.escrituras.filter(w => w.tabla.startsWith('rpc/')).map(w => w.tabla.slice(4));
+}
+// La secuencia que sigue al inicio, sin la lectura de la tarjeta de la temporada (etapa 9, 31/10/2026):
+// llega sin frenar nada y se prueba en tests/ninera-temporada.spec.js; acá contaría de más según cuándo llegue.
+function rpcSecuencia(e) {
+  return rpcLlamadas(e).filter(n => n !== 'ninera_mi_temporada');
 }
 // Los próximos sittings del inicio (etapa 2, 27/10/2026) se piden sin frenar lo de arriba: antes de
 // contar las RPC, que hayan llegado.
@@ -235,7 +238,7 @@ test.describe('invitación: crear la contraseña desde el link', () => {
     // Etapa 2 (27/10/2026): antes del inicio lee el perfil (si no lo completó, va a completarlo) y
     // el inicio pide sus próximos sittings.
     await esperarSittings(page);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
+    expect(rpcSecuencia(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     // Al volver a abrir la app, el nombre sigue (viene en la cuenta, user_metadata).
     await page.reload();
     await expect(page.locator('h1')).toHaveText('Hola, Ana');
@@ -816,11 +819,11 @@ test.describe('arranque con sesión', () => {
     const e = await abrir(page);
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await esperarSittings(page);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
+    expect(rpcSecuencia(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     await page.reload();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await esperarSittings(page);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']);
+    expect(rpcSecuencia(e)).toEqual(['ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     verificarLimpio(e);
   });
 
@@ -834,12 +837,12 @@ test.describe('arranque con sesión', () => {
     await page.click('#login-btn');
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await esperarSittings(page);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']); // la que falló no llegó al simulador
+    expect(rpcSecuencia(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings']); // la que falló no llegó al simulador
     await page.unroute(/rpc\/ninera_activar_app/);
     await page.reload();
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await esperarSittings(page);
-    expect(rpcLlamadas(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
+    expect(rpcSecuencia(e)).toEqual(['ninera_actual', 'ninera_mi_perfil', 'ninera_mis_sittings', 'ninera_actual', 'ninera_activar_app', 'ninera_mi_perfil', 'ninera_mis_sittings']);
     verificarLimpio(e, { ignorar: [/status of 500/, /\[ninera_activar_app\]/] });
   });
 
