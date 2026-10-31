@@ -79,3 +79,37 @@ da el precio. No hace falta otra migración para la tabla.
    Recomiendo **sí, tildada** (ahorra el paso de ir a la ficha; se puede destildar si fue algo de un
    día).
 4. **Ficha de la niñera**: ¿suma la lista "Precio por familia", solo para mirar? Recomiendo **sí**.
+
+## Respuestas de Diego (31/10/2026) y plan de construcción
+1. Fijos: sí. Orden del pago por hora de un día de fijo: el precio del fijo (`asignaciones.pago_hora`
+   si está cargado), si no el de la niñera con esa familia, si no la tarifa de la familia. El
+   comentario de la tabla se corrige.
+2. Reemplazo de un día de fijo: la reemplazante cobra su propio precio con esa familia (sin el
+   precio del fijo, que es de la titular).
+3. Casilla "Guardar como precio de [niñera] con esta familia": tildada solo si esa niñera no tiene
+   precio con esa familia; si ya tiene y se tipea otro, destildada (un precio especial de un día no
+   pisa el guardado).
+4. Ficha de la niñera: lista "Precio por familia", solo para mirar.
+
+La regla, una sola en las dos puntas:
+- JS (`core.js`, puro): `precioHoraNinera(familia, nineraId, precios, pagoFijo)` → `pagoFijo` si es
+  mayor que 0; si no, `pago_hora` de la fila de `precios` con esa `familia_id` y ese `nineraId`; si
+  no, `familia.pago_hora`; si no, null. `precioSegunHorario` no cambia: se le pasa la familia con
+  `pago_hora` reemplazado por eso.
+- SQL: `generar_previstos_fijos` usa `coalesce(nullif(asignacion.pago_hora, 0), pago de la fila de
+  precios_ninera_familia, familia.pago_hora)`. Migración aparte `20261101_previstos_precio_ninera.sql`
+  (con DESHACER que vuelve a la función de antes): **Diego la revisa antes de aplicarla**.
+
+Tareas:
+- A. La regla: `precioHoraNinera` + oráculo congelado de nuevo + casos en `tests/red-plata.spec.js`;
+  migración de `generar_previstos_fijos` + su DESHACER + `schema.sql`; casos en
+  `supabase/pruebas/fijos_automaticos.sql` y la paridad (`scripts/paridad-plata-sql.js` con fijos con
+  precio propio y con precio de niñera, `paridad_plata.sql` regenerada).
+- B. Dónde se usa: Sittings (registro puntual; cambiar la niñera recalcula; la casilla de la regla 3),
+  Agenda ("+ Nueva solicitud" con niñera, "Asignar niñera", registrar el día de un fijo, reemplazo de
+  un día, alinear el registro de hoy) y "Cierre de los fijos" en Hoy. Los precios se leen con una
+  consulta por pantalla (por familia o con `.in`), nunca una por fila. Base sin la tabla: todo como
+  hoy.
+- C. Fichas: sección "Precio por niñera" en la ficha de la familia (agregar, editar, borrar, con la
+  condición de `actualizado_en`) y lista "Precio por familia" en la de la niñera.
+- D. CLAUDE.md, revisión final de toda la rama, CI verde y aviso a Diego antes de mergear.
