@@ -3,8 +3,9 @@
 --
 -- Decisión de Diego (31/10/2026, docs/precio-ninera-familia.md, respuesta 1): el pago por hora de
 -- un día de fijo es, en este orden, el precio del fijo (asignaciones.pago_hora, si está cargado y
--- es más que 0), el de esa niñera con esa familia (precios_ninera_familia, de
--- 20261031_precios_ninera_familia.sql) y, si no hay, la tarifa de la familia (familias.pago_hora).
+-- es más que 0; un 0 o un negativo cuenta como no cargado, como en la app), el de esa niñera con
+-- esa familia (precios_ninera_familia, de 20261031_precios_ninera_familia.sql) y, si no hay, la
+-- tarifa de la familia (familias.pago_hora).
 -- Es la misma regla que precioHoraNinera() en js/core.js; las compara
 -- supabase/pruebas/paridad_plata.sql.
 --
@@ -101,9 +102,10 @@ begin
               else public.redondear_cobro(coalesce(c.horas_cobro, c.horas, 0) * coalesce(c.fam_cobro_hora, 0)) end as cobro_base,
          case when c.tipo_fijo = 'traslado' then coalesce(c.pago_traslado, t.pago_ninera, 0)
               -- Pago por hora (01/11/2026, precio por niñera con cada familia): el precio del fijo si
-              -- está cargado (más que 0), si no el de esa niñera con esa familia, si no la tarifa.
-              -- Igual que precioHoraNinera() en js/core.js. c.pago_hora es asignaciones.pago_hora.
-              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(nullif(c.pago_hora, 0),
+              -- está cargado (más que 0: un 0 o un negativo es no cargado, como en la app), si no el de
+              -- esa niñera con esa familia, si no la tarifa. Igual que precioHoraNinera() en
+              -- js/core.js. c.pago_hora es asignaciones.pago_hora.
+              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(case when c.pago_hora > 0 then c.pago_hora end,
                      (select p.pago_hora from public.precios_ninera_familia p
                        where p.familia_id = c.familia_id and p.ninera_id = c.ninera_id),
                      c.fam_pago_hora, 0)) end as pago_base

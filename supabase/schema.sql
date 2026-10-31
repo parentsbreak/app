@@ -2352,9 +2352,10 @@ begin
               else public.redondear_cobro(coalesce(c.horas_cobro, c.horas, 0) * coalesce(c.fam_cobro_hora, 0)) end as cobro_base,
          case when c.tipo_fijo = 'traslado' then coalesce(c.pago_traslado, t.pago_ninera, 0)
               -- Pago por hora (01/11/2026, precio por niñera con cada familia): el precio del fijo si
-              -- está cargado (más que 0), si no el de esa niñera con esa familia, si no la tarifa.
-              -- Igual que precioHoraNinera() en js/core.js. c.pago_hora es asignaciones.pago_hora.
-              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(nullif(c.pago_hora, 0),
+              -- está cargado (más que 0: un 0 o un negativo es no cargado, como en la app), si no el de
+              -- esa niñera con esa familia, si no la tarifa. Igual que precioHoraNinera() en
+              -- js/core.js. c.pago_hora es asignaciones.pago_hora.
+              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(case when c.pago_hora > 0 then c.pago_hora end,
                      (select p.pago_hora from public.precios_ninera_familia p
                        where p.familia_id = c.familia_id and p.ninera_id = c.ninera_id),
                      c.fam_pago_hora, 0)) end as pago_base

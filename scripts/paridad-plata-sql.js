@@ -88,8 +88,8 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
   // ---- 3) generar_previstos_fijos: un fijo por familia, todos los días; lo que crea tiene que
   // cobrar y pagar lo mismo que la app con ese horario y esa tarifa. Los términos van en una
   // fecha muy vieja (siempre redondea) o muy lejana (nunca), así no depende de qué día se corra.
-  // El pago por hora (01/11/2026) sale de precioHoraNinera: algunos fijos con precio propio (o en 0,
-  // que es no cargado) y algunas niñeras con precio con esa familia o con la siguiente (que no
+  // El pago por hora (01/11/2026) sale de precioHoraNinera: algunos fijos con precio propio (o en 0
+  // o negativo, que es no cargado) y algunas niñeras con precio con esa familia o con la siguiente (que no
   // cuenta). Esas elecciones van con otro azar (azPrecio) para que el resto de los casos, y las
   // secciones 4 y 5, sigan siendo los mismos de antes.
   const azPrecio = crearAzar(SEMILLA_FIJA + 31);
@@ -105,8 +105,9 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
     const ini = az.entero(0, 1439);
     const fin = az.si(0.15) ? az.entero(0, ini) : (ini + az.entero(1, 600)) % 1440; // a veces termina pasada la medianoche
     const horas = O.horasSitting(hhmm(ini), hhmm(fin), fin <= ini, { terminos_aceptados_el: terminos }, '2026-10-22');
-    const pagoFijo = azPrecio.si(0.25) ? azPrecio.de(TARIFAS.filter(Boolean)) : azPrecio.de([null, 0]);
-    if (pagoFijo) conPrecioPropio++;
+    // null, 0 o negativo (mal cargado) es "no cargado", en la app y en la base.
+    const pagoFijo = azPrecio.si(0.25) ? azPrecio.de(TARIFAS.filter(Boolean)) : azPrecio.de([null, 0, -50]);
+    if (pagoFijo > 0) conPrecioPropio++;
     const filas = [];
     if (azPrecio.si(0.35)) filas.push({ familia_id: idF, ninera_id: idN, pago_hora: azPrecio.de(TARIFAS.filter(Boolean)) });
     if (azPrecio.si(0.15)) filas.push({ familia_id: idFam(i + 1), ninera_id: idN, pago_hora: azPrecio.de(TARIFAS.filter(Boolean)) });

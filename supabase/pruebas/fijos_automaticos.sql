@@ -161,6 +161,12 @@ insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_i
   -- Carla tiene precio, pero con otra familia: la tarifa de la Familia Tres.
   ('a0000000-0000-4000-8000-000000000009', 'f0000000-0000-4000-8000-000000000003', 'e0000000-0000-4000-8000-000000000003', 'Carla Supuesta',
    '["L","M","X","J","V","S","D"]', '16:00', '19:00', pg_temp.hoy(), 'sitting', null),
+  -- Precio del fijo negativo (mal cargado): no cuenta, como en la app; el de Ana con la familia.
+  ('a0000000-0000-4000-8000-000000000011', 'f0000000-0000-4000-8000-000000000003', 'e0000000-0000-4000-8000-000000000001', 'Ana Ficticia',
+   '["L","M","X","J","V","S","D"]', '16:00', '19:00', pg_temp.hoy(), 'sitting', -50),
+  -- Precio del fijo negativo y sin niñera vinculada: la tarifa de la familia.
+  ('a0000000-0000-4000-8000-000000000012', 'f0000000-0000-4000-8000-000000000003', null, 'Elsa Externa',
+   '["L","M","X","J","V","S","D"]', '16:00', '19:00', pg_temp.hoy(), 'sitting', -50),
   -- Sin niñera vinculada (solo el nombre): la tarifa de la familia.
   ('a0000000-0000-4000-8000-000000000010', 'f0000000-0000-4000-8000-000000000003', null, 'Dora Externa',
    '["L","M","X","J","V","S","D"]', '16:00', '19:00', pg_temp.hoy(), 'sitting', null);
@@ -169,11 +175,13 @@ select pg_temp.verificar('pago del fijo: el precio propio del fijo gana (3 x 230
 select pg_temp.verificar('pago del fijo: sin precio propio, el de la niñera con esa familia (3 x 250)', (select count(*) = 14 and bool_and(pago_ninera = 750 and cobro_familia = 900) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000008'));
 select pg_temp.verificar('pago del fijo: precio de la niñera con otra familia no cuenta (3 x 200)', (select count(*) = 14 and bool_and(pago_ninera = 600 and cobro_familia = 900) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000009'));
 select pg_temp.verificar('pago del fijo: sin niñera vinculada, la tarifa de la familia (3 x 200)', (select count(*) = 14 and bool_and(pago_ninera = 600 and cobro_familia = 900) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000010'));
+select pg_temp.verificar('pago del fijo: precio del fijo negativo no cuenta, el de la niñera (3 x 250)', (select count(*) = 14 and bool_and(pago_ninera = 750) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000011'));
+select pg_temp.verificar('pago del fijo: precio del fijo negativo y sin niñera, la tarifa (3 x 200)', (select count(*) = 14 and bool_and(pago_ninera = 600) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000012'));
 -- Cambia el precio de Ana con la familia: se recalculan sus previstos, no los del fijo con precio propio.
 update precios_ninera_familia set pago_hora = 260 where familia_id = 'f0000000-0000-4000-8000-000000000003' and ninera_id = 'e0000000-0000-4000-8000-000000000001';
 select pg_temp.correr();
-select pg_temp.verificar('precio de la niñera nuevo: recalcula solo los 14 que lo usan', pg_temp.ultimo('actualizados') = 14
-  and (select bool_and(pago_ninera = 780) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000008')
+select pg_temp.verificar('precio de la niñera nuevo: recalcula solo los 28 que lo usan', pg_temp.ultimo('actualizados') = 28
+  and (select bool_and(pago_ninera = 780) from sittings_traslados where asignacion_id in ('a0000000-0000-4000-8000-000000000008', 'a0000000-0000-4000-8000-000000000011'))
   and (select bool_and(pago_ninera = 690) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000007'));
 
 -- La app (rol authenticated) puede llamar la función; anon no.
