@@ -56,7 +56,7 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
    - Diego pidió el corte en el 1/10. Lo dejamos en el **1/9**, como el panel de hoy: 18 de las 26 niñeras
      al día cargaron su temporada el 29 y el 30/9/2026 (el formulario sale a fin de setiembre) y con el 1/10
      quedarían como "temporada anterior". Hoy ninguna activa tiene una temporada de un año anterior, así que
-     el cambio del filtro no esconde a nadie el día que se publica. (Para que Diego lo confirme.)
+     el cambio del filtro no esconde a nadie el día que se publica. Confirmado por Diego (31/10/2026).
 3. "Todo el verano en Punta", de la 2da de diciembre a la 2da de febrero: OK.
 4. Avisos obligatorios sin "Ahora no", con "Seguir sin avisos" y el aviso rojo: OK.
 5. Decisiones 2, 3 y 5 del constructor: OK.
@@ -133,7 +133,7 @@ hoy (filtro de Niñeras, panel de temporadas, ficha) y a las admins no se les pi
 - Precarga (Diego, 31/10/2026): si está al día, lo que devuelve `ninera_mi_temporada`. Si no, las 8 de
   diciembre a marzo vacías (ninguna opción marcada) y las 16 del resto del año en Montevideo ("punta" si vive
   solo en zonas de afuera: decisión del constructor, para que las que viven en Punta no desaparezcan del
-  filtro de Punta de abril a noviembre). "Guardar" con alguna de diciembre a marzo vacía no guarda: marca las
+  filtro de Punta de abril a noviembre; confirmado por Diego, 31/10/2026). "Guardar" con alguna de diciembre a marzo vacía no guarda: marca las
   que faltan y dice "Te falta marcar X quincenas". Estando al día, guardar sin cambios cuenta como
   confirmada.
 - Pensada primero para 390 px: las 5 opciones como botones grandes en una fila que se ajusta (no un

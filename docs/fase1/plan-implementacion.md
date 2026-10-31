@@ -1191,7 +1191,7 @@ admins por las que tienen app. Además, los avisos pasan a ser obligatorios al e
   `temporada`, url `#temporada`, textos de `textos.md` 1. `programar_avisos()` la suma.
 - [x] Migración, DESHACER, pruebas (aplicar → deshacer → aplicar, y el DESHACER con datos) y
   `schema.sql`. Todas las pruebas de `supabase/pruebas/*.sql` pasan con PGlite.
-- [ ] Commit `Etapa 9: migración de la temporada en la app y sus pruebas`.
+- [x] Commit `Etapa 9: migración de la temporada en la app y sus pruebas`.
 - [ ] Diego revisa la migración (SQL y consulta de verificación). Se aplica recién con su OK, el día del
   merge (ver 9.6).
 
