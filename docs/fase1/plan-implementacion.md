@@ -1100,6 +1100,9 @@ Después de la revisión del plan con un lector fresco (31/10/2026):
   `#pedido/<id>`.
 - Los botones de días que no puede con el dedo (área de toque) y el teclado de "Otro motivo".
 - "Pegar WhatsApp" pegando desde WhatsApp en el iPhone (texto con saltos y emojis de la madre).
+- Un pedido de práctica de punta a punta (Diego, 31/10/2026): pegar un WhatsApp inventado de "Familia (práctica)",
+  ticket, "Elegir niñeras", "Enviar a 1" a "Niñera (práctica)", el push en el iPhone de Diego, "Puedo", el aviso
+  "aceptó" a las admins, el modal de la solicitud con "Puede" y "Asignar". Repetir con "No puedo" y días.
 
 ### Contrato de `ordenarSugeridas` (lo usa Codex para la entrada desde WhatsApp y la conciliación)
 ```
@@ -1388,6 +1391,10 @@ pedidos como el chat. Nada de montos fuera del precio por hora.
 - [ ] Revisión final de toda la rama con un revisor fresco (Opus). Correr `npm test` completo y las pruebas SQL.
 - [ ] PR con: qué hace, archivos nuevos, la migración y sus funciones, el contrato de `ordenarSugeridas` (para
   Codex), los tests viejos que se adaptaron, lo pendiente y la lista para el iPhone.
+- [ ] Antes del día del merge (Diego, 31/10/2026; lo carga una admin desde el panel, sin SQL): la niñera de
+  práctica pasa a llamarse con "(práctica)" (por ejemplo "Niñera (práctica)"; no tiene registros, fijos ni pedidos)
+  y se crea "Familia (práctica)" con dirección inventada, tarifa y al menos un chico cargado uno por uno. Claude lo
+  verifica con una consulta de lectura.
 - [ ] Con el OK de Diego: él corre la migración en el SQL Editor y la consulta de verificación; después se
   publica `pedido-whatsapp` (verificar con `get_edge_function` y una prueba con `probar: true` y un mensaje
   inventado); recién ahí el merge.
