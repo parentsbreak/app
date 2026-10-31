@@ -333,6 +333,13 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/solicitud-un-paso.spec.js`: "+ Nueva solicitud" con niñera opcional y los dos precios por hora
   (precargados, cambiados a mano, sin hora de fin, traslado por viaje, lista según el tipo, fallas al
   cargar la niñera o el registro, doble reserva, doble toque, 390 px) y el pago por hora en las tarjetas.
+- `tests/precio-ninera-familia.spec.js` (31/10/2026): el precio de cada niñera con cada familia al registrar
+  (Sittings, "+ Nueva solicitud", "Asignar niñera", el día de un fijo, el reemplazo, alinear el de hoy, "Otra
+  hora" y "Fue otra" del Cierre de los fijos), la casilla "Guardar como precio de...", lectura que falla, base
+  sin la tabla, doble toque y escape. `tests/precio-ninera-ficha.spec.js`: "Precio por niñera" en la ficha de la
+  familia (agregar con precarga, par repetido, editar y borrar con otra admin, previstos, Realtime) y "Precio
+  por familia" en la de la niñera. En la base: `supabase/pruebas/precios_ninera_familia.sql`, y los fijos con
+  precio de niñera en `fijos_automaticos.sql` y `paridad_plata.sql`.
 - `tests/ninera-cuenta.spec.js`: puerta de niñeras (`ninera/`): el simulador, invitación (bienvenida,
   errores de la función, link para cambiar la contraseña), login con el celular escrito de cualquier
   forma, instalar, avisos, inicio vacío, sesiones separadas de las dos puertas, cuenta inactiva, que
@@ -716,6 +723,17 @@ reporte.
   porcentajes y al final las sumas, sin centavos (`aplicarVariantes`, core.js; en la base,
   `precio_con_variantes`). Los campos de cobro y pago del registro son la base; se guarda con las
   variantes y en `precio_variantes` la base y cuáles se aplicaron, copiadas tal cual.
+- Precio por niñera (31/10/2026, respuestas de Diego): `precios_ninera_familia`, un pago por hora por par
+  familia + niñera (la familia paga siempre su tarifa). El pago por hora sale de `precioHoraNinera` (core.js;
+  en la base `pago_hora_ninera` y `generar_previstos_fijos`): el del fijo (`asignaciones.pago_hora` > 0, solo
+  para su propia niñera: `pagoFijoDeNinera`), si no el de la niñera con esa familia, si no la tarifa. Un
+  reemplazo de un día cobra su propio precio. Las variantes van después, sobre esa base. Los precios se leen
+  por familia o por par (`leerPreciosNinera`: null si falló); si la tabla existe y la lectura falló, nada crea
+  ni pisa un pago con la tarifa en silencio (`preciosNoLeidos`); sin la tabla, todo como antes. Al tipear otro
+  pago, "Guardar como precio de [niñera] con esta familia" viene tildada solo si no tenía precio
+  (`casillaPrecioNinera`). Un fijo que cambia de niñera no copia `pago_hora`. Guardar un precio recalcula los
+  previstos si el par tiene un fijo vigente (`recalcularPrevistosDelPar`). Se cargan y editan en la ficha de
+  la familia (con la condición de `actualizado_en`).
 - Pagos a niñeras: "Por pagar" no muestra sittings con fecha futura (E7) y marcar pagado
   siempre pasa por `confirmarPagoSittings()` con el detalle y el total (E3). La semana de una
   fija va de lunes a sábado y se paga el sábado; lo que se trabaja un domingo, fijo o puntual, se
@@ -883,8 +901,11 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
 - Borrar una familia borra sus fijos en cascada (FK `ON DELETE CASCADE`): conviene baja lógica.
   "Descartar" una candidata es un DELETE físico: decidido (21/10/2026) que pase al estado
   `descartada`; va en el PR de Postulantes del rediseño.
-- `asignaciones.cobro_hora/pago_hora` se guardan pero solo `sospechasDelMes` las usa: decidir una
-  sola fuente del precio del fijo.
+- `asignaciones.cobro_hora` se guarda pero solo `sospechasDelMes` la usa (`pago_hora` ya manda en los días
+  del fijo desde el 31/10/2026): decidir una sola fuente del cobro del fijo.
+- Precio por niñera (31/10/2026): `familias.pago_hora` en 0 o negativo da pago 0 en la base y null (sin
+  pago) en la app; unificar. "Fue otra" (Cierre de los fijos, `guardarReemplazoAuto`) actualiza sin la
+  condición `.eq('pagado', false)`.
 - Sittings no está en `RT_RECARGA_LIVIANA` (agenda.js): el propio guardado reconstruye el módulo y
   pierde los filtros del historial.
 - `reescribirZonasConTexto` / `refrescarTrasCambioDeZonas` (core.js, 27/10/2026): al corregir una zona
