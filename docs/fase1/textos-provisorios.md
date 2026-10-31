@@ -138,3 +138,12 @@ Avisos obligatorios al entrar a la app (31/10/2026):
 - "Android: mantén apretado el ícono de la app > Información de la app > Notificaciones > actívalas."
 - Botón "Ya los activé" (vuelve a probar; si siguen apagados, "Los avisos siguen apagados. Actívalos en
   Ajustes.") y el mismo link "Seguir sin avisos".
+
+La temporada en la app (31/10/2026, textos nuevos, a confirmar con las dueñas):
+- Tarjeta del inicio sin cargar: "¿Dónde vas a estar esta temporada?" / "Marca dónde vas a estar cada
+  quincena. Te lleva un minuto." y botón "Marcar". Al día: "Tu temporada", un renglón por lugar
+  ("Punta del Este: enero y febrero completos") o "Toda la temporada en Montevideo.", y botón "Cambiar".
+- Pantalla: "Ver el resto del año" / "Ocultar el resto del año", "Todo el verano en Punta", "¿Dónde?".
+- Errores: "Te falta marcar 1 quincena." / "Te falta marcar N quincenas.", "Escribe dónde vas a estar.",
+  "No pudimos guardar tu temporada. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos abrir tu
+  temporada. Revisa tu conexión a internet y vuelve a intentar." Al guardar: "¡Listo! Guardamos tu temporada."

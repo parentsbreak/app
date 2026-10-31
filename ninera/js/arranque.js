@@ -5,7 +5,7 @@
 // La pantalla que pidió el link con que se abrió la app (30/10/2026): el push del chat abre
 // ".../ninera/#chat". Se guarda antes de arrancar porque el login, instalar o los avisos cambian el
 // hash; después de esas puertas se va ahí en vez del inicio, una sola vez.
-let rutaPedidaAlAbrir = ['#chat', '#mis-avisos'].includes(location.hash) ? location.hash : null;
+let rutaPedidaAlAbrir = ['#chat', '#mis-avisos', '#temporada'].includes(location.hash) ? location.hash : null;
 // Ya pasó todas las puertas de arriba con esta sesión: recién ahí un cambio de hash (un push con la
 // app abierta, chat.js) puede llevarla a otra pantalla.
 let puertasPasadasNinera = false;

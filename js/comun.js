@@ -245,3 +245,54 @@ async function achicarFoto(file, ladoMax=800, calidad=0.82){
     } finally { URL.revokeObjectURL(url); }
   }catch(e){ return file; }
 }
+
+/* Quincenas de la temporada (etapa 9, 31/10/2026): las usan el panel (Niñeras) y la app de niñeras
+   (ninera/js/temporada.js), por eso viven acá y no en ninieras.js. Una quincena q es el mes (q >> 1) y
+   la primera (par) o la segunda (impar) de ese mes, sin año. */
+const TEMP_MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
+function textoQuincenas(qs){
+  // "Todo el año" / "enero y febrero completos, 1ra quincena de marzo"
+  const set = new Set(qs);
+  if(!set.size) return 'No va';
+  if(set.size===24) return 'Todo el año';
+  const partes = [];
+  let m = 0;
+  while(m<12){
+    if(set.has(m*2) && set.has(m*2+1)){
+      let fin = m;
+      while(fin+1<12 && set.has((fin+1)*2) && set.has((fin+1)*2+1)) fin++;
+      partes.push(fin===m ? TEMP_MESES_LARGO[m] : `${TEMP_MESES_LARGO[m]} a ${TEMP_MESES_LARGO[fin]}`);
+      m = fin+1;
+    } else {
+      if(set.has(m*2)) partes.push(`1ra quincena de ${TEMP_MESES_LARGO[m]}`);
+      if(set.has(m*2+1)) partes.push(`2da quincena de ${TEMP_MESES_LARGO[m]}`);
+      m++;
+    }
+  }
+  return partes.join(', ');
+}
+
+// Los lugares que puede marcar una niñera en cada quincena (temporada_lugares). "Otro" lleva su texto.
+const LUGARES_TEMPORADA = { montevideo: 'Montevideo', punta: 'Punta del Este', la_paloma: 'La Paloma', fuera_pais: 'Fuera del país', otro: 'Otro' };
+
+// Un renglón por cada lugar distinto de Montevideo, en el orden Punta, La Paloma, Fuera del país y
+// después cada "Otro" por su texto ("Otro (Rocha)"), con sus quincenas. Sin escapar: escapa quien lo
+// pinta. Vacío si todo es Montevideo.
+function resumenLugaresTemporada(lugares){
+  const por = new Map();
+  for(let q=0; q<24; q++){
+    const v = lugares ? lugares[String(q)] : null;
+    let clave = null;
+    if(typeof v === 'string' && v !== 'montevideo' && LUGARES_TEMPORADA[v] && v !== 'otro') clave = v;
+    else if(v && typeof v === 'object' && typeof v.otro === 'string') clave = 'otro:' + v.otro;
+    if(clave === null) continue;
+    if(!por.has(clave)) por.set(clave, []);
+    por.get(clave).push(q);
+  }
+  const orden = ['punta', 'la_paloma', 'fuera_pais'];
+  const claves = [...orden.filter(k => por.has(k)), ...[...por.keys()].filter(k => k.startsWith('otro:'))];
+  return claves.map(k => ({
+    etiqueta: k.startsWith('otro:') ? `Otro (${k.slice(5)})` : LUGARES_TEMPORADA[k],
+    quincenas: por.get(k),
+  }));
+}

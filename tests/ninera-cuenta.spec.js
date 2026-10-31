@@ -159,8 +159,10 @@ function llamadasFuncion(e) {
 function loginsPedidos(e) {
   return e.escrituras.filter(w => w.tabla === '/auth/v1/token' && /grant_type=password/.test(w.params || ''));
 }
+// Sin la lectura de la tarjeta de la temporada (etapa 9, 31/10/2026): llega sin frenar nada y se
+// prueba en tests/ninera-temporada.spec.js; acá contaría de más según cuándo llegue.
 function rpcLlamadas(e) {
-  return e.escrituras.filter(w => w.tabla.startsWith('rpc/')).map(w => w.tabla.slice(4));
+  return e.escrituras.filter(w => w.tabla.startsWith('rpc/') && w.tabla !== 'rpc/ninera_mi_temporada').map(w => w.tabla.slice(4));
 }
 // Los próximos sittings del inicio (etapa 2, 27/10/2026) se piden sin frenar lo de arriba: antes de
 // contar las RPC, que hayan llegado.

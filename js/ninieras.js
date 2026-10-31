@@ -1492,7 +1492,6 @@ function descargarMensajeCV(id){
    confirmar con un toque que se repite lo del año pasado.
    ============================================================ */
 const TEMP_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
-const TEMP_MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
 const TEMP_TODAS = Array.from({length:24}, (_,i)=>i);
 let ninFiltroMeses = new Set(); // meses (0-11) elegidos en el filtro "Cuándo"
 let ninTempAbierto = false;
@@ -1605,28 +1604,6 @@ function coberturaPeriodo(n, zonaKeys, qs){
   }
   return si===qs.length ? 'todo' : (si>0 ? 'parte' : 'nada');
 }
-function textoQuincenas(qs){
-  // "Todo el año" / "enero y febrero completos, 1ra quincena de marzo"
-  const set = new Set(qs);
-  if(!set.size) return 'No va';
-  if(set.size===24) return 'Todo el año';
-  const partes = [];
-  let m = 0;
-  while(m<12){
-    if(set.has(m*2) && set.has(m*2+1)){
-      let fin = m;
-      while(fin+1<12 && set.has((fin+1)*2) && set.has((fin+1)*2+1)) fin++;
-      partes.push(fin===m ? TEMP_MESES_LARGO[m] : `${TEMP_MESES_LARGO[m]} a ${TEMP_MESES_LARGO[fin]}`);
-      m = fin+1;
-    } else {
-      if(set.has(m*2)) partes.push(`1ra quincena de ${TEMP_MESES_LARGO[m]}`);
-      if(set.has(m*2+1)) partes.push(`2da quincena de ${TEMP_MESES_LARGO[m]}`);
-      m++;
-    }
-  }
-  return partes.join(', ');
-}
-
 /* ---- Editor: una tira de 24 quincenas por grupo de zona "fuera" ---- */
 function htmlEditorTemporada(prefix, grupos, temporada, opts={}){
   if(!grupos.length) return '';

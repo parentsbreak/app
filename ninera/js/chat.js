@@ -256,9 +256,9 @@ document.addEventListener('visibilitychange', () => {
 // marcarRuta() usa replaceState, que no dispara este evento.
 window.addEventListener('hashchange', ev => {
   const pedida = location.hash;
-  if(pedida !== '#chat' && pedida !== '#mis-avisos') return;
+  if(pedida !== '#chat' && pedida !== '#mis-avisos' && pedida !== '#temporada') return;
   const anterior = new URL(ev.oldURL).hash;
-  if(puertasPasadasNinera && nineraIdSesion && ['#inicio', '#chat', '#mis-avisos'].includes(anterior)) irA(pedida);
+  if(puertasPasadasNinera && nineraIdSesion && ['#inicio', '#chat', '#mis-avisos', '#temporada'].includes(anterior)) irA(pedida);
   else marcarRuta(anterior);
 });
 

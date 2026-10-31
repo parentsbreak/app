@@ -186,3 +186,26 @@ button.aviso-item:hover{border-color:var(--accent);}
 .modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:none;background:var(--bg);color:var(--ink-soft);font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--ease), color var(--ease);}
 .modal-close:hover{background:var(--clay-soft);color:var(--clay-text);}
 .modal-titulo{font-size:22px;margin:0 0 16px;padding-right:40px;}
+
+/* ---- Temporada (etapa 9, 31/10/2026, temporada.js) ----
+   Una fila por quincena con cinco botones que se acomodan en dos renglones en el celular (tres y dos),
+   de 48 px de alto como mínimo para el dedo. La elegida va llena; la que falta marcar, con borde rojo. */
+.tarjeta-temporada{background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);padding:16px;margin-bottom:18px;}
+.tarjeta-temporada h2{font-size:20px;margin:0 0 4px;}
+.tarjeta-temporada .helper{font-size:15px;margin:4px 0 12px;}
+.temp-resumen{margin:6px 0 14px;padding-left:20px;font-size:15.5px;line-height:1.5;overflow-wrap:anywhere;}
+.pantalla .helper{font-size:15px;}
+.pantalla > .btn.ghost.ancho{margin-bottom:6px;}
+.temp-filas{margin-top:14px;}
+.temp-filas[hidden]{display:none;}
+.temp-fila{padding:12px 0;border-bottom:1px solid var(--line);}
+.temp-fila.falta{border-left:4px solid var(--bad);padding-left:10px;}
+.temp-fila-titulo{margin:0 0 8px;font-size:15px;font-weight:700;color:var(--ink);}
+.temp-opciones{display:flex;flex-wrap:wrap;gap:8px;}
+.temp-op{flex:1 1 calc(33% - 8px);min-width:96px;min-height:48px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font:600 15px 'Inter',sans-serif;color:var(--ink);cursor:pointer;transition:border-color var(--ease), background var(--ease);}
+.temp-op:hover{border-color:var(--accent);}
+.temp-op[aria-pressed="true"]{background:#666EAE;border-color:#666EAE;color:#fff;}
+.temp-otro{margin-top:10px;}
+.temp-otro[hidden]{display:none;}
+.pantalla .temp-otro input[type=text]{padding:13px 14px;min-height:50px;border-radius:10px;}
+#temp-resto-boton{margin-bottom:0;}
