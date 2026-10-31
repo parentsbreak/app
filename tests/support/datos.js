@@ -25,6 +25,13 @@ const ID = {
   avAna: '94000000-0000-4000-8000-000000000001',
   avAnaChat: '94000000-0000-4000-8000-000000000002',
   avCarlaChat: '94000000-0000-4000-8000-000000000003',
+  // Pedido por la app (etapa 5, 02/11/2026): solo los carga datosPedidos().
+  fPractica: '20000000-0000-4000-8000-000000000003',
+  nPractica: '30000000-0000-4000-8000-000000000004',
+  uPractica: '00000000-0000-4000-8000-000000000004',
+  sUno: '80000000-0000-4000-8000-000000000002',
+  sPracticaHoy: '80000000-0000-4000-8000-000000000003',
+  sPractica: '80000000-0000-4000-8000-000000000004',
 };
 
 function sitting(id, fecha, extra = {}) {
@@ -122,6 +129,7 @@ function datosBase() {
     // Configuración de la app de niñeras (fase 1): días que dura un link de invitación.
     app_config: [
       { id: 'ninieras_app', valor: { vigencia_dias: 7 }, actualizado_at: '2026-10-01T00:00:00Z' },
+      { id: 'pedidos_app', valor: { min_mismo_dia: 15, min_otro_dia: 30, recordatorio_min_antes: 10, aviso_sin_ninera_horas: 3, solo_practica: true }, actualizado_at: '2026-10-01T00:00:00Z' },
     ],
     notificaciones_leidas: [],
     notif_push_preferencias: [],
@@ -134,6 +142,10 @@ function datosBase() {
     // Precio por hora de una niñera con una familia (01/11/2026): vacío; cada test carga los suyos.
     precios_ninera_familia: [],
     ninera_invitaciones: [],
+    // Etapa 5 (02/11/2026): los días que las niñeras marcaron que no pueden, y la configuración que
+    // deja la migración (solo_practica prendido: por la app solo salen pedidos de práctica; un test que
+    // manda pedidos reales lo apaga a mano, ver tests/simulador-pedidos.spec.js).
+    ninera_no_disponible: [],
     // Chat (etapa 3, 30/10/2026): el hilo de Ana con una admin, el último sin leer por Ana, y un
     // mensaje de Carla que las admins todavía no leyeron. Todo antes del reloj de los tests
     // (04/10 a las 12:00 de Montevideo): lo que se manda en un test queda después.
@@ -155,4 +167,22 @@ function datosBase() {
   };
 }
 
-module.exports = { datosBase, sitting, ID };
+// Lo de la etapa 5 (pedido por la app), aparte para no mover los tests que cuentan niñeras o familias:
+// una niñera "(práctica)" con app, una "Familia (práctica)" con un chico y dos solicitudes suyas (una
+// para hoy y otra para el 06/10) y una de Familia Prueba Uno (con dos chicos). Familia Prueba Dos
+// (sin chicos cargados) y Carla (con app), Ana (sin app) y Bruno (Traslados) ya están en datosBase.
+function datosPedidos() {
+  const d = datosBase();
+  d.familias.push({ id: ID.fPractica, nombre: 'Familia (práctica)', zona: 'Pocitos', telefono: '099000090', ninos: null, notas: null, created_at: '2026-09-01T00:00:00Z', direccion: 'Calle Inventada 1', cuenta_bancaria: [], cobro_hora: 380, pago_hora: 250, frecuencia_cobro: 'mensual', contactada_riesgo_en: null, terminos_aceptados_el: null });
+  d.hijos_familia.push({ id: '21000000-0000-4000-8000-000000000003', familia_id: ID.fPractica, nombre: 'Chico Inventado', fecha_nacimiento: '2022-03-01', colegio: null, orden: 1, created_at: '2026-09-01T00:00:00Z', edad_declarada: null, edad_declarada_en: null });
+  d.ninieras.push({ ...d.ninieras.find(n => n.id === ID.nCarla), id: ID.nPractica, nombre: 'Niñera (práctica)', telefono: '099000091', zona: 'Pocitos', tipo: 'Niñera', temporada_token: '60000000-0000-4000-8000-000000000004', user_id: ID.uPractica, foto_propuesta_ruta: null, foto_propuesta_en: null });
+  const sol = (id, familia, nombre, fecha, extra = {}) => ({ id, familia_id: familia, familia_nombre: nombre, tipo: 'sitting', zona: null, fecha, hora_inicio: '20:00:00', hora_fin: '23:00:00', cobro_familia: null, estado: 'sin_asignar', notas: null, created_at: '2026-10-01T00:00:00Z', termina_dia_siguiente: false, ...extra });
+  d.solicitudes.push(
+    sol(ID.sUno, ID.fUno, 'Familia Prueba Uno', '2026-10-06', { zona: 'Pocitos' }),
+    sol(ID.sPracticaHoy, ID.fPractica, 'Familia (práctica)', '2026-10-04', { zona: 'Pocitos' }),
+    sol(ID.sPractica, ID.fPractica, 'Familia (práctica)', '2026-10-06', { zona: 'Pocitos' }),
+  );
+  return d;
+}
+
+module.exports = { datosBase, datosPedidos, sitting, ID };
