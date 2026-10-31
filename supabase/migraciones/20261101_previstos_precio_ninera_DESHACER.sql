@@ -1,6 +1,7 @@
 -- Deshace 20261101_previstos_precio_ninera.sql: generar_previstos_fijos() vuelve a pagar los
--- sittings fijos siempre con la tarifa de la familia (familias.pago_hora), como antes, y el
--- comentario de precios_ninera_familia vuelve al de 20261031_precios_ninera_familia.sql. No toca
+-- sittings fijos siempre con la tarifa de la familia (familias.pago_hora), como antes,
+-- pago_hora_ninera() vuelve al cuerpo de 20261031 (nullif de la tarifa) y el comentario de
+-- precios_ninera_familia vuelve al de 20261031_precios_ninera_familia.sql. No toca
 -- filas: los previstos que nadie tocó se recalculan solos en la próxima corrida. Va antes que
 -- 20261031_precios_ninera_familia_DESHACER.sql si se deshacen las dos.
 begin;
@@ -160,5 +161,20 @@ grant execute on function public.generar_previstos_fijos(integer) to authenticat
 
 comment on table public.precios_ninera_familia is
   'Pago por hora de una niñera con una familia (regla 2). Manda sobre familias.pago_hora en los sittings puntuales; los fijos siguen con lo suyo. Solo admins.';
+
+create or replace function public.pago_hora_ninera(p_familia_id uuid, p_ninera_id uuid)
+ returns numeric
+ language sql
+ stable
+ set search_path to 'public'
+as $function$
+  select coalesce(
+    (select p.pago_hora from public.precios_ninera_familia p
+      where p.familia_id = p_familia_id and p.ninera_id = p_ninera_id),
+    (select nullif(f.pago_hora, 0) from public.familias f where f.id = p_familia_id)
+  )
+$function$;
+revoke execute on function public.pago_hora_ninera(uuid, uuid) from public, anon;
+grant execute on function public.pago_hora_ninera(uuid, uuid) to authenticated;
 
 commit;

@@ -184,6 +184,23 @@ select pg_temp.verificar('precio de la niñera nuevo: recalcula solo los 28 que 
   and (select bool_and(pago_ninera = 780) from sittings_traslados where asignacion_id in ('a0000000-0000-4000-8000-000000000008', 'a0000000-0000-4000-8000-000000000011'))
   and (select bool_and(pago_ninera = 690) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000007'));
 
+-- Cambio de niñera desde una fecha (01/11/2026): el fijo se cierra el día antes y se abre otro. Hasta
+-- esa fecha paga con lo de Carla (sin precio con la Familia Tres: la tarifa); desde ahí, con el
+-- precio de Ana con esa familia (260, el de arriba).
+insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_inicio, hora_fin, vigente_desde, tipo) values
+  ('a0000000-0000-4000-8000-000000000013', 'f0000000-0000-4000-8000-000000000003', 'e0000000-0000-4000-8000-000000000003', 'Carla Supuesta',
+   '["L","M","X","J","V","S","D"]', '09:00', '11:00', pg_temp.hoy(), 'sitting');
+select pg_temp.correr();
+select pg_temp.verificar('fijo de Carla: 14 días con la tarifa (2 x 200)', (select count(*) = 14 and bool_and(pago_ninera = 400 and cobro_familia = 600) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000013'));
+update asignaciones set vigente_hasta = pg_temp.hoy() + 6 where id = 'a0000000-0000-4000-8000-000000000013';
+insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_inicio, hora_fin, vigente_desde, tipo) values
+  ('a0000000-0000-4000-8000-000000000014', 'f0000000-0000-4000-8000-000000000003', 'e0000000-0000-4000-8000-000000000001', 'Ana Ficticia',
+   '["L","M","X","J","V","S","D"]', '09:00', '11:00', pg_temp.hoy() + 7, 'sitting');
+select pg_temp.correr();
+select pg_temp.verificar('cambio de niñera desde hoy+7: borra 8 y crea 8', pg_temp.ultimo('borrados') = 8 and pg_temp.ultimo('creados') = 8);
+select pg_temp.verificar('antes de hoy+7, Carla con la tarifa (2 x 200)', (select count(*) = 6 and bool_and(pago_ninera = 400 and fecha < pg_temp.hoy() + 7) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000013'));
+select pg_temp.verificar('desde hoy+7, Ana con su precio con la familia (2 x 260)', (select count(*) = 8 and bool_and(pago_ninera = 520 and cobro_familia = 600 and fecha >= pg_temp.hoy() + 7) from sittings_traslados where asignacion_id = 'a0000000-0000-4000-8000-000000000014'));
+
 -- La app (rol authenticated) puede llamar la función; anon no.
 select pg_temp.verificar('authenticated puede ejecutar', has_function_privilege('authenticated', 'public.generar_previstos_fijos(integer)', 'execute'));
 select pg_temp.verificar('anon no puede ejecutar', not has_function_privilege('anon', 'public.generar_previstos_fijos(integer)', 'execute'));

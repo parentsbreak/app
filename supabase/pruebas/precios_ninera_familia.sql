@@ -56,7 +56,9 @@ insert into ninieras (id, nombre, telefono, user_id) values
 insert into familias (id, nombre, cobro_hora, pago_hora) values
   ('e3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 400, 250),
   ('e3000000-0000-4000-8000-000000000002', 'Familia Prueba Dos', 400, null),
-  ('e3000000-0000-4000-8000-000000000003', 'Familia Prueba Tres', 400, 0);
+  ('e3000000-0000-4000-8000-000000000003', 'Familia Prueba Tres', 400, 0),
+  -- Tarifa negativa (mal cargada, 01/11/2026): no cuenta, como en la app (precioHoraNinera).
+  ('e3000000-0000-4000-8000-000000000004', 'Familia Prueba Cuatro', 400, -50);
 
 -- ---------------------------------------------------------------------------
 -- Como la admin
@@ -89,6 +91,8 @@ select pg_temp.verificar('pago_hora_ninera sin fila: la tarifa de la familia',
 select pg_temp.verificar('pago_hora_ninera sin fila y sin tarifa (null o 0): null',
   public.pago_hora_ninera('e3000000-0000-4000-8000-000000000002', 'e2000000-0000-4000-8000-000000000001') is null
   and public.pago_hora_ninera('e3000000-0000-4000-8000-000000000003', 'e2000000-0000-4000-8000-000000000001') is null);
+select pg_temp.verificar('pago_hora_ninera sin fila y con tarifa negativa: null (como precioHoraNinera)',
+  public.pago_hora_ninera('e3000000-0000-4000-8000-000000000004', 'e2000000-0000-4000-8000-000000000001') is null);
 select pg_temp.verificar('pago_hora_ninera con ids nulos o inexistentes: null, sin error',
   public.pago_hora_ninera(null, null) is null
   and public.pago_hora_ninera('e3000000-0000-4000-8000-000000000099', 'e2000000-0000-4000-8000-000000000001') is null);

@@ -1231,8 +1231,9 @@ function aplicarVariantes(baseCobro, basePago, aplicadas){
    no la tarifa de la familia; si no hay ninguno, null. precios: filas {familia_id, ninera_id,
    pago_hora}; pagoFijo y las tarifas pueden llegar como texto de un campo ("300"). No calcula el
    pago del sitting: se le pasa a precioSegunHorario la familia con este pago_hora. En la base, la
-   misma regla está en el pago de generar_previstos_fijos y, sin el precio del fijo, en
-   pago_hora_ninera(): si cambia una, cambian todas (las compara supabase/pruebas/paridad_plata.sql). */
+   misma regla está en el pago de generar_previstos_fijos (lo compara con esta función
+   supabase/pruebas/paridad_plata.sql) y, con el mismo orden pero sin el precio del fijo, en
+   pago_hora_ninera() (supabase/pruebas/precios_ninera_familia.sql): si cambia una, cambian todas. */
 function precioHoraNinera(familia, nineraId, precios, pagoFijo){
   // Number(null) y Number('') dan 0: un campo vacío o en 0 es "no cargado".
   const positivo = x => Number(x) > 0 ? Number(x) : null;

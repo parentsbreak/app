@@ -9,11 +9,12 @@
 -- Es la misma regla que precioHoraNinera() en js/core.js; las compara
 -- supabase/pruebas/paridad_plata.sql.
 --
--- Cambia solo generar_previstos_fijos(): el pago de los sittings fijos. Los traslados, el cobro a
+-- De generar_previstos_fijos() cambia solo el pago de los sittings fijos. Los traslados, el cobro a
 -- la familia, los redondeos, los términos, las variantes y la guardia de admin quedan iguales.
 -- Antes de esto la función usaba siempre la tarifa de la familia (ignoraba asignaciones.pago_hora).
 -- También corrige el comentario de precios_ninera_familia, que decía que los fijos seguían con lo
--- suyo.
+-- suyo, y alinea pago_hora_ninera() con la app: una tarifa de la familia en 0 o negativa no cuenta
+-- (antes solo el 0, con nullif). Misma firma; con tarifas positivas da lo mismo que antes.
 --
 -- Compatible con la app publicada: la misma firma y lo mismo que devuelve. Un fijo sin precio
 -- propio y cuya niñera no tiene fila con esa familia paga exactamente lo de antes. En producción
@@ -189,6 +190,23 @@ revoke execute on function public.generar_previstos_fijos(integer) from public, 
 grant execute on function public.generar_previstos_fijos(integer) to authenticated;
 
 comment on table public.precios_ninera_familia is
-  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si está cargado), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
+  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si es mayor que 0), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
+
+-- pago_hora_ninera (01/11/2026): la tarifa de la familia solo si es mayor que 0, como
+-- precioHoraNinera() (la fila ya es mayor que 0 por el check de la tabla).
+create or replace function public.pago_hora_ninera(p_familia_id uuid, p_ninera_id uuid)
+ returns numeric
+ language sql
+ stable
+ set search_path to 'public'
+as $function$
+  select coalesce(
+    (select p.pago_hora from public.precios_ninera_familia p
+      where p.familia_id = p_familia_id and p.ninera_id = p_ninera_id),
+    (select case when f.pago_hora > 0 then f.pago_hora end from public.familias f where f.id = p_familia_id)
+  )
+$function$;
+revoke execute on function public.pago_hora_ninera(uuid, uuid) from public, anon;
+grant execute on function public.pago_hora_ninera(uuid, uuid) to authenticated;
 
 commit;

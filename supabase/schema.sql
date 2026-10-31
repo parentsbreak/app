@@ -715,7 +715,7 @@ create table public.precios_ninera_familia (
   constraint precios_ninera_familia_nota_check check (nota is null or char_length(nota) <= 200)
 );
 comment on table public.precios_ninera_familia is
-  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si está cargado), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
+  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si es mayor que 0), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
 
 create table public.ajustes_saldo (
   id uuid default gen_random_uuid() not null,
@@ -1456,8 +1456,9 @@ revoke execute on function public.redondear_cobro(numeric) from public, anon, au
 -- va vacío. Es la misma regla que precioSegunHorario() en js/sittings.js (lo prueba
 -- supabase/pruebas/paridad_plata.sql): si cambia una, cambia la otra.
 -- El pago por hora de una niñera con una familia (31/10/2026): su fila de precios_ninera_familia o,
--- si no hay, la tarifa de la familia. Null si no hay ninguno de los dos (o si quien pregunta no las
--- puede ver: es invoker). La misma regla que precioHoraNinera() en js/core.js.
+-- si no hay, la tarifa de la familia si es mayor que 0 (01/11/2026: un 0 o un negativo no cuenta).
+-- Null si no hay ninguno de los dos (o si quien pregunta no las puede ver: es invoker). La misma
+-- regla que precioHoraNinera() en js/core.js, sin el precio del fijo.
 create or replace function public.pago_hora_ninera(p_familia_id uuid, p_ninera_id uuid)
  returns numeric
  language sql
@@ -1467,7 +1468,7 @@ as $function$
   select coalesce(
     (select p.pago_hora from public.precios_ninera_familia p
       where p.familia_id = p_familia_id and p.ninera_id = p_ninera_id),
-    (select nullif(f.pago_hora, 0) from public.familias f where f.id = p_familia_id)
+    (select case when f.pago_hora > 0 then f.pago_hora end from public.familias f where f.id = p_familia_id)
   )
 $function$;
 revoke execute on function public.pago_hora_ninera(uuid, uuid) from public, anon;
