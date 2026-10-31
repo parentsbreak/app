@@ -121,6 +121,8 @@ function datosBase() {
     intermediaciones_eventos: [],
     intermediaciones_eventos_ninieras: [],
     variantes_precio: [],
+    // Precio por hora de una niñera con una familia (01/11/2026): vacío; cada test carga los suyos.
+    precios_ninera_familia: [],
     ninera_invitaciones: [],
     // Chat (etapa 3, 30/10/2026): el hilo de Ana con una admin, el último sin leer por Ana, y un
     // mensaje de Carla que las admins todavía no leyeron. Todo antes del reloj de los tests

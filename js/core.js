@@ -1241,6 +1241,45 @@ function precioHoraNinera(familia, nineraId, precios, pagoFijo){
   const fila = nineraId && familia?.id ? (precios||[]).find(p => p && p.familia_id===familia.id && p.ninera_id===nineraId) : null;
   return positivo(fila?.pago_hora) ?? positivo(familia?.pago_hora);
 }
+/* Dónde se usa (01/11/2026, tarea B): Sittings, la Agenda y el Cierre de los fijos leen los precios
+   con una consulta por familia (o por par) cuando hace falta, nunca una por fila. Sin la tabla (base
+   sin la migración) o con un error de lectura, todo sigue como antes: la tarifa de la familia.
+   Devuelve las filas, o null si no se pudo leer (así la casilla de guardar no supone que la niñera no
+   tiene precio y lo pisa); precioHoraNinera toma null como "sin filas". */
+let preciosNineraDisponible = true; // false si la base no tiene la tabla: no se vuelve a pedir
+async function leerPreciosNinera(familiaId, nineraId=null){
+  if(!familiaId || !preciosNineraDisponible) return [];
+  let q = sb.from('precios_ninera_familia').select('familia_id,ninera_id,pago_hora').eq('familia_id', familiaId);
+  if(nineraId) q = q.eq('ninera_id', nineraId);
+  const { data, error } = await q;
+  if(error){ if(esFaltaTabla(error)) preciosNineraDisponible = false; return null; }
+  return data || [];
+}
+// El precio propio de un fijo es de su niñera (respuestas de Diego, 31/10/2026): un reemplazo de un
+// día o la niñera nueva de un fijo no lo usan, cobran el suyo con esa familia. Sin ids (fijos viejos),
+// por el nombre.
+function pagoFijoDeNinera(a, nineraId, nineraNombre){
+  if(!a) return null;
+  const esSuya = a.ninera_id ? a.ninera_id===nineraId : (!!nineraNombre && normaliza(a.ninera_nombre||'')===normaliza(nineraNombre));
+  return esSuya ? (a.pago_hora ?? null) : null;
+}
+/* "Guardar como precio de [niñera] con esta familia" al registrar (respuesta 3 de Diego): se guarda
+   después del registro, así si falla el registro igual queda y el aviso dice qué faltó. Si esa niñera
+   tiene un fijo vigente con esa familia, sus días previstos se recalculan (el fijo sin precio propio
+   paga con este). Devuelve el error o null. */
+async function guardarPrecioNineraFamilia({familiaId, nineraId, pagoHora, nueva}){
+  const fila = { familia_id: familiaId, ninera_id: nineraId, pago_hora: pagoHora };
+  if(nueva) fila.creado_por = registradoPorUsuario() || null; // en un cambio no se pisa quién la cargó
+  const { error } = await sb.from('precios_ninera_familia').upsert(fila, { onConflict: 'familia_id,ninera_id' });
+  if(error) return error;
+  await esperarConfigFijos();
+  if(fijosAutomaticosActivos){
+    const { data: fijos } = await sb.from('asignaciones').select('id,vigente_hasta').eq('familia_id', familiaId).eq('ninera_id', nineraId);
+    const hoy = todayISO();
+    if((fijos||[]).some(a=>!a.vigente_hasta || a.vigente_hasta >= hoy)) await sincronizarPrevistosFijos();
+  }
+  return null;
+}
 // "Traslado $1.018 + gastos $427 = $1.445". Delfi no veía que la comida se sumaba aparte, la
 // metió en el precio y quedó cobrada dos veces (13/10/2026). Sin gastos devuelve ''.
 function textoTotalConGastos(etiqueta, base, gastos){

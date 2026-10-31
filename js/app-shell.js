@@ -408,6 +408,7 @@ async function loadDashboardData(){
           .forEach(a=>previstos.push({
             fecha, ninera_nombre: a.ninera_nombre, familia_nombre: a.familias?.nombre || '', hora_inicio: a.hora_inicio, hora_fin: a.hora_fin, esFijo: true,
             asignacion_id: a.id, tipo: tipoAsignacion(a), cobro_traslado: a.cobro_traslado ?? null, pago_traslado: a.pago_traslado ?? null,
+            ninera_id: a.ninera_id ?? null, pago_hora: a.pago_hora ?? null,
           }));
       });
     }
@@ -692,7 +693,9 @@ async function marcarAutoNoFue(id){
 }
 /* "Otra hora" (21/10/2026): la hora de entrada y la de fin reales de ese día. En un sitting, el
    cobro y el pago se recalculan con la tarifa de la familia y las reglas de siempre
-   (precioSegunHorario: términos y redondeo); en un traslado solo cambia la hora. */
+   (precioSegunHorario: términos y redondeo); en un traslado solo cambia la hora. El pago por hora
+   (01/11/2026) es el de un día de fijo: el precio propio del fijo si lo hizo su niñera, si no el de
+   la niñera de ese día con esa familia, si no la tarifa (precioHoraNinera). */
 let dashOtraHoraFamilia = null;
 async function abrirOtraHoraAuto(id){
   const r = dashAutoConfirmados.find(x=>x.id===id);
@@ -700,10 +703,16 @@ async function abrirOtraHoraAuto(id){
   if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
   dashOtraHoraFamilia = null;
   if(r.tipo!=='traslado' && r.familia_id){
-    // Sin la tarifa se guardaría la hora nueva con el precio viejo: mejor no abrir.
-    const { data, error } = await leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id));
-    if(error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
-    dashOtraHoraFamilia = (data||[])[0] || null;
+    // Sin la tarifa se guardaría la hora nueva con el precio viejo: mejor no abrir. La familia, los
+    // precios de esa niñera y el del fijo, juntos.
+    const [{ data, error }, precios, fijo] = await Promise.all([
+      leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
+      r.ninera_id ? leerPreciosNinera(r.familia_id, r.ninera_id) : [],
+      r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
+    ]);
+    if(error || fijo.error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
+    const fam = (data||[])[0] || null;
+    dashOtraHoraFamilia = fam && { ...fam, pago_hora: precioHoraNinera(fam, r.ninera_id || null, precios, pagoFijoDeNinera(fijo.data, r.ninera_id || null, r.ninera_nombre)) };
   }
   const esSitting = r.tipo!=='traslado';
   abrirModal(`
@@ -894,6 +903,8 @@ async function cargarSittingDesdePendiente(item){
     cobro: traslado ? item.cobro_traslado ?? null : null,
     pago: traslado ? item.pago_traslado ?? null : null,
     notas: item.asignacion_id ? `${traslado?'Traslado':'Sitting'} fijo — cargado desde "Sittings sin registrar"` : 'Cargado desde "Sittings sin registrar"',
+    // El precio propio del fijo (01/11/2026): el pago sale con él mientras la niñera sea la del fijo.
+    fijo: item.asignacion_id && !traslado ? { ninera_id: item.ninera_id ?? null, ninera_nombre: item.ninera_nombre, pago_hora: item.pago_hora ?? null } : null,
   };
   await setModulo('sittings');
   abrirModalSitForm();

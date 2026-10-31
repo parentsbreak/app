@@ -159,7 +159,8 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *   baseSinMigrar: true simula la base ANTES de la migración del 05/10/2026 (asignaciones
  *     sin vigencia/tipo, sin tabla sittings_historial) y de las siguientes (familias sin
  *     terminos_aceptados_el, 20/10/2026; ninieras sin las columnas de la etapa 2, 27/10/2026;
- *     sin chat_mensajes ni avisos, 30/10/2026), con los mismos errores que Supabase.
+ *     sin chat_mensajes ni avisos, 30/10/2026; sin precios_ninera_familia, 01/11/2026), con los mismos
+ *     errores que Supabase.
  *     'etapa3' simula la base con todo menos la migración de la etapa 3 (sin chat_mensajes ni
  *     avisos): es como va a estar producción entre que se publica la app y se aplica la migración.
  */
@@ -409,7 +410,7 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       }
       return route.fulfill({ json: resultado });
     }
-    if ((baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores'].includes(tabla))
+    if ((baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores', 'precios_ninera_familia'].includes(tabla))
       || tablasSinMigrar.includes(tabla)) {
       return route.fulfill({ status: 404, json: { code: 'PGRST205', message: `Could not find the table 'public.${tabla}' in the schema cache` } });
     }
