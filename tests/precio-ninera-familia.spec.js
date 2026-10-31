@@ -86,7 +86,7 @@ test.describe('Sittings: el pago por hora de la niñera con esa familia', () => 
     await page.fill('#sit-pago', '800');
     await page.fill('#sit-ninera', 'Carla Ejemplo');
     await expect(page.locator('#sit-pago')).toHaveValue('800');
-    await expect(page.locator('#sit-precio-sugerido')).toContainText('pago $900');
+    await expect(page.locator('#sit-precio-sugerido')).toContainText('Con este horario y el precio de Carla Ejemplo con esta familia: pago $900.');
     await page.locator('#sit-precio-sugerido button', { hasText: 'Usar el nuevo monto ($900)' }).click();
     await expect(page.locator('#sit-pago')).toHaveValue('900');
     verificarLimpio(e);
@@ -504,13 +504,16 @@ test.describe('Cierre de los fijos: "Otra hora"', () => {
   }
 });
 
-test('si no se pueden leer los precios: la tarifa y sin la casilla (no pisa un precio guardado)', async ({ page }) => {
+const avisoNoLeido = nombre => `No se pudo leer el precio de ${nombre} con esta familia: el pago va con la tarifa. Revisalo o probá de nuevo.`;
+test('si no se pueden leer los precios: la tarifa con el aviso a la vista y sin la casilla (no pisa un precio guardado)', async ({ page }) => {
   const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fUno, ID.nCarla, 300)] }) });
   // La lectura de la tabla falla (la base responde con error); el resto anda.
   await page.route(/precios_ninera_familia/, r => r.request().method() === 'GET'
     ? r.fulfill({ status: 500, json: { code: 'XX000', message: 'falla simulada' } }) : r.fallback());
   await nuevoSitting(page);
   await expect(page.locator('#sit-pago')).toHaveValue('750');
+  // La admin no se acuerda del precio de cada niñera: tiene que ver que no se leyó (revisión final, I2).
+  await expect(page.locator('#sit-precios-aviso .warnbox')).toHaveText(avisoNoLeido('Carla Ejemplo'));
   await pagoPorHora(page);
   await page.fill('#sit-pago-hora', '280');
   await expect(page.locator('#sit-pago')).toHaveValue('840');
@@ -518,6 +521,20 @@ test('si no se pueden leer los precios: la tarifa y sin la casilla (no pisa un p
   await guardarSit(page);
   await expect(page.locator('#editmodal')).toHaveCount(0);
   expect(escrituras(e, 'precios_ninera_familia', 'POST')).toEqual([]);
+  verificarLimpio(e, { ignorar: [/status of 500/] });
+});
+
+test('Sittings: el aviso se va cuando una lectura de los precios sale bien', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fUno, ID.nCarla, 300)] }) });
+  await fallarLecturaPrecios(page);
+  await nuevoSitting(page);
+  await expect(page.locator('#sit-precios-aviso .warnbox')).toHaveText(avisoNoLeido('Carla Ejemplo'));
+  await page.fill('#sit-ninera', 'Ana Ficticia'); // con otra niñera el aviso es de ella (la lectura sigue fallando)
+  await expect(page.locator('#sit-precios-aviso .warnbox')).toHaveText(avisoNoLeido('Ana Ficticia'));
+  await page.unroute(/precios_ninera_familia/);
+  await page.fill('#sit-ninera', 'Carla Ejemplo'); // elegir la niñera vuelve a probar la lectura, ahora sale bien
+  await expect(page.locator('#sit-pago')).toHaveValue('900');
+  await expect(page.locator('#sit-precios-aviso')).toBeEmpty();
   verificarLimpio(e, { ignorar: [/status of 500/] });
 });
 
@@ -797,6 +814,201 @@ test.describe('escape: niñera con nombre tramposo', () => {
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
     await expect(page.locator('#editmodal')).toHaveCount(0);
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, ninera_nombre: TRAMPOSO, pago_ninera: 900 });
+    verificarLimpio(e);
+  });
+});
+
+/* ---------------- Arreglos de la revisión final (31/10/2026) ---------------- */
+test.describe('lectura de precios que falla: la tarifa con el aviso a la vista (I2)', () => {
+  test('"+ Nueva solicitud": aviso con la niñera elegida; una lectura que sale bien lo saca', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    await fallarLecturaPrecios(page);
+    await nuevaSolicitud(page);
+    await expect(page.locator('#agenda-pago-hora')).toHaveValue('260');
+    await expect(page.locator('#agenda-precios-aviso')).toBeEmpty(); // sin niñera no hay precio que leer
+    await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
+    await expect(page.locator('#agenda-precios-aviso .warnbox')).toHaveText(avisoNoLeido('Ana Ficticia'));
+    await expect(page.locator('#agenda-pago-hora')).toHaveValue('260');
+    await page.unroute(/precios_ninera_familia/);
+    await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo'); // vuelve a probar la lectura: sale bien
+    await expect(page.locator('#agenda-precios-aviso')).toBeEmpty();
+    await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
+    await expect(page.locator('#agenda-pago-hora')).toHaveValue('300');
+    await expect(page.locator('#agenda-precios-aviso')).toBeEmpty();
+    verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+
+  test('"Asignar niñera": aviso con el nombre de la elegida y el pago con la tarifa', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    await fallarLecturaPrecios(page);
+    await irAModulo(page, 'agenda');
+    await page.evaluate(i => abrirModalAsignar(i), SOL_DOS);
+    await elegirEnAsignarFinal(page, ID.nAna);
+    await expect(page.locator('#agenda-asignar-pago')).toHaveValue('780'); // 3 h a $260, la tarifa
+    await expect(page.locator('#agenda-asignar-precio-aviso .warnbox')).toHaveText(avisoNoLeido('Ana Ficticia'));
+    await elegirEnAsignarFinal(page, ID.nCarla);
+    await expect(page.locator('#agenda-asignar-precio-aviso .warnbox')).toHaveText(avisoNoLeido('Carla Ejemplo'));
+    await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_ninera: 780 });
+    verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+
+  test('"Asignar niñera" con los precios leídos: sin aviso', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    await irAModulo(page, 'agenda');
+    await page.evaluate(i => abrirModalAsignar(i), SOL_DOS);
+    await elegirEnAsignarFinal(page, ID.nAna);
+    await expect(page.locator('#agenda-asignar-pago')).toHaveValue('900');
+    await expect(page.locator('#agenda-asignar-precio-aviso')).toBeEmpty();
+    verificarLimpio(e);
+  });
+});
+const SOL_DOS = '80000000-0000-4000-8000-000000000001'; // Familia Dos, martes 06/10, 20 a 23, sin asignar
+async function elegirEnAsignarFinal(page, nineraId) {
+  const mas = page.locator('#editmodal button', { hasText: '+ Niñeras' });
+  if (await mas.isVisible()) await mas.click();
+  await page.locator(`#editmodal input[name="agenda-asignar-ninera"][value="${nineraId}"]`).check();
+}
+
+test('"Asignar niñera": la familia es la del pedido (por id), aunque le hayan cambiado el nombre (M5)', async ({ page }) => {
+  const d = datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] });
+  d.solicitudes.find(s => s.id === SOL_DOS).familia_nombre = 'Familia Dos (nombre viejo)';
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'agenda');
+  await page.evaluate(i => abrirModalAsignar(i), SOL_DOS);
+  await elegirEnAsignarFinal(page, ID.nAna);
+  await expect(page.locator('#agenda-asignar-pago')).toHaveValue('900'); // 3 h a $300, su precio con la Familia Dos
+  await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+  expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ familia_id: ID.fDos, ninera_id: ID.nAna, pago_ninera: 900 });
+  verificarLimpio(e);
+});
+
+test.describe('niñera escrita entera sin tocar la lista: su id y su precio (M2)', () => {
+  test('Agenda, "Registrar reemplazo"', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fUno, ID.nCarla, 290)], fijo: { pago_hora: 320 } }) });
+    await irAModulo(page, 'agenda');
+    await page.evaluate(i => { abrirModalSolicitud(i); mostrarExcepcionAsignacionFija(i); mostrarReemplazoFijoHoy(i); }, `asig:${ID.aFijo}@2026-10-05`);
+    await page.fill('#agenda-fija-reemplazo-ninera', 'carla ejemplo'); // sin tildes ni mayúsculas, sin elegir de la lista
+    await page.locator('#editmodal button', { hasText: 'Registrar reemplazo' }).click();
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, ninera_nombre: 'Carla Ejemplo', pago_ninera: 870 });
+    verificarLimpio(e);
+  });
+
+  test('Cierre de los fijos, "Fue otra"', async ({ page }) => {
+    const MIE30 = 'a1000000-0000-4000-8000-000000000030';
+    const d = datosCon({ precios: [precio(ID.fUno, ID.nCarla, 290)], fijo: { pago_hora: 320 }, fijosAutomaticos: true });
+    d.sittings_traslados = d.sittings_traslados.map(s => ({ ...s, estado: 'confirmado', generado_automatico: false, revisado_at: null }));
+    d.sittings_traslados.push(sitting(MIE30, '2026-09-30', { asignacion_id: ID.aFijo, estado: 'confirmado', generado_automatico: true, revisado_at: null, pago_ninera: 960 }));
+    const e = await abrirApp(page, { datos: d });
+    await page.locator('.autoconf-card button', { hasText: 'Fue otra' }).click();
+    await page.locator('#autoconf-ninera').fill('carla ejemplo');
+    await page.locator('#autoconf-ninera').blur(); // la lista se esconde al salir del campo
+    await expect(page.locator('#autoconf-ninera-dropdown')).toBeHidden();
+    await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    const [cambio] = escrituras(e, 'sittings_traslados', 'PATCH');
+    expect(cambio.cuerpo).toMatchObject({ ninera_nombre: 'Carla Ejemplo', ninera_id: ID.nCarla, pago_ninera: 870 });
+    verificarLimpio(e);
+  });
+});
+
+test.describe('"Guardar como precio de..." sin centavos, como la ficha (M3)', () => {
+  test('Sittings', async ({ page }) => {
+    const e = await abrirApp(page);
+    await nuevoSitting(page);
+    await pagoPorHora(page);
+    await page.fill('#sit-pago-hora', '280.5');
+    await expect(casilla(page)).toBeChecked();
+    await guardarSit(page);
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1);
+    expect(escrituras(e, 'precios_ninera_familia', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_hora: 280 });
+    verificarLimpio(e);
+  });
+
+  test('"+ Nueva solicitud"', async ({ page }) => {
+    const e = await abrirApp(page);
+    await nuevaSolicitud(page);
+    await page.fill('#agenda-pago-hora', '310.5');
+    await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo');
+    await expect(page.locator('#agenda-guardar-precio')).toBeChecked();
+    await guardarSolicitud(page);
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1);
+    expect(escrituras(e, 'precios_ninera_familia', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_hora: 310 });
+    verificarLimpio(e);
+  });
+});
+
+test.describe('"+ Nueva solicitud": la tarifa enseguida, el precio de la niñera cuando llega (M4)', () => {
+  // La lectura de los precios tarda: mientras tanto el campo ya tiene la tarifa.
+  async function lecturaLenta(page, ms) {
+    await page.route(/precios_ninera_familia/, async r => {
+      if (r.request().method() === 'GET') await new Promise(res => setTimeout(res, ms));
+      return r.fallback();
+    });
+  }
+  test('se precarga con la tarifa antes de leer y se corrige con su precio al llegar', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    await lecturaLenta(page, 1500);
+    await irAModulo(page, 'agenda');
+    await page.locator('button', { hasText: '+ Nueva solicitud' }).click();
+    await page.fill('#agenda-ninera', 'Ana Ficticia');
+    await page.fill('#agenda-familia', 'Familia Prueba Dos');
+    expect(await page.inputValue('#agenda-pago-hora')).toBe('260'); // enseguida, sin esperar la lectura
+    await expect(page.locator('#agenda-pago-hora')).toHaveValue('300'); // llegó: su precio con esta familia
+    verificarLimpio(e);
+  });
+
+  test('lo tipeado mientras se lee no se pisa', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    await lecturaLenta(page, 1000);
+    await irAModulo(page, 'agenda');
+    await page.locator('button', { hasText: '+ Nueva solicitud' }).click();
+    await page.fill('#agenda-ninera', 'Ana Ficticia');
+    await page.fill('#agenda-familia', 'Familia Prueba Dos');
+    await page.fill('#agenda-pago-hora', '320');
+    await page.waitForTimeout(1300);
+    await expect(page.locator('#agenda-pago-hora')).toHaveValue('320');
+    verificarLimpio(e);
+  });
+});
+
+// El precio guardado hoy con un fijo vigente del par (M1): el sitting de hoy del fijo, si lo cargó el
+// proceso y nadie lo tocó, sigue al precio nuevo (alinearRegistroDeHoy). Hoy = lunes 05/10/2026.
+test.describe('precio guardado hoy: el sitting de hoy del fijo (M1)', () => {
+  const AHORA = '2026-10-05T10:00:00-03:00';
+  const HOY = 'a1000000-0000-4000-8000-000000000005';
+  function datosHoy(fila = {}) {
+    const d = datosCon({ fijosAutomaticos: true });
+    d.sittings_traslados = d.sittings_traslados.map(s => ({ ...s, estado: s.estado || 'confirmado', generado_automatico: false, revisado_at: null }));
+    d.sittings_traslados.push(sitting(HOY, '2026-10-05', { asignacion_id: ID.aFijo, estado: 'confirmado', generado_automatico: true, revisado_at: null, registrado_por: 'Automático', pago_ninera: 750, ...fila }));
+    return d;
+  }
+  async function guardarPrecioDeAna(page) {
+    await nuevoSitting(page, { ninera: 'Ana Ficticia' }); // un sitting suelto del sábado 03/10
+    await pagoPorHora(page);
+    await page.fill('#sit-pago-hora', '300');
+    await expect(casilla(page)).toBeChecked();
+    await guardarSit(page);
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+  }
+  test('automático y sin tocar: queda con el precio nuevo', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosHoy(), ahora: AHORA });
+    await guardarPrecioDeAna(page);
+    await expect.poll(() => e.db.sittings_traslados.find(s => s.id === HOY).pago_ninera).toBe(900); // 3 h a $300
+    expect(e.db.sittings_traslados.find(s => s.id === HOY)).toMatchObject({ cobro_familia: 1140, generado_automatico: true });
+    verificarLimpio(e);
+  });
+
+  test('cambiado a mano: no se toca y se avisa', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosHoy({ generado_automatico: false }), ahora: AHORA });
+    await guardarPrecioDeAna(page);
+    await expect(page.locator('.toaststack .toast.bad', { hasText: 'El sitting de hoy' })).toBeVisible();
+    expect(e.db.sittings_traslados.find(s => s.id === HOY).pago_ninera).toBe(750);
     verificarLimpio(e);
   });
 });

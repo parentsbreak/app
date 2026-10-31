@@ -1072,11 +1072,14 @@ async function guardarPrecioNineraFicha(){
   const { data, error } = ui.id
     ? await sb.from('precios_ninera_familia').update(cambios).eq('id', ui.id).eq('actualizado_en', ui.antes).select('id')
     : await sb.from('precios_ninera_familia').insert({ familia_id: ui.familiaId, ninera_id: ui.nineraId, ...cambios, creado_por: registradoPorUsuario() || null });
-  if(ui !== precioNinUi) return;
+  const hecho = ui.id ? 'Precio cambiado' : 'Precio guardado';
+  // Cerró el formulario mientras se guardaba: si el precio se guardó, los previstos se recalculan igual
+  // (solo se saltea lo de pantalla).
+  if(ui !== precioNinUi){ if(!error && (!ui.id || (data || []).length)) await terminarPrecioNinera(ui, hecho, { enPantalla: false }); return; }
   if(error?.code === '23505') return conflictoPrecioNinera(ui, 'Otra admin le cargó un precio a esta niñera recién. Abrilo de nuevo para verlo.');
   if(error){ warn.innerHTML = errBox(error); return; }
   if(ui.id && !(data || []).length) return conflictoPrecioNinera(ui, 'Otra admin cambió este precio. Volvé a abrirlo.');
-  await terminarPrecioNinera(ui, ui.id ? 'Precio cambiado' : 'Precio guardado');
+  await terminarPrecioNinera(ui, hecho);
 }
 async function eliminarPrecioNineraFicha(){
   const ui = precioNinUi;
@@ -1084,7 +1087,7 @@ async function eliminarPrecioNineraFicha(){
   if(!(await confirmarAccion(`¿Borrar el precio de ${ui.nineraNombre} con esta familia?`, 'Borrar el precio'))) return;
   if(ui !== precioNinUi) return;
   const { data, error } = await sb.from('precios_ninera_familia').delete().eq('id', ui.id).eq('actualizado_en', ui.antes).select('id');
-  if(ui !== precioNinUi) return;
+  if(ui !== precioNinUi){ if(!error && (data || []).length) await terminarPrecioNinera(ui, 'Precio borrado', { enPantalla: false }); return; }
   if(error){ document.getElementById('pnf-warn').innerHTML = errBox(error); return; }
   if(!(data || []).length) return conflictoPrecioNinera(ui, 'Otra admin cambió este precio. Volvé a abrirlo.');
   await terminarPrecioNinera(ui, 'Precio borrado');
@@ -1095,12 +1098,15 @@ function conflictoPrecioNinera(ui, texto){
   toast(texto, 'bad');
   pintarPreciosNineraEnFicha(ui.familiaId);
 }
-// Los días previstos de su fijo con esta familia (si tiene) se recalculan ya, como al registrar.
-async function terminarPrecioNinera(ui, hecho){
-  cerrarModalPrecioNinera();
-  toast(hecho + '.');
-  await pintarPreciosNineraEnFicha(ui.familiaId);
-  if(!(await recalcularPrevistosDelPar(ui.familiaId, ui.nineraId))){
-    toast(`${hecho}; si ${ui.nineraNombre} tiene un fijo con esta familia, sus próximos días se actualizan esta noche.`, 'bad');
-  }
+// Los días previstos de su fijo con esta familia (si tiene) se recalculan ya, como al registrar. Un solo
+// aviso: el rojo si no se pudo ver el fijo. enPantalla false: el formulario ya se cerró (Cancelar durante
+// el guardado) y lo que haya abierto ahora no se toca; el Realtime de la ficha repinta la lista.
+async function terminarPrecioNinera(ui, hecho, { enPantalla = true } = {}){
+  if(enPantalla) cerrarModalPrecioNinera();
+  const [previstosOk] = await Promise.all([
+    recalcularPrevistosDelPar(ui.familiaId, ui.nineraId),
+    enPantalla ? pintarPreciosNineraEnFicha(ui.familiaId) : null,
+  ]);
+  if(previstosOk) toast(hecho + '.');
+  else toast(`${hecho}; si ${ui.nineraNombre} tiene un fijo con esta familia, sus próximos días se actualizan esta noche.`, 'bad');
 }

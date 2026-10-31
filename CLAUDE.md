@@ -729,11 +729,15 @@ reporte.
   para su propia niñera: `pagoFijoDeNinera`), si no el de la niñera con esa familia, si no la tarifa. Un
   reemplazo de un día cobra su propio precio. Las variantes van después, sobre esa base. Los precios se leen
   por familia o por par (`leerPreciosNinera`: null si falló); si la tabla existe y la lectura falló, nada crea
-  ni pisa un pago con la tarifa en silencio (`preciosNoLeidos`); sin la tabla, todo como antes. Al tipear otro
+  ni pisa un pago con la tarifa en silencio (`preciosNoLeidos`): el día de un fijo, el reemplazo, alinear el de
+  hoy, "Otra hora" y "Fue otra" avisan y no guardan; Sittings, "+ Nueva solicitud" y "Asignar niñera" van con
+  la tarifa y el aviso a la vista (`avisoPreciosNoLeidosTarifa`), que se va cuando una lectura sale bien
+  (elegir la niñera la vuelve a probar) o cambia la niñera o la familia; sin la tabla, todo como antes. Al tipear otro
   pago, "Guardar como precio de [niñera] con esta familia" viene tildada solo si no tenía precio
-  (`casillaPrecioNinera`). Un fijo que cambia de niñera no copia `pago_hora`. Guardar un precio recalcula los
-  previstos si el par tiene un fijo vigente (`recalcularPrevistosDelPar`). Se cargan y editan en la ficha de
-  la familia (con la condición de `actualizado_en`).
+  (`casillaPrecioNinera`), y se guarda sin centavos (`redondearPago`). Un fijo que cambia de niñera no copia
+  `pago_hora`. Guardar o borrar un precio recalcula los previstos si el par tiene un fijo vigente, y el de hoy
+  sigue al precio nuevo si es automático y nadie lo tocó (`recalcularPrevistosDelPar` → `alinearRegistroDeHoy`).
+  Se cargan y editan en la ficha de la familia (con la condición de `actualizado_en`).
 - Pagos a niñeras: "Por pagar" no muestra sittings con fecha futura (E7) y marcar pagado
   siempre pasa por `confirmarPagoSittings()` con el detalle y el total (E3). La semana de una
   fija va de lunes a sábado y se paga el sábado; lo que se trabaja un domingo, fijo o puntual, se
@@ -906,6 +910,8 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
 - Precio por niñera (31/10/2026): `familias.pago_hora` en 0 o negativo da pago 0 en la base y null (sin
   pago) en la app; unificar. "Fue otra" (Cierre de los fijos, `guardarReemplazoAuto`) actualiza sin la
   condición `.eq('pagado', false)`.
+- `registrarSittingFijoDeHoy` con un previsto ya creado y "Otra hora" pisan cobro y pago sin variantes pero
+  dejan `precio_variantes` como estaba (31/10/2026).
 - Sittings no está en `RT_RECARGA_LIVIANA` (agenda.js): el propio guardado reconstruye el módulo y
   pierde los filtros del historial.
 - `reescribirZonasConTexto` / `refrescarTrasCambioDeZonas` (core.js, 27/10/2026): al corregir una zona

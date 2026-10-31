@@ -826,6 +826,7 @@ async function guardarVariantesAuto(id){
   await cargarConfirmadosAutomaticos();
 }
 let dashReemplazoSel = null;
+let dashReemplazoLista = []; // las niñeras activas de la lista, para buscar el nombre escrito entero
 async function abrirReemplazoAuto(id){
   const r = dashAutoConfirmados.find(x=>x.id===id);
   if(!r) return;
@@ -833,6 +834,7 @@ async function abrirReemplazoAuto(id){
   // La lista se trae ANTES de abrir el modal: si se conectaba después, quien escribía rápido
   // no veía ninguna opción (el autocompletar todavía no estaba enganchado).
   const { data: ninieras } = await sb.from('ninieras').select('id,nombre').eq('activa', true).order('nombre');
+  dashReemplazoLista = ninieras || [];
   abrirModal(`
     <h2 style="margin:0 0 4px;">¿Quién fue en lugar de ${escaparHtml(r.ninera_nombre)}?</h2>
     <div class="helper" style="margin-bottom:12px;">${escaparHtml(r.familia_nombre)} · ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'})}. ${r.tipo==='traslado' ? 'Mismo horario y montos' : 'Mismo horario. Se le paga su precio con esta familia'}; si algo cambió, editalo después en Sittings &amp; traslados.</div>
@@ -855,9 +857,13 @@ async function guardarReemplazoAuto(id){
   if(!nombre){ warn.innerHTML = '<div class="warnbox">Elegí quién fue.</div>'; return; }
   if(normaliza(nombre)===normaliza(r.ninera_nombre)){ warn.innerHTML = '<div class="warnbox">Esa es la niñera que ya figura.</div>'; return; }
   if(r.pagado){ warn.innerHTML = '<div class="warnbox">Ese día ya está marcado como pagado: corregilo desde Sittings &amp; traslados.</div>'; return; }
-  const sel = dashReemplazoSel && normaliza(dashReemplazoSel.nombre)===normaliza(nombre) ? dashReemplazoSel : null;
+  // Elegida de la lista o escrita entera (sin tildes ni mayúsculas), como findNinera en Sittings: si no, se
+  // guardaba sin ninera_id y con la tarifa aunque tuviera su precio (revisión final, 31/10/2026).
+  const sel = (dashReemplazoSel && normaliza(dashReemplazoSel.nombre)===normaliza(nombre) ? dashReemplazoSel : null)
+    || dashReemplazoLista.find(n=>normaliza(n.nombre)===normaliza(nombre)) || null;
+  const nombreFue = sel?.nombre || nombre;
   const cambios = {
-    ninera_nombre: nombre, ninera_id: sel?.id || null, generado_automatico: false,
+    ninera_nombre: nombreFue, ninera_id: sel?.id || null, generado_automatico: false,
     revisado_at: new Date().toISOString(), notas: `Reemplazo de ${r.ninera_nombre}`,
   };
   // Un sitting (01/11/2026, respuesta 2 de Diego): la que fue cobra su precio con esta familia o la
@@ -872,7 +878,7 @@ async function guardarReemplazoAuto(id){
     if(eFam || fijo.error){ warn.innerHTML = '<div class="warnbox">No se pudo leer la tarifa de la familia. Probá de nuevo.</div>'; return; }
     if(preciosNoLeidos(precios)){ warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
     const fam = (fams||[])[0] || null;
-    const pagoHora = Number(precioHoraNinera(fam, sel?.id || null, precios, pagoFijoDeNinera(fijo.data, sel?.id || null, nombre)))||0;
+    const pagoHora = Number(precioHoraNinera(fam, sel?.id || null, precios, pagoFijoDeNinera(fijo.data, sel?.id || null, nombreFue)))||0;
     const horas = horasSitting(r.hora_inicio, r.hora_fin, !!r.termina_dia_siguiente, fam, r.fecha);
     if(pagoHora && horas){
       const pago = redondearPago(horas.real*pagoHora);
@@ -887,7 +893,7 @@ async function guardarReemplazoAuto(id){
   const { error } = await sb.from('sittings_traslados').update(cambios).eq('id', id);
   if(error){ warn.innerHTML = errBox(error); return; }
   cerrarModal();
-  toast(`Listo: ese día figura ${nombre}.`);
+  toast(`Listo: ese día figura ${nombreFue}.`);
   await cargarConfirmadosAutomaticos();
 }
 

@@ -474,8 +474,38 @@ test.describe('ficha de la familia: los días previstos del fijo', () => {
     await guardar(page);
     await expect(modal(page)).toHaveCount(0);
     await expect(toastMalo(page, 'se actualizan esta noche')).toBeVisible();
+    await expect(page.locator('.toaststack .toast')).toHaveCount(1); // un solo aviso, el rojo (sin "Precio guardado." aparte)
     expect(escrituras(e, 'precios_ninera_familia', 'POST')).toHaveLength(1);
     verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+
+  test('"Cancelar" mientras se guarda: si el precio se guardó, los previstos se recalculan igual', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ fijosAutomaticos: true }) });
+    await abrirFicha(page);
+    await agregar(page);
+    await elegirNinera(page, 'ana', 'Ana Ficticia');
+    await page.fill('#pnf-pago', '270');
+    e.demoraEscrituras = 600;
+    await guardar(page);
+    await page.locator('#pnf-cancelar').click();
+    await expect(modal(page)).toHaveCount(0);
+    await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1);
+    await expect.poll(() => llamadasProceso(e).length).toBe(1);
+    await expect(page.locator('.toaststack .toast', { hasText: 'Precio guardado.' })).toBeVisible();
+    verificarLimpio(e);
+  });
+
+  test('"Cancelar" mientras se borra: si se borró, los previstos se recalculan igual', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosCon({ fijosAutomaticos: true, precios: [precio(ID.fUno, ID.nAna, 280)] }) });
+    await abrirFicha(page);
+    await filas(page).first().click();
+    await page.locator('#pnf-borrar').click();
+    e.demoraEscrituras = 600;
+    await page.locator('#confirm-si').click();
+    await page.locator('#pnf-cancelar').click();
+    await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'DELETE').length).toBe(1);
+    await expect.poll(() => llamadasProceso(e).length).toBe(1);
+    verificarLimpio(e);
   });
 });
 
