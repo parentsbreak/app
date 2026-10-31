@@ -3,7 +3,7 @@ let sitFamilias = [];
 let sitNinieras = [];
 let sitItems = [];
 let sitTipo = 'sitting';
-let sitPrefill = null; // {familiaNombre, nineraNombre, fecha, horaInicio, horaFin, tipo, asignacionId, cobro, pago, notas} — precarga el form desde "Sin registrar" en Hoy
+let sitPrefill = null; // {familiaNombre, nineraNombre, fecha, horaInicio, horaFin, tipo, asignacionId, cobro, pago, notas, fijo} — precarga el form desde "Sin registrar" en Hoy
 let sitAsignacionId = null; // fijo del que sale el registro nuevo (vino con sitPrefill): se guarda en asignacion_id
 let sitEsRegistroConocido = false; // true si se está editando uno ya guardado, o si vino con sitPrefill (un fijo/pendiente ya sabido) — controla si tiene sentido mostrar "Este día no hubo servicio"
 let sitPagoModoHora = false; // true = el campo de pago a niñera se tipea por hora (y se calcula el total solo), false = se tipea el total directo
@@ -13,6 +13,11 @@ let sitTeniaVariantes = false; // el registro que se edita tenía variantes de p
 let sitAsignacionVariantes = null; // el fijo del registro, para mostrar las variantes que son solo de ese fijo
 let sitFamiliaSel = null;
 let sitNineraSel = null;
+// Precio por niñera (01/11/2026): los precios de la familia elegida (una lectura por familia) y el
+// precio propio del fijo del registro ({ninera_id, ninera_nombre, pago_hora}), que solo vale con su niñera.
+let sitPrecios = { familiaId: null, filas: null }; // filas: null mientras se leen o si no se pudieron leer
+let sitPagoFijo = null;
+let sitPagoHoraUsado = null; // el pago por hora del último cálculo: cambiar la niñera recalcula solo si cambia
 let sitOrigenAuto = true;
 let sitOrigenCoord = null;
 let sitDestinoCoord = null;
@@ -563,10 +568,12 @@ function sitFormHTML(){
         <input type="number" id="sit-pago" value="0" oninput="calcSitMargen();marcarCampoEditadoManual('sit-pago');refrescarSugerenciaPrecioSit()">
         ${sitTipo==='sitting' ? `<a href="#" id="sit-pago-modo-link" onclick="toggleSitPagoModoHora();return false;" style="display:inline-block;margin-top:5px;font-size:11.5px;color:var(--ink);text-decoration:underline;cursor:pointer;">poner pago por hora</a>` : ''}
         <div id="sit-pago-hora-wrap" style="display:none;margin-top:6px;">
-          <input type="number" id="sit-pago-hora" placeholder="Pago por hora, ej. 280" oninput="onSitPagoHoraInput()">
+          <input type="number" id="sit-pago-hora" placeholder="Pago por hora, ej. 280" oninput="marcarCampoEditadoManual('sit-pago-hora');onSitPagoHoraInput()">
+          <label class="chk chk-largo" id="sit-guardar-precio-wrap" style="display:none;margin:8px 0 0;"><input type="checkbox" id="sit-guardar-precio"> <span id="sit-guardar-precio-txt"></span></label>
         </div>
       </div>
     </div>
+    <div id="sit-precios-aviso"></div>
     <div id="sit-precio-sugerido"></div>
     <div id="sit-sin-tarifa-box"></div>
     <div id="sit-variantes"></div>
@@ -677,8 +684,22 @@ async function abrirModalSitForm(id=null){
   sitAsignacionId = (!r && sitPrefill?.asignacionId) || null;
   sitAsignacionVariantes = r?.asignacion_id || sitAsignacionId;
   sitTipo = r ? r.tipo : (sitPrefill?.tipo==='traslado' ? 'traslado' : 'sitting');
-  sitFamiliaSel = r ? (sitFamilias.find(f=>f.id===r.familia_id) || findFamilia(r.familia_nombre)) : null;
+  sitFamiliaSel = r ? (sitFamilias.find(f=>f.id===r.familia_id) || findFamilia(r.familia_nombre)) : (sitPrefill ? findFamilia(sitPrefill.familiaNombre||'') : null);
   sitNineraSel = r ? (sitNinieras.find(n=>n.id===r.ninera_id) || findNinera(r.ninera_nombre)) : null;
+  // Precio por niñera (01/11/2026): antes de abrir, los precios de esa familia y el precio propio del
+  // fijo, así el pago sale con el de esa niñera y un registro hecho con ese precio no se toma como
+  // puesto a mano. Un registro nuevo en blanco no espera nada (todavía no tiene familia).
+  sitPagoFijo = (!r && sitPrefill?.fijo) || null;
+  sitPrecios = { familiaId: null, filas: null }; // cada vez que se abre se leen de nuevo (otra admin pudo cambiarlos)
+  sitPagoHoraUsado = null;
+  if(sitTipo==='sitting' && (r || sitPrefill)){
+    const [, fijo] = await Promise.all([
+      cargarPreciosSit() || Promise.resolve(),
+      r?.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : null,
+    ]);
+    if(fijo?.data) sitPagoFijo = fijo.data;
+    sitPagoHoraUsado = familiaConPagoSit()?.pago_hora ?? null; // tocar la niñera recalcula solo si cambia este
+  }
   sitOrigenAuto = !r;
   sitOrigenCoord = null; sitDestinoCoord = null;
   abrirModal(sitFormHTML());
@@ -701,7 +722,7 @@ async function abrirModalSitForm(id=null){
       // Lo que no es horas × tarifa se puso a mano: no se pisa si se toca el horario (aparece el
       // calculado para usarlo con un toque). Si coincide, cambiar la hora lo sigue recalculando.
       // Un traslado guardado nunca se pisa con el sugerido por km (actualizarPrecioSugeridoTraslado).
-      const calc = r.tipo==='sitting' ? precioSegunHorario(sitFamiliaSel, r.hora_inicio, r.hora_fin, !!r.termina_dia_siguiente, r.fecha) : {};
+      const calc = r.tipo==='sitting' ? precioSegunHorario(familiaConPagoSit(), r.hora_inicio, r.hora_fin, !!r.termina_dia_siguiente, r.fecha) : {};
       [['sit-cobro', cobroBase, calc.cobro], ['sit-pago', pagoBase, calc.pago]].forEach(([campo, guardado, calculado])=>{
         if(r.tipo!=='sitting' || (Number(guardado) && Number(guardado)!==calculado)) document.getElementById(campo).dataset.tocadoManual = '1';
       });
@@ -751,6 +772,7 @@ async function abrirModalSitForm(id=null){
     refrescarVariantesSit(r ? (r.precio_variantes?.aplicadas || []) : []);
     calcSitMargen();
     refrescarSugerenciaPrecioSit(); // un registro con precio a mano muestra su motivo al abrir
+    pintarAvisoPreciosSit(); // si al abrir no se pudieron leer los precios
     // Después de precargar (lo precargado no cuenta como cambio): borrador y aviso antes de
     // cerrar con cambios (21/10/2026).
     protegerModal('sitting:'+(id || 'nuevo'));
@@ -777,6 +799,7 @@ function setSitTipo(t){
   if(t==='traslado') aplicarDireccionSugerida();
   actualizarPrecioSugeridoTraslado();
   calcSitMargen();
+  pintarGuardarPrecioSit();
 }
 
 /* ---- crear familia/niñera al vuelo ---- */
@@ -789,6 +812,95 @@ function onSitFamiliaInput(){
   if(sitTipo==='traslado') aplicarDireccionSugerida();
   actualizarCobroPagoPorHorario();
   refrescarVariantesSit();
+  // Con otra familia se leen sus precios por niñera y, cuando llegan, se vuelve a calcular.
+  leerPreciosYRecalcularSit();
+  pintarAvisoPreciosSit(); // mientras se leen los de la nueva familia, sin el aviso de la anterior
+}
+/* ---- precio por niñera (01/11/2026) ---- */
+// Lee los precios de la familia elegida una sola vez por familia (o de nuevo si la lectura anterior
+// falló y se pide reintentar). Devuelve la promesa si empezó una lectura nueva, o null si ya estaban
+// (o no hay familia). leida: la lectura terminó (filas null + leida = falló).
+function cargarPreciosSit({ reintentar=false }={}){
+  const fid = sitFamiliaSel?.id || null;
+  const fallo = sitPrecios.leida && preciosNoLeidos(sitPrecios.filas);
+  if(sitPrecios.familiaId===fid && !(reintentar && fallo)) return null;
+  const carga = { familiaId: fid, filas: null, leida: false };
+  sitPrecios = carga;
+  if(!fid) return null;
+  return leerPreciosNinera(fid).then(filas=>{ carga.filas = filas; carga.leida = true; });
+}
+function leerPreciosYRecalcularSit(opciones){
+  const fid = sitFamiliaSel?.id || null;
+  cargarPreciosSit(opciones)?.then(()=>{ if(fid && sitFamiliaSel?.id===fid && document.getElementById('sit-cobro')) recalcularPorNineraSit(); });
+}
+/* La lectura de los precios falló (la tabla existe): el pago va con la tarifa, pero a la vista (revisión
+   final, 31/10/2026). La admin no se acuerda del precio de cada niñera: sin el aviso, 750 en vez de 900
+   pasaba como bueno. No hace falta si el pago sale del precio propio del fijo (no depende de la lectura).
+   Se va cuando una lectura sale bien (elegir la niñera la vuelve a probar) o cambia la familia. */
+function pintarAvisoPreciosSit(){
+  const box = document.getElementById('sit-precios-aviso');
+  if(!box) return;
+  const fid = sitFamiliaSel?.id || null, n = sitNineraSel;
+  const conFijo = Number(pagoFijoDeNinera(sitPagoFijo, n?.id || null, n?.nombre || '')) > 0;
+  const falla = sitTipo==='sitting' && fid && n && !conFijo && sitPrecios.familiaId===fid && sitPrecios.leida && preciosNoLeidos(sitPrecios.filas);
+  box.innerHTML = falla ? `<div class="warnbox" style="margin:0 0 10px;">${escaparHtml(avisoPreciosNoLeidosTarifa(n.nombre))}</div>` : '';
+}
+function preciosDeFamiliaSit(){ return (sitFamiliaSel && sitPrecios.familiaId===sitFamiliaSel.id && sitPrecios.filas) || []; }
+// De dónde sale el pago por hora (para el aviso de "Con este horario y ..."): el mismo orden que precioHoraNinera.
+function origenPagoSit(){
+  const nid = sitNineraSel?.id || null;
+  if(Number(pagoFijoDeNinera(sitPagoFijo, nid, sitNineraSel?.nombre || '')) > 0) return 'el precio del fijo';
+  if(nid && preciosDeFamiliaSit().some(p=>p.ninera_id===nid && Number(p.pago_hora) > 0)) return `el precio de ${sitNineraSel.nombre} con esta familia`;
+  return 'la tarifa de la familia';
+}
+// La familia con el pago por hora de la niñera elegida (precioHoraNinera: el del fijo con su niñera, el
+// de la niñera con esa familia o la tarifa). Es lo que se le pasa a precioSegunHorario.
+function familiaConPagoSit(){
+  if(!sitFamiliaSel) return sitFamiliaSel;
+  const nid = sitNineraSel?.id || null;
+  const pagoFijo = pagoFijoDeNinera(sitPagoFijo, nid, sitNineraSel?.nombre || document.getElementById('sit-ninera')?.value || '');
+  return { ...sitFamiliaSel, pago_hora: precioHoraNinera(sitFamiliaSel, nid, preciosDeFamiliaSit(), pagoFijo) };
+}
+// Cambiar la niñera (o que lleguen los precios) recalcula como cambiar la hora, pero solo si cambia el
+// pago por hora: un registro con precio a mano no pregunta nada si el pago sigue igual.
+function recalcularPorNineraSit(){
+  const pagoH = familiaConPagoSit()?.pago_hora ?? null;
+  if(pagoH!==sitPagoHoraUsado){
+    const horaInput = document.getElementById('sit-pago-hora');
+    if(sitPagoModoHora && horaInput && !horaInput.dataset.tocadoManual) horaInput.value = pagoH ?? '';
+    actualizarCobroPagoPorHorario();
+  }
+  pintarGuardarPrecioSit();
+}
+// "Guardar como precio de [niñera] con esta familia" (respuesta 3 de Diego, 31/10/2026): aparece al
+// tipear a mano otro pago por hora para la niñera elegida (la regla, casillaPrecioNinera en core.js).
+// Con la familia sin tarifa no aparece: ese pago por hora se guarda como tarifa de la familia
+// (guardarSitting).
+function pintarGuardarPrecioSit(){
+  pintarAvisoPreciosSit();
+  const wrap = document.getElementById('sit-guardar-precio-wrap'), chk = document.getElementById('sit-guardar-precio');
+  if(!wrap || !chk) return;
+  const horaInput = document.getElementById('sit-pago-hora');
+  const fid = sitFamiliaSel?.id || null, nid = sitNineraSel?.id || null;
+  const casilla = sitPagoModoHora && sitTipo==='sitting' && Number(sitFamiliaSel?.pago_hora)>0 && !document.getElementById('sit-cancelado')?.checked
+    ? casillaPrecioNinera({ familiaId: fid, nineraId: nid, filas: sitPrecios.familiaId===fid ? sitPrecios.filas : null,
+        valor: horaInput?.value, tocadoManual: !!horaInput?.dataset.tocadoManual, pagoActual: familiaConPagoSit()?.pago_hora })
+    : null;
+  if(!casilla){ wrap.style.display = 'none'; return; }
+  const clave = fid+'|'+nid;
+  if(chk.dataset.par!==clave){ chk.checked = casilla.tildada; chk.dataset.par = clave; }
+  document.getElementById('sit-guardar-precio-txt').textContent = `Guardar como precio de ${sitNineraSel.nombre} con esta familia`;
+  wrap.style.display = '';
+}
+// Lo que hay que guardar al registrar, o null. Sin familia o niñera elegidas de la lista, nada (01/11/2026:
+// cambiar la familia a un nombre nuevo con la casilla a la vista hacía fallar el guardado sin aviso).
+function precioNineraAGuardarSit(){
+  const wrap = document.getElementById('sit-guardar-precio-wrap');
+  if(!sitFamiliaSel?.id || !sitNineraSel?.id) return null;
+  if(!wrap || wrap.style.display==='none' || !document.getElementById('sit-guardar-precio')?.checked) return null;
+  return { familiaId: sitFamiliaSel.id, nineraId: sitNineraSel.id, nineraNombre: sitNineraSel.nombre,
+    pagoHora: redondearPago(document.getElementById('sit-pago-hora').value), // sin centavos, como en la ficha
+    nueva: !preciosDeFamiliaSit().some(p=>p.ninera_id===sitNineraSel.id) };
 }
 // Los botones de variantes de esta familia y el ajuste libre (familias.js). La base es lo que
 // dicen los campos de cobro y pago; lo que se guarda, eso con las variantes (23/10/2026).
@@ -802,6 +914,9 @@ function onSitNineraInput(){
   sitNineraSel = findNinera(val);
   const box = document.getElementById('sit-ninera-create');
   box.innerHTML = (val && !sitNineraSel) ? `<button type="button" class="createbtn" onclick="conGuardado(this, ()=>crearNineraRapida())">+ Crear niñera "${escaparHtml(val)}"</button>` : '';
+  recalcularPorNineraSit(); // cada niñera puede tener su precio con esta familia (01/11/2026)
+  // Si la lectura de los precios había fallado, elegir la niñera la vuelve a probar (31/10/2026).
+  if(sitNineraSel) leerPreciosYRecalcularSit({ reintentar: true });
 }
 /* Madre nueva desde el registro (21/10/2026): la ficha de la familia se completa acá mismo,
    dentro del formulario del sitting. Otro modal reemplazaría a este y se perdería lo cargado
@@ -1422,6 +1537,7 @@ function onSitCanceladoChange(){
     actualizarCobroPagoPorHorario();
   }
   calcSitMargen();
+  pintarGuardarPrecioSit();
 }
 function actualizarCobroPagoPorHorario(){
   const cobroInput = document.getElementById('sit-cobro');
@@ -1429,9 +1545,12 @@ function actualizarCobroPagoPorHorario(){
   const sinTarifaBox = document.getElementById('sit-sin-tarifa-box');
   if(!cobroInput || !pagoInput) return;
   if(document.getElementById('sit-cancelado')?.checked) return; // cancelado manda, no lo pisa el cálculo automático
-  if(sitTipo!=='sitting' || !sitFamiliaSel){ if(sinTarifaBox) sinTarifaBox.innerHTML = ''; pintarFinCobroSit(); return; }
+  if(sitTipo!=='sitting' || !sitFamiliaSel){ if(sinTarifaBox) sinTarifaBox.innerHTML = ''; pintarFinCobroSit(); pintarGuardarPrecioSit(); return; }
+  // El pago por hora es el de la niñera elegida con esta familia (precioHoraNinera, 01/11/2026).
+  const familiaPago = familiaConPagoSit();
+  sitPagoHoraUsado = familiaPago.pago_hora ?? null;
   const cobroH = Number(sitFamiliaSel.cobro_hora)||0;
-  const pagoH = Number(sitFamiliaSel.pago_hora)||0;
+  const pagoH = Number(familiaPago.pago_hora)||0;
   const horaIni = leerHora('sit-horaini');
   const horaFin = leerHora('sit-horafin');
   // Si el usuario está usando "poner pago por hora" a mano para este sitting puntual, ese
@@ -1464,7 +1583,7 @@ function actualizarCobroPagoPorHorario(){
   // Cobro con el fin redondeado si la familia aceptó los términos; pago, con la hora real. Lo
   // puesto a mano no se pisa (auditoría, 21/10/2026: al corregir un minuto de la hora, el precio
   // acordado volvía a horas × tarifa sin avisar): se ofrece el calculado con "Usar estos montos".
-  const calc = precioSegunHorario(sitFamiliaSel, horaIni, horaFin, document.getElementById('sit-cruza-medianoche')?.checked || false, document.getElementById('sit-fecha')?.value);
+  const calc = precioSegunHorario(familiaPago, horaIni, horaFin, document.getElementById('sit-cruza-medianoche')?.checked || false, document.getElementById('sit-fecha')?.value);
   if(sitPagoModoHora) calc.pago = null;
   if(calc.cobro!=null && !cobroInput.dataset.tocadoManual) cobroInput.value = calc.cobro;
   if(calc.pago!=null && !pagoInput.dataset.tocadoManual) pagoInput.value = calc.pago;
@@ -1478,7 +1597,7 @@ function refrescarSugerenciaPrecioSit(){
   if(sitTipo!=='sitting' || !sitFamiliaSel || document.getElementById('sit-cancelado')?.checked) return;
   const horaIni = leerHora('sit-horaini'), horaFin = leerHora('sit-horafin');
   if(!horaIni || !horaFin) return;
-  const calc = precioSegunHorario(sitFamiliaSel, horaIni, horaFin, document.getElementById('sit-cruza-medianoche')?.checked || false, document.getElementById('sit-fecha')?.value);
+  const calc = precioSegunHorario(familiaConPagoSit(), horaIni, horaFin, document.getElementById('sit-cruza-medianoche')?.checked || false, document.getElementById('sit-fecha')?.value);
   if(sitPagoModoHora) calc.pago = null;
   pintarSugerenciaPrecioSit(calc);
 }
@@ -1510,7 +1629,10 @@ function pintarSugerenciaPrecioSit(calc, {elegir=false}={}){
   if(!partes.length){ box.innerHTML = ''; return; }
   const textoUsar = partes.length>1 ? `Usar los nuevos montos (${partes.join(' y ')})` : `Usar el nuevo monto (${plata(cobroNuevo ?? pagoNuevo)})`;
   const botonUsar = `<button type="button" class="smallbtn" onclick="usarPrecioCalculadoSit(${argJs(cobroNuevo)}, ${argJs(pagoNuevo)})">${textoUsar}</button>`;
-  box.innerHTML = `<div class="warnbox" style="margin:0 0 10px;">Con este horario y la tarifa de la familia: ${partes.join(' y ')}. Lo que pusiste a mano no se cambió.
+  // El cobro sale siempre de la tarifa; el pago, del precio del fijo, el de la niñera o la tarifa.
+  const fuentes = [...new Set([cobroNuevo!=null ? 'la tarifa de la familia' : '', pagoNuevo!=null ? origenPagoSit() : ''].filter(Boolean))];
+  const deDonde = fuentes.length>1 ? `, ${fuentes[0]} y ${fuentes[1]}` : ` y ${fuentes[0]}`;
+  box.innerHTML = `<div class="warnbox" style="margin:0 0 10px;">Con este horario${escaparHtml(deDonde)}: ${partes.join(' y ')}. Lo que pusiste a mano no se cambió.
     ${elegir
       ? `<div class="sit-precio-botones" id="sit-precio-elegir">${botonUsar}<button type="button" class="smallbtn" onclick="mantenerPrecioAManoSit()">Mantener el precio a mano</button></div>`
       : `${htmlMotivoPrecio('sit-precio-motivo', sitPrecioMotivo)}<div class="sit-precio-botones">${botonUsar}</div>`}</div>`;
@@ -1543,10 +1665,11 @@ function toggleSitPagoModoHora(){
     pagoInput.style.background = 'var(--bg)';
     horaWrap.style.display = 'block';
     if(link) link.textContent = 'volver a poner el total a mano';
-    if(sitFamiliaSel?.pago_hora){
-      const horaInput = document.getElementById('sit-pago-hora');
-      if(horaInput) horaInput.value = sitFamiliaSel.pago_hora;
-    }
+    // Viene con el pago por hora de esa niñera con esta familia (o la tarifa); lo que se tipee
+    // después ya es a mano.
+    const pagoH = familiaConPagoSit()?.pago_hora;
+    const horaInput = document.getElementById('sit-pago-hora');
+    if(horaInput){ delete horaInput.dataset.tocadoManual; if(pagoH) horaInput.value = pagoH; }
     onSitPagoHoraInput();
   } else {
     pagoInput.readOnly = false;
@@ -1555,6 +1678,7 @@ function toggleSitPagoModoHora(){
     if(link) link.textContent = 'poner pago por hora';
     actualizarCobroPagoPorHorario();
   }
+  pintarGuardarPrecioSit();
 }
 // La fecha decide si rige el redondeo (desde el día que aceptó los términos). En un registro
 // ya guardado solo se actualiza el aviso: su cobro no se pisa por cambiar la fecha.
@@ -1573,6 +1697,7 @@ function pintarFinCobroSit(){
   return horas;
 }
 function onSitPagoHoraInput(){
+  pintarGuardarPrecioSit();
   const horaVal = Number(document.getElementById('sit-pago-hora')?.value)||0;
   const pagoInput = document.getElementById('sit-pago');
   const horaIni = leerHora('sit-horaini');
@@ -1621,6 +1746,9 @@ async function guardarSitting(){
     if(!sitFamiliaSel && !(await confirmarNombreNuevo(familiaNombre, sitFamilias, 'familia'))) return;
     if(!sitNineraSel && !(await confirmarNombreNuevo(nineraNombre, sitNinieras, 'niñera'))) return;
   }
+  // Precio por niñera (01/11/2026): se lee antes de guardar la tarifa de la familia de abajo (con
+  // tarifa nueva la casilla ya no correspondería) y se guarda después del registro.
+  const precioNinera = precioNineraAGuardarSit();
   // Si se usó "poner pago por hora" y esta familia todavía no tenía esa tarifa cargada,
   // la guardamos de una vez -- así la próxima vez, con cualquier niñera, ya calcula sola,
   // sin tener que ir a la ficha de la familia a mano.
@@ -1765,11 +1893,21 @@ async function guardarSitting(){
       else { await sincronizarPrevistosFijos(); toast(falloGastos ? 'La asignación fija se creó.' : 'Registro guardado y asignación fija creada.'); }
       }
     }
-  } else if(!falloGastos){
-    toast(sitEditId ? 'Registro actualizado.' : 'Registro guardado.');
+  }
+  // El precio de la niñera con esta familia va después del registro: si falla, el registro ya quedó y
+  // el aviso dice qué faltó, sin el verde de "Registro guardado".
+  let falloPrecio = false;
+  if(precioNinera){
+    const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'El registro se guardó, pero');
+    falloPrecio = !!aviso;
+    if(aviso) toast(aviso.texto, aviso.tipo);
+  }
+  if(!esFijo && !falloGastos && !falloPrecio){
+    const hecho = sitEditId ? 'Registro actualizado' : 'Registro guardado';
+    toast(precioNinera ? `${hecho} y precio de ${precioNinera.nineraNombre} con esta familia guardado.` : hecho+'.');
   }
   sitEditId = null; sitFamiliaSel = null; sitNineraSel = null; sitOrigenAuto = true; sitTipo = 'sitting'; sitAsignacionId = null; sitPrecioMotivo = '';
-  sitTeniaVariantes = false; sitAsignacionVariantes = null;
+  sitTeniaVariantes = false; sitAsignacionVariantes = null; sitPagoFijo = null;
   cerrarModal();
   cargarSitLista();
 }

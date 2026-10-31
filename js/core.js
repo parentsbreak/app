@@ -1224,6 +1224,104 @@ function aplicarVariantes(baseCobro, basePago, aplicadas){
   const lado = k => (aplicadas||[]).map(a=>a && a[k]).filter(e=>e && e.modo);
   return { cobro: redondearCobro(efectoVariantes(baseCobro, lado('cobro'))), pago: redondearPago(efectoVariantes(basePago, lado('pago'))) };
 }
+/* Pago por hora de una niñera con una familia (31/10/2026, regla 2 de docs/fase1/reglas-del-negocio.md
+   y docs/precio-ninera-familia.md). Lo que cobra la niñera cambia según la familia (cantidad de chicos,
+   antigüedad, fuera de Montevideo) y se guarda por par en precios_ninera_familia. El orden: el precio
+   del fijo (asignaciones.pago_hora, solo si es más que 0), si no el de esa niñera con esa familia, si
+   no la tarifa de la familia; si no hay ninguno, null. precios: filas {familia_id, ninera_id,
+   pago_hora}; pagoFijo y las tarifas pueden llegar como texto de un campo ("300"). No calcula el
+   pago del sitting: se le pasa a precioSegunHorario la familia con este pago_hora. En la base, la
+   misma regla está en el pago de generar_previstos_fijos (lo compara con esta función
+   supabase/pruebas/paridad_plata.sql) y, con el mismo orden pero sin el precio del fijo, en
+   pago_hora_ninera() (supabase/pruebas/precios_ninera_familia.sql): si cambia una, cambian todas. */
+function precioHoraNinera(familia, nineraId, precios, pagoFijo){
+  // Number(null) y Number('') dan 0: un campo vacío o en 0 es "no cargado".
+  const positivo = x => Number(x) > 0 ? Number(x) : null;
+  if(positivo(pagoFijo) != null) return positivo(pagoFijo);
+  const fila = nineraId && familia?.id ? (precios||[]).find(p => p && p.familia_id===familia.id && p.ninera_id===nineraId) : null;
+  return positivo(fila?.pago_hora) ?? positivo(familia?.pago_hora);
+}
+/* Dónde se usa (01/11/2026, tarea B): Sittings, la Agenda y el Cierre de los fijos leen los precios
+   con una consulta por familia (o por par) cuando hace falta, nunca una por fila. Sin la tabla (base
+   sin la migración), todo sigue como antes: la tarifa de la familia. Con un error de lectura, nunca la
+   tarifa en silencio (preciosNoLeidos, abajo).
+   Devuelve las filas, o null si no se pudo leer (así la casilla de guardar no supone que la niñera no
+   tiene precio y lo pisa); precioHoraNinera toma null como "sin filas". */
+let preciosNineraDisponible = true; // false si la base no tiene la tabla: no se vuelve a pedir
+async function leerPreciosNinera(familiaId, nineraId=null){
+  if(!familiaId || !preciosNineraDisponible) return [];
+  let q = sb.from('precios_ninera_familia').select('familia_id,ninera_id,pago_hora').eq('familia_id', familiaId);
+  if(nineraId) q = q.eq('ninera_id', nineraId);
+  const { data, error } = await q;
+  if(error){ if(esFaltaTabla(error)) preciosNineraDisponible = false; return null; }
+  return data || [];
+}
+// La tabla existe pero la lectura falló (01/11/2026, revisión): quien crea o pisa un pago con eso no
+// puede seguir con la tarifa en silencio (le pagaría de menos a una niñera con precio): avisa y no
+// guarda. Sin la tabla (base sin migrar), la tarifa como siempre.
+const AVISO_PRECIOS_NO_LEIDOS = 'No se pudo leer el precio de la niñera con esta familia. Probá de nuevo.';
+function preciosNoLeidos(precios){ return precios===null && preciosNineraDisponible; }
+// Donde el pago queda a la vista y se puede corregir antes de guardar (Sittings, "+ Nueva solicitud" y
+// "Asignar niñera"), se sigue con la tarifa pero con este aviso al lado (revisión final, 31/10/2026).
+function avisoPreciosNoLeidosTarifa(nineraNombre){
+  return `No se pudo leer el precio de ${nineraNombre} con esta familia: el pago va con la tarifa. Revisalo o probá de nuevo.`;
+}
+/* La casilla "Guardar como precio de [niñera] con esta familia" (respuesta 3 de Diego), una sola regla
+   para Sittings y "+ Nueva solicitud": null si no corresponde (sin familia o niñera, precios sin leer,
+   pago no tipeado a mano, cero o igual al que ya le corresponde); si corresponde, {tildada}: solo si
+   esa niñera no tiene precio con esa familia (un precio especial de un día no pisa el guardado). */
+function casillaPrecioNinera({ familiaId, nineraId, filas, valor, tocadoManual, pagoActual }){
+  if(!preciosNineraDisponible || !familiaId || !nineraId || !Array.isArray(filas) || !tocadoManual) return null;
+  const v = Number(valor)||0;
+  if(v<=0 || v===Number(pagoActual)) return null;
+  return { tildada: !filas.some(p=>p.familia_id===familiaId && p.ninera_id===nineraId) };
+}
+// El precio propio de un fijo es de su niñera (respuestas de Diego, 31/10/2026): un reemplazo de un
+// día o la niñera nueva de un fijo no lo usan, cobran el suyo con esa familia. Sin ids (fijos viejos),
+// por el nombre.
+function pagoFijoDeNinera(a, nineraId, nineraNombre){
+  if(!a) return null;
+  const esSuya = a.ninera_id ? a.ninera_id===nineraId : (!!nineraNombre && normaliza(a.ninera_nombre||'')===normaliza(nineraNombre));
+  return esSuya ? (a.pago_hora ?? null) : null;
+}
+/* "Guardar como precio de [niñera] con esta familia" al registrar (respuesta 3 de Diego): se guarda
+   después del registro, así si falla el registro igual queda y el aviso dice qué faltó. Si esa niñera
+   tiene un fijo vigente con esa familia, sus días previstos se recalculan (el fijo sin precio propio
+   paga con este). Devuelve {error} si no se guardó, o {previstosSinActualizar: true} si se guardó pero
+   no se pudo ver si tiene un fijo (los previstos se corrigen solos a la noche). */
+async function guardarPrecioNineraFamilia({familiaId, nineraId, pagoHora, nueva}){
+  const fila = { familia_id: familiaId, ninera_id: nineraId, pago_hora: pagoHora };
+  if(nueva) fila.creado_por = registradoPorUsuario() || null; // en un cambio no se pisa quién la cargó
+  const { error } = await sb.from('precios_ninera_familia').upsert(fila, { onConflict: 'familia_id,ninera_id' });
+  if(error) return { error };
+  return (await recalcularPrevistosDelPar(familiaId, nineraId)) ? {} : { previstosSinActualizar: true };
+}
+// Después de guardar o borrar el precio de una niñera con una familia (al registrar o en la ficha,
+// 01/11/2026): si esa niñera tiene un fijo vigente con esa familia, sus días previstos se recalculan ya
+// (el fijo sin precio propio paga con este). El de hoy (ya confirmado a las 03:00, el proceso no lo
+// vuelve a tocar) sigue al precio nuevo si lo cargó el proceso y nadie lo tocó, con la misma regla que
+// un cambio del fijo desde hoy (alinearRegistroDeHoy, agenda.js; revisión final, 31/10/2026). false si
+// no se pudo ver si tiene un fijo: los previstos se corrigen solos a la noche.
+async function recalcularPrevistosDelPar(familiaId, nineraId){
+  await esperarConfigFijos();
+  if(!fijosAutomaticosActivos) return true;
+  const { data: fijos, error } = await sb.from('asignaciones')
+    .select('id,vigente_hasta,vigente_desde,familia_id,ninera_id,ninera_nombre,tipo,dias,hora_inicio,hora_fin,pago_hora')
+    .eq('familia_id', familiaId).eq('ninera_id', nineraId);
+  if(error) return false;
+  const hoy = todayISO();
+  const vigentes = (fijos||[]).filter(a=>!a.vigente_hasta || a.vigente_hasta >= hoy);
+  if(!vigentes.length) return true;
+  await sincronizarPrevistosFijos();
+  for(const a of vigentes.filter(a=>tipoAsignacion(a)==='sitting')) await alinearRegistroDeHoy(a.id, a, null, { noCancelar: true, queSeGuardo: 'el precio' });
+  return true;
+}
+// El aviso después de guardar el precio: null si salió todo bien, o {texto, tipo}.
+function avisoPrecioGuardado(res, nineraNombre, prefijoError){
+  if(res.error) return { texto: `${prefijoError} no el precio de ${nineraNombre} con esta familia: ${res.error.message}`, tipo: 'bad' };
+  if(res.previstosSinActualizar) return { texto: `Precio de ${nineraNombre} con esta familia guardado; los próximos días de su fijo se actualizan esta noche.`, tipo: 'bad' };
+  return null;
+}
 // "Traslado $1.018 + gastos $427 = $1.445". Delfi no veía que la comida se sumaba aparte, la
 // metió en el precio y quedó cobrada dos veces (13/10/2026). Sin gastos devuelve ''.
 function textoTotalConGastos(etiqueta, base, gastos){

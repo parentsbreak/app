@@ -5,8 +5,9 @@
 //   - minutos_fin_cobro: cada minuto de dos días (la regla de los 5 minutos);
 //   - redondear_pago y redondear_cobro: montos con centavos y bordes de ,5;
 //   - generar_previstos_fijos: fijos inventados de todos los días (horarios cualquiera, algunos
-//     después de medianoche, tarifas con centavos, con y sin términos) y el cobro y el pago de
-//     cada día que crea;
+//     después de medianoche, tarifas con centavos, con y sin términos, algunos con precio propio y
+//     niñeras con precio con esa familia o con otra, 01/11/2026) y el cobro y el pago de cada día
+//     que crea;
 //   - precio_sitting (pedido desde WhatsApp): las mismas familias con otros horarios;
 //   - precio_con_variantes (variantes de precio, 23/10/2026): bases y variantes al azar.
 // Se vuelve a generar cuando cambia el oráculo o el generador (tests/red-plata.spec.js avisa):
@@ -87,7 +88,14 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
   // ---- 3) generar_previstos_fijos: un fijo por familia, todos los días; lo que crea tiene que
   // cobrar y pagar lo mismo que la app con ese horario y esa tarifa. Los términos van en una
   // fecha muy vieja (siempre redondea) o muy lejana (nunca), así no depende de qué día se corra.
-  const familias = [], ninieras = [], asignaciones = [], esperados = [], tarifas = [];
+  // El pago por hora (01/11/2026) sale de precioHoraNinera: algunos fijos con precio propio (o en 0
+  // o negativo, que es no cargado) y algunas niñeras con precio con esa familia o con la siguiente (que no
+  // cuenta). Esas elecciones van con otro azar (azPrecio) para que el resto de los casos, y las
+  // secciones 4 y 5, sigan siendo los mismos de antes.
+  const azPrecio = crearAzar(SEMILLA_FIJA + 31);
+  const familias = [], ninieras = [], asignaciones = [], esperados = [], tarifas = [], preciosNinera = [];
+  let conPrecioPropio = 0;
+  const idFam = i => `f1000000-0000-4000-8000-${String((i - 1) % FIJOS + 1).padStart(12, '0')}`;
   for (let i = 1; i <= FIJOS; i++) {
     const idF = `f1000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
     const idN = `e1000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
@@ -97,18 +105,31 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
     const ini = az.entero(0, 1439);
     const fin = az.si(0.15) ? az.entero(0, ini) : (ini + az.entero(1, 600)) % 1440; // a veces termina pasada la medianoche
     const horas = O.horasSitting(hhmm(ini), hhmm(fin), fin <= ini, { terminos_aceptados_el: terminos }, '2026-10-22');
-    tarifas.push({ id: idF, cobro_hora: cobroH, pago_hora: pagoH, terminos_aceptados_el: terminos });
+    // null, 0 o negativo (mal cargado) es "no cargado", en la app y en la base.
+    const pagoFijo = azPrecio.si(0.25) ? azPrecio.de(TARIFAS.filter(Boolean)) : azPrecio.de([null, 0, -50]);
+    if (pagoFijo > 0) conPrecioPropio++;
+    const filas = [];
+    if (azPrecio.si(0.35)) filas.push({ familia_id: idF, ninera_id: idN, pago_hora: azPrecio.de(TARIFAS.filter(Boolean)) });
+    if (azPrecio.si(0.15)) filas.push({ familia_id: idFam(i + 1), ninera_id: idN, pago_hora: azPrecio.de(TARIFAS.filter(Boolean)) });
+    preciosNinera.push(...filas);
+    const fam = { id: idF, cobro_hora: cobroH, pago_hora: pagoH, terminos_aceptados_el: terminos };
+    const pagoHora = O.precioHoraNinera(fam, idN, filas, pagoFijo);
+    const pago = O.precioSegunHorario({ ...fam, pago_hora: pagoHora }, hhmm(ini), hhmm(fin), fin <= ini, '2026-10-22').pago;
+    tarifas.push(fam);
     familias.push(`('${idF}', 'Familia Paridad ${i}', ${cobroH}, ${pagoH}, ${terminos ? `'${terminos}'` : 'null'})`);
     ninieras.push(`('${idN}', 'Niñera Paridad ${i}')`);
-    asignaciones.push(`('${idA}', '${idF}', '${idN}', 'Niñera Paridad ${i}', '["L","M","X","J","V","S","D"]', '${hhmm(ini)}', '${hhmm(fin)}', current_date - 30, 'sitting')`);
-    esperados.push(`('${idA}', ${O.redondearCobro(cobroH * horas.cobro)}, ${O.redondearPago(pagoH * horas.real)}, '${hhmm(ini)}-${hhmm(fin)} x ${cobroH}/${pagoH} terminos ${terminos || 'no'}')`);
+    asignaciones.push(`('${idA}', '${idF}', '${idN}', 'Niñera Paridad ${i}', '["L","M","X","J","V","S","D"]', '${hhmm(ini)}', '${hhmm(fin)}', current_date - 30, 'sitting', ${pagoFijo ?? 'null'})`);
+    esperados.push(`('${idA}', ${O.redondearCobro(cobroH * horas.cobro)}, ${pago}, '${hhmm(ini)}-${hhmm(fin)} x ${cobroH}/${pagoH} fijo ${pagoFijo ?? 'no'} niñera ${filas.map(f => (f.familia_id === idF ? '' : 'otra:') + f.pago_hora).join('+') || 'no'} = ${pagoHora} terminos ${terminos || 'no'}')`);
   }
-  sql(`-- 3) generar_previstos_fijos: cobro y pago de cada día igual a precioSegunHorario (sittings.js).
+  sql(`-- 3) generar_previstos_fijos: cobro y pago de cada día igual a precioSegunHorario (sittings.js),
+-- con el pago por hora de precioHoraNinera (core.js): ${conPrecioPropio} fijos con precio propio y ${preciosNinera.length} precios de niñeras.
 insert into familias (id, nombre, cobro_hora, pago_hora, terminos_aceptados_el) values
 ${valores(familias, 3)};
 insert into ninieras (id, nombre) values
 ${valores(ninieras, 4)};
-insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_inicio, hora_fin, vigente_desde, tipo) values
+insert into precios_ninera_familia (familia_id, ninera_id, pago_hora) values
+${valores(preciosNinera.map(f => `('${f.familia_id}', '${f.ninera_id}', ${f.pago_hora})`), 2)};
+insert into asignaciones (id, familia_id, ninera_id, ninera_nombre, dias, hora_inicio, hora_fin, vigente_desde, tipo, pago_hora) values
 ${valores(asignaciones, 1)};
 create temporary table _esperado (asignacion_id uuid, cobro numeric, pago numeric, caso text);
 insert into _esperado values

@@ -408,6 +408,7 @@ async function loadDashboardData(){
           .forEach(a=>previstos.push({
             fecha, ninera_nombre: a.ninera_nombre, familia_nombre: a.familias?.nombre || '', hora_inicio: a.hora_inicio, hora_fin: a.hora_fin, esFijo: true,
             asignacion_id: a.id, tipo: tipoAsignacion(a), cobro_traslado: a.cobro_traslado ?? null, pago_traslado: a.pago_traslado ?? null,
+            ninera_id: a.ninera_id ?? null, pago_hora: a.pago_hora ?? null,
           }));
       });
     }
@@ -692,7 +693,9 @@ async function marcarAutoNoFue(id){
 }
 /* "Otra hora" (21/10/2026): la hora de entrada y la de fin reales de ese día. En un sitting, el
    cobro y el pago se recalculan con la tarifa de la familia y las reglas de siempre
-   (precioSegunHorario: términos y redondeo); en un traslado solo cambia la hora. */
+   (precioSegunHorario: términos y redondeo); en un traslado solo cambia la hora. El pago por hora
+   (01/11/2026) es el de un día de fijo: el precio propio del fijo si lo hizo su niñera, si no el de
+   la niñera de ese día con esa familia, si no la tarifa (precioHoraNinera). */
 let dashOtraHoraFamilia = null;
 async function abrirOtraHoraAuto(id){
   const r = dashAutoConfirmados.find(x=>x.id===id);
@@ -700,10 +703,17 @@ async function abrirOtraHoraAuto(id){
   if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
   dashOtraHoraFamilia = null;
   if(r.tipo!=='traslado' && r.familia_id){
-    // Sin la tarifa se guardaría la hora nueva con el precio viejo: mejor no abrir.
-    const { data, error } = await leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id));
-    if(error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
-    dashOtraHoraFamilia = (data||[])[0] || null;
+    // Sin la tarifa se guardaría la hora nueva con el precio viejo: mejor no abrir. La familia, los
+    // precios de esa niñera y el del fijo, juntos.
+    const [{ data, error }, precios, fijo] = await Promise.all([
+      leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
+      r.ninera_id ? leerPreciosNinera(r.familia_id, r.ninera_id) : [],
+      r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
+    ]);
+    if(error || fijo.error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
+    if(preciosNoLeidos(precios)){ toast(AVISO_PRECIOS_NO_LEIDOS, 'bad'); return; }
+    const fam = (data||[])[0] || null;
+    dashOtraHoraFamilia = fam && { ...fam, pago_hora: precioHoraNinera(fam, r.ninera_id || null, precios, pagoFijoDeNinera(fijo.data, r.ninera_id || null, r.ninera_nombre)) };
   }
   const esSitting = r.tipo!=='traslado';
   abrirModal(`
@@ -816,6 +826,7 @@ async function guardarVariantesAuto(id){
   await cargarConfirmadosAutomaticos();
 }
 let dashReemplazoSel = null;
+let dashReemplazoLista = []; // las niñeras activas de la lista, para buscar el nombre escrito entero
 async function abrirReemplazoAuto(id){
   const r = dashAutoConfirmados.find(x=>x.id===id);
   if(!r) return;
@@ -823,9 +834,10 @@ async function abrirReemplazoAuto(id){
   // La lista se trae ANTES de abrir el modal: si se conectaba después, quien escribía rápido
   // no veía ninguna opción (el autocompletar todavía no estaba enganchado).
   const { data: ninieras } = await sb.from('ninieras').select('id,nombre').eq('activa', true).order('nombre');
+  dashReemplazoLista = ninieras || [];
   abrirModal(`
     <h2 style="margin:0 0 4px;">¿Quién fue en lugar de ${escaparHtml(r.ninera_nombre)}?</h2>
-    <div class="helper" style="margin-bottom:12px;">${escaparHtml(r.familia_nombre)} · ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'})}. Mismo horario y montos; si cambiaron, editalo después en Sittings &amp; traslados.</div>
+    <div class="helper" style="margin-bottom:12px;">${escaparHtml(r.familia_nombre)} · ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'})}. ${r.tipo==='traslado' ? 'Mismo horario y montos' : 'Mismo horario. Se le paga su precio con esta familia'}; si algo cambió, editalo después en Sittings &amp; traslados.</div>
     <div class="field" style="position:relative;"><label>Niñera</label>
       <input type="text" id="autoconf-ninera" autocomplete="off" oninput="dashReemplazoSel=null;">
       <div id="autoconf-ninera-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
@@ -845,14 +857,43 @@ async function guardarReemplazoAuto(id){
   if(!nombre){ warn.innerHTML = '<div class="warnbox">Elegí quién fue.</div>'; return; }
   if(normaliza(nombre)===normaliza(r.ninera_nombre)){ warn.innerHTML = '<div class="warnbox">Esa es la niñera que ya figura.</div>'; return; }
   if(r.pagado){ warn.innerHTML = '<div class="warnbox">Ese día ya está marcado como pagado: corregilo desde Sittings &amp; traslados.</div>'; return; }
-  const sel = dashReemplazoSel && normaliza(dashReemplazoSel.nombre)===normaliza(nombre) ? dashReemplazoSel : null;
-  const { error } = await sb.from('sittings_traslados').update({
-    ninera_nombre: nombre, ninera_id: sel?.id || null, generado_automatico: false,
+  // Elegida de la lista o escrita entera (sin tildes ni mayúsculas), como findNinera en Sittings: si no, se
+  // guardaba sin ninera_id y con la tarifa aunque tuviera su precio (revisión final, 31/10/2026).
+  const sel = (dashReemplazoSel && normaliza(dashReemplazoSel.nombre)===normaliza(nombre) ? dashReemplazoSel : null)
+    || dashReemplazoLista.find(n=>normaliza(n.nombre)===normaliza(nombre)) || null;
+  const nombreFue = sel?.nombre || nombre;
+  const cambios = {
+    ninera_nombre: nombreFue, ninera_id: sel?.id || null, generado_automatico: false,
     revisado_at: new Date().toISOString(), notas: `Reemplazo de ${r.ninera_nombre}`,
-  }).eq('id', id);
+  };
+  // Un sitting (01/11/2026, respuesta 2 de Diego): la que fue cobra su precio con esta familia o la
+  // tarifa, nunca el precio propio del fijo (es de la titular). Lo que paga la familia no cambia. Con
+  // variantes ya aplicadas, el pago nuevo es la base y se vuelven a aplicar. Un traslado sigue igual.
+  if(r.tipo!=='traslado' && r.familia_id && r.hora_inicio && r.hora_fin){
+    const [{ data: fams, error: eFam }, precios, fijo] = await Promise.all([
+      leerFamiliasConTerminos('id,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
+      sel ? leerPreciosNinera(r.familia_id, sel.id) : [],
+      r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
+    ]);
+    if(eFam || fijo.error){ warn.innerHTML = '<div class="warnbox">No se pudo leer la tarifa de la familia. Probá de nuevo.</div>'; return; }
+    if(preciosNoLeidos(precios)){ warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
+    const fam = (fams||[])[0] || null;
+    const pagoHora = Number(precioHoraNinera(fam, sel?.id || null, precios, pagoFijoDeNinera(fijo.data, sel?.id || null, nombreFue)))||0;
+    const horas = horasSitting(r.hora_inicio, r.hora_fin, !!r.termina_dia_siguiente, fam, r.fecha);
+    if(pagoHora && horas){
+      const pago = redondearPago(horas.real*pagoHora);
+      const aplicadas = r.precio_variantes?.aplicadas;
+      if(aplicadas?.length){
+        const base = { cobro: r.precio_variantes.base?.cobro ?? (Number(r.cobro_familia)||0), pago };
+        cambios.pago_ninera = aplicarVariantes(base.cobro, base.pago, aplicadas).pago;
+        cambios.precio_variantes = { base, aplicadas };
+      } else cambios.pago_ninera = pago;
+    }
+  }
+  const { error } = await sb.from('sittings_traslados').update(cambios).eq('id', id);
   if(error){ warn.innerHTML = errBox(error); return; }
   cerrarModal();
-  toast(`Listo: ese día figura ${nombre}.`);
+  toast(`Listo: ese día figura ${nombreFue}.`);
   await cargarConfirmadosAutomaticos();
 }
 
@@ -894,6 +935,8 @@ async function cargarSittingDesdePendiente(item){
     cobro: traslado ? item.cobro_traslado ?? null : null,
     pago: traslado ? item.pago_traslado ?? null : null,
     notas: item.asignacion_id ? `${traslado?'Traslado':'Sitting'} fijo — cargado desde "Sittings sin registrar"` : 'Cargado desde "Sittings sin registrar"',
+    // El precio propio del fijo (01/11/2026): el pago sale con él mientras la niñera sea la del fijo.
+    fijo: item.asignacion_id && !traslado ? { ninera_id: item.ninera_id ?? null, ninera_nombre: item.ninera_nombre, pago_hora: item.pago_hora ?? null } : null,
   };
   await setModulo('sittings');
   abrirModalSitForm();

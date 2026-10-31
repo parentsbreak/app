@@ -696,6 +696,27 @@ create table public.variantes_precio (
   constraint variantes_precio_auto_dias_check CHECK (((auto_dias IS NULL) OR (jsonb_typeof(auto_dias) = 'array'::text)))
 );
 
+-- Pago por hora de una niñera con una familia (31/10/2026, regla 2 de reglas-del-negocio): manda
+-- sobre familias.pago_hora; en un fijo, antes va el precio del fijo (01/11/2026,
+-- generar_previstos_fijos). Sin cobro: la familia paga siempre su tarifa. La reutiliza la etapa 5
+-- (decisiones 4.18). Solo admins.
+create table public.precios_ninera_familia (
+  id uuid default gen_random_uuid() not null,
+  familia_id uuid not null,
+  ninera_id uuid not null,
+  pago_hora numeric not null,
+  nota text,
+  creado_por text,
+  creado_en timestamp with time zone default now() not null,
+  actualizado_en timestamp with time zone default now() not null,
+  constraint precios_ninera_familia_pkey primary key (id),
+  constraint precios_ninera_familia_par_key unique (familia_id, ninera_id),
+  constraint precios_ninera_familia_pago_check check (pago_hora > 0 and pago_hora < 100000),
+  constraint precios_ninera_familia_nota_check check (nota is null or char_length(nota) <= 200)
+);
+comment on table public.precios_ninera_familia is
+  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si es mayor que 0), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
+
 create table public.ajustes_saldo (
   id uuid default gen_random_uuid() not null,
   sujeto text not null,
@@ -759,7 +780,7 @@ create table public.finanzas_historial (
   cuando timestamp with time zone default now() not null,
   cambios jsonb,
   fila jsonb,
-  constraint finanzas_historial_tabla_check CHECK ((tabla = ANY (ARRAY['gastos_generales'::text, 'ajustes_saldo'::text, 'gastos_extra'::text]))),
+  constraint finanzas_historial_tabla_check CHECK ((tabla = ANY (ARRAY['gastos_generales'::text, 'ajustes_saldo'::text, 'gastos_extra'::text, 'precios_ninera_familia'::text]))),
   constraint finanzas_historial_accion_check CHECK ((accion = ANY (ARRAY['alta'::text, 'cambio'::text, 'baja'::text])))
 );
 
@@ -867,6 +888,8 @@ alter table public.asignaciones_pausas add constraint asignaciones_pausas_asigna
 alter table public.ajustes_saldo add constraint ajustes_saldo_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id);
 alter table public.variantes_precio add constraint variantes_precio_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id) ON DELETE CASCADE;
 alter table public.variantes_precio add constraint variantes_precio_asignacion_id_fkey FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL;
+alter table public.precios_ninera_familia add constraint precios_ninera_familia_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id) ON DELETE CASCADE;
+alter table public.precios_ninera_familia add constraint precios_ninera_familia_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE CASCADE;
 alter table public.ajustes_saldo add constraint ajustes_saldo_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id);
 alter table public.gastos_extra add constraint gastos_extra_sitting_id_fkey FOREIGN KEY (sitting_id) REFERENCES sittings_traslados(id) ON DELETE CASCADE;
 alter table public.gastos_extra add constraint gastos_extra_ajuste_id_fkey FOREIGN KEY (ajuste_id) REFERENCES ajustes_saldo(id) ON DELETE SET NULL;
@@ -911,6 +934,7 @@ CREATE INDEX idx_resenas_ninera_nombre ON public.resenas_ninieras USING btree (n
 CREATE INDEX idx_asignaciones_pausas ON public.asignaciones_pausas USING btree (asignacion_id, desde, hasta);
 CREATE INDEX idx_ajustes_saldo_familia ON public.ajustes_saldo USING btree (familia_id) WHERE (familia_id IS NOT NULL);
 CREATE INDEX idx_variantes_precio_familia ON public.variantes_precio USING btree (familia_id);
+CREATE INDEX idx_precios_ninera_familia_ninera ON public.precios_ninera_familia USING btree (ninera_id);
 CREATE INDEX idx_variantes_precio_programadas ON public.variantes_precio USING btree (asignacion_id) WHERE (auto_desde IS NOT NULL);
 CREATE INDEX idx_ajustes_saldo_ninera ON public.ajustes_saldo USING btree (ninera_id) WHERE (ninera_id IS NOT NULL);
 CREATE INDEX idx_gastos_extra_sitting ON public.gastos_extra USING btree (sitting_id);
@@ -983,6 +1007,7 @@ alter table public.sittings_traslados enable row level security;
 alter table public.asignaciones_pausas enable row level security;
 alter table public.ajustes_saldo enable row level security;
 alter table public.variantes_precio enable row level security;
+alter table public.precios_ninera_familia enable row level security;
 alter table public.gastos_extra enable row level security;
 alter table public.respaldo_sittings_traslados_20261006 enable row level security;
 alter table public.solicitud_ninieras enable row level security;
@@ -1118,6 +1143,8 @@ create policy solo_autenticados_todo on public.asignaciones_pausas as permissive
 create policy solo_autenticados_todo on public.ajustes_saldo as permissive for all to public
   using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
 create policy solo_autenticados_todo on public.variantes_precio as permissive for all to public
+  using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
+create policy solo_autorizadas_todo on public.precios_ninera_familia as permissive for all to public
   using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
 create policy solo_autenticados_todo on public.gastos_extra as permissive for all to public
   using ((select public.es_usuaria_autorizada())) with check ((select public.es_usuaria_autorizada()));
@@ -1359,6 +1386,25 @@ create trigger ajustes_saldo_historial_trg
 create trigger gastos_extra_historial_trg
   after insert or update or delete on public.gastos_extra
   for each row execute function public.registrar_historial_finanzas();
+create trigger precios_ninera_familia_historial_trg
+  after insert or update or delete on public.precios_ninera_familia
+  for each row execute function public.registrar_historial_finanzas();
+
+-- actualizado_en de precios_ninera_familia en cada cambio (31/10/2026).
+create or replace function public.precios_ninera_familia_tocar()
+ returns trigger
+ language plpgsql
+ set search_path to 'public'
+as $function$
+begin
+  new.actualizado_en := now();
+  return new;
+end;
+$function$;
+revoke execute on function public.precios_ninera_familia_tocar() from public, anon, authenticated;
+create trigger precios_ninera_familia_tocar_trg
+  before update on public.precios_ninera_familia
+  for each row execute function public.precios_ninera_familia_tocar();
 
 
 -- Términos y condiciones (20/10/2026).
@@ -1409,6 +1455,25 @@ revoke execute on function public.redondear_cobro(numeric) from public, anon, au
 -- la niñera, la hora real; montos con redondear_cobro / redondear_pago. Sin tarifa, ese monto
 -- va vacío. Es la misma regla que precioSegunHorario() en js/sittings.js (lo prueba
 -- supabase/pruebas/paridad_plata.sql): si cambia una, cambia la otra.
+-- El pago por hora de una niñera con una familia (31/10/2026): su fila de precios_ninera_familia o,
+-- si no hay, la tarifa de la familia si es mayor que 0 (01/11/2026: un 0 o un negativo no cuenta).
+-- Null si no hay ninguno de los dos (o si quien pregunta no las puede ver: es invoker). La misma
+-- regla que precioHoraNinera() en js/core.js, sin el precio del fijo.
+create or replace function public.pago_hora_ninera(p_familia_id uuid, p_ninera_id uuid)
+ returns numeric
+ language sql
+ stable
+ set search_path to 'public'
+as $function$
+  select coalesce(
+    (select p.pago_hora from public.precios_ninera_familia p
+      where p.familia_id = p_familia_id and p.ninera_id = p_ninera_id),
+    (select case when f.pago_hora > 0 then f.pago_hora end from public.familias f where f.id = p_familia_id)
+  )
+$function$;
+revoke execute on function public.pago_hora_ninera(uuid, uuid) from public, anon;
+grant execute on function public.pago_hora_ninera(uuid, uuid) to authenticated;
+
 create or replace function public.precio_sitting(p_familia_id uuid, p_fecha date, p_hora_inicio time without time zone, p_hora_fin time without time zone)
 returns table (horas numeric, horas_cobro numeric, cobro numeric, pago numeric)
 language sql
@@ -2287,7 +2352,14 @@ begin
          case when c.tipo_fijo = 'traslado' then coalesce(c.cobro_traslado, t.cobro_familia, 0)
               else public.redondear_cobro(coalesce(c.horas_cobro, c.horas, 0) * coalesce(c.fam_cobro_hora, 0)) end as cobro_base,
          case when c.tipo_fijo = 'traslado' then coalesce(c.pago_traslado, t.pago_ninera, 0)
-              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(c.fam_pago_hora, 0)) end as pago_base
+              -- Pago por hora (01/11/2026, precio por niñera con cada familia): el precio del fijo si
+              -- está cargado (más que 0: un 0 o un negativo es no cargado, como en la app), si no el de
+              -- esa niñera con esa familia, si no la tarifa. Igual que precioHoraNinera() en
+              -- js/core.js. c.pago_hora es asignaciones.pago_hora.
+              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(case when c.pago_hora > 0 then c.pago_hora end,
+                     (select p.pago_hora from public.precios_ninera_familia p
+                       where p.familia_id = c.familia_id and p.ninera_id = c.ninera_id),
+                     c.fam_pago_hora, 0)) end as pago_base
     from con_horas c
     -- Un traslado no se cobra por hora: el precio cargado en el fijo o, si no tiene, el del
     -- último traslado de ese fijo o de esa familia (lo mismo que precarga la app).
@@ -2379,6 +2451,7 @@ alter publication supabase_realtime add table public.asignaciones_pausas;
 alter publication supabase_realtime add table public.avisos;
 alter publication supabase_realtime add table public.ajustes_saldo;
 alter publication supabase_realtime add table public.variantes_precio;
+alter publication supabase_realtime add table public.precios_ninera_familia;
 alter publication supabase_realtime add table public.gastos_extra;
 alter publication supabase_realtime add table public.candidatas;
 alter publication supabase_realtime add table public.carsitting_datos;

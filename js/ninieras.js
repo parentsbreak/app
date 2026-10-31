@@ -428,6 +428,7 @@ async function verNinera(id){
     <div id="vn-carsitting"></div>
     <div id="vn-juguetes"></div>
     <div id="vn-saldo" style="margin-top:18px;"></div>
+    <div id="vn-precios-fam" data-ninera="${escaparHtml(n.id)}" style="margin-top:18px;"></div>
     <div id="vn-incidentes" style="margin-top:18px;"></div>
     <div id="vn-intermediaciones" style="margin-top:18px;"></div>
     <div style="margin-top:18px;">
@@ -447,6 +448,7 @@ async function verNinera(id){
   cargarJuguetesDeNinera(n.nombre);
   renderIncidentesEnFicha('vn-incidentes', 'ninera', n.id, n.nombre);
   pintarSaldoEnFicha('vn-saldo', 'ninera', n.id, n.nombre);
+  pintarPreciosFamiliaEnFichaNinera(n.id);
   renderIntermediacionesEnFicha('vn-intermediaciones', n.id);
   // cargar los sittings de esta niñera y sus reseñas (si no están cargadas ya globalmente) en paralelo
   const necesitaResenas = !Object.keys(sitHistResenas).length;
@@ -478,6 +480,37 @@ async function verNinera(id){
     sel.innerHTML = `<option value="">Todas</option>` + fams.map(([key,label])=>`<option value="${escaparHtml(key)}">${escaparHtml(label)}</option>`).join('');
   }
   renderNineraHistorial(n.id);
+}
+/* "Precio por familia" (01/11/2026, respuesta 4 de Diego): lo que cobra esta niñera por hora con cada
+   familia cuando no es la tarifa. Solo para mirar: se carga y se cambia en la ficha de la familia
+   ("Precio por niñera", familias.js). Una sola lectura, con el nombre de la familia en la misma consulta.
+   Sin la tabla no aparece; si la lectura falla se dice (no es lo mismo que "sin precios"). */
+async function pintarPreciosFamiliaEnFichaNinera(nineraId){
+  if(!document.getElementById('vn-precios-fam') || !preciosNineraDisponible) return;
+  const { data, error } = await sb.from('precios_ninera_familia').select('id,familia_id,pago_hora,nota,actualizado_en,familias(nombre)').eq('ninera_id', nineraId);
+  if(error && esFaltaTabla(error)) preciosNineraDisponible = false;
+  const cont = document.getElementById('vn-precios-fam');
+  if(!cont || cont.dataset.ninera !== nineraId) return; // se cerró o se abrió otra ficha mientras se leía
+  if(!preciosNineraDisponible){ cont.innerHTML = ''; return; }
+  const titulo = '<h2 class="card-section-title" style="margin-top:0;">Precio por familia</h2>';
+  if(error){
+    cont.innerHTML = `${titulo}<div class="warnbox" style="margin-top:0;">No se pudieron leer los precios por familia.</div>
+      <button class="smallbtn" style="min-height:36px;margin-top:8px;" onclick="pintarPreciosFamiliaEnFichaNinera(${argJs(nineraId)})">Reintentar</button>`;
+    return;
+  }
+  const filas = (data||[]).map(p=>({ ...p, nombre: p.familias?.nombre || 'Familia sin nombre' })).sort((a, b)=>a.nombre.localeCompare(b.nombre, 'es'));
+  cont.innerHTML = titulo + (filas.length
+    ? filas.map(p=>`<div class="agendarow precio-fam-fila" style="border-bottom:1px solid var(--line);">${htmlRenglonPrecioNinera(p.nombre, p)}</div>`).join('')
+    : '<div class="helper" style="margin:0;">Sin precios especiales: cobra la tarifa de cada familia.</div>');
+}
+// Un renglón de las listas de precios de las dos fichas (la de la familia está en familias.js): quién,
+// "$X/h", la nota y "cambiado el dd/mm" (de Montevideo). Todo escapado: la nota la escribe una admin.
+function htmlRenglonPrecioNinera(nombre, p){
+  const detalle = [p.nota ? escaparHtml(p.nota) : '', p.actualizado_en ? `cambiado el ${fechaCortaApp(p.actualizado_en)}` : ''].filter(Boolean).join(' · ');
+  return `<div style="flex:1;min-width:0;">
+      <div style="font-weight:600;">${escaparHtml(nombre)} <span style="white-space:nowrap;">$${Number(p.pago_hora).toLocaleString('es-UY')}/h</span></div>
+      ${detalle ? `<div class="helper" style="margin:2px 0 0;">${detalle}</div>` : ''}
+    </div>`;
 }
 // Cambio de celular pedido desde la página de temporada (entró con nombre porque su número
 // no coincidía con el cargado). No se aplica solo: Pau o Delfi lo aceptan o lo descartan.

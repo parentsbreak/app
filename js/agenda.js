@@ -418,9 +418,84 @@ function onAgendaFamiliaInput(){
     // Si todavía no marcaron ninguna zona, se precargan las de la familia elegida.
     if(f.zona && !leerZonasChecklist('agenda')) setZonasChecklist('agenda', f.zona, 'Zona');
     if(cobroInput && !cobroInput.value && f.cobro_hora) cobroInput.value = f.cobro_hora;
-    if(pagoInput && !pagoInput.value && f.pago_hora) pagoInput.value = f.pago_hora;
   }
+  if(pagoInput) precargarPagoHoraAgenda();
   actualizarAgendaTotal();
+}
+/* Precio por niñera (01/11/2026): "Precio por hora a la niñera" viene con el de la niñera elegida con
+   esa familia (precioHoraNinera; sin niñera o sin precio, la tarifa). Lo tipeado a mano no se pisa.
+   Los precios de la familia se leen una vez por familia (agendaPreciosFam). */
+let agendaPreciosFam = { familiaId: null, filas: null, leida: false }; // filas null: leyéndose (leida false) o no se pudieron leer
+function familiaNuevaSolicitud(){
+  const val = document.getElementById('agenda-familia')?.value || '';
+  return agendaFamilias.find(f=>normaliza(f.nombre)===normaliza(val)) || null;
+}
+function nineraNuevaSolicitud(){
+  const val = (document.getElementById('agenda-ninera')?.value || '').trim();
+  return val ? agendaNinierasBase.find(n=>normaliza(n.nombre)===normaliza(val)) || null : null;
+}
+function preciosNuevaSolicitud(f){ return (f && agendaPreciosFam.familiaId===f.id && agendaPreciosFam.filas) || []; }
+async function precargarPagoHoraAgenda(){
+  const f = familiaNuevaSolicitud();
+  // Si la lectura anterior falló, elegir la niñera la vuelve a probar (31/10/2026).
+  const reintentar = agendaPreciosFam.leida && preciosNoLeidos(agendaPreciosFam.filas) && !!nineraNuevaSolicitud();
+  if(f && (agendaPreciosFam.familiaId!==f.id || reintentar)){
+    const carga = { familiaId: f.id, filas: null, leida: false };
+    agendaPreciosFam = carga;
+    // Mientras se lee, la tarifa: guardar en ese momento no puede dar un pago de $0 (revisión final,
+    // 31/10/2026). Cuando llega la lectura se corrige con el precio de la niñera (si no se tipeó a mano).
+    aplicarPagoHoraAgenda(f);
+    carga.filas = await leerPreciosNinera(f.id);
+    carga.leida = true;
+    if(agendaPreciosFam!==carga || familiaNuevaSolicitud()?.id!==f.id) return; // mientras tanto cambió la familia
+  }
+  aplicarPagoHoraAgenda(f);
+}
+function aplicarPagoHoraAgenda(f){
+  const input = document.getElementById('agenda-pago-hora');
+  if(!input) return;
+  if(f && !input.dataset.tocadoManual){
+    input.value = precioHoraNinera(f, nineraNuevaSolicitud()?.id || null, preciosNuevaSolicitud(f)) ?? '';
+    actualizarAgendaPagoPreview();
+  }
+  pintarGuardarPrecioAgenda();
+}
+// La lectura de los precios falló (la tabla existe): el precio por hora va con la tarifa, con el aviso a
+// la vista (avisoPreciosNoLeidosTarifa, core.js). Solo con niñera elegida: sin niñera no se guarda pago.
+function pintarAvisoPreciosAgenda(){
+  const box = document.getElementById('agenda-precios-aviso');
+  if(!box) return;
+  const f = familiaNuevaSolicitud(), n = nineraNuevaSolicitud();
+  const falla = f && n && document.getElementById('agenda-tipo')?.value==='sitting'
+    && agendaPreciosFam.familiaId===f.id && agendaPreciosFam.leida && preciosNoLeidos(agendaPreciosFam.filas);
+  box.innerHTML = falla ? `<div class="warnbox" style="margin:-4px 0 10px;">${escaparHtml(avisoPreciosNoLeidosTarifa(n.nombre))}</div>` : '';
+}
+// "Guardar como precio de [niñera] con esta familia" (respuesta 3 de Diego, 31/10/2026): con niñera
+// elegida y otro precio por hora tipeado a mano. Tildada solo si esa niñera no tiene precio con esa
+// familia; si ya tiene, destildada (un precio especial de un día no pisa el guardado).
+function pintarGuardarPrecioAgenda(){
+  pintarAvisoPreciosAgenda();
+  const wrap = document.getElementById('agenda-guardar-precio-wrap'), chk = document.getElementById('agenda-guardar-precio');
+  if(!wrap || !chk) return;
+  const input = document.getElementById('agenda-pago-hora');
+  const f = familiaNuevaSolicitud(), n = nineraNuevaSolicitud();
+  const casilla = f && n && document.getElementById('agenda-tipo')?.value==='sitting'
+    ? casillaPrecioNinera({ familiaId: f.id, nineraId: n.id, filas: agendaPreciosFam.familiaId===f.id ? agendaPreciosFam.filas : null,
+        valor: input?.value, tocadoManual: !!input?.dataset.tocadoManual, pagoActual: precioHoraNinera(f, n.id, preciosNuevaSolicitud(f)) })
+    : null;
+  if(!casilla){ wrap.style.display = 'none'; return; }
+  const clave = f.id+'|'+n.id;
+  if(chk.dataset.par!==clave){ chk.checked = casilla.tildada; chk.dataset.par = clave; }
+  document.getElementById('agenda-guardar-precio-txt').textContent = `Guardar como precio de ${n.nombre} con esta familia`;
+  wrap.style.display = '';
+}
+function precioNineraAGuardarAgenda(){
+  const wrap = document.getElementById('agenda-guardar-precio-wrap');
+  if(!wrap || wrap.style.display==='none' || !document.getElementById('agenda-guardar-precio')?.checked) return null;
+  const f = familiaNuevaSolicitud(), n = nineraNuevaSolicitud();
+  if(!f || !n) return null;
+  return { familiaId: f.id, nineraId: n.id, nineraNombre: n.nombre, pagoHora: redondearPago(document.getElementById('agenda-pago-hora').value), // sin centavos, como en la ficha
+    nueva: !preciosNuevaSolicitud(f).some(p=>p.ninera_id===n.id) };
 }
 function onAgendaCruzaChange(){
   const cruza = document.getElementById('agenda-cruza-medianoche').checked;
@@ -439,6 +514,7 @@ function onAgendaTipoChange(){
   document.getElementById('agenda-campo-pago-hora').style.display = tipo==='sitting' ? '' : 'none';
   document.getElementById('agenda-total-preview').textContent = '';
   document.getElementById('agenda-pago-preview').textContent = '';
+  pintarGuardarPrecioAgenda();
   if(tipo==='traslado' && !tarifaTrasladoConfig) cargarTarifaTrasladoConfig().then(actualizarAgendaPrecioTraslado);
   if(tipo==='traslado') actualizarAgendaPrecioTraslado();
 }
@@ -531,6 +607,8 @@ function renderAgendaHorarioPorDia(){
 }
 function abrirModalNuevaSolicitud(){
   agendaModoNueva = 'puntual';
+  agendaPreciosFam = { familiaId: null, filas: null, leida: false }; // se leen de nuevo en cada solicitud
+
   const html = `
     <h2>Nueva solicitud</h2>
     <div class="field" style="position:relative;">
@@ -561,8 +639,10 @@ function abrirModalNuevaSolicitud(){
         </div>
       </div>
       <div class="grid3" id="agenda-campo-pago-hora">
-        <div class="field"><label>Precio por hora a la niñera</label><div class="moneyfield por-hora"><input type="number" id="agenda-pago-hora" oninput="actualizarAgendaPagoPreview()"></div></div>
+        <div class="field"><label>Precio por hora a la niñera</label><div class="moneyfield por-hora"><input type="number" id="agenda-pago-hora" oninput="marcarCampoEditadoManual('agenda-pago-hora');actualizarAgendaPagoPreview();pintarGuardarPrecioAgenda()"></div></div>
       </div>
+      <label class="chk chk-largo" id="agenda-guardar-precio-wrap" style="display:none;margin:-4px 0 10px;"><input type="checkbox" id="agenda-guardar-precio"> <span id="agenda-guardar-precio-txt"></span></label>
+      <div id="agenda-precios-aviso"></div>
       <div id="agenda-traslado-precio-box" style="display:none;margin:-4px 0 10px;"></div>
       <div class="grid2" id="agenda-campo-traslado-cobro" style="display:none;">
         <div class="field"><label>Cobro total del traslado</label><div class="moneyfield"><input type="number" id="agenda-cobro-traslado" oninput="marcarCampoEditadoManual('agenda-cobro-traslado')"></div></div>
@@ -606,7 +686,8 @@ function abrirModalNuevaSolicitud(){
   attachAutocomplete('agenda-repetir-ninera', 'agenda-repetir-ninera-dropdown', ()=>agendaNinierasBase, ()=>{});
   // Solicitud en un paso (25/10/2026): la niñera se puede elegir acá mismo; solo las que hacen
   // ese tipo de servicio (el tipo se lee al escribir, por si cambia).
-  attachAutocomplete('agenda-ninera', 'agenda-ninera-dropdown', ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, document.getElementById('agenda-tipo')?.value)), ()=>{}, {sinCoincidencias:'Ninguna niñera coincide.'});
+  // Cada niñera puede tener su precio con esa familia: elegirla (o cambiarla) lo precarga.
+  attachAutocomplete('agenda-ninera', 'agenda-ninera-dropdown', ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, document.getElementById('agenda-tipo')?.value)), ()=>precargarPagoHoraAgenda(), {sinCoincidencias:'Ninguna niñera coincide.'});
 }
 // Sitting: cualquiera menos las que solo hacen traslados; traslado: "Traslados" o "Ambas".
 function nineraHaceTipo(n, tipo){
@@ -676,6 +757,7 @@ async function guardarSolicitudPuntual(){
     cobro_familia: cobroFinal,
     estado: ninera ? 'confirmada' : 'sin_asignar',
   };
+  const precioNinera = ninera && tipo==='sitting' ? precioNineraAGuardarAgenda() : null;
   const { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
   if(error){ warn.innerHTML = errBox(error); return; }
   let resultado = null;
@@ -696,6 +778,12 @@ async function guardarSolicitudPuntual(){
   actualizarAgendaBadge();
   if(resultado) avisarResultadoAsignacion(resultado);
   else toast('Solicitud guardada.');
+  // El precio de la niñera con esta familia, después de asignarla: si falla, lo asignado queda y se avisa.
+  if(precioNinera){
+    const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'Quedó asignada, pero');
+    if(aviso) toast(aviso.texto, aviso.tipo);
+    else toast(`Precio de ${precioNinera.nineraNombre} con esta familia guardado.`);
+  }
 }
 /* La niñera confirmada del pedido y, de una, el registro real en Sittings & traslados (al asignar
    desde la tarjeta y, desde el 25/10/2026, al guardar una solicitud que ya viene con niñera). Ya
@@ -769,16 +857,25 @@ async function guardarAsignacionFijaNueva(){
   toast('Asignación fija guardada — va a aparecer en Agenda los días que elegiste.');
 }
 
+// La familia de un pedido: por su id (el nombre del pedido es el de cuando se cargó, y dos familias pueden
+// llamarse igual; revisión final, 31/10/2026); el nombre, solo para pedidos sin familia_id.
+function familiaDeSolicitud(s){
+  if(!s) return null;
+  return (s.familia_id && agendaFamilias.find(f=>f.id===s.familia_id))
+    || agendaFamilias.find(f=>normaliza(f.nombre)===normaliza(s.familia_nombre)) || null;
+}
 async function abrirModalAsignar(solicitudId){
   await esperarConfigFijos(); // fijos automáticos: saber si hay que sacar los previstos
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
   if(!s) return;
   abrirModal('<div class="empty"><span class="spinner dark"></span> Buscando niñeras recomendadas…</div>');
   if(!zonaGruposCache) await cargarZonaGrupos();
-  const [{data:histFam}, {data:histTotal}, {data:sitTotal}] = await Promise.all([
+  const familiaSol = familiaDeSolicitud(s);
+  const [{data:histFam}, {data:histTotal}, {data:sitTotal}, preciosFam] = await Promise.all([
     sb.from('solicitud_ninieras').select('ninera_nombre, solicitudes!inner(familia_nombre)').eq('estado','confirmada').eq('solicitudes.familia_nombre', s.familia_nombre),
     sb.from('solicitud_ninieras').select('ninera_nombre').eq('estado','confirmada'),
     leerTodasLasFilas(()=>sinPrevistos(sb.from('sittings_traslados').select('ninera_nombre')).order('id')),
+    s.tipo==='traslado' ? [] : leerPreciosNinera(familiaSol?.id), // precio de cada niñera con esta familia (01/11/2026)
   ]);
   const conteoFamilia = {};
   (histFam||[]).forEach(r=>{ const k=normaliza(r.ninera_nombre); conteoFamilia[k]=(conteoFamilia[k]||0)+1; });
@@ -810,25 +907,26 @@ async function abrirModalAsignar(solicitudId){
   // directo, se ve/ajusta cuánto le corresponde, y se guarda con todo asignado de una:
   // familia, niñera, pago, Y el registro real en Sittings & traslados (antes esto último
   // quedaba pendiente de un paso aparte). Mismo criterio para sitting y traslado.
-  let pagoSugerido = 0;
+  // El pago sugerido de un sitting depende de la niñera: horas por su precio con esta familia o la
+  // tarifa (precioHoraNinera, 01/11/2026). Un traslado, por el cobro menos el margen.
+  let pagoTraslado = 0;
   if(s.tipo==='traslado'){
     if(!tarifaTrasladoConfig) await cargarTarifaTrasladoConfig();
     const margenNinera = Number(tarifaTrasladoConfig?.margen_ninera)||0;
-    pagoSugerido = s.cobro_familia ? redondearAbajo50(Number(s.cobro_familia) * (1 - margenNinera)) : 0;
-  } else {
-    const familia = agendaFamilias.find(f=>normaliza(f.nombre)===normaliza(s.familia_nombre));
-    const pagoHora = familia ? Number(familia.pago_hora)||0 : 0;
-    if(pagoHora && s.hora_inicio && s.hora_fin){
-      const mi = agendaMinutos(s.hora_inicio);
-      let mf = agendaMinutos(s.hora_fin);
-      if(s.termina_dia_siguiente) mf += 24*60;
-      const horasFrac = Math.max(0, mf-mi)/60;
-      pagoSugerido = redondearPago(horasFrac*pagoHora);
-    }
+    pagoTraslado = s.cobro_familia ? redondearAbajo50(Number(s.cobro_familia) * (1 - margenNinera)) : 0;
   }
+  const pagoSugerido = n => {
+    if(s.tipo==='traslado') return pagoTraslado;
+    const pagoHora = Number(precioHoraNinera(familiaSol, n.id, preciosFam))||0;
+    if(!pagoHora || !s.hora_inicio || !s.hora_fin) return 0;
+    const mi = agendaMinutos(s.hora_inicio);
+    let mf = agendaMinutos(s.hora_fin);
+    if(s.termina_dia_siguiente) mf += 24*60;
+    return redondearPago(Math.max(0, mf-mi)/60*pagoHora);
+  };
   const filaSel = (n, sub) => `
     <label class="agenda-ninera-pick">
-      <input type="radio" name="agenda-asignar-ninera" value="${escaparHtml(n.id)}" data-nombre="${escaparHtml(n.nombre)}" onchange="onAgendaNineraSel(${pagoSugerido})">
+      <input type="radio" name="agenda-asignar-ninera" value="${escaparHtml(n.id)}" data-nombre="${escaparHtml(n.nombre)}" onchange="onAgendaNineraSel(${pagoSugerido(n)})">
       <div><b>${escaparHtml(n.nombre)}</b><div class="helper" style="margin:0;">${escaparHtml(sub)}</div></div>
     </label>`;
   const html = `
@@ -842,8 +940,9 @@ async function abrirModalAsignar(solicitudId){
       <div class="agenda-tier-label">Resto del equipo</div>
       ${tier3.map(n=>filaSel(n, `${n.total} sitting${n.total===1?'':'s'} en total`)).join('')}
     </div>
-    <div id="agenda-asignar-pago-wrap" style="display:none;margin-top:10px;">
+    <div id="agenda-asignar-pago-wrap" style="display:none;margin-top:10px;" ${preciosNoLeidos(preciosFam) ? 'data-precios-no-leidos="1"' : ''}>
       <div class="field"><label>Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" oninput="marcarCampoEditadoManual('agenda-asignar-pago')"></div></div>
+      <div id="agenda-asignar-precio-aviso"></div>
       <div id="agenda-asignar-warn"></div>
       <button class="btn primary" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignacionDirecta(${argJs(s.id)}))">Guardar asignación</button>
     </div>
@@ -856,6 +955,10 @@ function onAgendaNineraSel(pagoSugerido){
   if(!wrap || !pagoInput) return;
   wrap.style.display = '';
   if(!pagoInput.dataset.tocadoManual){ pagoInput.value = pagoSugerido; marcarCampoSugerido('agenda-asignar-pago'); }
+  // Si no se pudieron leer los precios, el sugerido va con la tarifa: a la vista, con el nombre de la elegida.
+  const aviso = document.getElementById('agenda-asignar-precio-aviso');
+  const sel = document.querySelector('input[name="agenda-asignar-ninera"]:checked');
+  if(aviso) aviso.innerHTML = wrap.dataset.preciosNoLeidos && sel ? `<div class="warnbox">${escaparHtml(avisoPreciosNoLeidosTarifa(sel.dataset.nombre))}</div>` : '';
 }
 async function guardarAsignacionDirecta(solicitudId){
   const sel = document.querySelector('input[name="agenda-asignar-ninera"]:checked');
@@ -864,7 +967,7 @@ async function guardarAsignacionDirecta(solicitudId){
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
   const choque = chequearDobleReservaAgenda(sel.dataset.nombre, s?.fecha, s?.hora_inicio, s?.hora_fin, solicitudId);
   if(!(await avisarSiDobleReserva(choque, sel.dataset.nombre, 'Asignar igual'))) return;
-  const familia = agendaFamilias.find(f=>normaliza(f.nombre)===normaliza(s.familia_nombre));
+  const familia = familiaDeSolicitud(s);
   if(familia && s?.hora_inicio){
     const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, sel.dataset.nombre, null);
     if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return;
@@ -1148,8 +1251,15 @@ async function registrarSittingFijoDeHoy(id){
   const familia = agendaFamilias.find(f=>f.id===a.familia_id);
   const horas = horasSitting(horaIni, horaFin, cruza, familia, s.fecha);
   const cobroHora = familia ? Number(familia.cobro_hora)||0 : 0;
-  const pagoHora = familia ? Number(familia.pago_hora)||0 : 0;
   const tipo = tipoAsignacion(a);
+  // Pago por hora de un día de fijo (01/11/2026): el precio propio del fijo, si no el de la niñera de
+  // ese día con esta familia, si no la tarifa. Si el previsto ya figura con otra niñera (un
+  // reemplazo), es el de ella, sin el del fijo.
+  const prevDia = s._previsto || null;
+  const nineraDia = prevDia ? { id: prevDia.ninera_id || null, nombre: prevDia.ninera_nombre } : { id: a.ninera_id || null, nombre: a.ninera_nombre };
+  const preciosDia = tipo==='traslado' || !nineraDia.id ? [] : await leerPreciosNinera(a.familia_id, nineraDia.id);
+  if(preciosNoLeidos(preciosDia)){ if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
+  const pagoHora = Number(precioHoraNinera(familia, nineraDia.id, preciosDia, pagoFijoDeNinera(a, nineraDia.id, nineraDia.nombre)))||0;
   let cobro = redondearCobro(horas.cobro*cobroHora), pago = redondearPago(horas.real*pagoHora);
   if(tipo==='traslado'){
     const cobroTxt = document.getElementById('agenda-fija-cobro')?.value ?? '';
@@ -1308,8 +1418,16 @@ async function confirmarReemplazoFijoHoy(id){
   const familia = agendaFamilias.find(f=>f.id===a.familia_id);
   const horas = horasSitting(horaIni, horaFin, cruza, familia, s.fecha);
   const cobroHora = familia ? Number(familia.cobro_hora)||0 : 0;
-  const pagoHora = familia ? Number(familia.pago_hora)||0 : 0;
-  const nineraSel = agendaReemplazoNineraSel && normaliza(agendaReemplazoNineraSel.nombre)===normaliza(nineraTxt) ? agendaReemplazoNineraSel : null;
+  // Elegida de la lista o escrita entera (sin tildes ni mayúsculas), como findNinera en Sittings: si no, se
+  // guardaba sin ninera_id y con la tarifa aunque tuviera su precio (revisión final, 31/10/2026).
+  const nineraSel = (agendaReemplazoNineraSel && normaliza(agendaReemplazoNineraSel.nombre)===normaliza(nineraTxt) ? agendaReemplazoNineraSel : null)
+    || agendaNinierasBase.find(n=>normaliza(n.nombre)===normaliza(nineraTxt)) || null;
+  const nombreRe = nineraSel?.nombre || nineraTxt;
+  // La reemplazante cobra su propio precio con esta familia, o la tarifa: nunca el precio del fijo,
+  // que es de la titular (respuesta 2 de Diego, 31/10/2026).
+  const preciosRe = tipoAsignacion(a)==='traslado' || !nineraSel ? [] : await leerPreciosNinera(a.familia_id, nineraSel.id);
+  if(preciosNoLeidos(preciosRe)){ if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
+  const pagoHora = Number(precioHoraNinera(familia, nineraSel?.id || null, preciosRe, pagoFijoDeNinera(a, nineraSel?.id || null, nombreRe)))||0;
   let cobro = redondearCobro(horas.cobro*cobroHora), pago = redondearPago(horas.real*pagoHora);
   if(tipoAsignacion(a)==='traslado'){
     const cobroTxt = document.getElementById('agenda-fija-rcobro')?.value ?? '';
@@ -1317,16 +1435,16 @@ async function confirmarReemplazoFijoHoy(id){
     if(cobroTxt==='' || pagoTxt===''){ if(warn) warn.innerHTML = '<div class="warnbox">Completá el cobro del traslado y el pago a la niñera.</div>'; return; }
     cobro = redondearCobro(cobroTxt); pago = redondearPago(pagoTxt);
   }
-  const choque = chequearDobleReservaAgenda(nineraTxt, s.fecha, horaIni, horaFin, s.id);
-  if(!(await avisarSiDobleReserva(choque, nineraTxt, 'Registrar igual'))) return;
+  const choque = chequearDobleReservaAgenda(nombreRe, s.fecha, horaIni, horaFin, s.id);
+  if(!(await avisarSiDobleReserva(choque, nombreRe, 'Registrar igual'))) return;
   if(familia){
-    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, horaIni, horaFin, nineraTxt, s._previsto?.id || null);
+    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, horaIni, horaFin, nombreRe, s._previsto?.id || null);
     if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return;
   }
   if(s._previsto){
     // Previsto: cambia la niñera de esa fila, solo ese día.
     const { error } = await sb.from('sittings_traslados').update({
-      ninera_id: nineraSel?.id || null, ninera_nombre: nineraTxt,
+      ninera_id: nineraSel?.id || null, ninera_nombre: nombreRe,
       hora_inicio: horaIni, hora_fin: horaFin, termina_dia_siguiente: cruza,
       cobro_familia: cobro, pago_ninera: pago, generado_automatico: false,
       notas: `Reemplazo de ${s._previsto.ninera_nombre}`,
@@ -1334,7 +1452,7 @@ async function confirmarReemplazoFijoHoy(id){
     if(error){ if(warn) warn.innerHTML = errBox(error); return; }
     cerrarModal();
     await cargarAgendaSolicitudes();
-    toast(`Listo: ese día va ${nineraTxt}.`);
+    toast(`Listo: ese día va ${nombreRe}.`);
     return;
   }
   const { error } = await sb.from('sittings_traslados').insert({
@@ -1344,7 +1462,7 @@ async function confirmarReemplazoFijoHoy(id){
     familia_id: a.familia_id || null,
     familia_nombre: s.familia_nombre,
     ninera_id: nineraSel?.id || null,
-    ninera_nombre: nineraTxt,
+    ninera_nombre: nombreRe,
     fecha: s.fecha,
     hora_inicio: horaIni,
     hora_fin: horaFin,
@@ -1392,15 +1510,18 @@ async function cambiarNineraAsignacionFija(asigId){
     return;
   }
   let aHoy = null; // el fijo que rige hoy después del cambio (para el sitting de hoy)
+  // El precio propio del fijo (pago_hora) es de la niñera anterior: con otra niñera no se copia, y
+  // ella cobra el suyo con esta familia o la tarifa (01/11/2026).
   if(enElMismoLugar){
-    const { error } = await sb.from('asignaciones').update({ninera_nombre: nueva, ninera_id: ninera?.id || null}).eq('id', asigId);
+    const cambio = {ninera_nombre: nueva, ninera_id: ninera?.id || null, ...(a.pago_hora!=null ? {pago_hora: null} : {})};
+    const { error } = await sb.from('asignaciones').update(cambio).eq('id', asigId);
     if(error){ warn.innerHTML = errBox(error); return; }
-    aHoy = {...a, ninera_nombre: nueva, ninera_id: ninera?.id || null};
+    aHoy = {...a, ...cambio};
   } else {
     const nuevaAsig = {
       familia_id: a.familia_id, ninera_nombre: nueva, ninera_id: ninera?.id || null,
       dias: a.dias, hora_inicio: a.hora_inicio, hora_fin: a.hora_fin,
-      cobro_hora: a.cobro_hora ?? null, pago_hora: a.pago_hora ?? null,
+      cobro_hora: a.cobro_hora ?? null, pago_hora: null,
       tipo: tipoAsignacion(a), vigente_desde: desde, vigente_hasta: a.vigente_hasta || null,
       ...precioTrasladoDelFijo(a),
     };
@@ -1679,12 +1800,18 @@ async function filaDeHoySegunFijo(aHoy, r){
     fila.pago_ninera = aHoy.pago_traslado ?? r.pago_ninera;
   } else {
     // Igual que generar_previstos_fijos: horas del fijo por la tarifa de la familia (el
-    // cobro, con el fin redondeado si aceptó los términos).
-    const { data: fam, error } = await leerFamiliasConTerminos('cobro_hora,pago_hora', q=>q.eq('id', aHoy.familia_id).maybeSingle());
+    // cobro, con el fin redondeado si aceptó los términos) y el pago por hora de un día de fijo
+    // (01/11/2026): el del fijo, si no el de su niñera con esta familia, si no la tarifa.
+    const [{ data: fam, error }, precios] = await Promise.all([
+      leerFamiliasConTerminos('cobro_hora,pago_hora', q=>q.eq('id', aHoy.familia_id).maybeSingle()),
+      aHoy.ninera_id ? leerPreciosNinera(aHoy.familia_id, aHoy.ninera_id) : [],
+    ]);
     if(error) throw error;
+    if(preciosNoLeidos(precios)) throw new Error(AVISO_PRECIOS_NO_LEIDOS); // no se pisa el pago del de hoy con la tarifa
     const horas = horasSitting(hi, hf, cruza, fam, todayISO()) || { real: 0, cobro: 0 };
+    const pagoHora = precioHoraNinera(fam && { ...fam, id: aHoy.familia_id }, aHoy.ninera_id || null, precios, aHoy.pago_hora);
     fila.cobro_familia = redondearCobro(horas.cobro * (Number(fam?.cobro_hora) || 0));
-    fila.pago_ninera = redondearPago(horas.real * (Number(fam?.pago_hora) || 0));
+    fila.pago_ninera = redondearPago(horas.real * (Number(pagoHora) || 0));
   }
   return fila;
 }
@@ -1696,7 +1823,7 @@ function filaDeHoyCambia(r, fila){
     return (r[k] ?? null) !== (fila[k] ?? null);
   });
 }
-async function alinearRegistroDeHoy(asigId, aHoy, motivoCancelado, {noCancelar=false}={}){
+async function alinearRegistroDeHoy(asigId, aHoy, motivoCancelado, {noCancelar=false, queSeGuardo='el cambio del fijo'}={}){
   await esperarConfigFijos();
   if(!fijosAutomaticosActivos || !asigId) return;
   const hoy = todayISO();
@@ -1728,7 +1855,7 @@ async function alinearRegistroDeHoy(asigId, aHoy, motivoCancelado, {noCancelar=f
       if(!(hechas||[]).length) toast(`El sitting de hoy (${r.familia_nombre}) lo acaba de cambiar alguien: no se tocó. Revisalo en Sittings & traslados.`, 'bad');
     }
   }catch(err){
-    toast('Se guardó el cambio del fijo, pero no se pudo corregir el sitting de hoy ('+(err?.message||err)+'). Revisalo en Sittings & traslados.', 'bad');
+    toast('Se guardó '+queSeGuardo+', pero no se pudo corregir el sitting de hoy ('+(err?.message||err)+'). Revisalo en Sittings & traslados.', 'bad');
   }
 }
 /* Días previstos que alguien cambió a mano (un horario distinto, un reemplazo, un "no va")
