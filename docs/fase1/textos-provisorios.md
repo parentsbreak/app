@@ -125,3 +125,37 @@ Los avisos ("Avisos"):
 - Sin avisos: "No tienes avisos."
 - Si no carga: "No pudimos cargar tus avisos. Revisa tu conexión a internet y vuelve a intentar." con
   el botón "Reintentar".
+
+## Etapa 9: temporada y avisos
+
+Avisos obligatorios al entrar a la app (31/10/2026):
+- La pantalla "Activa los avisos" sale cada vez que entra con los avisos apagados. Ya no tiene "Ahora no":
+  queda solo "Activar avisos". El link chico "Seguir sin avisos" aparece recién si activarlos falló por la
+  conexión o la base (así nunca queda atrapada); vale hasta cerrar sesión o recargar la app.
+- Si el permiso quedó bloqueado: título "Los avisos están bloqueados" y "Para recibir tus pedidos, actívalos
+  desde los Ajustes de tu celular."
+- "iPhone: Ajustes > Notificaciones > Parents' Break > Permitir notificaciones."
+- "Android: mantén apretado el ícono de la app > Información de la app > Notificaciones > actívalas."
+- Botón "Ya los activé" (vuelve a probar; si siguen apagados, "Los avisos siguen apagados. Actívalos en
+  Ajustes.") y el mismo link "Seguir sin avisos".
+
+La temporada en la app (31/10/2026, textos nuevos, a confirmar con las dueñas):
+- Tarjeta del inicio sin cargar: "¿Dónde vas a estar esta temporada?" / "Marca dónde vas a estar cada
+  quincena. Te lleva un minuto." y botón "Marcar". Al día: "Tu temporada", un renglón por lugar
+  ("Punta del Este: enero y febrero completos") o "Toda la temporada en Montevideo.", y botón "Cambiar".
+- Pantalla: "Ver el resto del año" / "Ocultar el resto del año", "Todo el verano en Punta", "¿Dónde?".
+- Errores: "Te falta marcar 1 quincena." / "Te falta marcar N quincenas.", "Escribe dónde vas a estar.",
+  "No pudimos guardar tu temporada. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos abrir tu
+  temporada. Revisa tu conexión a internet y vuelve a intentar." Si la base dice que falta el grupo de Punta
+  (reintentar no sirve): "No pudimos guardar tu temporada. Avisa al equipo de Parents' Break." Al guardar: "¡Listo! Guardamos tu temporada."
+- Toast al activar los avisos desde la pantalla obligatoria o desde "Ya los activé": "Avisos activados."
+- Pantalla de temporada: encabezado "Marca dónde vas a estar cada quincena." y filas "1ra quincena de diciembre" /
+  "2da quincena de diciembre" ... (de diciembre a marzo, y de abril a noviembre en "Ver el resto del año"); botones
+  "Punta del Este", "Montevideo", "La Paloma", "Fuera del país", "Otro"; "Guardar" y "Volver".
+
+Panel de las admins (voseo, 31/10/2026):
+- Fila de una niñera con app en el panel de temporadas: "Se la pide la app" (en lugar de "Pedirle por WhatsApp").
+- Fuente de la temporada: "la cargó ella en la app".
+- Ficha de la niñera, sección "Temporada": "Sin temporada cargada" (también si es de la temporada anterior); si
+  está al día, "Toda la temporada en Montevideo." o un renglón por lugar ("Fuera del país: 1ra de marzo", "Otro
+  (Rocha): 2da de marzo", "La Paloma: enero") y la fuente.

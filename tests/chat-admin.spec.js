@@ -434,14 +434,15 @@ test.describe('Hoy: Mensajes de niñeras', () => {
   test('niñera inactiva: editarla y volver a abrirla muestra lo editado (su fila se vuelve a leer)', async ({ page }) => {
     const d = datosBase();
     d.ninieras.find(n => n.id === ID.nCarla).activa = false;
+    // Sin temporada cargada (en datos.js Carla ya la cargó, etapa 9): Carla tiene app, así que no hay paso previo.
+    Object.assign(d.ninieras.find(n => n.id === ID.nCarla), { temporada_actualizada_en: null, temporada_fuente: null, temporada_lugares: null, temporada_lugares_en: null });
     const e = await abrirApp(page, { datos: d });
     await filasHoy(page).first().click();
     await expect(mensajes(page)).toHaveCount(1);
     await expect(page.locator('#editmodal .fichadl')).toContainText('Notas—');
     // "Editar" encima de la ficha: arranca con su fila y guarda sobre la misma niñera.
-    // Primero pide la temporada (no la tiene): "Omitir por ahora" vuelve a abrir "Editar" con su fila.
+    // Carla tiene app: el panel no le pide la temporada (31/10/2026), se abre directo "Editar".
     await page.evaluate(i => editarNinera(i), ID.nCarla);
-    await page.locator('#editmodal button', { hasText: 'Omitir por ahora' }).click();
     await page.fill('#ed-notas', 'Nota editada');
     await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
     await expect(toasts(page).last()).toHaveText('Cambios guardados.');

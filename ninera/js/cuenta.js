@@ -225,6 +225,8 @@ async function cerrarSesionNinera(){
     return;
   }
   sesionNinera = null;
+  // Otra cuenta (o la misma) que entre después vuelve a ver la pantalla obligatoria de avisos.
+  avisosSalteadosEstaVez = false;
   cerrarModalNinera();
   pantallaLogin();
 }
@@ -319,23 +321,75 @@ async function avisosActivados(){
   }catch(e){ return false; }
 }
 
+// En memoria, no en localStorage (31/10/2026): "Seguir sin avisos" vale solo hasta cerrar o recargar la
+// app. Cada vez que entra con los avisos apagados se le vuelve a pedir que los active.
+let avisosSalteadosEstaVez = false;
+
 function pantallaAvisos(){
   marcarRuta('#avisos');
-  // Una sola vez por celular: si dice "Ahora no", el inicio le sigue avisando que están apagados.
-  // Los dos botones siguen como después de instalar (etapa 2, 27/10/2026): la primera vez, al perfil.
-  guardarLocalNinera('pb-ninera-avisos-vistos', '1');
+  // Con el permiso ya bloqueado, pedirlo de nuevo no hace nada: va directo a los pasos de Ajustes.
+  if(avisosSoportados() && Notification.permission === 'denied'){ pantallaAvisosBloqueados(); return; }
+  // Los avisos son obligatorios al entrar (etapa 9, 31/10/2026): sin "Ahora no" ni salida a la vista.
+  // El link "Seguir sin avisos" aparece recién si activarlos falló por otra cosa que el permiso
+  // (conexión, base, suscripción): así una falla de red nunca la deja atrapada.
   pintar(`<main class="pantalla">
     <img src="../logo.png" alt="Parents’ Break" class="pantalla-logo">
     <h1>Activa los avisos</h1>
     <p class="intro">Te avisaremos cuando haya un pedido, cuando quedes seleccionada y antes de tu sitting. Sin avisos te vas a perder pedidos.</p>
-    <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosNinera().then(()=>continuarDespuesDeInstalar()))">Activar avisos</button>
-    <button type="button" class="link-boton" onclick="continuarDespuesDeInstalar()">Ahora no</button>
+    <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosDesdePantalla())">Activar avisos</button>
+    <div id="avisos-salida"></div>
   </main>`);
 }
 
+// Permiso bloqueado en el celular: los pasos para activarlos desde Ajustes (misma ruta #avisos).
+function pantallaAvisosBloqueados(){
+  marcarRuta('#avisos');
+  pintar(`<main class="pantalla">
+    <img src="../logo.png" alt="Parents’ Break" class="pantalla-logo">
+    <h1>Los avisos están bloqueados</h1>
+    <p class="intro">Para recibir tus pedidos, actívalos desde los Ajustes de tu celular.</p>
+    <p class="intro"><strong>iPhone:</strong> Ajustes &gt; Notificaciones &gt; Parents' Break &gt; Permitir notificaciones.</p>
+    <p class="intro"><strong>Android:</strong> mantén apretado el ícono de la app &gt; Información de la app &gt; Notificaciones &gt; actívalas.</p>
+    <button class="btn primary ancho" onclick="conGuardado(this, ()=>reintentarAvisosNinera())">Ya los activé</button>
+    <button type="button" class="link-boton" onclick="seguirSinAvisosNinera()">Seguir sin avisos</button>
+  </main>`);
+}
+
+// "Activar avisos" de la pantalla: si salió bien sigue (perfil o inicio); si el permiso quedó
+// bloqueado, los pasos; cualquier otra falla ya la explicó el aviso: se queda para reintentar y
+// aparece la salida "Seguir sin avisos".
+async function activarAvisosDesdePantalla(){
+  const ok = await suscribirAvisosNinera();
+  if(ok){
+    toast('Avisos activados.');
+    return continuarDespuesDeInstalar();
+  }
+  if(avisosSoportados() && Notification.permission === 'denied'){ pantallaAvisosBloqueados(); return; }
+  const salida = document.getElementById('avisos-salida');
+  if(salida) salida.innerHTML = '<button type="button" class="link-boton" onclick="seguirSinAvisosNinera()">Seguir sin avisos</button>';
+}
+
+// "Ya los activé": vuelve a probar. Si siguen apagados, el aviso lo dice y se queda en los pasos.
+async function reintentarAvisosNinera(){
+  const ok = await suscribirAvisosNinera();
+  if(!ok) return;
+  toast('Avisos activados.');
+  return continuarDespuesDeInstalar();
+}
+
+function seguirSinAvisosNinera(){
+  avisosSalteadosEstaVez = true;
+  return continuarDespuesDeInstalar();
+}
+
 // Pide el permiso, suscribe este celular y guarda la suscripción. Después va a la pantalla
-// `despues` (el inicio), haya andado o no: ahí se ve si quedaron apagados.
+// `despues` (el inicio), haya andado o no: ahí se ve si quedaron apagados. Con el permiso ya
+// bloqueado no hay nada que pedir: lleva a los pasos (#avisos).
 async function activarAvisosNinera(despues){
+  if(avisosSoportados() && Notification.permission === 'denied'){
+    await irA('#avisos');
+    return false;
+  }
   const ok = await suscribirAvisosNinera();
   if(ok) toast('Avisos activados.');
   if(despues) await irA(despues);

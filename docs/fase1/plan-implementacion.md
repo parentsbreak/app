@@ -1133,20 +1133,193 @@ Rama `claude/fase1-ficha-cambios`. Migración `AAAAMMDD_ficha_cambios.sql`.
 
 ## Etapa 9: temporada en la app
 
-Rama `claude/fase1-temporada`. Migración `AAAAMMDD_temporada_app.sql`. Se hace después de la
-etapa 3 (necesita `avisos` y `programar_avisos()`) y antes de la 4 (orden del 27/10/2026).
-- 9.1 `ninieras.temporada_lugares`, `ninera_guardar_temporada(p_lugares jsonb)` (escribe también
-  `temporada` en el formato de hoy, `temporada_fuente 'app'`), reglas `temporada:<año>:<id>` (1/10
-  9:00) y `:q<n>` (cada 15 días hasta el 31/12); pruebas.
-- 9.2 App: pantalla por quincena, atajo, "Otro" con texto.
-- 9.3 Panel: marca "Otro" en la ficha; `ordenarSugeridas` lee `temporada_lugares` y
-  `temporada_reglas`; el panel de temporadas muestra la fuente "app".
-- 9.3b Panel: a las admins no se les pide más la temporada (Diego, 27/10/2026): se apagan el
-  aviso anual "Pedir la temporada de Punta" (`app-shell.js` y `enviar-push-urgentes`, republicar
-  con OK) y el paso previo de temporada al editar una niñera (`abrirPasoTemporada`, `ninieras.js`);
-  la niñera la completa en su app. Qué queda para las que todavía no tienen la app (el botón
-  "Pedirle por WhatsApp" de la ficha, sin recordatorios) se cierra al detallar la etapa.
-- 9.4 Plan de apagado anotado en CLAUDE.md (nada más se apaga). PR, migración (OK), merge.
+Rama `claude/fase1-temporada` (worktree `.claude/worktrees/fase1-temporada`). Migración
+`20261101_temporada_app.sql` + `_DESHACER.sql`. Sin Edge Functions. Detallada el 31/10/2026.
+**Spec:** `docs/fase1/etapa9-temporada.md` (diseño aprobado por Diego el 31/10/2026, con sus cambios).
+Manda sobre este plan: si algo choca, vale el diseño.
+
+**Objetivo:** la niñera con app marca dónde va a estar cada quincena y la app se lo pide y se lo
+recuerda sola; el panel lo lee igual que hoy, más los lugares nuevos, y deja de pedirles nada a las
+admins por las que tienen app. Además, los avisos pasan a ser obligatorios al entrar a la app.
+
+**Restricciones de la etapa (además de las globales):**
+- `temporada.html`, `temporada-ninera` y `enviar-push-urgentes` no se tocan ni se republican. Para
+  las niñeras sin app (`user_id` nulo) el panel sigue exactamente igual (paso previo, "Pedirle por
+  WhatsApp", aviso anual).
+- La niñera lee y escribe su temporada solo por `ninera_mi_temporada()` y
+  `ninera_guardar_temporada(p_lugares)`; nada de políticas nuevas sobre `ninieras`.
+- Lugares: `montevideo | punta | la_paloma | fuera_pais | {otro: texto}`, siempre las 24 claves
+  "0".."23"; "Otro" de 1 a 80 caracteres. Quincena q = mes*2 (+1 la segunda), sin año.
+- Inicio de la temporada: 1/9 a las 0:00 de Montevideo (`inicio_temporada_mvd()` en la base,
+  `inicioTemporadaActual()` en el panel). Lugares vigentes = no nulos, `temporada_lugares_en` ≥ inicio
+  y `temporada_fuente` 'app' o 'sistema'.
+- Textos de la niñera en "tú" (`textos.md` 6); los que no estén van a `textos-provisorios.md`
+  ("Etapa 9: temporada y avisos"). Los del panel en voseo. Todo texto de "Otro" escapado.
+- Base sin la migración: la app sin tarjeta ni pantalla de temporada (las RPC dan 404) y el panel
+  como hoy (sin `temporada_lugares` todo cae en la regla vieja).
+
+**Review Focus de la etapa:**
+1. Un push de la temporada que abre la app cerrada (`#temporada` en la URL) con los avisos o el perfil
+   todavía pendientes: pasa primero por esas pantallas y después llega a la temporada, no al inicio
+   (test en 9.4).
+2. Lugares de la temporada pasada, o una respuesta posterior por la página: ni la app ni el panel los
+   toman como vigentes (SQL en 9.1, panel en 9.5).
+3. Una admin corrige las quincenas de Punta de una niñera que cargó "Fuera del país" y "Otro": eso no se
+   borra; y si los lugares no estaban vigentes, la corrección los borra (9.5).
+4. "Otro" con HTML, comillas o 81 caracteres: la app no deja pasar más de 80 y todo se ve como texto en
+   la app, la ficha y el panel (9.4, 9.5).
+5. Un celular que no puede recibir avisos (Safari sin instalar) o con el permiso bloqueado nunca queda
+   atrapado en la pantalla de avisos: siempre hay una salida (9.3).
+
+### Tarea 9.1: migración `temporada_app`, funciones y pruebas SQL
+
+**Archivos:** `supabase/migraciones/20261101_temporada_app.sql` y `_DESHACER.sql`,
+`supabase/pruebas/fase1_temporada.sql`, `supabase/pruebas/deshacer/20261101_temporada_app.sql` (+
+`_datos.sql`), `supabase/schema.sql`, `supabase/pruebas/catalogo_seguridad.sql`,
+`supabase/pruebas/fase1_avisos_chat.sql` (con la temporada cargada, `programar_avisos()` sigue en 0).
+
+**Interfaces (produce):**
+- `ninieras.temporada_lugares jsonb`, `ninieras.temporada_lugares_en timestamptz`.
+- `inicio_temporada_mvd(p_ahora timestamptz default now()) → timestamptz`.
+- `ninera_mi_temporada() → jsonb {lugares: jsonb|null, al_dia: boolean, solo_afuera: boolean}` (null si
+  no es niñera). `lugares` solo si `al_dia`.
+- `ninera_guardar_temporada(p_lugares jsonb) → void`; errores `no_autorizada`, `temporada_invalida`,
+  `sin_grupo_punta`. Escribe `temporada_lugares`, `temporada_lugares_en`, `temporada` (`{<id grupo Punta
+  del Este>: [quincenas]}`), `zona` (+ "Punta del Este" si no la tenía), `temporada_actualizada_en`,
+  `temporada_fuente = 'app'` y vacía `temporada_propuesta(_en)`.
+- `programar_avisos_temporada(p_ahora)`: claves `temporada:<año>:<id>` y `temporada:<año>:<id>:q<n>`, tipo
+  `temporada`, url `#temporada`, textos de `textos.md` 1. `programar_avisos()` la suma.
+- [x] Migración, DESHACER, pruebas (aplicar → deshacer → aplicar, y el DESHACER con datos) y
+  `schema.sql`. Todas las pruebas de `supabase/pruebas/*.sql` pasan con PGlite.
+- [x] Commit `Etapa 9: migración de la temporada en la app y sus pruebas`.
+- [x] Diego revisa la migración (SQL y consulta de verificación): el orquestador la revisó y aprobó sin cambios (31/10/2026). Se aplica recién con su OK, el día del
+  merge (ver 9.6).
+
+### Tarea 9.2: simulador de la etapa
+
+**Archivos:** `tests/support/rpc-ninera.js`, `tests/support/app.js`, `tests/support/datos.js`,
+`tests/support/fuentes.js`, `ninera/index.html` (`<script src="js/temporada.js">` después de `chat.js`, antes
+de `arranque.js`), crear `ninera/js/temporada.js` con su cabecera; CLAUDE.md (orden de carga).
+
+**Interfaces (produce):**
+- `rpcNinera` suma `ninera_mi_temporada` y `ninera_guardar_temporada` con la regla de la SQL (mismas
+  validaciones y mismos errores con `errorRpc(...)`; guardar escribe en la fila de `db.ninieras` las mismas
+  columnas que la SQL). "Ahora" es el del reloj de la página (`page.clock` cuando el test lo fija).
+- `baseSinMigrar: 'etapa9'`: esas dos RPC dan 404 `PGRST202`; lo de las etapas 2 y 3 anda.
+- Datos: Ana sin temporada; en el panel, una niñera con app y lugares vigentes ("Fuera del país" la 1ra de
+  marzo, `{otro: 'Rocha'}` la 2da) y otra con temporada de la temporada anterior.
+- Correr toda la suite: los datos nuevos no pueden romper otros tests (si alguno cuenta filas, se ajusta
+  y se dice por qué).
+- [x] Commit `Etapa 9: simulador de la temporada`.
+
+### Tarea 9.3: avisos obligatorios (`ninera/js/cuenta.js`, `arranque.js`, `inicio.js`)
+
+**Interfaces (produce):**
+- `pantallaAvisos()`: sin "Ahora no"; solo "Activar avisos". Se deja de usar la marca
+  `pb-ninera-avisos-vistos`: `continuarDespuesDeInstalar()` la muestra cada vez que entra con
+  `avisosSoportados()` y `!(await avisosActivados())`, salvo que en esta apertura ya eligió "Seguir sin
+  avisos" (variable en memoria `avisosSalteadosEstaVez`, no en `localStorage`).
+- Si al tocar "Activar avisos" el permiso queda en `denied`, o ya estaba en `denied` al entrar:
+  `pantallaAvisosBloqueados()` (ruta `#avisos`) con los pasos para activarlos en Ajustes (iPhone y
+  Android, texto en `textos-provisorios.md`), "Ya los activé" (`conGuardado`, vuelve a probar
+  `suscribirAvisosNinera()`; si siguen apagados, lo dice y se queda) y abajo, como link chico, "Seguir sin
+  avisos" (pone `avisosSalteadosEstaVez` y sigue al perfil o al inicio).
+- Inicio: el aviso rojo de hoy ("Avisos apagados...") sigue fijo y sin cerrar; su "Activar avisos" con el
+  permiso en `denied` va a `#avisos` (los pasos) en lugar de pedir el permiso.
+- `avisosSoportados()` falso: pasa como hoy (sin pantalla de avisos).
+- Tests: `tests/ninera-cuenta.spec.js` cambia a propósito (los casos que tocaban "Ahora no" pasan por
+  "Activar avisos" o "Seguir sin avisos"; el PR lo dice) y suma: sale cada vez que entra con los avisos
+  apagados; permiso bloqueado → pasos, "Ya los activé" con el permiso todavía bloqueado (se queda) y ya
+  concedido (sigue); "Seguir sin avisos" → inicio con el aviso rojo, cuyo botón lleva a los pasos; celular
+  que no puede → sin pantalla; 390 px.
+- [x] Commit `Etapa 9: avisos obligatorios al entrar a la app de niñeras`.
+
+### Tarea 9.4: app: la temporada (`ninera/js/temporada.js`)
+
+**Interfaces (consume):** `ninera_mi_temporada`, `ninera_guardar_temporada` (9.1, simuladas en 9.2);
+`textoQuincenas(qs)` y `TEMP_MESES_LARGO`, que pasan de `js/ninieras.js` a `js/comun.js` sin cambios
+(las usan las dos puertas; mirar antes con `gh pr list` que ningún PR abierto toque `comun.js`).
+
+**Interfaces (produce):**
+- `LUGARES_TEMPORADA` (comun.js): `{montevideo: 'Montevideo', punta: 'Punta del Este', la_paloma: 'La
+  Paloma', fuera_pais: 'Fuera del país', otro: 'Otro'}`.
+- `resumenLugaresTemporada(lugares) → Array<{etiqueta: string, quincenas: number[]}>` (comun.js): un
+  renglón por lugar distinto de Montevideo, en el orden punta, la_paloma, fuera_pais y cada "Otro" por
+  texto (`Otro (Rocha)`), con sus quincenas. Sin escapar: escapa quien lo pinta. Vacío si todo es
+  Montevideo.
+- `cargarTemporadaNinera() → Promise<{lugares, al_dia, solo_afuera} | null>`: null con la base sin migrar
+  (404 `PGRST202`); un error de red tira.
+- Tarjeta en el inicio (`#inicio-temporada`, debajo de `#inicio-avisos`), solo de setiembre a marzo
+  (mes de `todayISO()`), sin esperar a pintar el resto: sin estar al día, "¿Dónde vas a estar esta
+  temporada?" y "Marcar"; al día, "Tu temporada", el resumen (`resumenLugaresTemporada` +
+  `textoQuincenas`, o "Toda la temporada en Montevideo.") y "Cambiar". Sin migrar o si falla la
+  lectura: no aparece (sin aviso).
+- `pantallaTemporadaNinera()` (`#temporada`): título "¿Dónde vas a estar esta temporada?"; el atajo "Todo
+  el verano en Punta" (marca `punta` en 23, 0, 1, 2 y 3 y deja el resto como estaba); 8 filas (22, 23, 0,
+  1, 2, 3, 4, 5) con "1ra quincena de diciembre"... y 5 botones por fila (`aria-pressed`), "Otro" abre
+  "¿Dónde?" (`maxlength="80"`); "Ver el resto del año" despliega las 16 de abril (6) a noviembre (21).
+  Precarga: al día, sus `lugares`; si no, las 8 vacías y las 16 en `montevideo` (o `punta` si
+  `solo_afuera`). "Guardar" (`conGuardado`): con alguna de las 8 vacía no llama a la base, las marca y dice
+  "Te falta marcar N quincenas."; "Otro" vacío: "Escribe dónde vas a estar." y no guarda. Bien: "¡Listo!
+  Guardamos tu temporada." y vuelve al inicio. Falla o sin conexión: "No pudimos guardar tu temporada.
+  Revisa tu conexión a internet y vuelve a intentar." y lo marcado queda. "Volver" al inicio. Sin migrar:
+  la ruta va al inicio.
+- Rutas: `#temporada` en `rutaPedidaAlAbrir` (arranque.js), en el `hashchange` de chat.js (lista de rutas
+  de las dos condiciones) y en `irA` (base.js). Los avisos con `url '#temporada'` ya se enlazan solos.
+- Test `tests/ninera-temporada.spec.js`: tarjeta sin cargar, al día con resumen (incluido "Otro" con
+  HTML tramposo, visto como texto) y en mayo (no está); pantalla: las 8 vacías sin estar al día, las 16 en
+  Montevideo (en Punta si vive en Punta), al día con lo suyo; el atajo; guardar con vacías (no llama a la
+  RPC), "Otro" vacío, "Otro" con 80 (no deja escribir el 81); guardar bien (cuerpo exacto de la RPC con las
+  24 claves) y la tarjeta pasa a "Tu temporada"; falla y sin conexión sin perder lo marcado; doble toque
+  una sola RPC; base sin migrar; abrir con `#temporada` en la URL con avisos apagados (pasa por avisos y
+  llega a la temporada) y un push con la app abierta; 390 y 1280 px; ni `$\d` ni "pago".
+- [x] Commit `Etapa 9: la temporada en la app de niñeras`.
+
+### Tarea 9.5: panel (`js/ninieras.js`)
+
+**Interfaces (produce):**
+- `lugaresTemporadaVigentes(n) → object|null`: los lugares si están vigentes (regla de las
+  restricciones), si no null.
+- `estadoTemporada(n)` sin cambios; `nineraPresenteEnZona(n, zonaKey, q)`: con `estadoTemporada(n) !==
+  'ok'` se comporta como sin temporada cargada (para todas, con app o sin app: Diego, 31/10/2026); con
+  lugares vigentes, una zona de Montevideo o Canelones la excluye en las quincenas con un lugar distinto de
+  `montevideo`; Punta sigue saliendo de `temporada`.
+- `textoFuenteTemporada`: 'app' → "la cargó ella en la app".
+- Correcciones (`guardarTemporadaEnBase`, la usan el panel, el paso previo y "Repetir lo del año
+  pasado"): con lugares vigentes, los manda junto con `temporada` mezclados (lo que queda en Punta →
+  `punta`, lo que estaba en `punta` y ya no → `montevideo`, el resto igual; `temporada_lugares_en` no se
+  manda); sin lugares vigentes pero con `temporada_lugares` no nulo, manda los dos en null.
+- Niñera con app (`n.user_id`): `editarNinera` no abre `abrirPasoTemporada`; en su fila del panel de
+  temporadas, en lugar de "Pedirle por WhatsApp", el texto "Se la pide la app"; `abrirRecordatorioTemporada`
+  y el contador del panel de temporadas ("X sin temporada") no la cuentan entre las que hay que pedir (en
+  el panel aparece igual, con su estado, para poder corregirla).
+- Ficha (`verNinera`): sección chica "Temporada" (`#vn-temporada`, después de los datos y antes del
+  chat): "Sin temporada cargada" si no está al día (también si es de la temporada anterior); si no, "En
+  Punta del Este: …" (`textoQuincenas`) y un renglón por cada lugar de `resumenLugaresTemporada`, más la
+  fuente (`textoFuenteTemporada`). En el panel de temporadas, los mismos renglones debajo del estado.
+  Todo escapado.
+- Lo que lea `ninieras` para la lista ya trae `user_id`, `temporada_lugares` y `temporada_lugares_en`
+  (comprobar el `select` de `cargarNinieras`; si no las trae, sumarlas).
+- Test `tests/temporada-app-panel.spec.js`: con app sin paso previo y con "Se la pide la app", sin app
+  como hoy; el recordatorio anual cuenta solo a las sin app; fuente "en la app"; filtro con Fuera del país,
+  Otro y La Paloma (no está en Pocitos esas quincenas; sí en las de Montevideo); temporada anterior como
+  "sin temporada cargada" en el filtro y en la ficha; ficha y panel con los renglones; corregir Punta
+  conserva Fuera del país y Otro (cuerpo del update) y, con lugares no vigentes, los borra; escape de
+  "Otro"; base sin migrar (sin las columnas) como hoy; 390 px. `tests/filtro-punta.spec.js` sigue
+  pasando; si un dato suyo es de una temporada anterior, se ajusta y el PR lo dice.
+- [x] Commit `Etapa 9: el panel lee la temporada de la app`.
+
+### Tarea 9.6: documentación, revisión final y PR (sin merge hasta el OK)
+
+- [x] CLAUDE.md: orden de carga con `temporada.js`, tests nuevos, convención "Temporada desde la app"
+  (cuál manda, inicio 1/9, correcciones de las admins, avisos obligatorios), el filtro de Niñeras con la
+  temporada anterior; pendientes: apagar la página y `temporada-ninera` cuando todas tengan la app; borrar
+  "Publicar `enviar-avisos` junto con la migración" (ya hecho).
+- [x] `decisiones.md` 6.6 y 10 y este plan; `textos-provisorios.md`.
+- [ ] Revisión final de toda la rama (Opus), una ola de arreglos.
+- [ ] PR con el CI en verde, sin merge. Orden con el OK de Diego: (1) migración por el SQL Editor y la
+  consulta de verificación, (2) merge en seguida (el aviso de la temporada sale apenas se aplica la
+  migración: si llega antes de que la app nueva esté publicada, abre el inicio).
 
 ## Etapa 10: carsitting en la app
 

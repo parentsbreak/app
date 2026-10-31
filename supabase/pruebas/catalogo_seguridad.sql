@@ -54,7 +54,10 @@ declare
     -- correr_cron_avisos NO van: solo la base y la clave de servicio.
     'ninera_enviar_mensaje(p_texto text)',       -- niñera: raise 'no_autorizada' si ninera_actual() es null; escribe solo en su hilo, de y autor fijos
     'ninera_marcar_avisos_leidos()',             -- niñera: solo sus avisos; 0 si no es niñera
-    'ninera_marcar_chat_leido()'                 -- niñera: solo su hilo; 0 si no es niñera
+    'ninera_marcar_chat_leido()',                -- niñera: solo su hilo; 0 si no es niñera
+    -- Etapa 9 (01/11/2026): la temporada, por ninera_actual(). programar_avisos_temporada NO va.
+    'ninera_guardar_temporada(p_lugares jsonb)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su ficha
+    'ninera_mi_temporada()'                      -- niñera: solo su fila; null si no es niñera
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

@@ -34,12 +34,13 @@ function mensajeEquipo(id, texto, extra = {}) {
     creado_en: '2026-10-04T15:05:00+00:00', leido_ninera_en: null, leido_admin_en: null, ...extra };
 }
 
-// Ana con el perfil completo y la pantalla de avisos ya vista en este celular: estos tests miran el
+// Ana con el perfil completo y sin PushManager (desde la etapa 9 los avisos son obligatorios: sin esto
+// saldría su pantalla; un celular que no puede recibirlos pasa de largo): estos tests miran el
 // chat y los avisos, no el primer ingreso.
 async function abrir(page, opciones = {}) {
   const datos = opciones.datos || datosBase();
   (datos.ninieras || []).forEach(n => { if (n.id === ID.nAna) Object.assign(n, { zona: 'Pocitos', perfil_app_en: '2026-10-02T15:00:00+00:00' }); });
-  await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+  await page.addInitScript(() => { delete window.PushManager; });
   return abrirAppNinera(page, { ...opciones, datos });
 }
 const boton = (page, nombre) => page.locator('#inicio-accesos button', { hasText: nombre });
@@ -554,7 +555,7 @@ test.describe('entrar directo, base sin migrar, celular y textos', () => {
   });
 
   test('con #chat pero sin el perfil completo: primero el perfil y, al guardarlo, el hilo', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+    await page.addInitScript(() => { delete window.PushManager; });
     const e = await abrirAppNinera(page, { consulta: '#chat' });
     await expect(page.locator('h1')).toHaveText('Completa esto una sola vez');
     await page.getByRole('radio', { name: 'Sittings', exact: true }).check();
@@ -586,7 +587,7 @@ test.describe('entrar directo, base sin migrar, celular y textos', () => {
   });
 
   test('un push con la app abierta en el perfil de la primera vez: no se saltea el perfil', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+    await page.addInitScript(() => { delete window.PushManager; });
     const e = await abrirAppNinera(page);
     await expect(page.locator('h1')).toHaveText('Completa esto una sola vez');
     await page.evaluate(() => { location.hash = '#chat'; });

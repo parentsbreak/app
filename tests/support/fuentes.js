@@ -17,7 +17,7 @@ const ORDEN_SCRIPTS = [
 // Crece con cada etapa de la fase 1; arranque.js siempre al final.
 const ORDEN_SCRIPTS_NINERA = [
   'js/comun.js', 'ninera/js/base.js', 'ninera/js/cuenta.js', 'ninera/js/perfil.js', 'ninera/js/inicio.js', 'ninera/js/chat.js',
-  'ninera/js/arranque.js',
+  'ninera/js/temporada.js', 'ninera/js/arranque.js',
 ];
 // Todos los archivos de las dos puertas, sin repetir (comun.js una sola vez).
 const TODOS_LOS_SCRIPTS = [...new Set([...ORDEN_SCRIPTS, ...ORDEN_SCRIPTS_NINERA])];

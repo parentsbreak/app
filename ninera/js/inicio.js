@@ -21,6 +21,7 @@ async function renderInicio(){
       <h1>${nombre ? `Hola, ${escaparHtml(nombre)}` : 'Hola'}</h1>
     </header>
     <div id="inicio-avisos"></div>
+    <div id="inicio-temporada"></div>
     <p class="vacio">No tienes pedidos por ahora.</p>
     ${perfilNineraSinMigrar ? '' : `<section id="proximos-sittings" class="proximos" aria-live="polite">
       <h2>Próximos sittings</h2>
@@ -37,6 +38,8 @@ async function renderInicio(){
   if(!perfilNineraSinMigrar) cargarProximosSittings();
   // Lo mismo con lo que falta leer del chat y de los avisos (chat.js).
   cargarContadoresInicio();
+  // Y la tarjeta de la temporada (temporada.js): de setiembre a marzo, sin frenar nada de lo de arriba.
+  cargarTarjetaTemporada();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){

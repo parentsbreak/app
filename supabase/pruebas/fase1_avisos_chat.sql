@@ -210,7 +210,9 @@ begin
   return 1;
 end $$;
 
--- programar_avisos: en esta etapa no programa nada.
+-- programar_avisos: con la temporada de todas cargada, la regla de la temporada (etapa 9, de octubre
+-- a diciembre) no encola nada y las demás reglas todavía no existen.
+update ninieras set temporada_actualizada_en = now();
 select pg_temp.verificar('programar_avisos() devuelve 0', public.programar_avisos() = 0);
 
 -- reclamar_avisos: atómico, una sola entrega aunque lo llamen el trigger y el cron a la vez.

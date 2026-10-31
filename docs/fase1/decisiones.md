@@ -534,20 +534,29 @@ en `app_config 'plantillas'` y las dueñas lo editan desde ahí, con el emoji qu
   [día] / Con [madre: nombre + inicial]". Es el único aviso que nombra a la madre.
 
 ### 6.6 Temporada (etapa 9)
-- Pantalla por quincena (las 24 de setiembre a agosto, igual que el panel): Punta del Este /
-  Montevideo / La Paloma / Fuera del país / Otro (con texto). Atajo "Todo el verano en Punta".
-- Se guarda en `ninieras.temporada_lugares` (`{"0": "montevideo", "8": "punta", "9": {"otro":
-  "texto"}}`), y a la vez se escribe `ninieras.temporada` en el formato de hoy (`{<id grupo
-  Punta>: [quincenas en Punta]}`) con `temporada_fuente = 'app'` y `temporada_actualizada_en`,
-  así el filtro de Niñeras y el panel de temporadas siguen andando sin cambios.
-- La regla de qué pedidos recibe cada respuesta vive en `app_config 'temporada_reglas'`
-  (sección 4.5) y la leen las sugeridas. "Otro" se ve en la ficha de la niñera con el texto.
-- Avisos: 1 de octubre a las 9 (Montevideo) a todas las activas con app; cada 15 días a las que
-  no completaron, hasta el 31 de diciembre.
-- La página actual de temporada (Cloudflare) y `temporada-ninera` siguen como están para las
-  niñeras sin app (sección 10).
-- A las admins no se les pide nada (Diego, 27/10/2026): en esta etapa se apagan el aviso anual
-  "Pedir la temporada de Punta" del panel y el paso previo de temporada al editar una niñera.
+Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.
+- Pantalla por quincena: Punta del Este / Montevideo / La Paloma / Fuera del país / Otro (con texto, hasta 80
+  caracteres). De diciembre a marzo (8 quincenas, vacías hasta que las elige) y el resto del año plegado, en
+  Montevideo. Atajo "Todo el verano en Punta" (2da de diciembre a 2da de febrero). No se guarda con alguna de
+  las 8 vacía.
+- Se guarda en `ninieras.temporada_lugares` (`{"0": "montevideo", "8": "punta", "9": {"otro": "texto"}}`) con
+  `temporada_lugares_en`, y a la vez se escribe `ninieras.temporada` en el formato de hoy (`{<id grupo
+  Punta>: [quincenas en Punta]}`) con `temporada_fuente = 'app'` y `temporada_actualizada_en`: el filtro de
+  Niñeras y el panel siguen andando. Las quincenas no tienen año: la temporada empieza el 1/9 a las 0:00 de
+  Montevideo (Diego pidió el 1/10; quedó el 1/9 como el panel porque el formulario sale a fin de setiembre), y
+  una temporada de un año anterior se ve como "sin temporada cargada" (filtro, ficha y panel).
+- El filtro, la ficha y el panel de temporadas leen también los lugares nuevos ("Fuera del país", "Otro" con su
+  texto, "La Paloma"). La regla de qué pedidos recibe cada respuesta vive en `app_config 'temporada_reglas'`
+  (sección 4.5) y la leen las sugeridas: va en la etapa 5.
+- Avisos: primer aviso apenas se publica la etapa (1/10 en adelante, de 9 a 21 h) a las activas con app sin
+  la temporada al día; recordatorio cada 15 días desde su primer aviso, hasta el 31/12. Desde 2027, el 1/10 a
+  las 9. Los avisos pasan a ser obligatorios al entrar a la app (sin "Ahora no"), para que la app la persiga sola.
+- La página actual de temporada (Cloudflare) y `temporada-ninera` siguen como están para las niñeras sin app
+  (sección 10).
+- A las admins no se les pide nada por las niñeras con app (Diego, 31/10/2026, cambia lo del 27/10): sin paso
+  previo al editar, sin "Pedirle por WhatsApp" ("Se la pide la app"), sin badge ni aviso anual por ellas. Para
+  las que no tienen app, el paso previo, "Pedirle por WhatsApp" y el aviso anual del 1/10 siguen igual
+  (`enviar-push-urgentes` no cambia, no se republica). No se apagan globalmente.
 - Va después de la etapa 3 y antes de la 4 (orden del 27/10/2026): necesita la cola de avisos.
 
 ### 6.7 Carsitting (etapa 10)
@@ -669,10 +678,10 @@ en la fase 1 (SQL).
 - Temporada: la página de Cloudflare, `temporada.html` (redirección), la Edge Function
   `temporada-ninera`, `TEMPORADA_URL` y el mensaje de difusión en `ninieras.js` siguen hasta que
   todas las niñeras activas tengan la app. Recién ahí (PR aparte, con OK): borrar la función, la
-  página y el mensaje. El aviso anual "Pedir la temporada de Punta" y el paso previo de temporada
-  al editar una niñera se apagan antes, en la etapa 9 (Diego, 27/10/2026): a las admins no se les
-  pide nada; la niñera la completa en su app. Hasta entonces, la temporada cargada desde la app y
-  desde la página se guardan en el mismo campo.
+  página y el mensaje. El aviso anual "Pedir la temporada de Punta", el paso previo al editar y "Pedirle por
+  WhatsApp" se apagan solo para las niñeras con app (etapa 9, Diego, 31/10/2026): a las admins no se les pide
+  nada por ellas; las sin app siguen igual. La temporada cargada desde la app y desde la página se guarda en
+  el mismo campo (`temporada`); la de la app suma `temporada_lugares`.
 - Carsitting: el formulario de Google, el Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` y `carsitting_mail_enviado_at` siguen hasta que las 20 niñeras que
   hacen traslados tengan la app y hayan cargado el carsitting ahí. Después (PR aparte, con OK):

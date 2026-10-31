@@ -18,9 +18,10 @@ const RUTA_FOTO_ANA = `fotos/${ID.nAna}/propuesta.jpg`;
 // Chromium anota en consola toda respuesta 4xx/5xx simulada y todo pedido cortado.
 const RUIDO = [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed to fetch/, /\[perfil\]|\[ninera_mi_perfil\]|\[ninera_zonas_disponibles\]/];
 
-// Abre la app con la pantalla de avisos ya vista en este celular (estos tests miran el perfil).
+// Abre la app sin PushManager: desde la etapa 9 los avisos son obligatorios y sin esto saldría su
+// pantalla; un celular que no puede recibirlos pasa de largo. Estos tests miran el perfil.
 async function abrir(page, opciones = {}) {
-  await page.addInitScript(() => localStorage.setItem('pb-ninera-avisos-vistos', '1'));
+  await page.addInitScript(() => { delete window.PushManager; });
   return abrirAppNinera(page, opciones);
 }
 function rpcs(e, nombre) {
@@ -262,11 +263,12 @@ test.describe('primer ingreso: "Completa esto una sola vez"', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
-  test('después de "Ahora no" en los avisos, la primera vez sigue al perfil', async ({ page }) => {
-    // Sin la marca de avisos vistos: Chromium headless tiene push, sin permiso.
+  test('después de "Seguir sin avisos", la primera vez sigue al perfil', async ({ page }) => {
+    // Permiso bloqueado a propósito (no depende del valor por defecto de Chromium): salen los pasos.
+    await page.addInitScript(() => Object.defineProperty(Notification, 'permission', { get: () => 'denied', configurable: true }));
     const e = await abrirAppNinera(page);
-    await expect(page.locator('#app')).toContainText('Activa los avisos');
-    await page.getByRole('button', { name: 'Ahora no' }).click();
+    await expect(page.locator('#app')).toContainText('Los avisos están bloqueados');
+    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
     await expect(page.locator('h1')).toHaveText(TITULO_PRIMERA);
     verificarLimpio(e);
   });
