@@ -929,6 +929,9 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
 - Probar la conciliación de punta a punta con el extracto de un mes ya cerrado.
 
 ### Funciones nuevas pedidas
+- Login (31/10/2026, Diego): sin ninguna passkey en el dispositivo, "Entrar con Face ID / Touch ID"
+  muestra "Ocurrió un error inesperado". Tiene que decir algo claro, tipo "Todavía no activaste Face ID
+  en este dispositivo: entrá con mail y contraseña" (`entrarConPasskey`, auth.js).
 - "Deshacer" al marcar cobrada o pagada una intermediación (23/10/2026, más adelante): hoy solo lo
   tienen los sittings en Por cobrar / Por pagar (`toast` con `{deshacer}` y `deshacerMarca`, finanzas.js).
 - Guía "Cómo se hace" dentro de la app (13/10/2026), BAJA PRIORIDAD (20/10/2026: saben hacer
