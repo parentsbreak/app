@@ -458,14 +458,14 @@ function pintarGuardarPrecioAgenda(){
   const wrap = document.getElementById('agenda-guardar-precio-wrap'), chk = document.getElementById('agenda-guardar-precio');
   if(!wrap || !chk) return;
   const input = document.getElementById('agenda-pago-hora');
-  const valor = Number(input?.value)||0;
   const f = familiaNuevaSolicitud(), n = nineraNuevaSolicitud();
-  const mostrar = preciosNineraDisponible && !!f && !!n && document.getElementById('agenda-tipo')?.value==='sitting'
-    && agendaPreciosFam.familiaId===f.id && Array.isArray(agendaPreciosFam.filas) && !!input?.dataset.tocadoManual && valor>0
-    && valor!==precioHoraNinera(f, n.id, preciosNuevaSolicitud(f));
-  if(!mostrar){ wrap.style.display = 'none'; return; }
+  const casilla = f && n && document.getElementById('agenda-tipo')?.value==='sitting'
+    ? casillaPrecioNinera({ familiaId: f.id, nineraId: n.id, filas: agendaPreciosFam.familiaId===f.id ? agendaPreciosFam.filas : null,
+        valor: input?.value, tocadoManual: !!input?.dataset.tocadoManual, pagoActual: precioHoraNinera(f, n.id, preciosNuevaSolicitud(f)) })
+    : null;
+  if(!casilla){ wrap.style.display = 'none'; return; }
   const clave = f.id+'|'+n.id;
-  if(chk.dataset.par!==clave){ chk.checked = !preciosNuevaSolicitud(f).some(p=>p.ninera_id===n.id); chk.dataset.par = clave; }
+  if(chk.dataset.par!==clave){ chk.checked = casilla.tildada; chk.dataset.par = clave; }
   document.getElementById('agenda-guardar-precio-txt').textContent = `Guardar como precio de ${n.nombre} con esta familia`;
   wrap.style.display = '';
 }
@@ -759,8 +759,8 @@ async function guardarSolicitudPuntual(){
   else toast('Solicitud guardada.');
   // El precio de la niñera con esta familia, después de asignarla: si falla, lo asignado queda y se avisa.
   if(precioNinera){
-    const errPrecio = await guardarPrecioNineraFamilia(precioNinera);
-    if(errPrecio) toast(`Quedó asignada, pero no el precio de ${precioNinera.nineraNombre} con esta familia: ${errPrecio.message}`, 'bad');
+    const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'Quedó asignada, pero');
+    if(aviso) toast(aviso.texto, aviso.tipo);
     else toast(`Precio de ${precioNinera.nineraNombre} con esta familia guardado.`);
   }
 }
@@ -1225,6 +1225,7 @@ async function registrarSittingFijoDeHoy(id){
   const prevDia = s._previsto || null;
   const nineraDia = prevDia ? { id: prevDia.ninera_id || null, nombre: prevDia.ninera_nombre } : { id: a.ninera_id || null, nombre: a.ninera_nombre };
   const preciosDia = tipo==='traslado' || !nineraDia.id ? [] : await leerPreciosNinera(a.familia_id, nineraDia.id);
+  if(preciosNoLeidos(preciosDia)){ if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
   const pagoHora = Number(precioHoraNinera(familia, nineraDia.id, preciosDia, pagoFijoDeNinera(a, nineraDia.id, nineraDia.nombre)))||0;
   let cobro = redondearCobro(horas.cobro*cobroHora), pago = redondearPago(horas.real*pagoHora);
   if(tipo==='traslado'){
@@ -1388,6 +1389,7 @@ async function confirmarReemplazoFijoHoy(id){
   // La reemplazante cobra su propio precio con esta familia, o la tarifa: nunca el precio del fijo,
   // que es de la titular (respuesta 2 de Diego, 31/10/2026).
   const preciosRe = tipoAsignacion(a)==='traslado' || !nineraSel ? [] : await leerPreciosNinera(a.familia_id, nineraSel.id);
+  if(preciosNoLeidos(preciosRe)){ if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
   const pagoHora = Number(precioHoraNinera(familia, nineraSel?.id || null, preciosRe, pagoFijoDeNinera(a, nineraSel?.id || null, nineraTxt)))||0;
   let cobro = redondearCobro(horas.cobro*cobroHora), pago = redondearPago(horas.real*pagoHora);
   if(tipoAsignacion(a)==='traslado'){
@@ -1768,6 +1770,7 @@ async function filaDeHoySegunFijo(aHoy, r){
       aHoy.ninera_id ? leerPreciosNinera(aHoy.familia_id, aHoy.ninera_id) : [],
     ]);
     if(error) throw error;
+    if(preciosNoLeidos(precios)) throw new Error(AVISO_PRECIOS_NO_LEIDOS); // no se pisa el pago del de hoy con la tarifa
     const horas = horasSitting(hi, hf, cruza, fam, todayISO()) || { real: 0, cobro: 0 };
     const pagoHora = precioHoraNinera(fam && { ...fam, id: aHoy.familia_id }, aHoy.ninera_id || null, precios, aHoy.pago_hora);
     fila.cobro_familia = redondearCobro(horas.cobro * (Number(fam?.cobro_hora) || 0));

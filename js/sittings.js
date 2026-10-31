@@ -846,29 +846,29 @@ function recalcularPorNineraSit(){
   pintarGuardarPrecioSit();
 }
 // "Guardar como precio de [niñera] con esta familia" (respuesta 3 de Diego, 31/10/2026): aparece al
-// tipear a mano otro pago por hora para la niñera elegida. Tildada solo si esa niñera no tiene precio
-// con esa familia; si ya tiene, destildada (un precio especial de un día no pisa el guardado). Con la
-// familia sin tarifa no aparece: ese pago por hora se guarda como tarifa de la familia (guardarSitting).
+// tipear a mano otro pago por hora para la niñera elegida (la regla, casillaPrecioNinera en core.js).
+// Con la familia sin tarifa no aparece: ese pago por hora se guarda como tarifa de la familia
+// (guardarSitting).
 function pintarGuardarPrecioSit(){
   const wrap = document.getElementById('sit-guardar-precio-wrap'), chk = document.getElementById('sit-guardar-precio');
   if(!wrap || !chk) return;
   const horaInput = document.getElementById('sit-pago-hora');
-  const valor = Number(horaInput?.value)||0;
-  const nid = sitNineraSel?.id || null;
-  // Sin los precios leídos no se sabe si ya tiene uno: no se ofrece (no se pisa uno guardado).
-  const leidos = sitPrecios.familiaId===sitFamiliaSel?.id && Array.isArray(sitPrecios.filas);
-  const mostrar = preciosNineraDisponible && leidos && sitPagoModoHora && sitTipo==='sitting' && !!nid && !!sitFamiliaSel?.id
-    && Number(sitFamiliaSel.pago_hora)>0 && !!horaInput?.dataset.tocadoManual && valor>0
-    && valor!==familiaConPagoSit().pago_hora && !document.getElementById('sit-cancelado')?.checked;
-  if(!mostrar){ wrap.style.display = 'none'; return; }
-  const clave = sitFamiliaSel.id+'|'+nid;
-  if(chk.dataset.par!==clave){ chk.checked = !preciosDeFamiliaSit().some(p=>p.ninera_id===nid); chk.dataset.par = clave; }
+  const fid = sitFamiliaSel?.id || null, nid = sitNineraSel?.id || null;
+  const casilla = sitPagoModoHora && sitTipo==='sitting' && Number(sitFamiliaSel?.pago_hora)>0 && !document.getElementById('sit-cancelado')?.checked
+    ? casillaPrecioNinera({ familiaId: fid, nineraId: nid, filas: sitPrecios.familiaId===fid ? sitPrecios.filas : null,
+        valor: horaInput?.value, tocadoManual: !!horaInput?.dataset.tocadoManual, pagoActual: familiaConPagoSit()?.pago_hora })
+    : null;
+  if(!casilla){ wrap.style.display = 'none'; return; }
+  const clave = fid+'|'+nid;
+  if(chk.dataset.par!==clave){ chk.checked = casilla.tildada; chk.dataset.par = clave; }
   document.getElementById('sit-guardar-precio-txt').textContent = `Guardar como precio de ${sitNineraSel.nombre} con esta familia`;
   wrap.style.display = '';
 }
-// Lo que hay que guardar al registrar, o null.
+// Lo que hay que guardar al registrar, o null. Sin familia o niñera elegidas de la lista, nada (01/11/2026:
+// cambiar la familia a un nombre nuevo con la casilla a la vista hacía fallar el guardado sin aviso).
 function precioNineraAGuardarSit(){
   const wrap = document.getElementById('sit-guardar-precio-wrap');
+  if(!sitFamiliaSel?.id || !sitNineraSel?.id) return null;
   if(!wrap || wrap.style.display==='none' || !document.getElementById('sit-guardar-precio')?.checked) return null;
   return { familiaId: sitFamiliaSel.id, nineraId: sitNineraSel.id, nineraNombre: sitNineraSel.nombre,
     pagoHora: Number(document.getElementById('sit-pago-hora').value),
@@ -1515,7 +1515,7 @@ function actualizarCobroPagoPorHorario(){
   const sinTarifaBox = document.getElementById('sit-sin-tarifa-box');
   if(!cobroInput || !pagoInput) return;
   if(document.getElementById('sit-cancelado')?.checked) return; // cancelado manda, no lo pisa el cálculo automático
-  if(sitTipo!=='sitting' || !sitFamiliaSel){ if(sinTarifaBox) sinTarifaBox.innerHTML = ''; pintarFinCobroSit(); return; }
+  if(sitTipo!=='sitting' || !sitFamiliaSel){ if(sinTarifaBox) sinTarifaBox.innerHTML = ''; pintarFinCobroSit(); pintarGuardarPrecioSit(); return; }
   // El pago por hora es el de la niñera elegida con esta familia (precioHoraNinera, 01/11/2026).
   const familiaPago = familiaConPagoSit();
   sitPagoHoraUsado = familiaPago.pago_hora ?? null;
@@ -1865,9 +1865,9 @@ async function guardarSitting(){
   // el aviso dice qué faltó, sin el verde de "Registro guardado".
   let falloPrecio = false;
   if(precioNinera){
-    const errPrecio = await guardarPrecioNineraFamilia(precioNinera);
-    falloPrecio = !!errPrecio;
-    if(errPrecio) toast(`El registro se guardó, pero no el precio de ${precioNinera.nineraNombre} con esta familia: ${errPrecio.message}`, 'bad');
+    const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'El registro se guardó, pero');
+    falloPrecio = !!aviso;
+    if(aviso) toast(aviso.texto, aviso.tipo);
   }
   if(!esFijo && !falloGastos && !falloPrecio){
     const hecho = sitEditId ? 'Registro actualizado' : 'Registro guardado';

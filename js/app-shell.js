@@ -711,6 +711,7 @@ async function abrirOtraHoraAuto(id){
       r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
     ]);
     if(error || fijo.error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
+    if(preciosNoLeidos(precios)){ toast(AVISO_PRECIOS_NO_LEIDOS, 'bad'); return; }
     const fam = (data||[])[0] || null;
     dashOtraHoraFamilia = fam && { ...fam, pago_hora: precioHoraNinera(fam, r.ninera_id || null, precios, pagoFijoDeNinera(fijo.data, r.ninera_id || null, r.ninera_nombre)) };
   }
@@ -834,7 +835,7 @@ async function abrirReemplazoAuto(id){
   const { data: ninieras } = await sb.from('ninieras').select('id,nombre').eq('activa', true).order('nombre');
   abrirModal(`
     <h2 style="margin:0 0 4px;">¿Quién fue en lugar de ${escaparHtml(r.ninera_nombre)}?</h2>
-    <div class="helper" style="margin-bottom:12px;">${escaparHtml(r.familia_nombre)} · ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'})}. Mismo horario y montos; si cambiaron, editalo después en Sittings &amp; traslados.</div>
+    <div class="helper" style="margin-bottom:12px;">${escaparHtml(r.familia_nombre)} · ${new Date(r.fecha+'T12:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'})}. ${r.tipo==='traslado' ? 'Mismo horario y montos' : 'Mismo horario. Se le paga su precio con esta familia'}; si algo cambió, editalo después en Sittings &amp; traslados.</div>
     <div class="field" style="position:relative;"><label>Niñera</label>
       <input type="text" id="autoconf-ninera" autocomplete="off" oninput="dashReemplazoSel=null;">
       <div id="autoconf-ninera-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
@@ -855,10 +856,35 @@ async function guardarReemplazoAuto(id){
   if(normaliza(nombre)===normaliza(r.ninera_nombre)){ warn.innerHTML = '<div class="warnbox">Esa es la niñera que ya figura.</div>'; return; }
   if(r.pagado){ warn.innerHTML = '<div class="warnbox">Ese día ya está marcado como pagado: corregilo desde Sittings &amp; traslados.</div>'; return; }
   const sel = dashReemplazoSel && normaliza(dashReemplazoSel.nombre)===normaliza(nombre) ? dashReemplazoSel : null;
-  const { error } = await sb.from('sittings_traslados').update({
+  const cambios = {
     ninera_nombre: nombre, ninera_id: sel?.id || null, generado_automatico: false,
     revisado_at: new Date().toISOString(), notas: `Reemplazo de ${r.ninera_nombre}`,
-  }).eq('id', id);
+  };
+  // Un sitting (01/11/2026, respuesta 2 de Diego): la que fue cobra su precio con esta familia o la
+  // tarifa, nunca el precio propio del fijo (es de la titular). Lo que paga la familia no cambia. Con
+  // variantes ya aplicadas, el pago nuevo es la base y se vuelven a aplicar. Un traslado sigue igual.
+  if(r.tipo!=='traslado' && r.familia_id && r.hora_inicio && r.hora_fin){
+    const [{ data: fams, error: eFam }, precios, fijo] = await Promise.all([
+      leerFamiliasConTerminos('id,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
+      sel ? leerPreciosNinera(r.familia_id, sel.id) : [],
+      r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
+    ]);
+    if(eFam || fijo.error){ warn.innerHTML = '<div class="warnbox">No se pudo leer la tarifa de la familia. Probá de nuevo.</div>'; return; }
+    if(preciosNoLeidos(precios)){ warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_PRECIOS_NO_LEIDOS)}</div>`; return; }
+    const fam = (fams||[])[0] || null;
+    const pagoHora = Number(precioHoraNinera(fam, sel?.id || null, precios, pagoFijoDeNinera(fijo.data, sel?.id || null, nombre)))||0;
+    const horas = horasSitting(r.hora_inicio, r.hora_fin, !!r.termina_dia_siguiente, fam, r.fecha);
+    if(pagoHora && horas){
+      const pago = redondearPago(horas.real*pagoHora);
+      const aplicadas = r.precio_variantes?.aplicadas;
+      if(aplicadas?.length){
+        const base = { cobro: r.precio_variantes.base?.cobro ?? (Number(r.cobro_familia)||0), pago };
+        cambios.pago_ninera = aplicarVariantes(base.cobro, base.pago, aplicadas).pago;
+        cambios.precio_variantes = { base, aplicadas };
+      } else cambios.pago_ninera = pago;
+    }
+  }
+  const { error } = await sb.from('sittings_traslados').update(cambios).eq('id', id);
   if(error){ warn.innerHTML = errBox(error); return; }
   cerrarModal();
   toast(`Listo: ese día figura ${nombre}.`);
