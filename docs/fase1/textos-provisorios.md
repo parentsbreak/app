@@ -146,7 +146,8 @@ La temporada en la app (31/10/2026, textos nuevos, a confirmar con las dueñas):
 - Pantalla: "Ver el resto del año" / "Ocultar el resto del año", "Todo el verano en Punta", "¿Dónde?".
 - Errores: "Te falta marcar 1 quincena." / "Te falta marcar N quincenas.", "Escribe dónde vas a estar.",
   "No pudimos guardar tu temporada. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos abrir tu
-  temporada. Revisa tu conexión a internet y vuelve a intentar." Al guardar: "¡Listo! Guardamos tu temporada."
+  temporada. Revisa tu conexión a internet y vuelve a intentar." Si la base dice que falta el grupo de Punta
+  (reintentar no sirve): "No pudimos guardar tu temporada. Avisa al equipo de Parents' Break." Al guardar: "¡Listo! Guardamos tu temporada."
 - Toast al activar los avisos desde la pantalla obligatoria o desde "Ya los activé": "Avisos activados."
 - Pantalla de temporada: encabezado "Marca dónde vas a estar cada quincena." y filas "1ra quincena de diciembre" /
   "2da quincena de diciembre" ... (de diciembre a marzo, y de abril a noviembre en "Ver el resto del año"); botones

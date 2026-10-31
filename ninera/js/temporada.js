@@ -17,6 +17,7 @@ const LARGO_OTRO_TEMPORADA = 80;
 
 const FALLA_GUARDAR_TEMPORADA = 'No pudimos guardar tu temporada. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_ABRIR_TEMPORADA = 'No pudimos abrir tu temporada. Revisa tu conexión a internet y vuelve a intentar.';
+const FALLA_GRUPO_PUNTA_TEMPORADA = 'No pudimos guardar tu temporada. Avisa al equipo de Parents\' Break.';
 const OTRO_TEMPORADA_VACIO = 'Escribe dónde vas a estar.';
 
 // Lo marcado en la pantalla abierta: '' (sin elegir), un lugar fijo u 'otro' (con su texto aparte).
@@ -53,6 +54,17 @@ function nombreQuincenaNinera(q){
 // Se pide sin esperar a pintar el resto del inicio. Sin migrar o si la lectura falla no aparece
 // nada, sin aviso: la pantalla de arriba no depende de esto.
 async function cargarTarjetaTemporada(){
+  try{
+    await pintarTarjetaTemporada();
+  }finally{
+    // Marca de que la carga terminó (con tarjeta o sin ella): los tests esperan esto en vez de un
+    // tiempo fijo para afirmar que no apareció nada.
+    const cont = document.getElementById('inicio-temporada');
+    if(cont) cont.setAttribute('data-cargada', '1');
+  }
+}
+
+async function pintarTarjetaTemporada(){
   if(!esMesDeTemporadaNinera() || temporadaNineraSinMigrar) return;
   let t;
   try{
@@ -215,7 +227,9 @@ async function guardarTemporadaNinera(){
   }catch(e){
     console.error('[temporada] al guardar', e);
     const motivo = (e && e.message) || '';
-    aviso.textContent = /no_autorizada/.test(motivo) ? CUENTA_NO_ACTIVA : FALLA_GUARDAR_TEMPORADA;
+    // sin_grupo_punta: reintentar no sirve (falta el grupo en la base), se avisa al equipo.
+    aviso.textContent = /no_autorizada/.test(motivo) ? CUENTA_NO_ACTIVA
+      : /sin_grupo_punta/.test(motivo) ? FALLA_GRUPO_PUNTA_TEMPORADA : FALLA_GUARDAR_TEMPORADA;
     return;
   }
   toast('¡Listo! Guardamos tu temporada.');

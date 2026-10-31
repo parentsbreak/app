@@ -814,8 +814,8 @@ En curso. Todo está en `docs/fase1/`: las reglas del negocio en `reglas-del-neg
 antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los textos en
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
-propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha en la rama
-`claude/fase1-avisos-chat`, sin mergear hasta después de la mudanza y el OK de la migración; etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapas 4 a 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapas 4 a 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).

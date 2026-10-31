@@ -1564,7 +1564,7 @@ function inicioTemporadaActual(ref=new Date()){
 function temporadaCargada(n){ return !!n.temporada_actualizada_en; }
 // Lugares de cada quincena (etapa 9, 31/10/2026): valen solo si no son nulos, se cargaron desde el 1/9
 // (`temporada_lugares_en`) y los cargó ella en la app o el sistema al corregirlos. Lo de la temporada
-// pasada, o una respuesta posterior por la página (fuente 'formulario'), no manda.
+// pasada, o una respuesta posterior por la página (fuente 'ninera'; 'formulario' es la postulación), no manda.
 function lugaresTemporadaVigentes(n){
   const l = n && n.temporada_lugares;
   if(!l || typeof l !== 'object' || !n.temporada_lugares_en) return null;

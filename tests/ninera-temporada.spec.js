@@ -45,9 +45,8 @@ const guardar = page => page.getByRole('button', { name: 'Guardar' });
 const error = page => page.locator('#temporada-error');
 // La tarjeta se pide sin frenar el inicio: antes de mirarla, que la lectura haya salido.
 async function esperarLecturaTemporada(page, e) {
-  await expect.poll(() => e.escrituras.some(w => w.tabla === 'rpc/ninera_mi_temporada')).toBe(true);
-  // Y que la app haya terminado de procesarla (la respuesta llega después de salir el pedido).
-  await page.waitForTimeout(300);
+  // La app marca el contenedor cuando termina de cargar la tarjeta (con o sin tarjeta).
+  await expect(page.locator('#inicio-temporada[data-cargada]')).toBeAttached();
 }
 function rpcs(e, nombre) {
   return e.escrituras.filter(w => w.tabla === `rpc/${nombre}`).map(w => w.cuerpo);
@@ -114,6 +113,7 @@ test.describe('tarjeta de la temporada en el inicio', () => {
   test('en mayo no hay tarjeta (se entra igual por el link del aviso)', async ({ page }) => {
     const e = await abrir(page, { ahora: '2026-05-10T12:00:00-03:00' });
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
+    await esperarLecturaTemporada(page, e);
     await expect(page.locator('#inicio-temporada')).toBeEmpty();
     await expect(page.locator('#inicio-temporada')).not.toContainText(TITULO);
     verificarLimpio(e);
@@ -124,7 +124,7 @@ test.describe('tarjeta de la temporada en el inicio', () => {
       const p = await browser.newPage();
       const e = await abrir(p, { ahora });
       await expect(p.locator('#app')).toContainText('No tienes pedidos por ahora.');
-      if (!hay) await p.waitForTimeout(300); // si hubiera pedido la tarjeta, ya habría llegado
+      await esperarLecturaTemporada(p, e); // terminó de cargar: si hubiera tarjeta, ya estaría
       if (hay) await expect(p.locator('#inicio-temporada')).toContainText(TITULO);
       else await expect(p.locator('#inicio-temporada')).toBeEmpty();
       verificarLimpio(e);
@@ -183,6 +183,7 @@ test.describe('pantalla de la temporada', () => {
     datos.ninieras.find(n => n.id === ID.nAna).zona = 'Punta del Este';
     const e = await abrir(page, { datos });
     await page.locator('#inicio-temporada').getByRole('button').click();
+    await expect(page.locator('h1')).toHaveText(TITULO);
     expect(await estados(page, OCHO)).toEqual(Array(8).fill(null));
     expect(await estados(page, RESTO)).toEqual(Array(16).fill('Punta del Este'));
     verificarLimpio(e);
@@ -324,6 +325,18 @@ test.describe('pantalla de la temporada', () => {
     e.rpc.ninera_guardar_temporada = () => { throw errorRpc('no_autorizada'); };
     await guardar(page).click();
     await expect(error(page)).toHaveText('Tu cuenta no está activa. Escríbenos por WhatsApp.');
+    verificarLimpio(e, { ignorar: RUIDO });
+  });
+
+  test('la base dice sin_grupo_punta: avisa al equipo (reintentar no sirve) y lo marcado queda', async ({ page }) => {
+    const e = await abrirPantalla(page);
+    await marcarLasOcho(page);
+    await opcion(page, 2, 'Punta del Este').click();
+    e.rpc.ninera_guardar_temporada = () => { throw errorRpc('sin_grupo_punta'); };
+    await guardar(page).click();
+    await expect(error(page)).toHaveText("No pudimos guardar tu temporada. Avisa al equipo de Parents' Break.");
+    await expect(page.locator('h1')).toHaveText(TITULO);
+    expect(await estados(page, [1, 2, 3])).toEqual(['Montevideo', 'Punta del Este', 'Montevideo']);
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
