@@ -133,6 +133,20 @@ async function fingirAvisos(page, { permiso = 'granted', suscripta = false, bloq
   }, { permiso, suscripta, bloqueado, uid: USUARIO_NINERA.id });
 }
 
+// Pasa la pantalla obligatoria de avisos como lo haría quien no puede activarlos: toca "Activar avisos",
+// que falla (sin conexión; con el permiso bloqueado van los pasos), y recién ahí aparece "Seguir sin
+// avisos". El ruido de consola de esa falla simulada se descarta.
+async function omitirAvisos(page, e) {
+  const previa = e.fallar;
+  e.fallar = () => 'red';
+  await page.getByRole('button', { name: 'Activar avisos' }).click();
+  const link = page.getByRole('button', { name: 'Seguir sin avisos' });
+  await expect(link).toBeVisible();
+  e.fallar = previa;
+  for (let i = e.errores.length - 1; i >= 0; i--) if (RUIDO_RED.test(e.errores[i]) || /\[avisos\]/.test(e.errores[i])) e.errores.splice(i, 1);
+  await link.click();
+}
+
 // Abre la app de niñeras con los avisos ya activos (lo normal en los tests que miran otra cosa).
 async function abrir(page, opciones = {}, avisos = { suscripta: true }) {
   await fingirAvisos(page, avisos);
@@ -361,11 +375,11 @@ test.describe('login con el celular', () => {
       await page.fill('#login-pass', 'clave-ficticia-1');
       await page.click('#login-btn');
       // Cerrar sesión desuscribe este celular (30/10/2026): al volver a entrar, los avisos están
-      // apagados y, se la ofrece (los avisos son obligatorios, etapa 9); si dice "Seguir sin avisos" la
-      // marca vale hasta recargar, así que la tercera entra directo al inicio, con "Avisos apagados".
-      if (i === 1) {
+      // apagados y se la ofrece cada vez (los avisos son obligatorios, etapa 9; cerrar sesión borra el "Seguir
+      // sin avisos"). La primera entra directo: la suscripción de partida está activa.
+      if (i >= 1) {
         await expect(page.locator('h1')).toHaveText('Activa los avisos');
-        await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+        await omitirAvisos(page, e);
       }
       await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
       // El nombre viene en la cuenta: saluda también después de un login sin invitación.
@@ -559,8 +573,10 @@ test.describe('avisos', () => {
   test('sale cada vez que entra con los avisos apagados; con "Seguir sin avisos" no insiste hasta recargar', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
     await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    // Al aparecer, solo "Activar avisos": ni "Ahora no" ni una salida a la vista.
     await expect(page.getByRole('button', { name: 'Ahora no' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await expect(page.getByRole('button', { name: 'Seguir sin avisos' })).toHaveCount(0);
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     await page.reload();
     await expect(page.locator('h1')).toHaveText('Activa los avisos');
@@ -572,7 +588,7 @@ test.describe('avisos', () => {
 
   test('"Seguir sin avisos" va al inicio con el aviso rojo, y con el permiso bloqueado su botón lleva a los pasos', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     await page.evaluate(() => Object.defineProperty(Notification, 'permission', { get: () => 'denied', configurable: true }));
     const pedidos = await page.evaluate(() => window.__pedidosDePermiso);
@@ -580,6 +596,20 @@ test.describe('avisos', () => {
     await expect(page.locator('h1')).toHaveText('Los avisos están bloqueados');
     expect(new URL(page.url()).hash).toBe('#avisos');
     expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(pedidos);
+    verificarLimpio(e);
+  });
+
+  test('"Seguir sin avisos" no sobrevive al cerrar sesión: quien entra después ve la pantalla de avisos sin recargar', async ({ page }) => {
+    const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
+    await omitirAvisos(page, e);
+    await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
+    await cerrarSesionDesdeMiCuenta(page);
+    await expect(page.locator('#login-celular')).toBeVisible();
+    await page.fill('#login-celular', '099000001');
+    await page.fill('#login-pass', 'clave-ficticia-1');
+    await page.click('#login-btn');
+    await expect(page.locator('h1')).toHaveText('Activa los avisos');
+    await expect(page.getByRole('button', { name: 'Seguir sin avisos' })).toHaveCount(0);
     verificarLimpio(e);
   });
 
@@ -594,6 +624,7 @@ test.describe('avisos', () => {
   test('si falla guardar la suscripción, se queda en la pantalla y "Seguir sin avisos" siempre sale (390 px)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
     const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
+    await expect(page.getByRole('button', { name: 'Seguir sin avisos' })).toHaveCount(0);
     e.fallar = () => 'red';
     await page.getByRole('button', { name: 'Activar avisos' }).click();
     await expect(page.locator('.toaststack')).toContainText('No pudimos activar los avisos.');
@@ -624,9 +655,9 @@ test.describe('avisos', () => {
 
   test('"Seguir sin avisos" no pide el permiso, y desde el inicio se pueden activar', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'granted', suscripta: false });
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
-    expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(0);
+    expect(await page.evaluate(() => window.__pedidosDePermiso)).toBe(1); // el de "Activar avisos" de la pantalla
     await page.locator('#inicio-avisos').getByRole('button', { name: 'Activar avisos' }).click();
     await expect(page.locator('.toaststack')).toContainText('Avisos activados.');
     await expect(page.locator('#app')).not.toContainText('Avisos apagados');
@@ -705,7 +736,7 @@ test.describe('avisos', () => {
 
   test('sin suscripción en este celular, cerrar sesión no borra nada', async ({ page }) => {
     const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     await cerrarSesionDesdeMiCuenta(page);
     expect(borradosPush(e)).toHaveLength(0);
@@ -845,7 +876,7 @@ test.describe('inicio vacío, celular y textos', () => {
   test('inicio a 390 px y la invitación: capturas, sin scroll horizontal (390 y 1280)', async ({ page, browser }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const e = await abrir(page, {}, { permiso: 'denied', suscripta: false });
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await expect(page.locator('#app')).toContainText(AVISOS_APAGADOS);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -885,7 +916,7 @@ test.describe('inicio vacío, celular y textos', () => {
     await page.getByRole('button', { name: 'Ya la instalé' }).click();
     await expect(page.locator('#app')).toContainText('Activa los avisos');
     await juntar();
-    await page.getByRole('button', { name: 'Seguir sin avisos' }).click();
+    await omitirAvisos(page, e);
     await expect(page.locator('#app')).toContainText('No tienes pedidos por ahora.');
     await juntar();
     await page.getByRole('button', { name: 'Mi cuenta' }).click();

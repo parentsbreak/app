@@ -20,7 +20,8 @@ const RUIDO = [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed 
 const PLATA = /\$\d/;
 const PAGO = /\bpago/i;
 
-// Ana con el perfil completo (con zona) y la pantalla de avisos ya vista en este celular: estos
+// Ana con el perfil completo (con zona) y sin PushManager (desde la etapa 9 los avisos son obligatorios:
+// sin esto saldría su pantalla; un celular que no puede recibirlos pasa de largo): estos
 // tests miran el inicio, no el primer ingreso (ninera-perfil.spec.js).
 async function abrir(page, opciones = {}) {
   const datos = opciones.datos || datosBase();

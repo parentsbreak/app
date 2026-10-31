@@ -34,7 +34,8 @@ function mensajeEquipo(id, texto, extra = {}) {
     creado_en: '2026-10-04T15:05:00+00:00', leido_ninera_en: null, leido_admin_en: null, ...extra };
 }
 
-// Ana con el perfil completo y la pantalla de avisos ya vista en este celular: estos tests miran el
+// Ana con el perfil completo y sin PushManager (desde la etapa 9 los avisos son obligatorios: sin esto
+// saldría su pantalla; un celular que no puede recibirlos pasa de largo): estos tests miran el
 // chat y los avisos, no el primer ingreso.
 async function abrir(page, opciones = {}) {
   const datos = opciones.datos || datosBase();

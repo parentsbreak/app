@@ -225,6 +225,8 @@ async function cerrarSesionNinera(){
     return;
   }
   sesionNinera = null;
+  // Otra cuenta (o la misma) que entre después vuelve a ver la pantalla obligatoria de avisos.
+  avisosSalteadosEstaVez = false;
   cerrarModalNinera();
   pantallaLogin();
 }
@@ -327,14 +329,15 @@ function pantallaAvisos(){
   marcarRuta('#avisos');
   // Con el permiso ya bloqueado, pedirlo de nuevo no hace nada: va directo a los pasos de Ajustes.
   if(avisosSoportados() && Notification.permission === 'denied'){ pantallaAvisosBloqueados(); return; }
-  // Los avisos son obligatorios al entrar (etapa 9, 31/10/2026): sin "Ahora no". La salida es el link
-  // chico "Seguir sin avisos", para que nunca quede atrapada (sin conexión, permiso que no responde).
+  // Los avisos son obligatorios al entrar (etapa 9, 31/10/2026): sin "Ahora no" ni salida a la vista.
+  // El link "Seguir sin avisos" aparece recién si activarlos falló por otra cosa que el permiso
+  // (conexión, base, suscripción): así una falla de red nunca la deja atrapada.
   pintar(`<main class="pantalla">
     <img src="../logo.png" alt="Parents’ Break" class="pantalla-logo">
     <h1>Activa los avisos</h1>
     <p class="intro">Te avisaremos cuando haya un pedido, cuando quedes seleccionada y antes de tu sitting. Sin avisos te vas a perder pedidos.</p>
     <button class="btn primary ancho" onclick="conGuardado(this, ()=>activarAvisosDesdePantalla())">Activar avisos</button>
-    <button type="button" class="link-boton" onclick="seguirSinAvisosNinera()">Seguir sin avisos</button>
+    <div id="avisos-salida"></div>
   </main>`);
 }
 
@@ -353,16 +356,17 @@ function pantallaAvisosBloqueados(){
 }
 
 // "Activar avisos" de la pantalla: si salió bien sigue (perfil o inicio); si el permiso quedó
-// bloqueado, los pasos; cualquier otra falla ya la explicó el aviso y se queda para reintentar.
+// bloqueado, los pasos; cualquier otra falla ya la explicó el aviso: se queda para reintentar y
+// aparece la salida "Seguir sin avisos".
 async function activarAvisosDesdePantalla(){
   const ok = await suscribirAvisosNinera();
   if(ok){
     toast('Avisos activados.');
-    // Por si algo raro hiciera que avisosActivados() diga que no: que no la vuelva a mostrar en loop.
-    avisosSalteadosEstaVez = true;
     return continuarDespuesDeInstalar();
   }
-  if(avisosSoportados() && Notification.permission === 'denied') pantallaAvisosBloqueados();
+  if(avisosSoportados() && Notification.permission === 'denied'){ pantallaAvisosBloqueados(); return; }
+  const salida = document.getElementById('avisos-salida');
+  if(salida) salida.innerHTML = '<button type="button" class="link-boton" onclick="seguirSinAvisosNinera()">Seguir sin avisos</button>';
 }
 
 // "Ya los activé": vuelve a probar. Si siguen apagados, el aviso lo dice y se queda en los pasos.
@@ -370,7 +374,6 @@ async function reintentarAvisosNinera(){
   const ok = await suscribirAvisosNinera();
   if(!ok) return;
   toast('Avisos activados.');
-  avisosSalteadosEstaVez = true;
   return continuarDespuesDeInstalar();
 }
 

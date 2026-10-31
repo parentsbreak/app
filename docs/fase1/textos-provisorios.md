@@ -130,7 +130,8 @@ Los avisos ("Avisos"):
 
 Avisos obligatorios al entrar a la app (31/10/2026):
 - La pantalla "Activa los avisos" sale cada vez que entra con los avisos apagados. Ya no tiene "Ahora no":
-  queda "Activar avisos" y, abajo, un link chico "Seguir sin avisos" (vale solo hasta cerrar o recargar la app).
+  queda solo "Activar avisos". El link chico "Seguir sin avisos" aparece recién si activarlos falló por la
+  conexión o la base (así nunca queda atrapada); vale hasta cerrar sesión o recargar la app.
 - Si el permiso quedó bloqueado: título "Los avisos están bloqueados" y "Para recibir tus pedidos, actívalos
   desde los Ajustes de tu celular."
 - "iPhone: Ajustes > Notificaciones > Parents' Break > Permitir notificaciones."
