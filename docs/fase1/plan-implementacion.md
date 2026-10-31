@@ -1210,7 +1210,7 @@ de `arranque.js`), crear `ninera/js/temporada.js` con su cabecera; CLAUDE.md (or
   marzo, `{otro: 'Rocha'}` la 2da) y otra con temporada de la temporada anterior.
 - Correr toda la suite: los datos nuevos no pueden romper otros tests (si alguno cuenta filas, se ajusta
   y se dice por qué).
-- [ ] Commit `Etapa 9: simulador de la temporada`.
+- [x] Commit `Etapa 9: simulador de la temporada`.
 
 ### Tarea 9.3: avisos obligatorios (`ninera/js/cuenta.js`, `arranque.js`, `inicio.js`)
 
@@ -1232,7 +1232,7 @@ de `arranque.js`), crear `ninera/js/temporada.js` con su cabecera; CLAUDE.md (or
   apagados; permiso bloqueado → pasos, "Ya los activé" con el permiso todavía bloqueado (se queda) y ya
   concedido (sigue); "Seguir sin avisos" → inicio con el aviso rojo, cuyo botón lleva a los pasos; celular
   que no puede → sin pantalla; 390 px.
-- [ ] Commit `Etapa 9: avisos obligatorios al entrar a la app de niñeras`.
+- [x] Commit `Etapa 9: avisos obligatorios al entrar a la app de niñeras`.
 
 ### Tarea 9.4: app: la temporada (`ninera/js/temporada.js`)
 
@@ -1273,7 +1273,7 @@ de `arranque.js`), crear `ninera/js/temporada.js` con su cabecera; CLAUDE.md (or
   24 claves) y la tarjeta pasa a "Tu temporada"; falla y sin conexión sin perder lo marcado; doble toque
   una sola RPC; base sin migrar; abrir con `#temporada` en la URL con avisos apagados (pasa por avisos y
   llega a la temporada) y un push con la app abierta; 390 y 1280 px; ni `$\d` ni "pago".
-- [ ] Commit `Etapa 9: la temporada en la app de niñeras`.
+- [x] Commit `Etapa 9: la temporada en la app de niñeras`.
 
 ### Tarea 9.5: panel (`js/ninieras.js`)
 
@@ -1307,15 +1307,15 @@ de `arranque.js`), crear `ninera/js/temporada.js` con su cabecera; CLAUDE.md (or
   conserva Fuera del país y Otro (cuerpo del update) y, con lugares no vigentes, los borra; escape de
   "Otro"; base sin migrar (sin las columnas) como hoy; 390 px. `tests/filtro-punta.spec.js` sigue
   pasando; si un dato suyo es de una temporada anterior, se ajusta y el PR lo dice.
-- [ ] Commit `Etapa 9: el panel lee la temporada de la app`.
+- [x] Commit `Etapa 9: el panel lee la temporada de la app`.
 
 ### Tarea 9.6: documentación, revisión final y PR (sin merge hasta el OK)
 
-- [ ] CLAUDE.md: orden de carga con `temporada.js`, tests nuevos, convención "Temporada desde la app"
+- [x] CLAUDE.md: orden de carga con `temporada.js`, tests nuevos, convención "Temporada desde la app"
   (cuál manda, inicio 1/9, correcciones de las admins, avisos obligatorios), el filtro de Niñeras con la
   temporada anterior; pendientes: apagar la página y `temporada-ninera` cuando todas tengan la app; borrar
   "Publicar `enviar-avisos` junto con la migración" (ya hecho).
-- [ ] `decisiones.md` 6.6 y 10 y este plan; `textos-provisorios.md`.
+- [x] `decisiones.md` 6.6 y 10 y este plan; `textos-provisorios.md`.
 - [ ] Revisión final de toda la rama (Opus), una ola de arreglos.
 - [ ] PR con el CI en verde, sin merge. Orden con el OK de Diego: (1) migración por el SQL Editor y la
   consulta de verificación, (2) merge en seguida (el aviso de la temporada sale apenas se aplica la

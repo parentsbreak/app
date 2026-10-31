@@ -342,8 +342,18 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   precio de niñera en `fijos_automaticos.sql` y `paridad_plata.sql`.
 - `tests/ninera-cuenta.spec.js`: puerta de niñeras (`ninera/`): el simulador, invitación (bienvenida,
   errores de la función, link para cambiar la contraseña), login con el celular escrito de cualquier
-  forma, instalar, avisos, inicio vacío, sesiones separadas de las dos puertas, cuenta inactiva, que
-  no se vean montos, 390 y 1280 px.
+  forma, instalar, avisos obligatorios (sale cada vez que entra con los avisos apagados, permiso bloqueado
+  con los pasos y "Ya los activé", "Seguir sin avisos"), inicio vacío, sesiones separadas de las dos
+  puertas, cuenta inactiva, que no se vean montos, 390 y 1280 px.
+- `tests/ninera-temporada.spec.js` (31/10/2026): tarjeta del inicio (sin cargar, al día, fuera de
+  setiembre a marzo) y pantalla `#temporada` (precarga, atajo, "Otro" con y sin texto, resto del año, guardar con
+  el cuerpo exacto de la RPC, falla, sin conexión, doble toque, `#temporada` desde un push, sin montos, 390 y
+  1280 px). `abrirAppNinera(..., { baseSinMigrar: 'etapa9' })` simula la base sin la migración de la etapa 9
+  (solo faltan sus dos RPC; lo de las etapas 2 y 3 anda).
+- `tests/temporada-app-panel.spec.js` (31/10/2026): el panel con la temporada de la app: niñera con app sin paso
+  previo ni "Pedirle por WhatsApp", aviso anual, fuente, filtro con Fuera del país / Otro / La Paloma, temporada
+  de otra temporada como "sin temporada cargada", ficha, correcciones que conservan o borran lugares, escape de
+  "Otro", base sin migrar y 390 px.
 - `tests/invitar-app.spec.js`: ficha de la niñera: "Invitar a la app" (link y mensaje, link vigente,
   errores, doble toque), estado de la app, link para cambiar la contraseña, aviso de celular cambiado
   y login del panel con una cuenta de niñera o sin acceso.
@@ -363,6 +373,11 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   niñera, `generar_previstos_fijos` solo para admins y el cron, e ida y vuelta de la migración
   (aplicar, deshacer, aplicar). `supabase/pruebas/catalogo_seguridad.sql`: la lista permitida de
   funciones `security definer` que pueden ejecutar `authenticated` y `anon`.
+- `supabase/pruebas/fase1_temporada.sql` (31/10/2026): `ninera_guardar_temporada` (válido e inválido, formato viejo
+  de `temporada`, zona con Punta), `ninera_mi_temporada`, quién puede llamarlas, `programar_avisos_temporada` (fechas,
+  horas, claves, recordatorios a los 15 días del primero, sin duplicar) e ida y vuelta de la migración. La prueba del
+  DESHACER con temporadas cargadas está en `supabase/pruebas/deshacer/` (`20261101_temporada_app*.sql`), fuera del
+  glob y a mano, como la de la etapa 3 (comando en su encabezado).
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -574,6 +589,24 @@ reporte.
   "Completa esto una sola vez" sale a todas la primera vez que entran (`perfil_app_en` vacío, Diego
   29/10/2026), aunque ya tengan zona. Al aprobar, la foto anterior del CV se borra de `ninieras-fotos`
   si es de ese bucket y ninguna otra ficha la usa (`borrarFotoAnteriorCv`).
+- Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
+  cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
+  `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
+  `temporada` en el formato viejo (así filtro y panel siguen andando) con `temporada_fuente = 'app'`. Las
+  quincenas no tienen año: la temporada empieza el 1/9 a las 0:00 de Montevideo (`inicio_temporada_mvd()`,
+  `inicioTemporadaActual()` en el panel). Lugares vigentes = no nulos, `temporada_lugares_en` desde ese inicio y
+  fuente 'app' o 'sistema'; si después carga la página, manda la página (`lugaresTemporadaVigentes`). Una
+  corrección de una admin (`guardarTemporadaEnBase`) mezcla (lo que queda en Punta pasa a `punta`, lo que
+  estaba y ya no a `montevideo`, el resto queda) o, si los lugares no están vigentes, los borra. A las niñeras
+  con app (`user_id`) el panel no les pide nada: sin paso previo al editar, "Se la pide la app" en lugar de
+  "Pedirle por WhatsApp", sin badge, fuera de la lista por defecto del panel de temporadas y del conteo del aviso
+  anual; las sin app, igual que siempre. Los pide la regla `programar_avisos_temporada()` (1/10 al 31/12, de 9 a
+  21 h, claves `temporada:<año>:<id>` y `:q<n>`, recordatorio cada 15 días desde su primer aviso). `textoQuincenas`,
+  `TEMP_MESES_LARGO`, `LUGARES_TEMPORADA` y `resumenLugaresTemporada` viven en `comun.js` (las usan las dos puertas).
+- Avisos obligatorios en la app de niñeras (31/10/2026): "Activa los avisos" sin "Ahora no", y sale cada vez que
+  entra con los avisos apagados. Con el permiso bloqueado, pantalla con los pasos de Ajustes y "Ya los activé".
+  "Seguir sin avisos" solo en esa pantalla o tras una activación fallida (red, base): pasa al inicio con el aviso
+  rojo fijo. Vale hasta cerrar sesión o recargar (`avisosSalteadosEstaVez`, en memoria, se reinicia al cerrar sesión).
 - Cuentas de niñeras (26/10/2026): usuario = celular + contraseña; por dentro, Auth usa el mail
   sintético `<celular normalizado>@ninieras.parentsbreak.invalid` (`MAIL_DOMINIO_NINERA` en
   `js/comun.js`, `mail_sintetico_ninera()` en SQL y la constante de `ninera-cuenta`: los tres
@@ -626,7 +659,8 @@ reporte.
   en las quincenas marcadas. "Dijo que no va" (temporada sin quincenas): sin meses aparece con esa
   marca, con meses no. Con un mes elegido, las que no cargaron temporada van aparte ("sin
   temporada cargada"), nunca escondidas. Escribir una zona de afuera en el buscador es igual que
-  marcarla (`zonasDelFiltroNin`, ninieras.js).
+  marcarla (`zonasDelFiltroNin`, ninieras.js). Una temporada cargada en una temporada anterior cuenta como
+  "sin temporada cargada" (Diego, 31/10/2026).
 - Fijos que empezaron antes de la app (10/10/2026): la fecha real va en `inicio_real` (solo se
   muestra, "empezó el"); `vigente_desde` es desde cuándo se registra en la app. Nunca llevar
   `vigente_desde` hacia atrás a meses que están en los Docs.
@@ -781,14 +815,20 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha en la rama
-`claude/fase1-avisos-chat`, sin mergear hasta después de la mudanza y el OK de la migración; etapas 4 a 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+`claude/fase1-avisos-chat`, sin mergear hasta después de la mudanza y el OK de la migración; etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapas 4 a 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
   Pregunta para Diego: ¿tope de mensajes por niñera o por día? Hoy no hay. Sin borrador del cuadro del
   chat en la ficha del panel (si se cierra, se pierde lo escrito). Probar en un iPhone real: el textarea
-  del chat con el teclado abierto (`100dvh`) y un push con la app ya abierta. Publicar `enviar-avisos`
-  junto con la migración.
+  del chat con el teclado abierto (`100dvh`) y un push con la app ya abierta.
+- Etapa 9 (31/10/2026): apagar `temporada.html`, `temporada-ninera`, `TEMPORADA_URL` y el mensaje de difusión
+  cuando todas las activas tengan la app (PR aparte, con OK; `decisiones.md` 10).
+- Etapa 9 (31/10/2026): la corrección de la temporada desde el panel no se condiciona a `temporada_actualizada_en`:
+  puede pisar un guardado que la niñera acaba de hacer en la app (igual que "Editar").
+- Etapa 9 (31/10/2026): probar en un iPhone real el teclado del campo "¿Dónde?" de la temporada y los pasos para
+  activar los avisos en Ajustes.
+- Etapa 9 (31/10/2026): `ordenarSugeridas` y `app_config 'temporada_reglas'` van en la etapa 5, con lo único que los lee.
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.
