@@ -828,7 +828,7 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   puede pisar un guardado que la niñera acaba de hacer en la app (igual que "Editar").
 - Etapa 9 (31/10/2026): probar en un iPhone real el teclado del campo "¿Dónde?" de la temporada y los pasos para
   activar los avisos en Ajustes.
-- Etapa 9 (31/10/2026): `ordenarSugeridas` y `app_config 'temporada_reglas'` van en la etapa 5, con lo único que los lee.
+- Etapa 5 (31/10/2026): en curso en la rama `claude/fase1-pedido` (plan al detalle en `plan-implementacion.md`). `app_config 'temporada_reglas'` no se crea: la regla 4.5 vive en `nineraPresenteEnZona`. Antes de la etapa 6, confirmar con las dueñas si una niñera que dijo "Puedo" se confirma sola (ver la etapa 6 del plan).
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.
