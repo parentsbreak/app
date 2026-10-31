@@ -441,9 +441,8 @@ test.describe('Hoy: Mensajes de niñeras', () => {
     await expect(mensajes(page)).toHaveCount(1);
     await expect(page.locator('#editmodal .fichadl')).toContainText('Notas—');
     // "Editar" encima de la ficha: arranca con su fila y guarda sobre la misma niñera.
-    // Primero pide la temporada (no la tiene): "Omitir por ahora" vuelve a abrir "Editar" con su fila.
+    // Carla tiene app: el panel no le pide la temporada (31/10/2026), se abre directo "Editar".
     await page.evaluate(i => editarNinera(i), ID.nCarla);
-    await page.locator('#editmodal button', { hasText: 'Omitir por ahora' }).click();
     await page.fill('#ed-notas', 'Nota editada');
     await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
     await expect(toasts(page).last()).toHaveText('Cambios guardados.');
