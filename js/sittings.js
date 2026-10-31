@@ -911,7 +911,8 @@ function verRutaMaps(){
 }
 
 /* ---- km automático (TomTom) y precio sugerido de traslado ---- */
-// Clave restringida al dominio diegomarin28.github.io desde el panel de TomTom — segura para vivir en el código público.
+// Clave restringida desde el panel de TomTom a los dominios de la app (parentsbreak.github.io desde la
+// mudanza del 27/10/2026, y diegomarin28.github.io hasta que se saque): segura para vivir en el código público.
 const TOMTOM_KEY = 'upPsudbTEF2vqk2AgE7VftlFkI1c7PHt';
 let tarifaTrasladoConfig = null;
 async function cargarTarifaTrasladoConfig(){
