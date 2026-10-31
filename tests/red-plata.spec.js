@@ -66,6 +66,17 @@ function reglaRedondeo(n, cobro) {
   return v < 0 && r ? -r : r;
 }
 
+// Pago por hora de una niñera (31/10/2026, docs/precio-ninera-familia.md): el precio del fijo si es
+// más que 0; si no, el de esa niñera con esa familia (precios_ninera_familia); si no, la tarifa de la
+// familia si es más que 0; si no, ninguno. Lo que llega de un campo puede venir como texto ("300").
+function reglaPagoHora(familia, nineraId, precios, pagoFijo) {
+  const num = x => (x === null || x === undefined || x === '' ? NaN : Number(x));
+  if (num(pagoFijo) > 0) return num(pagoFijo);
+  const fila = nineraId && familia && familia.id ? (precios || []).find(p => p.familia_id === familia.id && p.ninera_id === nineraId) : undefined;
+  if (fila && num(fila.pago_hora) > 0) return num(fila.pago_hora);
+  return familia && num(familia.pago_hora) > 0 ? num(familia.pago_hora) : null;
+}
+
 test.describe('red de plata: la app contra el oráculo y la regla escrita', () => {
   test('horario: horas reales, horas cobradas y hasta qué hora se cobra', async ({ page }) => {
     const e = await abrirApp(page);
@@ -378,6 +389,83 @@ test.describe('red de plata: la app contra el oráculo y la regla escrita', () =
     });
     sinDiferencias(malos, 'variantes de precio');
     anotarCasos(casos.length, 'variantes de precio');
+    verificarLimpio(e);
+  });
+
+  test('pago por hora de la niñera: el del fijo, el de la niñera con esa familia o la tarifa', async ({ page }) => {
+    // 31/10/2026: precioHoraNinera (core.js) elige la base del pago; precioSegunHorario la usa como
+    // familia.pago_hora. Casos a mano de cada nivel y un lote al azar, contra el oráculo y la regla.
+    const e = await abrirApp(page);
+    await cargarOraculo(page);
+    const F1 = 'f0000000-0000-4000-8000-000000000001', F2 = 'f0000000-0000-4000-8000-000000000002';
+    const N1 = 'e0000000-0000-4000-8000-000000000001', N2 = 'e0000000-0000-4000-8000-000000000002', N3 = 'e0000000-0000-4000-8000-000000000003';
+    const fam = { id: F1, cobro_hora: 300, pago_hora: 200 };
+    // N1 tiene precio con F1; N2 solo con otra familia (F2); N3 no tiene ninguno.
+    const precios = [{ familia_id: F1, ninera_id: N1, pago_hora: 250 }, { familia_id: F2, ninera_id: N2, pago_hora: 275 }];
+    const aMano = [
+      ['el precio del fijo gana sobre el de la niñera', fam, N1, precios, 230, 230],
+      ['el precio del fijo gana sin fila', fam, N3, precios, 230, 230],
+      ['sin precio del fijo, el de la niñera con esa familia', fam, N1, precios, null, 250],
+      ['la fila manda aunque la familia no tenga tarifa', { id: F1, cobro_hora: 300, pago_hora: null }, N1, precios, null, 250],
+      ['fila de la niñera con otra familia: la tarifa', fam, N2, precios, null, 200],
+      ['sin fila: la tarifa', fam, N3, precios, null, 200],
+      ['sin niñera (null): la tarifa', fam, null, precios, null, 200],
+      ['sin niñera (vacío): la tarifa', fam, '', precios, null, 200],
+      ['sin lista de precios: la tarifa', fam, N1, null, null, 200],
+      ['familia sin tarifa y sin fila: ninguno', { id: F1, cobro_hora: 300, pago_hora: null }, N3, precios, null, null],
+      ['familia con tarifa 0 y sin niñera: ninguno', { id: F1, cobro_hora: 300, pago_hora: 0 }, null, precios, null, null],
+      ['sin familia: ninguno', null, N1, precios, null, null],
+      ['precio del fijo 0: se ignora', fam, N1, precios, 0, 250],
+      ['precio del fijo vacío: se ignora', fam, N1, precios, '', 250],
+      ['precio del fijo "0": se ignora', fam, N1, precios, '0', 250],
+      ['precio del fijo negativo: se ignora', fam, N3, precios, -50, 200],
+      ['precio del fijo como texto', fam, N1, precios, '300', 300],
+      ['precio del fijo con centavos', fam, N1, precios, '187.5', 187.5],
+      ['tarifa de la familia como texto', { id: F1, cobro_hora: 300, pago_hora: '280' }, N3, precios, null, 280],
+    ];
+    // El lote al azar: cuatro familias (tarifas con centavos, 0, vacías o en texto), niñeras con y sin
+    // precio en alguna de ellas, y el precio del fijo cargado o no.
+    const az = crearAzar(SEMILLA + 50);
+    const fams = [1, 2, 3, 4].map(i => ({ id: `f1000000-0000-4000-8000-00000000000${i}`, cobro_hora: az.de(TARIFAS.filter(Boolean)) }));
+    const nins = [1, 2, 3, 4, 5].map(i => `e1000000-0000-4000-8000-00000000000${i}`);
+    const lote = Array.from({ length: 600 }, () => {
+      const lista = [];
+      for (const f of fams) for (const n of nins) if (az.si(0.3)) lista.push({ familia_id: f.id, ninera_id: n, pago_hora: az.de(TARIFAS.filter(Boolean)) });
+      const { familia, ...horario } = casoHorario(az);
+      return {
+        fam: { ...az.de(fams), pago_hora: az.si(0.25) ? az.de([null, '', '0', '280', '300.5']) : az.de(TARIFAS), terminos_aceptados_el: familia?.terminos_aceptados_el ?? null },
+        nineraId: az.si(0.15) ? az.de([null, '']) : az.de(nins),
+        precios: lista,
+        pagoFijo: az.si(0.6) ? az.de([null, 0, '', '0']) : az.de([230, '300', 187.5, ...TARIFAS.filter(Boolean)]),
+        horario,
+      };
+    });
+    const res = await page.evaluate(([aMano, lote]) => ({
+      aMano: aMano.map(([, f, n, p, fijo]) => ({ app: precioHoraNinera(f, n, p, fijo), oraculo: ORACULO.precioHoraNinera(f, n, p, fijo) })),
+      lote: lote.map(c => {
+        const de = F => {
+          const pagoHora = F.precioHoraNinera(c.fam, c.nineraId, c.precios, c.pagoFijo);
+          const h = c.horario;
+          return { pagoHora, precio: F.precioSegunHorario({ ...c.fam, pago_hora: pagoHora }, h.ini, h.fin, h.cruza, h.fecha) };
+        };
+        return { app: de(window), oraculo: de(ORACULO) };
+      }),
+    }), [aMano, lote]);
+    const malos = [];
+    aMano.forEach(([que, f, n, p, fijo, esperado], i) => {
+      const r = res.aMano[i];
+      if (r.app !== esperado || r.oraculo !== esperado || reglaPagoHora(f, n, p, fijo) !== esperado) malos.push({ que, app: r.app, oraculo: r.oraculo, esperado });
+    });
+    res.lote.forEach((r, i) => {
+      const c = lote[i];
+      const pagoHora = reglaPagoHora(c.fam, c.nineraId, c.precios, c.pagoFijo);
+      const h = reglaHoras({ ...c.horario, familia: c.fam });
+      const cobroH = Number(c.fam.cobro_hora) || 0;
+      const regla = { pagoHora, precio: { cobro: h && cobroH ? reglaRedondeo(cobroH * h.cobro, true) : null, pago: h && pagoHora ? reglaRedondeo(pagoHora * h.real, false) : null } };
+      if (!igual(r.app, r.oraculo) || !igual(r.app, regla)) malos.push({ caso: c, app: r.app, oraculo: r.oraculo, regla });
+    });
+    sinDiferencias(malos, 'pagos por hora de la niñera');
+    anotarCasos(aMano.length + lote.length, 'pagos por hora de la niñera');
     verificarLimpio(e);
   });
 

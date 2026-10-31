@@ -1,5 +1,5 @@
 // Oráculo de plata: copia EXACTA de las funciones que calculan plata en js/, tal como estaban el
-// 23/10/2026 (commit 785b348). La generó scripts/congelar-oraculo-plata.js: no se edita a mano.
+// 31/10/2026 (commit a7c9277). La generó scripts/congelar-oraculo-plata.js: no se edita a mano.
 // tests/red-plata.spec.js compara la app con esta copia en miles de casos (docs/rediseno-panel.md,
 // 4.10). Si una regla cambia a propósito, se vuelve a generar en el mismo PR y el PR lo dice.
 // Lo que no es plata (supabase, normaliza, todayISO, sumarDiasISO...) es el de la app.
@@ -67,6 +67,13 @@ function crearOraculoPlata(){
   function aplicarVariantes(baseCobro, basePago, aplicadas){
     const lado = k => (aplicadas||[]).map(a=>a && a[k]).filter(e=>e && e.modo);
     return { cobro: redondearCobro(efectoVariantes(baseCobro, lado('cobro'))), pago: redondearPago(efectoVariantes(basePago, lado('pago'))) };
+  }
+  function precioHoraNinera(familia, nineraId, precios, pagoFijo){
+    // Number(null) y Number('') dan 0: un campo vacío o en 0 es "no cargado".
+    const positivo = x => Number(x) > 0 ? Number(x) : null;
+    if(positivo(pagoFijo) != null) return positivo(pagoFijo);
+    const fila = nineraId && familia?.id ? (precios||[]).find(p => p && p.familia_id===familia.id && p.ninera_id===nineraId) : null;
+    return positivo(fila?.pago_hora) ?? positivo(familia?.pago_hora);
   }
   // ---- js/sittings.js
   function precioSegunHorario(familia, horaIni, horaFin, cruza, fechaISO){
@@ -444,7 +451,7 @@ function crearOraculoPlata(){
     });
     return mejor;
   }
-  return { agendaMinutos, gastoACargoFamilia, redondearMonto, redondearPago, redondearCobro, asignacionVigenteEn, asignacionTerminada, redondearFinCobro, familiaRedondeaFin, cruceMedianocheMalMarcado, horasSitting, efectoVariantes, aplicarVariantes, precioSegunHorario, construirEsTrabajoFijo, filtrarFijosSemanaIncompleta, resumenFinancieroMes, resumenIntermediaciones, intermediacionesPendientes, lunesDeSemana, inicioSemanaPago, finSemanaPago, finEnMinutos, construirFinUltimoFijo, cierreSemanaFijo, semanaFijoCerrada, construirEsEnCurso, finDeSemanaDesde, bucketKeyFecha, bucketPagoFecha, cargarAjustesSaldo, pendienteAjuste, aplicarAjustesAGrupos, calcularPendientesAgrupados, armarTarjetasPendientes, esFaltaTabla, cargarGastosExtraPendientes, montoGrupo, cuentasDeFicha, montoParaCopiar, totalParcial, combinacionExacta };
+  return { agendaMinutos, gastoACargoFamilia, redondearMonto, redondearPago, redondearCobro, asignacionVigenteEn, asignacionTerminada, redondearFinCobro, familiaRedondeaFin, cruceMedianocheMalMarcado, horasSitting, efectoVariantes, aplicarVariantes, precioHoraNinera, precioSegunHorario, construirEsTrabajoFijo, filtrarFijosSemanaIncompleta, resumenFinancieroMes, resumenIntermediaciones, intermediacionesPendientes, lunesDeSemana, inicioSemanaPago, finSemanaPago, finEnMinutos, construirFinUltimoFijo, cierreSemanaFijo, semanaFijoCerrada, construirEsEnCurso, finDeSemanaDesde, bucketKeyFecha, bucketPagoFecha, cargarAjustesSaldo, pendienteAjuste, aplicarAjustesAGrupos, calcularPendientesAgrupados, armarTarjetasPendientes, esFaltaTabla, cargarGastosExtraPendientes, montoGrupo, cuentasDeFicha, montoParaCopiar, totalParcial, combinacionExacta };
 }
-const ORACULO_PLATA_CONGELADO = { fecha: "23/10/2026", commit: "785b348" };
+const ORACULO_PLATA_CONGELADO = { fecha: "31/10/2026", commit: "a7c9277" };
 if (typeof module !== 'undefined') module.exports = { crearOraculoPlata, ORACULO_PLATA_CONGELADO };

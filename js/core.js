@@ -1224,6 +1224,22 @@ function aplicarVariantes(baseCobro, basePago, aplicadas){
   const lado = k => (aplicadas||[]).map(a=>a && a[k]).filter(e=>e && e.modo);
   return { cobro: redondearCobro(efectoVariantes(baseCobro, lado('cobro'))), pago: redondearPago(efectoVariantes(basePago, lado('pago'))) };
 }
+/* Pago por hora de una niñera con una familia (31/10/2026, regla 2 de docs/fase1/reglas-del-negocio.md
+   y docs/precio-ninera-familia.md). Lo que cobra la niñera cambia según la familia (cantidad de chicos,
+   antigüedad, fuera de Montevideo) y se guarda por par en precios_ninera_familia. El orden: el precio
+   del fijo (asignaciones.pago_hora, solo si es más que 0), si no el de esa niñera con esa familia, si
+   no la tarifa de la familia; si no hay ninguno, null. precios: filas {familia_id, ninera_id,
+   pago_hora}; pagoFijo y las tarifas pueden llegar como texto de un campo ("300"). No calcula el
+   pago del sitting: se le pasa a precioSegunHorario la familia con este pago_hora. En la base, la
+   misma regla está en el pago de generar_previstos_fijos y, sin el precio del fijo, en
+   pago_hora_ninera(): si cambia una, cambian todas (las compara supabase/pruebas/paridad_plata.sql). */
+function precioHoraNinera(familia, nineraId, precios, pagoFijo){
+  // Number(null) y Number('') dan 0: un campo vacío o en 0 es "no cargado".
+  const positivo = x => Number(x) > 0 ? Number(x) : null;
+  if(positivo(pagoFijo) != null) return positivo(pagoFijo);
+  const fila = nineraId && familia?.id ? (precios||[]).find(p => p && p.familia_id===familia.id && p.ninera_id===nineraId) : null;
+  return positivo(fila?.pago_hora) ?? positivo(familia?.pago_hora);
+}
 // "Traslado $1.018 + gastos $427 = $1.445". Delfi no veía que la comida se sumaba aparte, la
 // metió en el precio y quedó cobrada dos veces (13/10/2026). Sin gastos devuelve ''.
 function textoTotalConGastos(etiqueta, base, gastos){

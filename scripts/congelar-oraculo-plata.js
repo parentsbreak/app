@@ -22,7 +22,8 @@ const DESTINO = path.join(RAIZ, 'tests', 'support', 'oraculo-plata.js');
 const FUNCIONES = {
   'js/agenda.js': ['agendaMinutos'],
   'js/core.js': ['gastoACargoFamilia', 'redondearMonto', 'redondearPago', 'redondearCobro', 'asignacionVigenteEn',
-    'asignacionTerminada', 'redondearFinCobro', 'familiaRedondeaFin', 'cruceMedianocheMalMarcado', 'horasSitting', 'efectoVariantes', 'aplicarVariantes'],
+    'asignacionTerminada', 'redondearFinCobro', 'familiaRedondeaFin', 'cruceMedianocheMalMarcado', 'horasSitting', 'efectoVariantes', 'aplicarVariantes',
+    'precioHoraNinera'],
   'js/sittings.js': ['precioSegunHorario'],
   'js/finanzas.js': ['construirEsTrabajoFijo', 'filtrarFijosSemanaIncompleta', 'resumenFinancieroMes',
     'resumenIntermediaciones', 'intermediacionesPendientes', 'lunesDeSemana', 'inicioSemanaPago', 'finSemanaPago', 'finEnMinutos', 'construirFinUltimoFijo',

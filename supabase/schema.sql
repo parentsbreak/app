@@ -697,8 +697,9 @@ create table public.variantes_precio (
 );
 
 -- Pago por hora de una niñera con una familia (31/10/2026, regla 2 de reglas-del-negocio): manda
--- sobre familias.pago_hora en los sittings puntuales; los fijos siguen con lo suyo. Sin cobro: la
--- familia paga siempre su tarifa. La reutiliza la etapa 5 (decisiones 4.18). Solo admins.
+-- sobre familias.pago_hora; en un fijo, antes va el precio del fijo (01/11/2026,
+-- generar_previstos_fijos). Sin cobro: la familia paga siempre su tarifa. La reutiliza la etapa 5
+-- (decisiones 4.18). Solo admins.
 create table public.precios_ninera_familia (
   id uuid default gen_random_uuid() not null,
   familia_id uuid not null,
@@ -714,7 +715,7 @@ create table public.precios_ninera_familia (
   constraint precios_ninera_familia_nota_check check (nota is null or char_length(nota) <= 200)
 );
 comment on table public.precios_ninera_familia is
-  'Pago por hora de una niñera con una familia (regla 2). Manda sobre familias.pago_hora en los sittings puntuales; los fijos siguen con lo suyo. Solo admins.';
+  'Pago por hora de una niñera con una familia (regla 2). El pago por hora de un sitting es, en este orden: el precio del fijo (asignaciones.pago_hora, si está cargado), el de esta tabla para esa niñera con esa familia, la tarifa de la familia (familias.pago_hora). Solo admins.';
 
 create table public.ajustes_saldo (
   id uuid default gen_random_uuid() not null,
@@ -2350,7 +2351,13 @@ begin
          case when c.tipo_fijo = 'traslado' then coalesce(c.cobro_traslado, t.cobro_familia, 0)
               else public.redondear_cobro(coalesce(c.horas_cobro, c.horas, 0) * coalesce(c.fam_cobro_hora, 0)) end as cobro_base,
          case when c.tipo_fijo = 'traslado' then coalesce(c.pago_traslado, t.pago_ninera, 0)
-              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(c.fam_pago_hora, 0)) end as pago_base
+              -- Pago por hora (01/11/2026, precio por niñera con cada familia): el precio del fijo si
+              -- está cargado (más que 0), si no el de esa niñera con esa familia, si no la tarifa.
+              -- Igual que precioHoraNinera() en js/core.js. c.pago_hora es asignaciones.pago_hora.
+              else public.redondear_pago(coalesce(c.horas, 0) * coalesce(nullif(c.pago_hora, 0),
+                     (select p.pago_hora from public.precios_ninera_familia p
+                       where p.familia_id = c.familia_id and p.ninera_id = c.ninera_id),
+                     c.fam_pago_hora, 0)) end as pago_base
     from con_horas c
     -- Un traslado no se cobra por hora: el precio cargado en el fijo o, si no tiene, el del
     -- último traslado de ese fijo o de esa familia (lo mismo que precarga la app).
