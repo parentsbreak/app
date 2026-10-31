@@ -149,17 +149,17 @@ select count(*) from public.respaldo_20261027_webauthn_credentials;
 ```
 
 ### SQL B: suscripciones push viejas (recién cuando las 3 admins activaron avisos en la dirección nueva, paso B10)
-`push_subscriptions` no guarda el origen: las viejas se reconocen por `created_at` anterior a la
-mudanza. Reemplazar el marcador por la fecha y hora de la mudanza en UTC (Montevideo es UTC-3: las
-22:00 del 27/10 son `2026-10-28 01:00:00+00`). Las filas de niñeras (`user_id` no nulo) no se tocan.
+`push_subscriptions` no guarda el origen: las viejas se reconocen por `creado_en` anterior a la
+mudanza. La hora de la mudanza es la del merge del #85: `2026-10-31 03:30:11+00` (UTC; 00:30 del 31/10 en
+Montevideo). Las filas de niñeras (`user_id` no nulo) no se tocan.
 ```sql
 begin;
-create table public.respaldo_20261027_push_subscriptions as select * from public.push_subscriptions;
+create table public.respaldo_20261031_push_subscriptions as select * from public.push_subscriptions;
 -- Con RLS y sin políticas: guarda endpoints y claves, la app no la tiene que ver.
-alter table public.respaldo_20261027_push_subscriptions enable row level security;
+alter table public.respaldo_20261031_push_subscriptions enable row level security;
 delete from public.push_subscriptions
  where user_id is null
-   and created_at < '<fecha y hora de la mudanza, por ejemplo 2026-10-28 01:00:00+00>';
+   and creado_en < '2026-10-31 03:30:11+00';
 commit;
 ```
 Verificación (tiene que dar las que activaron en la dirección nueva: una por admin y dispositivo):
@@ -168,7 +168,7 @@ select count(*) from public.push_subscriptions where user_id is null;
 ```
 Antes de correrlo conviene mirar qué se va a borrar, con la misma condición:
 ```sql
-select id, created_at from public.push_subscriptions
- where user_id is null and created_at < '<fecha y hora de la mudanza>'
- order by created_at;
+select id, usuario, creado_en from public.push_subscriptions
+ where user_id is null and creado_en < '2026-10-31 03:30:11+00'
+ order by creado_en;
 ```
