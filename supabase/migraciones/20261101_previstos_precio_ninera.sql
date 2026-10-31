@@ -23,6 +23,13 @@
 -- corrida (03:00 o cuando la app la llama) si cambia el precio de su niñera con esa familia.
 -- No modifica filas: no hace falta respaldo.
 --
+-- ORDEN: aplicar esta migración ANTES de mergear el PR del panel (revisión final, 31/10/2026). Si el
+-- panel sale primero, un precio guardado desde la ficha no llega a los previstos (la función vieja
+-- ignora la tabla) y el mismo fijo pagaría distinto según la pantalla. Al revés no hay riesgo.
+-- Justo antes de aplicarla, las dos tienen que dar 0 (si no, revisar qué previstos cambian):
+--   select count(*) from asignaciones where pago_hora > 0;
+--   select count(*) from precios_ninera_familia;
+--
 -- Requiere 20261031_precios_ninera_familia.sql aplicada (lee esa tabla). Se deshace con
 -- 20261101_previstos_precio_ninera_DESHACER.sql; si hay que deshacer las dos, primero esta: sin
 -- la tabla, la función nueva fallaría en cada corrida.

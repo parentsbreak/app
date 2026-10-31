@@ -441,10 +441,14 @@ test.describe('ficha de la familia: los días previstos del fijo', () => {
     await guardar(page);
     await expect(modal(page)).toHaveCount(0);
     await expect.poll(() => llamadasProceso(e).length).toBe(1);
+    // El toast sale después de repintar la lista: antes, el click podía caer en la fila vieja (con el
+    // actualizado_en de antes) y el guardado siguiente daba "otra admin" con la máquina cargada.
+    await expect(page.locator('.toaststack .toast', { hasText: 'Precio guardado.' })).toBeVisible();
     await filas(page).first().click();
     await page.fill('#pnf-pago', '280');
     await guardar(page);
     await expect.poll(() => llamadasProceso(e).length).toBe(2);
+    await expect(page.locator('.toaststack .toast', { hasText: 'Precio cambiado.' })).toBeVisible();
     await filas(page).first().click();
     await page.locator('#pnf-borrar').click();
     await page.locator('#confirm-si').click();
