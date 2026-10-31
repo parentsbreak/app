@@ -883,25 +883,18 @@ async function abrirModalAsignar(solicitudId){
   (histTotal||[]).forEach(r=>{ const k=normaliza(r.ninera_nombre); conteoTotal[k]=(conteoTotal[k]||0)+1; });
   (sitTotal||[]).forEach(r=>{ const k=normaliza(r.ninera_nombre); conteoTotal[k]=(conteoTotal[k]||0)+1; });
 
-  const tipoOk = n => nineraHaceTipo(n, s.tipo);
-  const zonaNorm = normaliza(s.zona||'');
   const yaInvitadas = new Set(s.ninieras.map(x=>normaliza(x.ninera_nombre)));
-  const candidatas = agendaNinierasBase.filter(n=>tipoOk(n) && !yaInvitadas.has(normaliza(n.nombre)));
-
-  const tier1 = [], tier2 = [], tier3 = [];
-  candidatas.forEach(n=>{
-    const key = normaliza(n.nombre);
-    if(conteoFamilia[key]>0){ tier1.push({...n, veces:conteoFamilia[key]}); return; }
-    // Cubre alguna de las zonas del pedido (todo es por zona: Olivos o San Nicolás ya son
-    // "Carrasco", no hace falta que el texto coincida).
-    if(s.zona && mismoGrupoZona(n.zona, s.zona)){
-      tier2.push({...n, cercana: false});
-      return;
-    }
-    tier3.push({...n, total:conteoTotal[key]||0});
+  const candidatas = agendaNinierasBase.filter(n=>!yaInvitadas.has(normaliza(n.nombre)));
+  // Misma regla que va a usar el ticket desde WhatsApp (etapa 5): no dejar que la Agenda
+  // ordene distinto. Por ahora este modal solo tiene historial y zonas; al enviar pedidos por la
+  // app se le suman guía, temporada, no disponibilidad y experiencias de edad.
+  const orden = ordenarSugeridas({ tipo:s.tipo, zona:s.zona }, {
+    ninieras:candidatas, historialFamilia:conteoFamilia, historialTotal:conteoTotal,
   });
-  tier1.sort((a,b)=>b.veces-a.veces);
-  tier3.sort((a,b)=>(b.total-a.total) || a.nombre.localeCompare(b.nombre));
+  const tier1 = orden.sugeridas.filter(n=>n.bloque===1);
+  const tier2 = orden.sugeridas.filter(n=>n.bloque===2);
+  const tier3 = orden.sugeridas.filter(n=>n.bloque===3);
+  const inactivas = orden.inactivas;
 
   // Ya no se invita por WhatsApp a varias y se espera respuesta -- se elige la niñera
   // directo, se ve/ajusta cuánto le corresponde, y se guarda con todo asignado de una:
@@ -932,13 +925,14 @@ async function abrirModalAsignar(solicitudId){
   const html = `
     <h2>Asignar niñera${s.tipo==='traslado'?' al traslado':''}</h2>
     <div class="helper">${escaparHtml(s.familia_nombre)} · ${s.tipo==='traslado'?'Traslado':'Sitting'} · ${s.hora_inicio.slice(0,5)}${s.hora_fin?'–'+s.hora_fin.slice(0,5):''}${s.zona?escaparHtml(' · '+s.zona):''}${s.cobro_familia?` · Cobro a familia $${Number(s.cobro_familia).toLocaleString('es-UY')}`:''}</div>
-    ${tier1.length ? `<div class="agenda-tier-label">Ya trabajaron con esta familia</div>${tier1.map(n=>filaSel(n, `${n.veces} vez${n.veces===1?'':'es'}`)).join('')}` : ''}
-    ${tier2.length ? `<div class="agenda-tier-label">Cubren ${escaparHtml(s.zona||'esta zona')}</div>${tier2.map(n=>filaSel(n, n.cercana ? 'Cubre zona cercana (mismo grupo)' : 'Cubre la zona')).join('')}` : ''}
+    ${tier1.length ? `<div class="agenda-tier-label">Ya trabajaron con esta familia</div>${tier1.map(n=>filaSel(n.ninera, n.motivo)).join('')}` : ''}
+    ${tier2.length ? `<div class="agenda-tier-label">Cubren ${escaparHtml(s.zona||'esta zona')}</div>${tier2.map(n=>filaSel(n.ninera, n.motivo)).join('')}` : ''}
     ${!tier1.length && !tier2.length ? '<div class="helper">Nadie con historial o zona coincidente todavía — mostrando el resto del equipo.</div>' : ''}
     <button type="button" class="smallbtn" style="margin:6px 0;" onclick="document.getElementById('agenda-tier3').style.display='block';this.style.display='none';">+ Niñeras</button>
     <div id="agenda-tier3" style="display:${(!tier1.length && !tier2.length) ? 'block' : 'none'};">
       <div class="agenda-tier-label">Resto del equipo</div>
-      ${tier3.map(n=>filaSel(n, `${n.total} sitting${n.total===1?'':'s'} en total`)).join('')}
+      ${tier3.map(n=>filaSel(n.ninera, n.motivo)).join('')}
+      ${inactivas.length ? `<div class="agenda-tier-label">Inactivas</div>${inactivas.map(n=>filaSel(n.ninera, 'Está inactiva.')).join('')}` : ''}
     </div>
     <div id="agenda-asignar-pago-wrap" style="display:none;margin-top:10px;" ${preciosNoLeidos(preciosFam) ? 'data-precios-no-leidos="1"' : ''}>
       <div class="field"><label>Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" oninput="marcarCampoEditadoManual('agenda-asignar-pago')"></div></div>
