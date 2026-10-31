@@ -83,6 +83,11 @@ const COLUMNAS_NINIERAS_ETAPA_2 = ['perfil_app_en', 'perfil_actualizado_en', 'fo
 // niñera y las dos tablas. Con baseSinMigrar las RPC dan 404 PGRST202 y las tablas 404 PGRST205.
 const RPC_ETAPA_3 = ['ninera_enviar_mensaje', 'ninera_marcar_chat_leido', 'ninera_marcar_avisos_leidos'];
 const TABLAS_ETAPA_3 = ['chat_mensajes', 'avisos'];
+// Lo que suma la migración de la etapa 9 (20261101_temporada_app.sql, 01/11/2026): las dos funciones
+// de la niñera. La base real nunca tiene la etapa 9 sin la 3: baseSinMigrar true y 'etapa3' también
+// las dejan sin existir; 'etapa9' deja sin existir solo estas dos.
+const RPC_ETAPA_9 = ['ninera_mi_temporada', 'ninera_guardar_temporada'];
+const COLUMNAS_NINIERAS_ETAPA_9 = ['temporada_lugares', 'temporada_lugares_en'];
 function rpcNoExiste(nombre) {
   return () => { throw errorRpc(`Could not find the function public.${nombre} in the schema cache`, { status: 404, code: 'PGRST202' }); };
 }
@@ -120,6 +125,27 @@ function insertarMensajeChat(db, { ninera_id, de, autor, texto }, ahora) {
     enviar_desde: creado, enviado_en: null, error: null, intentos: 0, leido_en: null, creado_en: creado,
   });
   return fila;
+}
+
+/* ---- Etapa 9 (01/11/2026): temporada, espejo de inicio_temporada_mvd() y de las dos funciones de
+   20261101_temporada_app.sql ---- */
+// El 1/9 a las 0:00 de Montevideo de la temporada en curso (de setiembre a agosto). Montevideo es
+// UTC-3 todo el año (sin horario de verano): se calcula con ese corrimiento fijo, no con la zona de
+// la máquina que corre los tests.
+function inicioTemporadaMvd(ahora) {
+  const local = new Date(new Date(ahora).getTime() - 3 * 3600 * 1000);
+  const anio = local.getUTCMonth() + 1 >= 9 ? local.getUTCFullYear() : local.getUTCFullYear() - 1;
+  return new Date(Date.UTC(anio, 8, 1, 3, 0, 0));
+}
+// translate(lower(btrim(x)), 'áéíóúüñ', 'aeiouun') de la SQL.
+function claveZona(x) {
+  return String(x ?? '').replace(/^\s+|\s+$/g, '').toLowerCase().replace(/[áéíóúüñ]/g, c => 'aeiouun'['áéíóúüñ'.indexOf(c)]);
+}
+const LUGARES_FIJOS = ['montevideo', 'punta', 'la_paloma', 'fuera_pais'];
+// Los grupos de afuera que la temporada conoce por nombre: el primero por orden de cada uno.
+function grupoAfuera(db, nombre) {
+  return (db.zona_grupos || []).filter(g => g.fuera_de_montevideo && claveZona(g.nombre) === nombre)
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
 
 // ahora: el reloj fijo del test (ISO con zona), para "hoy" y para el now() de los guardados.
@@ -204,6 +230,67 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
         });
     },
 
+    // Etapa 9 (01/11/2026), migración 20261101_temporada_app.sql. Lo que ve al abrir su temporada:
+    // {lugares, al_dia, solo_afuera}, o null si no es niñera. "Ahora" es el del reloj del test.
+    ninera_mi_temporada: () => {
+      const n = miFila();
+      if (!nineraId || !n) return null;
+      const inicio = inicioTemporadaMvd(ahora);
+      const en = x => x != null && new Date(x) >= inicio;
+      const alDia = en(n.temporada_actualizada_en);
+      let lugares = null;
+      if (alDia) {
+        if (n.temporada_lugares != null && en(n.temporada_lugares_en) && ['app', 'sistema'].includes(n.temporada_fuente)) {
+          lugares = n.temporada_lugares;
+        } else {
+          const punta = grupoAfuera(db, 'punta del este');
+          const paloma = grupoAfuera(db, 'la paloma');
+          const tiene = (g, q) => !!g && ((n.temporada || {})[g.id] || []).includes(q);
+          lugares = {};
+          for (let q = 0; q < 24; q++) lugares[String(q)] = tiene(punta, q) ? 'punta' : tiene(paloma, q) ? 'la_paloma' : 'montevideo';
+        }
+      }
+      // Cada zona de su ficha es el nombre o un barrio de un grupo de afuera.
+      const zonas = String(n.zona ?? '').split(/[/,]/).map(claveZona).filter(z => z !== '');
+      const soloAfuera = zonas.length > 0 && zonas.every(z => (db.zona_grupos || []).some(g =>
+        g.fuera_de_montevideo && [g.nombre, ...(g.zonas || [])].map(claveZona).includes(z)));
+      return { lugares, al_dia: alDia, solo_afuera: soloAfuera };
+    },
+    // Valida las 24 quincenas y los valores, y escribe las mismas columnas que la función SQL.
+    ninera_guardar_temporada: (cuerpo = {}) => {
+      const p = cuerpo.p_lugares;
+      if (!nineraId) throw errorRpc('no_autorizada');
+      const claves = p && typeof p === 'object' && !Array.isArray(p) ? Object.keys(p) : null;
+      const valorValido = v => (typeof v === 'string' && LUGARES_FIJOS.includes(v))
+        || (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 1
+          && typeof v.otro === 'string' && largo(recortarBlancos(v.otro)) >= 1 && largo(recortarBlancos(v.otro)) <= 80);
+      if (!claves || claves.length !== 24 || claves.some(k => !/^(?:[0-9]|1[0-9]|2[0-3])$/.test(k))
+        || claves.some(k => !valorValido(p[k]))) throw errorRpc('temporada_invalida');
+      const lugares = {};
+      claves.forEach(k => { lugares[k] = typeof p[k] === 'object' ? { otro: recortarBlancos(p[k].otro) } : p[k]; });
+      const punta = grupoAfuera(db, 'punta del este');
+      if (Object.values(lugares).includes('punta') && !punta) throw errorRpc('sin_grupo_punta');
+      const n = miFila();
+      if (!n) return null;
+      let zona = n.zona ?? null;
+      const temporada = {};
+      [[punta, 'punta'], [grupoAfuera(db, 'la paloma'), 'la_paloma']].forEach(([g, lugar]) => {
+        if (!g) return;
+        const qs = Array.from({ length: 24 }, (_, q) => q).filter(q => lugares[String(q)] === lugar);
+        temporada[g.id] = qs;
+        const propias = [g.nombre, ...(g.zonas || [])].map(claveZona);
+        if (qs.length && !String(zona ?? '').split(/[/,]/).some(z => propias.includes(claveZona(z)))) {
+          zona = [String(zona ?? '').trim() || null, g.nombre].filter(Boolean).join('/');
+        }
+      });
+      Object.assign(n, {
+        temporada_lugares: lugares, temporada_lugares_en: ahoraISO, temporada, zona,
+        temporada_actualizada_en: ahoraISO, temporada_fuente: 'app',
+        temporada_propuesta: null, temporada_propuesta_en: null,
+      });
+      return null;
+    },
+
     // Etapa 3 (30/10/2026), migración 20261029_avisos_chat.sql. Le escribe al equipo: guarda el texto
     // sin blancos alrededor, de 'ninera' y el nombre de su ficha como autor, y devuelve la fila (un
     // objeto, no una lista: la función devuelve un chat_mensajes, no un setof).
@@ -233,4 +320,4 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
   };
 }
 
-module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, recortarBlancos, largo, insertarMensajeChat };
+module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };

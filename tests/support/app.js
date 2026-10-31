@@ -14,7 +14,7 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
@@ -192,8 +192,10 @@ async function abrirApp(page, opciones = {}) {
  *   ruta, consulta: path y query a abrir (consulta: '?i=<token>' para un link de invitación)
  *   baseSinMigrar: true simula la base sin las migraciones de las etapas 2 (27/10/2026) y 3
  *     (30/10/2026): sus RPC dan 404 PGRST202, ninieras no tiene las columnas de la etapa 2 y
- *     chat_mensajes y avisos dan 404 PGRST205; las de la etapa 1 andan. 'etapa3': solo falta la
- *     de la etapa 3 (el perfil y los próximos sittings andan)
+ *     chat_mensajes y avisos dan 404 PGRST205; las de la etapa 1 andan. 'etapa3': falta la 3
+ *     (y con ella la 9; el perfil y los próximos sittings andan). 'etapa9' (01/11/2026): solo falta
+ *     la de la temporada (ninera_mi_temporada y ninera_guardar_temporada dan 404 PGRST202, ninieras
+ *     sin sus dos columnas); lo de las etapas 2 y 3 anda
  *   funciones: Edge Functions simuladas por nombre desde el primer pedido (como estado.funciones,
  *     pero antes de navegar: con consulta, la app llama a la función apenas abre)
  *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
@@ -212,12 +214,17 @@ async function abrirAppNinera(page, opciones = {}) {
     RPC_ETAPA_2.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     sacarColumnasEtapa2(estado.db);
   }
-  if (baseSinMigrar) RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+  // 'etapa3': sin la 3 ni la 9 (la base real no tiene la 9 sin la 3). 'etapa9': solo sin la 9.
+  if (baseSinMigrar === true || baseSinMigrar === 'etapa3') RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+  if (baseSinMigrar) {
+    RPC_ETAPA_9.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+    (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_9.forEach(c => { delete n[c]; }));
+  }
   // Clave propia de la sesión (storageKey 'sb-ninera-auth'): el panel y la app de niñeras nunca
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, tablasSinMigrar: baseSinMigrar ? TABLAS_ETAPA_3 : [] });
+    sesionNinera: ninera, tablasSinMigrar: baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : [] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
   // navigator.standalone (el que mira Safari del iPhone).

@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),

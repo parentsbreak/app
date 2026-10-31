@@ -37,6 +37,13 @@ function sitting(id, fecha, extra = {}) {
   };
 }
 
+// Las 24 quincenas de temporada_lugares (etapa 9, 01/11/2026): lo que no se pasa va en Montevideo.
+function lugaresTemporada(distintos = {}) {
+  const l = {};
+  for (let q = 0; q < 24; q++) l[String(q)] = 'montevideo';
+  return { ...l, ...Object.fromEntries(Object.entries(distintos).map(([q, v]) => [String(q), v])) };
+}
+
 function datosBase() {
   return {
     zona_grupos: [
@@ -55,6 +62,9 @@ function datosBase() {
       { id: '21000000-0000-4000-8000-000000000001', familia_id: ID.fUno, nombre: 'Lola Ficticia', fecha_nacimiento: null, colegio: null, orden: 1, created_at: '2026-09-01T00:00:00Z', edad_declarada: 3, edad_declarada_en: '2026-09-01' },
       { id: '21000000-0000-4000-8000-000000000002', familia_id: ID.fUno, nombre: 'Nico Ficticio', fecha_nacimiento: '2021-06-15', colegio: null, orden: 2, created_at: '2026-09-01T00:00:00Z', edad_declarada: null, edad_declarada_en: null },
     ],
+    // Etapa 9 (01/11/2026): Carla cargó su temporada desde la app en esta temporada ("Fuera del país" la
+    // 1ra de marzo y "Otro" la 2da, sin Punta); Bruno la cargó en la temporada anterior (ya no vale).
+    // Ana sigue sin temporada.
     // Ana sin zona ni perfil: su primer ingreso a la app de niñeras (etapa 2, 27/10/2026). Carla ya
     // completó el perfil y tiene una foto propuesta esperando a la admin. Desde la etapa 3
     // (30/10/2026) Carla tiene su cuenta (user_id y app abierta): completó el perfil y escribe por el
@@ -62,8 +72,8 @@ function datosBase() {
     // cuenta en el panel (los tests de "Invitar a la app" la usan así); abrirAppNinera le pone la suya.
     ninieras: [
       { id: ID.nAna, candidata_id: null, nombre: 'Ana Ficticia', telefono: '098000001', zona: null, tipo: 'Niñera', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: ['0099887766'], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000001', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: null, perfil_actualizado_en: null, foto_propuesta_ruta: null, foto_propuesta_en: null },
-      { id: ID.nBruno, candidata_id: null, nombre: 'Bruno Inventado', telefono: '098000002', zona: 'Carrasco', tipo: 'Traslados', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000002', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: null, perfil_actualizado_en: null, foto_propuesta_ruta: null, foto_propuesta_en: null },
-      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos/Carrasco', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: null, temporada_actualizada_en: null, temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: null, temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: ID.uCarla, app_activada_en: '2026-10-02T14:00:00+00:00', perfil_app_en: '2026-10-02T15:00:00+00:00', perfil_actualizado_en: '2026-10-02T15:00:00+00:00', foto_propuesta_ruta: `fotos/${ID.nCarla}/propuesta.jpg`, foto_propuesta_en: '2026-10-02T15:00:00+00:00' },
+      { id: ID.nBruno, candidata_id: null, nombre: 'Bruno Inventado', telefono: '098000002', zona: 'Carrasco', tipo: 'Traslados', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: {}, temporada_actualizada_en: '2025-10-10T15:00:00+00:00', temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000002', temporada_fuente: 'app', temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: null, app_activada_en: null, perfil_app_en: null, perfil_actualizado_en: null, foto_propuesta_ruta: null, foto_propuesta_en: null , temporada_lugares: lugaresTemporada({ 4: 'fuera_pais' }), temporada_lugares_en: '2025-10-10T15:00:00+00:00' },
+      { id: ID.nCarla, candidata_id: null, nombre: 'Carla Ejemplo', telefono: '098000003', zona: 'Pocitos/Carrasco', tipo: 'Ambas', foto: null, cv_url: null, notas: null, activa: true, created_at: '2026-09-01T00:00:00Z', cuenta_bancaria: [], carsitting_mail_enviado_at: null, cv_generado_en: null, temporada: {}, temporada_actualizada_en: '2026-09-20T15:00:00+00:00', temporada_propuesta: null, temporada_propuesta_en: null, temporada_token: '60000000-0000-4000-8000-000000000003', temporada_fuente: 'app', temporada_comentario: null, barrios: null, telefono_pendiente: null, telefono_pendiente_en: null, user_id: ID.uCarla, app_activada_en: '2026-10-02T14:00:00+00:00', perfil_app_en: '2026-10-02T15:00:00+00:00', perfil_actualizado_en: '2026-10-02T15:00:00+00:00', foto_propuesta_ruta: `fotos/${ID.nCarla}/propuesta.jpg`, foto_propuesta_en: '2026-10-02T15:00:00+00:00' , temporada_lugares: lugaresTemporada({ 4: 'fuera_pais', 5: { otro: 'Rocha' } }), temporada_lugares_en: '2026-09-20T15:00:00+00:00' },
     ],
     asignaciones: [
       { id: ID.aFijo, familia_id: ID.fUno, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', cobro_hora: null, pago_hora: null, created_at: '2026-09-01T00:00:00Z', dias: ['L', 'X'], hora_inicio: '16:00:00', hora_fin: '19:00:00', vigente_desde: '2026-09-01', vigente_hasta: null, tipo: 'sitting' },
