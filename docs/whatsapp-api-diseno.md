@@ -308,6 +308,8 @@ retención. Nunca mandar audio ni transcripción directamente a Haiku sin esa de
 
 ## 7. Orden de trabajo propuesto (cuando termine la etapa 6)
 
+No hacer el alta de Coexistence antes de que las niñeras reciban los pedidos por la app (prueba con niñeras reales de la fase 1): hoy las admins usan las listas de difusión para consultar a las niñeras y Coexistence las deja de solo lectura.
+
 1. Las dueñas deciden los puntos de la sección 6 y aprueban los textos finales de las plantillas.
 2. Crear/ordenar Business Portfolio, permisos, app, WABA, verificación y pago; solicitar
    plantillas, sin conectar aún el número operativo.
