@@ -7,8 +7,8 @@ Primera línea = título; segunda = cuerpo.
 
 | Momento | Texto |
 |---|---|
-| Pedido nuevo | **Sitting [dd/mm]** / [hora inicio] – [hora fin] (aproximada, se puede extender) · 📍 [zona] · [chicos: cantidad y edades] · Precio por hora: $[precio hora]. Formato lista, una línea por dato. Botones Acepto / No puedo (como encuesta: un toque). |
-| Si todavía no respondió (10 min antes del corte) | ¡Hola! Avísame por favor si estarías disponible 😊 |
+| Pedido nuevo | **Sitting [dd/mm]** / [hora inicio] – [hora fin] (aproximada, se puede extender) · Zona: [zona] · [chicos: cantidad y edades] · Precio por hora: $[precio hora]. Formato lista, una línea por dato. Botones Puedo / No puedo (como encuesta: un toque). (Diego, 31/10/2026: sin emojis de color en lo que produce el código, "Zona: X" en lugar del pin.) |
+| Si todavía no respondió (10 min antes del corte) | ¡Hola! Avísame por favor si estarías disponible. (Diego, 31/10/2026: sin la carita, el código no lleva emojis de color.) |
 | La eligieron | **¡Quedaste seleccionada!** / [día] a las [hora inicio]. Ya tienes todos los datos en la app. |
 | Aceptó y eligieron a otra | **Gracias por responder** / Este sitting ya quedó cubierto. ¡Te tendremos en cuenta para el próximo! |
 | 24 horas antes | **¡Hola! Mañana tienes un sitting** / [día] a las [hora inicio], en [zona]. |
@@ -43,9 +43,10 @@ Primera línea = título; segunda = cuerpo.
 - Sin conexión: No pudimos cargar tus pedidos. Revisa tu conexión a internet y vuelve a intentar.
 
 ## 4. Pantallas de la niñera: pedidos
-- Tarjeta de pedido: Responde antes de las [hora límite]. [día], [hora inicio] a [hora fin aproximada]. 📍 [zona]. [chicos: cantidad y edades]. Precio por hora: $[precio hora]. (Sin total, sin "te pagamos".)
-- Debajo de los botones: Aceptar no es quedar seleccionada: la familia elige entre las que aceptaron y te avisamos.
-- Después de Acepto: ¡Gracias! Te avisaremos a la brevedad si quedaste seleccionada.
+- Tarjeta de pedido: Responde antes de las [hora límite]. [día], [hora inicio] a [hora fin aproximada]. Zona: [zona]. [chicos: cantidad y edades]. Precio por hora: $[precio hora]. (Sin total, sin "te pagamos".)
+- Debajo de los botones: Borrado (Diego, 31/10/2026): sin "Aceptar no es quedar seleccionada..." ni "La familia elige entre las que aceptaron".
+- Después de Puedo (Diego, 31/10/2026, antes "Acepto"): ¡Gracias! Te confirmamos a la brevedad. El pedido pasa a la sección "Esperando confirmación", aparte de "Pedidos por responder".
+- Esperando confirmación: sección del inicio con los pedidos a los que dijo Puedo y todavía no se eligió (Diego, 31/10/2026).
 - No puedo: ¿Cuál es el motivo? Lo ve solo el equipo. Tengo otro trabajo o sitting / Tengo examen o facultad / Me queda lejos / Es muy tarde para la vuelta / Otro motivo.
 - Marcar días: ¿Quieres marcar otros días en los que no puedes? (Sin explicar el orden.)
 - Quedaste seleccionada: [día], [hora inicio] a [hora fin aproximada]. Dirección. Madre: [nombre + inicial]. Chicos (edades). Notas de la familia. Precio por hora: $[precio hora]. Cómo llegar. Agregar al calendario. Nunca "te pagamos".
@@ -100,10 +101,10 @@ Primera línea = título; segunda = cuerpo.
 - Dato faltante: Falta [dato] para completar el mensaje. Complétalo antes de copiar.
 
 ## 9. Mensajes para la madre (plantillas que copian las admins)
-- Confirmación: ¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio]. 😊 (sin hora de fin)
+- Confirmación: ¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio]. (sin hora de fin; Diego, 31/10/2026: sin la carita, el código no lleva emojis de color)
 - Todavía buscando: ¡Hola [madre]! Estamos viendo quién puede [hoy / el día]. Te avisamos a la brevedad.
 - No conseguimos: ¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?
 - Cambio de niñera: ¡Hola [madre]! Por un imprevisto voy a tener que mandarte a [niñera] en lugar de [niñera anterior] el [día]. Avísame qué te parece. ¡Disculpa las molestias!
 - Reporte del sitting: Borrado.
 - Resumen de cobro: ¡Hola [madre]! Te pasamos lo de [período]: [cantidad] sittings, total [total]. Te dejamos el detalle en el PDF. Cuenta de Mercado Pago: [cuenta] (sale de configuración, nunca en el código).
-- Recordatorio de pago: ¡Hola [madre]! Te recordamos lo pendiente de [período]: [total]. Si ya lo transferiste, avísanos. Estamos a las órdenes 😊.
+- Recordatorio de pago: ¡Hola [madre]! Te recordamos lo pendiente de [período]: [total]. Si ya lo transferiste, avísanos. Estamos a las órdenes. (Diego, 31/10/2026: sin la carita).

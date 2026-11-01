@@ -46,11 +46,11 @@ sistema o se para?
   actualizarlo en el mismo PR.
 
 ## Scripts y orden de carga (index.html y ninera/index.html)
-15 archivos en `js/`: comun → core → auth → app-shell → finanzas → juguetes → agenda → contratos →
-marketing → postulantes → ninieras → familias → sittings → intermediaciones → bootstrap
+16 archivos en `js/`: comun → core → auth → app-shell → finanzas → juguetes → agenda → contratos →
+marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -378,6 +378,26 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   horas, claves, recordatorios a los 15 días del primero, sin duplicar) e ida y vuelta de la migración. La prueba del
   DESHACER con temporadas cargadas está en `supabase/pruebas/deshacer/` (`20261101_temporada_app*.sql`), fuera del
   glob y a mano, como la de la etapa 3 (comando en su encabezado).
+- `tests/simulador-pedidos.spec.js` (02/11/2026): el simulador del pedido por la app (`enviar_pedido_app`, `sugeridas_datos`, las RPC
+  de la niñera, el aviso del trigger, `estado.funciones['pedido-whatsapp']` con un ticket ficticio). `datosPedidos()` (datos.js)
+  suma "Niñera (práctica)", "Familia (práctica)" y 3 solicitudes, aparte de `datosBase`. `abrirApp` / `abrirAppNinera(...,
+  { baseSinMigrar: 'etapa5' })` simula la base sin la migración de la etapa 5 (RPC 404, tablas 404, columnas nuevas 42703 / PGRST204).
+  `app_config 'pedidos_app'` viene con `solo_practica` en true: un test lo apaga con
+  `estado.db.app_config.find(c => c.id === 'pedidos_app').valor.solo_practica = false`.
+- `tests/pedidos-sugeridas.spec.js`: `ordenarSugeridas` y `mapasSugeridas` (un test por regla de `reglas-del-negocio.md` 5: bloques,
+  bajas, solo conocidas, enviadas, práctica, temporada, ids sin `ninera_id` por nombre).
+- `tests/pedido-elegir.spec.js`: "Elegir niñeras" (reemplaza "Asignar niñera"): marcas, "Marcar las 10 primeras", precios y casilla
+  de guardar, dudas, chicos, práctica y `solo_practica`, "Enviar a N" (cuerpo exacto, `cerrado`, doble toque, errores de la base),
+  "Asignar" a una que dijo "Puedo", base sin migrar, escape, 390 y 1280 px.
+- `tests/pedido-pegar.spec.js`: "Pegar WhatsApp" de la Agenda: texto → ticket → solicitud (familia, chicos, dirección, dudas,
+  cambio / cancelación, otra admin que ya lo tomó, falla al crear, errores de la función, base sin migrar, escape, 390 y 1280 px).
+- `tests/ninera-pedido.spec.js`: app de niñeras: "Pedidos por responder" y "Esperando confirmación", "Puedo", "No puedo" (motivo y
+  días), `#pedido/<id>` desde un push, pedido cerrado, doble toque, base sin migrar, sin montos ni familia, 390 y 1280 px.
+- `tests/pedido-respuestas.spec.js`: el modal de la solicitud con Puede / No puede / Sin responder, su Realtime, `?ir=agenda&solicitud=`,
+  preferencia "Pedidos de la app" y la casilla "No acepta niñeras nuevas" de la familia.
+- `supabase/pruebas/fase1_pedidos.sql` (02/11/2026): `enviar_pedido_app` (todo o nada, práctica, `sin_chicos`, `cerrado`),
+  `ninera_mis_pedidos` (nunca familia, dirección ni cobro), `responder_pedido`, `ninera_marcar_no_disponible`, `sugeridas_datos`,
+  el trigger del aviso y la ida y vuelta de la migración.
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -572,6 +592,22 @@ reporte.
   su canal aparte, que se abre solo si la tabla `avisos` existe (con la base sin migrar no se une y no
   tumba nada); `avisos` y el tipo `chat` están en `TIPOS_NOTIF`. Una niñera inactiva fuera de la lista se
   busca con `nineraPorId`.
+- Pedido por la app (02/11/2026, etapa 5, plan en `docs/fase1/plan-implementacion.md`): "Elegir niñeras" (`abrirElegirNineras`,
+  pedidos.js) reemplaza el cuerpo de "Asignar niñera" para toda solicitud; "Asignar" (la asignación directa) queda en cada fila, con
+  app o sin app, y si la niñera tiene fila de la app la actualiza a `confirmada` con su `precio_hora` × horas (`redondearPago`) en
+  vez de crear otra. `ordenarSugeridas(pedido, datos)` es pura (sin base ni DOM; el contrato está en la cabecera de js/pedidos.js y en
+  el plan) y los datos salen de una lectura, `sugeridas_datos` (invoker); `mapasSugeridas` cruza por id o por `normaliza(nombre.trim())`
+  (hay historia sin ids). `enviar_pedido_app` crea las filas (`origen 'app'`, estado `invitada`) y los avisos en una transacción,
+  deja la solicitud en `pendiente_confirmar` y no guarda precios (el panel guarda las casillas tildadas después). Mientras
+  `app_config 'pedidos_app'` tenga `solo_practica`, solo se mandan pedidos de práctica; se apaga por SQL con OK de Diego, cuando
+  exista la guía (etapa 4) y después de la prueba real. Práctica: la misma regla en la pantalla y en la base ("(práctica)" con o sin
+  tilde): una niñera es enviable solo si es de práctica igual que la familia (`practica_mezclada`). Para mandar, los chicos tienen que
+  estar cargados uno por uno (`hijos_familia`; `familias.ninos` no se usa: puede traer apellidos). La niñera ve solo día, horario,
+  zona, chicos y su precio por hora (`ninera_mis_pedidos`); `origen` es 'panel' o 'app' y los estados nuevos `acepto` / `no_puedo`
+  (en pantalla: "Puedo" / "No puedo"); los "No puedo" seguidos cuentan desde su último "Puedo" en la app. Las dudas del ticket se
+  guardan en `pedidos_whatsapp.dudas` y "Elegir niñeras" las lee por `solicitud_id` ("Ya lo confirmé" las saca, "Mandar igual" las
+  vacía). Pasar el ticket a la Agenda toma primero el pedido (`.eq('estado','borrador')`), después crea la solicitud y al final le
+  pone `solicitud_id`. Sin la migración, "Asignar" sigue andando con el orden viejo.
 - Respuestas del pedido en el panel (02/11/2026): el modal de la solicitud (`abrirModalSolicitud`, agenda.js) abre su propio canal de
   Realtime sobre `solicitud_ninieras` (filtro `solicitud_id`) y lo suelta con `alCerrarModal`; las filas `origen 'app'` dicen Puede / No
   puede: [motivo] / Sin responder y no llevan "Confirmar". `?ir=agenda&solicitud=<id>` (push y campanita) llega a `abrirSolicitudDeLink`.
@@ -819,7 +855,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapas 4 a 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha en la rama `claude/fase1-pedido`, PR pendiente; etapas 4, 6, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -832,7 +868,23 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   puede pisar un guardado que la niñera acaba de hacer en la app (igual que "Editar").
 - Etapa 9 (31/10/2026): probar en un iPhone real el teclado del campo "¿Dónde?" de la temporada y los pasos para
   activar los avisos en Ajustes.
-- Etapa 5 (31/10/2026): en curso en la rama `claude/fase1-pedido` (plan al detalle en `plan-implementacion.md`). `app_config 'temporada_reglas'` no se crea: la regla 4.5 vive en `nineraPresenteEnZona`. Antes de la etapa 6, confirmar con las dueñas si una niñera que dijo "Puedo" se confirma sola (ver la etapa 6 del plan).
+- Etapa 5 (02/11/2026): hecha en la rama `claude/fase1-pedido`, PR pendiente. La migración `20261102_pedidos_app` y la
+  publicación de `pedido-whatsapp` esperan el OK de Diego (migración el día del merge, la función después). Antes del merge, una
+  admin carga desde el panel los datos de práctica ("Niñera (práctica)" y "Familia (práctica)" con un chico cargado). Sin `app_config
+  'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. Antes de la etapa 6, decidir con las dueñas si una niñera que
+  dijo "Puedo" se confirma sola (ver la etapa 6 del plan). La regla del CV del 31/10/2026 va en la etapa 6.
+- Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
+  `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
+- Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
+- Etapa 5 (02/11/2026): dos admins que pegan el mismo mensaje crean dos solicitudes. Pregunta de producto para Diego: ¿se avisa o se
+  bloquea?
+- Etapa 5 (02/11/2026): un ticket que se cierra sin pasar a la Agenda queda `borrador` y no se puede retomar. Propuesta: "Pedidos sin
+  terminar" en "Pegar WhatsApp".
+- Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
+  nuevo igual" en esa pantalla.
+- `checklistZonas` (core.js, 02/11/2026) no escapa el aviso de la zona "suelta" (`"X" no pertenece...`): escaparlo.
+- `tests/precio-ninera-familia.spec.js` (31/10/2026): 12 tests de Sittings fallan en local, también sobre `main` (el CI de #91 pasó).
+  Investigar, probablemente dependen de la fecha.
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.

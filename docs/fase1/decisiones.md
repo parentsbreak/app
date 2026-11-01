@@ -373,6 +373,13 @@ leido_en timestamptz, creado_en timestamptz default now()
   `familias.solo_conocidas`, `app_config 'pedidos_app'` y `'temporada_reglas'`, funciones
   `ninera_mis_pedidos`, `responder_pedido`, `ninera_marcar_no_disponible`, `enviar_pedido_app`
   (admin: crea las filas y los avisos en una transacción).
+  Como quedó (02/11/2026, respuestas de Diego del 31/10; detalle en `plan-implementacion.md`, etapa 5): migración
+  `20261102_pedidos_app`. Sin `solicitudes.pedido_id` (ya existe `pedidos_whatsapp.solicitud_id`), sin `chicos_texto`
+  (los chicos salen de `chicos_texto(familia_id)`), sin `app_config 'temporada_reglas'` (la regla 4.5 vive en
+  `nineraPresenteEnZona`), sin `visto_en` ni el estado `cubierto` (son de la etapa 6). Sí: `ninera_pedida` en
+  `pedidos_whatsapp`, `ninera_pedida_id` en `solicitudes`, y `app_config 'pedidos_app'` con `solo_practica` (hasta la
+  etapa 4 y la prueba real, solo pedidos de práctica; lo apaga Diego por SQL), `pedidos_whatsapp.dudas` y
+  `sugeridas_datos` (invoker). Una solicitud mandada pasa a `pendiente_confirmar`.
 - Etapa 6: `elegir_ninera(p_sn_id)` (admin, atómica: elegida → `confirmada`, las demás con
   `acepto` o `invitada` → `cubierto`), reglas de tiempo de pedidos en `programar_avisos()`.
 - Etapa 7: `sitting_eventos`, `sitting_cierres`, políticas de `comprobantes` para la niñera,
@@ -417,6 +424,18 @@ Marcar Carsittings dispara el aviso "Completa el formulario de carsitting" (etap
 entonces, un texto "pronto vas a poder cargar los datos del auto acá").
 
 ### 6.3 Pedido (etapas 5 y 6)
+Cambios del 31/10/2026 (Diego), ya construidos en la etapa 5 (02/11/2026; detalle en `plan-implementacion.md`, etapa 5):
+- Una sola pantalla: "Elegir niñeras" reemplaza el cuerpo de "Asignar niñera" para toda solicitud; "Asignar" (la asignación
+  directa) queda en cada fila, para cualquiera.
+- Botones "Puedo" / "No puedo" (no "Acepto"); después de "Puedo", "¡Gracias! Te confirmamos a la brevedad." y el pedido pasa a
+  "Esperando confirmación", aparte de "Pedidos por responder". Sin "Aceptar no es quedar seleccionada".
+- El precio por hora de cada tildada se puede editar, también el guardado; si cambia sale la casilla de siempre "Guardar como
+  precio de [niñera] con esta familia".
+- Chicos cargados uno por uno obligatorios para mandar. La dirección se pide con "Guardar" / "Después": la exige la etapa 6, al elegir.
+- Etapas 5 y 6 separadas: en la 5 las respuestas se ven en el modal de la solicitud de la Agenda y la elegida se asigna con "Asignar".
+  La regla del CV (4, reglas del negocio) y "Mensaje con los perfiles" van en la etapa 6.
+- Sin emojis de color en lo que produce el código ("Zona: Pocitos" en vez del pin).
+- Hasta la etapa 4 (guía), solo pedidos de práctica (`app_config 'pedidos_app'`, `solo_practica`).
 1. Admin, Agenda → "Pegar mensaje de WhatsApp" → textarea ("Pega uno o varios mensajes
    seguidos") → llama a `pedido-whatsapp` (ya publicada; se extiende para devolver `ninera_pedida`
    y para aceptar `familia_id` confirmada). La respuesta se muestra como ticket editable: familia
