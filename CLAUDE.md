@@ -857,7 +857,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha en la rama `claude/fase1-temporada` (PR #91), sin mergear hasta el OK de Diego (la migración se aplica el mismo día del merge); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha en la rama `claude/fase1-pedido`, PR pendiente; etapas 4, 6, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapas 4, 6, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -870,9 +870,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   puede pisar un guardado que la niñera acaba de hacer en la app (igual que "Editar").
 - Etapa 9 (31/10/2026): probar en un iPhone real el teclado del campo "¿Dónde?" de la temporada y los pasos para
   activar los avisos en Ajustes.
-- Etapa 5 (02/11/2026): hecha en la rama `claude/fase1-pedido`, PR pendiente. La migración `20261102_pedidos_app` y la
-  publicación de `pedido-whatsapp` esperan el OK de Diego (migración el día del merge, la función después). Antes del merge, una
-  admin carga desde el panel los datos de práctica ("Niñera (práctica)" y "Familia (práctica)" con un chico cargado). Sin `app_config
+- Etapa 5 (01/11/2026): `app_config 'pedidos_app'.solo_practica` está prendido (por la app solo salen pedidos de práctica, a
+  "Niñera (práctica)"); se apaga por SQL con el OK de Diego después de la etapa 4 y de probar un pedido de práctica de punta a punta
+  en el iPhone (lista en la etapa 5 del plan). Sin `app_config
   'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. Antes de la etapa 6, decidir con las dueñas si una niñera que
   dijo "Puedo" se confirma sola (ver la etapa 6 del plan). La regla del CV del 31/10/2026 va en la etapa 6.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
@@ -920,8 +920,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 ### Mudanza a parentsbreak.github.io/app (27/10/2026)
 El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL en
 `docs/mudanza-pages.md`). Queda para después de la noche de la mudanza:
-- Republicar `ninera-cuenta` y `pedido-whatsapp` con el valor por defecto nuevo de `ORIGENES` (ya
-  está en el repo; mientras tanto manda el secret `ORIGENES_PERMITIDOS`). Con OK de Diego.
+- Republicar `ninera-cuenta` con el valor por defecto nuevo de `ORIGENES` (ya está en el repo; mientras
+  tanto manda el secret `ORIGENES_PERMITIDOS`). Con OK de Diego. `pedido-whatsapp` ya se republicó (01/11/2026).
 - A la semana: sacar `https://diegomarin28.github.io` del secret `ORIGENES_PERMITIDOS` (Diego) y
   del valor por defecto de las dos funciones.
 - Al mes: PR que saque el aviso "La app se mudó" del login y de Hoy (`hayQueAvisarMudanza` y lo
