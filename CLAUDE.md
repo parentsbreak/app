@@ -572,6 +572,10 @@ reporte.
   su canal aparte, que se abre solo si la tabla `avisos` existe (con la base sin migrar no se une y no
   tumba nada); `avisos` y el tipo `chat` están en `TIPOS_NOTIF`. Una niñera inactiva fuera de la lista se
   busca con `nineraPorId`.
+- Respuestas del pedido en el panel (02/11/2026): el modal de la solicitud (`abrirModalSolicitud`, agenda.js) abre su propio canal de
+  Realtime sobre `solicitud_ninieras` (filtro `solicitud_id`) y lo suelta con `alCerrarModal`; las filas `origen 'app'` dicen Puede / No
+  puede: [motivo] / Sin responder y no llevan "Confirmar". `?ir=agenda&solicitud=<id>` (push y campanita) llega a `abrirSolicitudDeLink`.
+  "No acepta niñeras nuevas" (`familias.solo_conocidas`) solo se manda si cambió; sin la columna se guarda lo demás y se avisa.
 - Dos puertas, una sesión cada una (26/10/2026): el cliente de `ninera/` usa
   `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
