@@ -159,3 +159,34 @@ Panel de las admins (voseo, 31/10/2026):
 - Ficha de la niñera, sección "Temporada": "Sin temporada cargada" (también si es de la temporada anterior); si
   está al día, "Toda la temporada en Montevideo." o un renglón por lugar ("Fuera del país: 1ra de marzo", "Otro
   (Rocha): 2da de marzo", "La Paloma: enero") y la fuente.
+
+## Etapa 5: pedidos (02/11/2026, esperan a las dueñas)
+
+App de niñeras ("tú"):
+- Tarjeta del pedido: "Responde lo antes posible" (cuando ya pasó la hora límite y el pedido sigue abierto).
+- Pedido que ya se asignó o se canceló: "Este pedido ya no está abierto." (aviso arriba de las secciones).
+- Pedido en "Esperando confirmación": "Dijiste que puedes".
+- Fallas: "No pudimos cargar tus pedidos. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos enviar tu
+  respuesta. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos guardar tus días. Revisa tu conexión a
+  internet y vuelve a intentar." y "No pudimos cargar tus días. Revisa tu conexión a internet y vuelve a intentar."
+- Campo "Otro motivo" (accesibilidad, no se ve): aria-label "Escribe el motivo". Si lo deja vacío, la respuesta se manda igual.
+
+Panel de las admins (voseo):
+- "Pegar WhatsApp" (Agenda): "Pegá el mensaje de la madre. Podés pegar varios mensajes seguidos.", botón "Armar pedido", error
+  "Pegá el mensaje de la madre." y, sin conexión, "No se pudo conectar con el asistente: revisá internet y probá de nuevo.".
+- Ticket: "Confirmá la familia ("Es esta") o elegí otra.", "Confirmá la familia para ver sus chicos.", "Elegí de la lista a la
+  niñera que pidió la madre, o dejá el campo vacío.", "Esto parece [un cambio / una cancelación / otra cosa], no un pedido
+  nuevo.", "No se creó nada: otra admin ya pasó este pedido a la Agenda (o lo descartó). Cerrá para ver cómo quedó.", "Falta
+  actualizar la base: la solicitud se guardó sin [...] (quedan en el mensaje). Avisale a Diego."
+- "Elegir niñeras": "Tildá al menos una niñera.", "Antes de mandar, resolvé las dudas del pedido.", "Falta el precio por hora de
+  [niñera].", "Faltan los chicos de la familia: cargalos en su ficha.", "Este pedido no tiene una familia de la lista: para
+  mandarlo por la app, la familia tiene que estar cargada.", "Por ahora, por la app solo se mandan pedidos de práctica. Para
+  este, usá "Asignar" o WhatsApp.", "No se pudo leer todo el historial de las niñeras: el orden puede no ser el de siempre.".
+- Errores de "Enviar a N": "No se mandó: mientras elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó.",
+  "[Niñera] ya no puede recibir pedidos por la app: destildala.", "Hay niñeras reales tildadas junto con una de práctica.",
+  "Este pedido es de un día que ya pasó.", "El precio por hora de [niñera] no es válido.", "Falta actualizar la base para mandar
+  por la app: avisale a Diego.", "[Niñera] ya no está en la lista: destildala.", "Hasta 40 por vez." (también al querer tildar
+  la número 41).
+- Familia: casilla "No acepta niñeras nuevas"; "Se guardó lo demás. Falta actualizar la base y "No acepta niñeras nuevas" no se
+  guardó. Avisale a Diego.".
+- Preferencia de avisos "Pedidos de la app": "Cuando una niñera dice que puede o entra un pedido de WhatsApp".

@@ -331,8 +331,8 @@ test.describe('Agenda: + Nueva solicitud con niñera', () => {
 test.describe('Agenda: asignar niñera, días de un fijo y reemplazos', () => {
   const SOL = '80000000-0000-4000-8000-000000000001'; // Familia Dos, martes 06/10, 20 a 23, sin asignar
   async function elegirEnAsignar(page, nineraId) {
-    const mas = page.locator('#editmodal button', { hasText: '+ Niñeras' });
-    if (await mas.isVisible()) await mas.click();
+    // "Elegir niñeras" (etapa 5, 02/11/2026): las de otra zona van en "Fuera de zona", plegado (antes, "+ Niñeras").
+    await page.evaluate(() => document.querySelectorAll('#editmodal details').forEach(d => { d.open = true; }));
     await page.locator(`#editmodal input[name="agenda-asignar-ninera"][value="${nineraId}"]`).check();
   }
 
@@ -866,8 +866,8 @@ test.describe('lectura de precios que falla: la tarifa con el aviso a la vista (
 });
 const SOL_DOS = '80000000-0000-4000-8000-000000000001'; // Familia Dos, martes 06/10, 20 a 23, sin asignar
 async function elegirEnAsignarFinal(page, nineraId) {
-  const mas = page.locator('#editmodal button', { hasText: '+ Niñeras' });
-  if (await mas.isVisible()) await mas.click();
+  // "Elegir niñeras" (etapa 5, 02/11/2026): las de otra zona van en "Fuera de zona", plegado (antes, "+ Niñeras").
+  await page.evaluate(() => document.querySelectorAll('#editmodal details').forEach(d => { d.open = true; }));
   await page.locator(`#editmodal input[name="agenda-asignar-ninera"][value="${nineraId}"]`).check();
 }
 

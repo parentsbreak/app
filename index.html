@@ -114,6 +114,57 @@ textarea{resize:vertical;min-height:54px;}
 .agenda-tier-label{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em;margin:10px 0 6px;}
 .agenda-ninera-pick{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;}
 .agenda-ninera-pick input{margin:0;}
+/* "Elegir niñeras" (etapa 5, 02/11/2026): casilla para mandar por la app, nombre con sus marcas y el
+   porqué, y a la derecha WhatsApp (sin app) y "Asignar" (el radio de siempre, con forma de botón). El
+   pie con "Guardar asignación" y "Enviar a N" queda fijo abajo del modal. */
+.pedido-fila{cursor:default;align-items:flex-start;}
+.pedido-tilde-wrap{width:24px;flex:none;padding-top:2px;}
+.pedido-tilde-wrap input{width:20px;height:20px;accent-color:var(--accent);}
+.pedido-elegir.sin-casillas .pedido-tilde-wrap{display:none;}
+.pedido-info{flex:1;min-width:0;overflow-wrap:anywhere;}
+.pedido-marcas{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+.pedido-marca{font-size:11.5px;padding:2px 8px;border-radius:100px;background:var(--bg);color:var(--ink-soft);}
+.pedido-marca.baja{background:var(--warn-soft);color:#7A5A16;}
+.pedido-acciones{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex:none;}
+.pedido-acciones .smallbtn{min-height:36px;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;cursor:pointer;}
+.pedido-asignar input{margin:0;}
+.pedido-asignar:has(input:checked){border-color:var(--accent);color:var(--accent);font-weight:600;}
+.pedido-marcar{display:flex;gap:8px;margin:10px 0 4px;}
+.pedido-marcar .smallbtn{min-height:36px;}
+.pedido-plegado{margin-top:8px;}
+.pedido-plegado summary{cursor:pointer;min-height:40px;display:flex;align-items:center;gap:10px;list-style:none;font-size:12px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em;}
+.pedido-plegado summary::-webkit-details-marker{display:none;}
+.pedido-plegado summary::before{content:'';width:6px;height:6px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(-45deg);transition:transform var(--ease);}
+.pedido-plegado[open] summary::before{transform:rotate(45deg);}
+.pedido-duda{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.pedido-duda .smallbtn{flex:none;min-height:36px;background:var(--paper);}
+.pedido-precio-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+.pedido-precio-fila span{flex:1;min-width:0;overflow-wrap:anywhere;}
+.pedido-precio-fila .moneyfield{width:130px;flex:none;}
+.pedido-precio-fila input{width:100%;}
+.pedido-pie{position:sticky;bottom:-22px;background:var(--paper);border-top:1px solid var(--line);margin:14px -24px -22px;padding:10px 24px 16px;z-index:2;}
+.pedido-pie:empty{display:none;}
+/* "Pegar WhatsApp" (etapa 5, 02/11/2026): el ticket del pedido. */
+.agenda-acciones{display:flex;gap:8px;flex-wrap:wrap;}
+.agenda-acciones .smallbtn{min-height:36px;}
+#pedido-texto{width:100%;min-height:160px;font-size:15px;}
+.pedido-msg{background:var(--bg);border-radius:10px;padding:9px 11px;font-size:12.5px;color:var(--ink-soft);margin:6px 0 12px;}
+.pedido-msg summary{font-weight:600;color:var(--ink);cursor:pointer;min-height:28px;display:flex;align-items:center;}
+.pedido-msg-texto{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;margin-top:4px;}
+.pedido-fam{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+.pedido-fam-txt{min-width:0;overflow-wrap:anywhere;}
+.pedido-fam-acc{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center;flex:none;max-width:55%;}
+.pedido-fam-acc .smallbtn,.pedido-botones .smallbtn,.pedido-hijo-form .smallbtn,#pedido-chicos .smallbtn{min-height:36px;}
+.smallbtn.pedido-ac{background:var(--accent-soft);border-color:transparent;color:var(--accent);font-weight:600;}
+.pedido-del-mensaje{margin:-6px 0 12px;overflow-wrap:anywhere;}
+.pedido-ticket .helper,.pedido-ticket .warnbox{overflow-wrap:anywhere;}
+.pedido-precio-esperado{background:var(--accent-soft);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--accent);line-height:1.5;margin:4px 0 10px;}
+.pedido-botones{display:flex;gap:6px;margin-top:8px;}
+.pedido-ok{color:var(--good);font-weight:600;}
+.pedido-aprox{padding:0 7px;margin-left:4px;line-height:1.5;}
+.pedido-proximo{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);}
+.pedido-proximo-txt{min-width:0;overflow-wrap:anywhere;font-size:13.5px;}
+.pedido-proximo .smallbtn{min-height:36px;flex:none;}
 .agenda-ninerarow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
 .agenda-ninerarow:last-child{border-bottom:none;}
 .autocomplete-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--line);border-radius:10px;margin-top:4px;max-height:220px;overflow-y:auto;box-shadow:var(--shadow-md);z-index:30;}
@@ -598,6 +649,7 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
 <script src="js/familias.js"></script>
 <script src="js/sittings.js"></script>
 <script src="js/intermediaciones.js"></script>
+<script src="js/pedidos.js"></script>
 <script src="js/bootstrap.js"></script>
 </body>
 </html>

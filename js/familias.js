@@ -45,6 +45,7 @@ function abrirModalNuevaFamilia(){
     ${htmlCuentasBancarias('fam', [])}
     ${baseTieneTerminos() ? `<label class="chk" style="margin:4px 0 0;"><input type="checkbox" id="fam-terminos-nueva" onchange="onFamTerminosNuevaChange()"> Aceptó términos y condiciones</label>
     <div class="field" id="fam-terminos-nueva-fecha-wrap" style="margin:6px 0 10px;display:none;"><label>Fecha en que los aceptó</label><input type="date" id="fam-terminos-nueva-fecha" value="${todayISO()}"></div>` : ''}
+    ${htmlSoloConocidas('fam-solo-conocidas', false)}
     <div class="field"><label>Notas</label><textarea id="fam-notas"></textarea></div>
     <div class="confirmbtns">
       <button class="btn ghost" onclick="cerrarModal()">Cancelar</button>
@@ -52,6 +53,16 @@ function abrirModalNuevaFamilia(){
     </div>`);
   protegerModal('familia:nueva');
 }
+/* "No acepta niñeras nuevas" (fase 1, etapa 5, 02/11/2026): familias.solo_conocidas. "Elegir niñeras" les
+   ofrece a esa familia solo niñeras que ya fueron a su casa (las demás quedan ocultas con el aviso). La
+   columna es de la migración de los pedidos: con la base sin migrar la casilla se muestra igual, pero el
+   guardado la saca y avisa (esFaltaColumnaSoloConocidas), como leerFamiliasConTerminos con los términos. */
+function htmlSoloConocidas(id, marcada){
+  return `<label class="chk" style="margin:4px 0 10px;"><input type="checkbox" id="${id}" ${marcada?'checked':''}> No acepta niñeras nuevas</label>
+    <div class="helper" style="margin:-6px 0 10px;">Al elegir niñeras para esta familia se muestran solo las que ya fueron a su casa.</div>`;
+}
+function esFaltaColumnaSoloConocidas(error){ return !!error && /solo_conocidas/.test(error.message||''); }
+const AVISO_FALTA_SOLO_CONOCIDAS = 'Se guardó lo demás. Falta actualizar la base y "No acepta niñeras nuevas" no se guardó. Avisale a Diego.';
 // Términos y condiciones al dar de alta (20/10/2026): la casilla solo aparece si la base ya
 // tiene la columna (con la base sin migrar, familias no la trae).
 function baseTieneTerminos(){
@@ -72,15 +83,24 @@ async function addFamilia(){
     direccion:document.getElementById('fam-direccion').value,
     cuenta_bancaria:leerCuentasBancarias('fam'), notas:document.getElementById('fam-notas').value };
   if(aceptoTerminos) fam.terminos_aceptados_el = terminosDesde; // sin marcar no se manda: anda con la base sin migrar
-  const { data, error } = await sb.from('familias').insert(fam).select().single();
+  const soloConocidas = !!document.getElementById('fam-solo-conocidas')?.checked;
+  if(soloConocidas) fam.solo_conocidas = true; // igual: sin marcar no se manda
+  let { data, error } = await sb.from('familias').insert(fam).select().single();
+  let sinSoloConocidas = false;
+  if(error && soloConocidas && esFaltaColumnaSoloConocidas(error)){
+    delete fam.solo_conocidas;
+    sinSoloConocidas = true;
+    ({ data, error } = await sb.from('familias').insert(fam).select().single());
+  }
   if(error){ toast('No se pudo guardar: '+error.message,'bad'); return; }
   const hijos = leerHijosFamilia('fam');
   if(hijos.length){
     const { error: e2 } = await sb.from('hijos_familia').insert(hijos.map((h,i)=>({...h, familia_id:data.id, orden:i})));
-    if(e2){ cerrarModal(); toast('Familia guardada, pero no los hijos: '+e2.message, 'bad'); cargarFamilias(); return; }
+    if(e2){ cerrarModal(); toast('Familia guardada, pero no los hijos: '+e2.message+(sinSoloConocidas?' Tampoco se guardó "No acepta niñeras nuevas": falta actualizar la base.':''), 'bad'); cargarFamilias(); return; }
   }
   cerrarModal();
-  toast('Familia agregada.');
+  if(sinSoloConocidas) toast(AVISO_FALTA_SOLO_CONOCIDAS.replace('Se guardó lo demás','Se guardó la familia'), 'bad');
+  else toast('Familia agregada.');
   cargarFamilias();
 }
 let famResenaPorNinera = {};
@@ -329,6 +349,7 @@ function verFamilia(id){
     ${precioHtml}
     <div id="fam-precios-nin" data-familia="${escaparHtml(f.id)}" style="margin:10px 0 14px;"></div>
     ${'terminos_aceptados_el' in f ? htmlTerminosFamilia(f) : ''}
+    ${f.solo_conocidas?`<div class="helper"><b>No acepta niñeras nuevas.</b> Al elegir niñeras se muestran solo las que ya fueron a su casa.</div>`:''}
     ${f.frecuencia_cobro?`<div class="helper">Frecuencia de cobro: ${escaparHtml(f.frecuencia_cobro)}</div>`:''}
     ${f.direccion?`<div class="helper">Dirección: ${escaparHtml(f.direccion)}</div>`:''}
     ${textoHijosFamilia(f.hijos) ? `<div class="helper">Niños:<br>${textoHijosFamilia(f.hijos)}</div>` : (f.ninos ? `<div class="helper">Niños: ${escaparHtml(f.ninos)}</div>` : '')}
@@ -439,6 +460,7 @@ function editarFamilia(id){
     ${htmlHijosFamilia('ed-fam', f.hijos)}
     ${htmlCuentasBancarias('ed-fam', f.cuenta_bancaria)}
     ${checklistZonas('ed-fam', f.zona)}
+    ${htmlSoloConocidas('ed-fam-solo-conocidas', !!f.solo_conocidas)}
     <div class="field"><label>Notas</label><textarea id="ed-fam-notas">${escaparHtml(f.notas)}</textarea></div>
     <div class="confirmbtns">
       <button class="btn ghost" onclick="cerrarModal()">Cancelar</button>
@@ -458,7 +480,17 @@ async function guardarEdicionFamilia(id){
     frecuencia_cobro: document.getElementById('ed-fam-frecuencia').value,
     notas: document.getElementById('ed-fam-notas').value,
   };
-  const { error } = await sb.from('familias').update(cambios).eq('id', id);
+  // Solo se manda "No acepta niñeras nuevas" si cambió: un guardado común no depende de la migración.
+  const antesSolo = !!familiasItems.find(x=>x.id===id)?.solo_conocidas;
+  const ahoraSolo = !!document.getElementById('ed-fam-solo-conocidas')?.checked;
+  if(ahoraSolo !== antesSolo) cambios.solo_conocidas = ahoraSolo;
+  let { error } = await sb.from('familias').update(cambios).eq('id', id);
+  let sinSoloConocidas = false;
+  if(error && 'solo_conocidas' in cambios && esFaltaColumnaSoloConocidas(error)){
+    delete cambios.solo_conocidas;
+    sinSoloConocidas = true;
+    ({ error } = await sb.from('familias').update(cambios).eq('id', id));
+  }
   if(error){ toast('No se pudo guardar: '+error.message,'bad'); return; }
   // Hijos: se reemplaza la lista entera, porque el formulario siempre manda la lista completa.
   // Primero se cargan los nuevos y recién después se borran los de antes: si algo falla a
@@ -482,7 +514,8 @@ async function guardarEdicionFamilia(id){
   if(antes && (String(antes.cobro_hora ?? '') !== String(cambios.cobro_hora ?? '') || String(antes.pago_hora ?? '') !== String(cambios.pago_hora ?? ''))){
     await alinearHoyFijosDeFamilia(id);
   }
-  if(errHijos) toast('Se guardó lo demás, pero no los hijos: '+errHijos.message, 'bad');
+  if(errHijos) toast('Se guardó lo demás, pero no los hijos: '+errHijos.message+(sinSoloConocidas?' Tampoco "No acepta niñeras nuevas": falta actualizar la base.':''), 'bad');
+  else if(sinSoloConocidas) toast(AVISO_FALTA_SOLO_CONOCIDAS, 'bad');
   else toast('Cambios guardados.');
   const scrollF1 = guardarScrollMainarea();
   await cargarFamilias();

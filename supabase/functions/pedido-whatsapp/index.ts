@@ -18,7 +18,7 @@ import { accesoInterno, hoyEnMontevideo, parametrosModelo, procesarPedido, Respu
 
 // Solo la app publicada (Diego, 21/10/2026). Mudanza a parentsbreak.github.io (27/10/2026): el
 // nuevo primero (es el que se responde a un pedido de otro lado) y el viejo hasta que se saque del
-// secret. Lo publicado sigue con el valor anterior hasta republicar con OK de Diego.
+// secret. Publicado con este valor el 01/11/2026 (etapa 5).
 const ORIGENES = (Deno.env.get("ORIGENES_PERMITIDOS") || "https://parentsbreak.github.io,https://diegomarin28.github.io")
   .split(",").map(o => o.trim()).filter(Boolean);
 

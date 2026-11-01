@@ -932,26 +932,7 @@ async function abrirFamiliaNuevaSit(){
   const panel = document.getElementById('sit-familia-nueva');
   if(!panel) return;
   if(!zonaGruposCache) await cargarZonaGrupos(); // con las zonas ya cargadas el selector no se vuelve a pintar solo
-  panel.innerHTML = `<div class="sitfam-ficha" style="border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 14px;background:var(--bg);">
-    <div style="font-weight:700;margin-bottom:2px;">Familia nueva</div>
-    <div class="helper" style="margin:0 0 10px;">Con el nombre de arriba. Hijos, cuentas y notas, después desde Familias.</div>
-    <div class="grid2">
-      <div class="field"><label>Teléfono</label><input type="tel" id="sitfam-telefono"></div>
-      <div class="field"><label>Dirección</label><input type="text" id="sitfam-direccion" placeholder="Para sugerir origen en traslados"></div>
-    </div>
-    ${checklistZonas('sitfam', '', 'Zona')}
-    <div class="grid2">
-      <div class="field"><label>Cobro a familia ($/h)</label><input type="number" id="sitfam-cobro"></div>
-      <div class="field"><label>Pago a niñera ($/h)</label><input type="number" id="sitfam-pago"></div>
-    </div>
-    ${baseTieneTerminos() ? `<label class="chk" style="margin:0 0 8px;"><input type="checkbox" id="sitfam-terminos" onchange="onSitfamTerminosChange()"> Aceptó términos y condiciones</label>
-    <div class="field" id="sitfam-terminos-fecha-wrap" style="display:none;"><label>Fecha en que los aceptó</label><input type="date" id="sitfam-terminos-fecha" value="${todayISO()}"></div>` : ''}
-    <div id="sitfam-warn"></div>
-    <div class="confirmbtns">
-      <button type="button" class="btn ghost" onclick="cerrarFamiliaNuevaSit()">Cancelar</button>
-      <button type="button" class="btn primary" onclick="conGuardado(this, ()=>crearFamiliaDesdeSit())">Crear familia</button>
-    </div>
-  </div>`;
+  panel.innerHTML = fichaFamiliaNuevaHtml('sitfam', { cancelar: 'cerrarFamiliaNuevaSit()', crear: 'crearFamiliaDesdeSit()' });
   // "Editar zonas" abre su propio modal en lugar de este: acá no se ofrece.
   panel.querySelector('.zona-detalle')?.remove();
   const sugerencias = document.getElementById('sit-familia-dropdown'); // "Sin coincidencias" quedaba encima de la ficha
@@ -959,30 +940,61 @@ async function abrirFamiliaNuevaSit(){
   pintarCrearFamiliaSit();
   document.getElementById('sitfam-telefono').focus();
 }
+/* La ficha corta de una familia nueva dentro de otro formulario (el registro de un sitting y, desde el
+   02/11/2026, el ticket de "Pegar WhatsApp"): los campos llevan el prefijo `pref` y los dos botones
+   llaman a `cancelar` y a `crear` (código fijo de quien la pinta, nunca un dato). */
+function fichaFamiliaNuevaHtml(pref, { cancelar, crear }){
+  return `<div class="sitfam-ficha" style="border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 14px;background:var(--bg);">
+    <div style="font-weight:700;margin-bottom:2px;">Familia nueva</div>
+    <div class="helper" style="margin:0 0 10px;">Con el nombre de arriba. Hijos, cuentas y notas, después desde Familias.</div>
+    <div class="grid2">
+      <div class="field"><label>Teléfono</label><input type="tel" id="${pref}-telefono"></div>
+      <div class="field"><label>Dirección</label><input type="text" id="${pref}-direccion" placeholder="Para sugerir origen en traslados"></div>
+    </div>
+    ${checklistZonas(pref, '', 'Zona')}
+    <div class="grid2">
+      <div class="field"><label>Cobro a familia ($/h)</label><input type="number" id="${pref}-cobro"></div>
+      <div class="field"><label>Pago a niñera ($/h)</label><input type="number" id="${pref}-pago"></div>
+    </div>
+    ${baseTieneTerminos() ? `<label class="chk" style="margin:0 0 8px;"><input type="checkbox" id="${pref}-terminos" onchange="onFamiliaNuevaTerminosChange(${argJs(pref)})"> Aceptó términos y condiciones</label>
+    <div class="field" id="${pref}-terminos-fecha-wrap" style="display:none;"><label>Fecha en que los aceptó</label><input type="date" id="${pref}-terminos-fecha" value="${todayISO()}"></div>` : ''}
+    <div id="${pref}-warn"></div>
+    <div class="confirmbtns">
+      <button type="button" class="btn ghost" onclick="${cancelar}">Cancelar</button>
+      <button type="button" class="btn primary" onclick="conGuardado(this, ()=>${crear})">Crear familia</button>
+    </div>
+  </div>`;
+}
 function cerrarFamiliaNuevaSit(){
   const panel = document.getElementById('sit-familia-nueva');
   if(!panel || !panel.innerHTML) return;
   panel.innerHTML = '';
   pintarCrearFamiliaSit();
 }
-function onSitfamTerminosChange(){
-  document.getElementById('sitfam-terminos-fecha-wrap').style.display = document.getElementById('sitfam-terminos').checked ? '' : 'none';
+function onFamiliaNuevaTerminosChange(pref){
+  document.getElementById(pref+'-terminos-fecha-wrap').style.display = document.getElementById(pref+'-terminos').checked ? '' : 'none';
 }
-async function crearFamiliaDesdeSit(){
-  const nombre = document.getElementById('sit-familia').value.trim();
-  const warn = document.getElementById('sitfam-warn');
+/* Da de alta la familia de la ficha corta (fichaFamiliaNuevaHtml) con ese nombre. Avisa en `${pref}-warn`
+   y devuelve la fila creada, o null si no se creó (falta algo, era otra parecida o falló la base). */
+async function insertarFamiliaNueva(pref, nombre, lista){
+  const warn = document.getElementById(pref+'-warn');
   const aviso = txt => { warn.innerHTML = `<div class="warnbox">${escaparHtml(txt)}</div>`; };
-  if(!nombre){ aviso('Escribí el nombre de la familia arriba, en "Familia".'); return; }
-  const aceptoTerminos = !!document.getElementById('sitfam-terminos')?.checked;
-  const terminosDesde = aceptoTerminos ? document.getElementById('sitfam-terminos-fecha').value : null;
-  if(aceptoTerminos && !terminosDesde){ aviso('Poné la fecha en que aceptó los términos.'); return; }
-  if(!(await confirmarNombreNuevo(nombre, sitFamilias, 'familia'))) return;
+  if(!nombre){ aviso('Escribí el nombre de la familia arriba, en "Familia".'); return null; }
+  const aceptoTerminos = !!document.getElementById(pref+'-terminos')?.checked;
+  const terminosDesde = aceptoTerminos ? document.getElementById(pref+'-terminos-fecha').value : null;
+  if(aceptoTerminos && !terminosDesde){ aviso('Poné la fecha en que aceptó los términos.'); return null; }
+  if(!(await confirmarNombreNuevo(nombre, lista, 'familia'))) return null;
   const valor = id => document.getElementById(id).value.trim();
-  const fam = { nombre, telefono: valor('sitfam-telefono'), direccion: valor('sitfam-direccion'), zona: leerZonasChecklist('sitfam'),
-    cobro_hora: Number(valor('sitfam-cobro'))||null, pago_hora: Number(valor('sitfam-pago'))||null };
+  const fam = { nombre, telefono: valor(pref+'-telefono'), direccion: valor(pref+'-direccion'), zona: leerZonasChecklist(pref),
+    cobro_hora: Number(valor(pref+'-cobro'))||null, pago_hora: Number(valor(pref+'-pago'))||null };
   if(aceptoTerminos) fam.terminos_aceptados_el = terminosDesde; // sin marcar no se manda: anda con la base sin migrar
   const { data, error } = await sb.from('familias').insert(fam).select().single();
-  if(error){ warn.innerHTML = errBox(error); return; }
+  if(error){ warn.innerHTML = errBox(error); return null; }
+  return data;
+}
+async function crearFamiliaDesdeSit(){
+  const data = await insertarFamiliaNueva('sitfam', document.getElementById('sit-familia').value.trim(), sitFamilias);
+  if(!data) return;
   sitFamilias.push(data);
   sitFamiliaSel = data;
   document.getElementById('sit-familia').value = data.nombre;

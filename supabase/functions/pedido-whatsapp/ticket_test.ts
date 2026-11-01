@@ -3,7 +3,7 @@
 // confunde a Deno), por ejemplo: npx deno@2 test --allow-env <carpeta>/pedido-whatsapp/
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1.0.13";
 import {
-  accesoInterno, armarMensaje, hoyEnMontevideo, MAX_NOTAS, MAX_TEXTO, MAX_TOKENS, MENSAJE_TOPE, parametrosModelo, procesarPedido,
+  accesoInterno, armarMensaje, hoyEnMontevideo, MAX_NOTAS, MAX_TEXTO, MAX_TOKENS, MENSAJE_TOPE, parametrosModelo, procesarPedido, validarRespuesta,
   type Dependencias, type Familia, type Respuesta, RespuestaModelo, SISTEMA, TOPE_DIARIO,
 } from "./ticket.ts";
 
@@ -18,7 +18,7 @@ function respuesta(cambios: Partial<Respuesta> = {}): Respuesta {
   return {
     tipo: "pedido_nuevo", familia_id: FAMILIAS[0].id, familia_en_mensaje: "Ana, mamá de Tomi", servicio: "sitting",
     fecha: "2026-10-24", hora_inicio: "20:00", hora_fin: "23:30", horario_aproximado: false, horario_nota: null,
-    chicos_cantidad: 2, chicos_edades: "2 y 5 años", zona: "Pocitos", notas: null, dudas: [], ...cambios,
+    chicos_cantidad: 2, chicos_edades: "2 y 5 años", zona: "Pocitos", ninera_pedida: null, notas: null, dudas: [], ...cambios,
   };
 }
 // Base y modelo de mentira: anotan qué se les pidió. La base lleva la cuenta de las llamadas
@@ -272,4 +272,19 @@ Deno.test("el esquema rechaza una respuesta con campos de más o tipos equivocad
   assertEquals(RespuestaModelo.safeParse(respuesta()).success, true);
   assertEquals(RespuestaModelo.safeParse({ ...respuesta(), tipo: "otro" }).success, false);
   assertEquals(RespuestaModelo.safeParse({ ...respuesta(), chicos_cantidad: "dos" }).success, false);
+});
+
+Deno.test("ninera_pedida: se recorta, se limita a 80 y null queda null", () => {
+  assertEquals(validarRespuesta(respuesta({ ninera_pedida: "  Ana  " }), FAMILIAS, null).ninera_pedida, "Ana");
+  assertEquals(validarRespuesta(respuesta({ ninera_pedida: "a".repeat(120) }), FAMILIAS, null).ninera_pedida, "a".repeat(80));
+  assertEquals(validarRespuesta(respuesta({ ninera_pedida: null }), FAMILIAS, null).ninera_pedida, null);
+  assertEquals(validarRespuesta(respuesta({ ninera_pedida: "   " }), FAMILIAS, null).ninera_pedida, null);
+});
+
+Deno.test("ninera_pedida: la fila guardada la lleva y el SISTEMA la explica", async () => {
+  const { deps, llamadas } = simulado(respuesta({ ninera_pedida: "Ana Ficticia" }));
+  await pedir(deps);
+  assertEquals(llamadas.guardado[0].ninera_pedida, "Ana Ficticia");
+  assertStringIncludes(SISTEMA, "ninera_pedida");
+  assert(RespuestaModelo.safeParse(respuesta({ ninera_pedida: "Ana Ficticia" })).success);
 });

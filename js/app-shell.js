@@ -76,6 +76,8 @@ function renderApp(){
   // El push del chat a las admins (30/10/2026) trae "?ir=ninieras&ninera=<id>": además del módulo,
   // abre la ficha de esa niñera en el chat apenas carga la lista.
   const nineraParam = irParam==='ninieras' ? params.get('ninera') : null;
+  // El push de "Pedidos de la app" trae "?ir=agenda&solicitud=<id>": abre el modal de esa solicitud.
+  const solicitudParam = irParam==='agenda' ? params.get('solicitud') : null;
   if(irParam){
     window.history.replaceState({}, '', window.location.pathname);
     moduloActivo = irParam;
@@ -84,8 +86,10 @@ function renderApp(){
   // abre directo ahí, con el aviso para seguirla (21/10/2026).
   if(moduloActivo===null && hayBorradorEntrevistaReciente()){ moduloActivo = 'rrhh'; rrhhTab = 'entrevista'; }
   if(!zonaGruposCache) cargarZonaGrupos(); // las zonas se usan en casi todas las pantallas: se piden una sola vez al entrar
-  cubrirHastaQueCargue(renderModulo());
+  const cargaModulo = renderModulo();
+  cubrirHastaQueCargue(cargaModulo);
   if(nineraParam) abrirChatDeNinera(nineraParam, { cambiarModulo:false });
+  if(solicitudParam) Promise.resolve(cargaModulo).then(()=>abrirSolicitudDeLink(solicitudParam));
   cargarNotificaciones();
   suscribirNotifRealtime();
 }
@@ -973,6 +977,7 @@ const TIPOS_NOTIF = [
   ...(AVISO_EXTRACTO_ACTIVO ? [{tipo:'extracto', label:'Falta subir extracto Itaú', sub:'Hace más de 15 días que no se sube uno nuevo', icono:'finanzas', defaultPush:true}] : []),
   {tipo:'temporada', label:'Pedir la temporada de Punta', sub:'Cada 1 de octubre, con el mensaje listo para mandar', icono:'ninieras', defaultPush:true},
   {tipo:'chat', label:'Mensajes de niñeras', sub:'Cuando una niñera escribe por el chat de la app', icono:'ninieras', defaultPush:true},
+  {tipo:'pedidos', label:'Pedidos de la app', sub:'Cuando una niñera dice que puede o entra un pedido de WhatsApp', icono:'agenda', defaultPush:true},
 ];
 
 async function cargarNotificaciones(){
@@ -1100,19 +1105,19 @@ async function itemsAvisosAdmin({ data, error }){
     if(!e2) (ms||[]).forEach(m=>{ if(m.leido_admin_en) leidos.add(m.id); });
   }
   return data.filter(a=>!(a.tipo==='chat' && leidos.has(a.datos?.mensaje_id))).map(a=>{
-    const { destino, ninera } = destinoDeUrlAviso(a.url);
-    return { id: 'aviso:'+a.id, tipo: a.tipo, titulo: a.titulo || 'Aviso', mensaje: a.cuerpo || '', destino, abrirChat: ninera };
+    const { destino, ninera, solicitud } = destinoDeUrlAviso(a.url);
+    return { id: 'aviso:'+a.id, tipo: a.tipo, titulo: a.titulo || 'Aviso', mensaje: a.cuerpo || '', destino, abrirChat: ninera, abrirSolicitud: solicitud };
   });
 }
 // "?ir=<módulo>&ninera=<id>" (lo mismo que abre el push): a qué módulo va y qué ficha abre en el chat.
 function destinoDeUrlAviso(url){
   const q = String(url||'');
   const i = q.indexOf('?');
-  if(i < 0) return { destino: null, ninera: null };
+  if(i < 0) return { destino: null, ninera: null, solicitud: null };
   const p = new URLSearchParams(q.slice(i+1));
   const ir = p.get('ir');
   const valido = !!ir && (ir==='pend-hoy' || MODULOS.some(m=>m.key===ir));
-  return { destino: valido ? ir : null, ninera: valido && ir==='ninieras' ? p.get('ninera') : null };
+  return { destino: valido ? ir : null, ninera: valido && ir==='ninieras' ? p.get('ninera') : null, solicitud: valido && ir==='agenda' ? p.get('solicitud') : null };
 }
 
 async function cargarNotifLeidas(){
@@ -1183,6 +1188,7 @@ async function irANotificacion(id){
     verNinera(item.abrirId);
   }
   if(item.abrirChat && item.destino==='ninieras') await abrirChatDeNinera(item.abrirChat, { cambiarModulo:false });
+  if(item.abrirSolicitud && item.destino==='agenda') await abrirSolicitudDeLink(item.abrirSolicitud);
   if(item.accion==='temporada' && typeof abrirRecordatorioTemporada==='function'){
     abrirRecordatorioTemporada();
   }

@@ -14,7 +14,7 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
@@ -166,15 +166,26 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *     errores que Supabase.
  *     'etapa3' simula la base con todo menos la migración de la etapa 3 (sin chat_mensajes ni
  *     avisos): es como va a estar producción entre que se publica la app y se aplica la migración.
+ *     'etapa5' (02/11/2026): solo falta la migración de los pedidos por la app: enviar_pedido_app, sugeridas_datos
+ *     y las tres RPC de la niñera dan 404 PGRST202, ninera_no_disponible 404 PGRST205 y las columnas nuevas
+ *     (solicitudes, solicitud_ninieras, familias.solo_conocidas, pedidos_whatsapp.ninera_pedida) dan el error
+ *     de columna de Supabase al leerlas o escribirlas.
+ *   Con los pedidos de la etapa 5, app_config 'pedidos_app'.solo_practica arranca en true (como la migración): un
+ *   test que manda pedidos de familias reales lo apaga con estado.db.app_config (ver tests/simulador-pedidos.spec.js).
  */
 async function abrirApp(page, opciones = {}) {
   const { datos = {}, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/', baseSinMigrar = false } = opciones;
   const estado = crearEstado(datos);
   const sinMigrarTodo = baseSinMigrar === true;
+  // Los pedidos de la etapa 5: las RPC del panel y de la niñera (la admin las llama y recibe no_autorizada).
+  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true }));
+  Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora)).filter(([n]) => RPC_ETAPA_5.includes(n))));
+  const sinEtapa5 = sinMigrarTodo || baseSinMigrar === 'etapa5';
+  if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinMigrarTodo) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
   if (sinMigrarTodo) sacarColumnasEtapa2(estado.db);
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, tablasSinMigrar: baseSinMigrar ? TABLAS_ETAPA_3 : [] });
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -210,6 +221,11 @@ async function abrirAppNinera(page, opciones = {}) {
     if (fila) fila.user_id = USUARIO_NINERA.id;
   }
   Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined));
+  // Una niñera no es admin: enviar_pedido_app y sugeridas_datos le dan no_autorizada / nada.
+  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false }));
+  // 'etapa5' (solo falta la de los pedidos), y también con true y 'etapa3' (la 5 es posterior a la 3).
+  const sinEtapa5 = baseSinMigrar === true || baseSinMigrar === 'etapa3' || baseSinMigrar === 'etapa5';
+  if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (baseSinMigrar === true) {
     RPC_ETAPA_2.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     sacarColumnasEtapa2(estado.db);
@@ -224,7 +240,8 @@ async function abrirAppNinera(page, opciones = {}) {
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, tablasSinMigrar: baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : [] });
+    sesionNinera: ninera, sinEtapa5,
+    tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : [])] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
   // navigator.standalone (el que mira Safari del iPhone).
@@ -260,7 +277,18 @@ function crearEstado(datos) {
   // maxFilas: como Supabase (max rows del proyecto), ninguna lectura devuelve más de 1.000
   // filas aunque haya más; quien necesita todo tiene que pedir de a tandas (leerTodasLasFilas).
   // rpc[nombre] y funciones[nombre] simulan una función de la base o una Edge Function.
-  return { escrituras: [], errores: [], noSimulados: [], db, demoraEscrituras: 0, demoraLecturas: 0, fallar: null, rpc: {}, funciones: {}, maxFilas: 1000 };
+  // funciones['pedido-whatsapp'] (02/11/2026): el ticket ficticio de siempre (Familia Prueba Uno, el martes
+  // 06/10 de 20 a 23, dos chicos, una duda y la niñera que pide la madre); guarda la fila como la función
+  // real. Un test lo pisa con su propio ticket.
+  const funciones = { 'pedido-whatsapp': (cuerpo = {}) => {
+    const fila = { id: nuevoId(), creado_el: new Date().toISOString(), creado_por: cuerpo.creado_por ?? 'Paula Prueba', texto: cuerpo.texto ?? '', estado: 'borrador',
+      tipo: 'pedido_nuevo', familia_id: ID.fUno, familia_texto: 'Prueba Uno', servicio: 'sitting', fecha: '2026-10-06', hora_inicio: '20:00', hora_fin: '23:00',
+      termina_dia_siguiente: false, horario_aproximado: false, horario_nota: null, chicos_cantidad: 2, chicos_edades: '3 y 5 años', zona: 'Pocitos',
+      ninera_pedida: 'Carla Ejemplo', notas: null, dudas: ['No queda claro si hay que dar de cenar.'], cobro_estimado: 1140, pago_estimado: 750, solicitud_id: null };
+    (db.pedidos_whatsapp = db.pedidos_whatsapp || []).push(fila);
+    return { json: { pedido: fila } };
+  } };
+  return { escrituras: [], errores: [], noSimulados: [], db, demoraEscrituras: 0, demoraLecturas: 0, fallar: null, rpc: {}, funciones, maxFilas: 1000 };
 }
 
 /**
@@ -270,8 +298,9 @@ function crearEstado(datos) {
  *   claveSesion: dónde guarda supabase-js la sesión (la storageKey de cada puerta)
  *   sesionNinera: id de la niñera de la sesión (app de niñeras); sin eso, la sesión es de una admin
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
+ *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -416,13 +445,28 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       try { resultado = simular ? await simular(cuerpo, db) : []; }
       catch (e) {
         if (!e || !e.rpc) throw e;
-        return route.fulfill({ status: e.rpc.status, json: { code: e.rpc.code, details: null, hint: null, message: e.rpc.message } });
+        return route.fulfill({ status: e.rpc.status, json: { code: e.rpc.code, details: null, hint: e.rpc.hint ?? null, message: e.rpc.message } });
       }
       return route.fulfill({ json: resultado });
     }
     if ((baseSinMigrar && ['sittings_historial', 'finanzas_historial', 'ajustes_saldo', 'gastos_extra', 'variantes_precio', 'borradores', 'precios_ninera_familia'].includes(tabla))
       || tablasSinMigrar.includes(tabla)) {
       return route.fulfill({ status: 404, json: { code: 'PGRST205', message: `Could not find the table 'public.${tabla}' in the schema cache` } });
+    }
+    // Etapa 5 (02/11/2026): sin la migración de los pedidos, las columnas nuevas no existen: leerlas da
+    // 42703 (select) y escribirlas PGRST204, como Supabase.
+    const columnasNuevas = sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] : null;
+    if (columnasNuevas) {
+      if (metodo === 'GET' || metodo === 'HEAD') {
+        const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(url.searchParams.get('select') || ''));
+        if (col) return route.fulfill({ status: 400, json: { code: '42703', message: `column ${tabla}.${col} does not exist` } });
+      } else if (['POST', 'PATCH'].includes(metodo) && req.postData()) {
+        const col = columnasNuevas.find(c => [].concat(JSON.parse(req.postData())).some(f => c in f));
+        if (col) {
+          estado.rechazadas = (estado.rechazadas || 0) + 1;
+          return route.fulfill({ status: 400, json: { code: 'PGRST204', message: `Could not find the '${col}' column of '${tabla}' in the schema cache` } });
+        }
+      }
     }
     // Términos y condiciones (20/10/2026): sin la migración, familias no tiene la columna.
     if (baseSinMigrar && tabla === 'familias' && /terminos_aceptados_el/.test((url.searchParams.get('select') || '') + (req.postData() || ''))) {
@@ -511,7 +555,12 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       }
     } else if (metodo === 'PATCH') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
-      afectadas.forEach(f => Object.assign(f, cuerpo, conFechas ? { actualizado_en: ahoraIso() } : {}));
+      afectadas.forEach(f => {
+        const sinSolicitud = f.solicitud_id == null;
+        Object.assign(f, cuerpo, conFechas ? { actualizado_en: ahoraIso() } : {});
+        // Trigger pedidos_whatsapp_aviso_nuevo (etapa 5): solicitud_id pasa de null a un valor.
+        if (tabla === 'pedidos_whatsapp' && !sinEtapa5 && sinSolicitud && f.solicitud_id != null) avisoPedidoNuevo(db, new Date(ahora || Date.now()).toISOString(), f);
+      });
     } else if (metodo === 'DELETE') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       db[tabla] = db[tabla].filter(f => !afectadas.includes(f));
@@ -546,16 +595,19 @@ function reglasEtapa3(db, sesionNinera) {
     visible(tabla, fila) {
       if (tabla === 'chat_mensajes') return !esNinera || fila.ninera_id === sesionNinera;
       if (tabla === 'avisos') return esNinera ? fila.para_ninera_id === sesionNinera : fila.para_admin != null;
+      if (tabla === 'ninera_no_disponible') return !esNinera || fila.ninera_id === sesionNinera;
       return true;
     },
     modificable(tabla, metodo, fila) {
       if (tabla === 'chat_mensajes') return metodo === 'PATCH' && !esNinera;
-      if (tabla === 'avisos') return false;
+      if (tabla === 'avisos' || tabla === 'ninera_no_disponible') return false;
       return true;
     },
     // Error de PostgREST para una escritura que la base rechaza, o null si pasa.
     rechazo(tabla, metodo, cuerpo) {
       if (tabla === 'avisos') return metodo === 'POST' ? violaRls(tabla) : null;
+      // ninera_no_disponible (etapa 5): se le quitó insert, update y delete a todos; solo la RPC escribe.
+      if (tabla === 'ninera_no_disponible') return permisoDenegado(tabla);
       if (tabla !== 'chat_mensajes') return null;
       const filas = [].concat(cuerpo || []);
       if (metodo === 'PATCH' && filas.some(f => Object.keys(f).some(c => c !== 'leido_admin_en'))) return permisoDenegado(tabla);

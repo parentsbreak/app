@@ -985,82 +985,447 @@ Rama `claude/fase1-guia`. Migración `AAAAMMDD_guia.sql`. Bucket `ninieras-priva
 
 ---
 
-## Etapa 5: pedido: pegar, sugerir, mandar, aceptar
+## Etapa 5: pedido: pegar, sugerir, mandar, "Puedo" / "No puedo"
 
-Rama `claude/fase1-pedido`. Migración `AAAAMMDD_pedidos_app.sql`. Republicar `pedido-whatsapp`
-si cambia. Archivo nuevo del panel `js/pedidos.js` (después de `intermediaciones.js`, antes de
-`bootstrap.js`).
+> **Para quien ejecuta:** usar superpowers:subagent-driven-development (o executing-plans) tarea por
+> tarea. Los pasos llevan casillas (`- [ ]`).
 
-### Tarea 5.1: migración `pedidos_app` + pruebas
-- Columnas de `solicitudes` y `solicitud_ninieras` y estados nuevos (`decisiones.md` 5.5);
-  `precios_ninera_familia`; `ninera_no_disponible`; `familias.solo_conocidas`; `app_config
-  'pedidos_app'` (`{"min_mismo_dia": 15, "min_otro_dia": 30, "recordatorio_min_antes": 10,
-  "aviso_sin_ninera_horas": 3}`) y `'temporada_reglas'` (4.5); índices `solicitud_ninieras
-  (ninera_id, estado)`, `precios_ninera_familia (familia_id)`.
-- RPC admin: `enviar_pedido_app(p_solicitud_id uuid, p_envios jsonb) returns int` (transacción:
-  valida `ninera_puede_recibir_pedidos` y que la niñera tenga `user_id`, inserta `solicitud_ninieras`,
-  upsert `precios_ninera_familia`, fija `responder_hasta`, encola `pedido:<sn>:nuevo` con el texto
-  de `textos.md` 1 armado en SQL con `chicos_texto`, zona y precio; devuelve cuántos mandó).
-- RPC niñera: `ninera_mis_pedidos()`, `responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo
-  text, p_motivo_texto text) returns text` (`'ok'` | `'ya_respondido'` | `'cerrado'`; con `.eq`
-  del estado anterior; encola `admin:pedido:<sn>:acepto`), `ninera_marcar_no_disponible(p_fechas
-  date[], p_quitar boolean)`.
-- `pago_hora_ninera(p_familia_id uuid, p_ninera_id uuid) returns numeric`: `precios_ninera_familia`
-  si hay fila, si no `familias.pago_hora`. `precio_sitting()` no cambia; quien registra un puntual
-  (panel) usa la función JS equivalente.
-- Pruebas: la niñera no ve el nombre de la familia en `ninera_mis_pedidos`, no responde un pedido de
-  otra, no responde dos veces, `responder_hasta` con las dos reglas, `enviar_pedido_app` rechaza
-  a una sin app o frenada por la guía, `pago_hora_ninera` con y sin fila.
+**Objetivo:** la admin pega el WhatsApp de la madre, revisa el ticket, elige niñeras en una sola pantalla
+(que reemplaza "Asignar niñera") y se lo manda por la app a las que la tienen; la niñera responde
+"Puedo" / "No puedo" desde su inicio. Elegir a la que va es la etapa 6.
 
-### Tarea 5.1b: `precioHoraNinera` en el panel (plata, con la red de plata)
-- `precioHoraNinera(familia, nineraId, precios)` en `core.js` (puro): la fila de
-  `precios_ninera_familia` de esa niñera con esa familia o `familia.pago_hora`. `precioSegunHorario`
-  (`sittings.js`) y `otraHoraAutoElegida` (`app-shell.js`) la usan para sittings puntuales cuando
-  hay niñera elegida; fijos y registros ya guardados no cambian (`decisiones.md` 4.18). Se suma a
-  la lista del oráculo (`scripts/congelar-oraculo-plata.js`) con casos nuevos en
-  `tests/red-plata.spec.js` (con fila, sin fila, niñera sin id, familia sin `pago_hora`); las
-  fórmulas y los redondeos no se tocan y el resto de la red tiene que seguir igual.
+**Arquitectura:** el orden de las sugeridas es una función pura del panel (`ordenarSugeridas`, `js/pedidos.js`)
+con los datos de una sola lectura (`sugeridas_datos`, invoker). Mandar es una RPC de admin en una transacción
+(`enviar_pedido_app`) que crea las filas y encola los avisos; la niñera lee y responde solo por funciones
+`security definer` filtradas por `ninera_actual()`.
 
-### Tarea 5.2: `pedido-whatsapp`: `ninera_pedida` y `familia_id` confirmada
-- `ticket.ts`: campo `ninera_pedida` (texto libre, 80) en el esquema y el `SISTEMA`; si llega
-  `familia_id` la usa como elegida (ya existe); tests en `ticket_test.ts`. Republicar con OK.
+**Spec:** `reglas-del-negocio.md` (sección 4 con la regla del CV del 31/10/2026, sección 5),
+`decisiones.md` 4.13 a 4.19, 6.3 y 7, `textos.md` 1, 4, 7 y 8, y las respuestas de Diego del 31/10/2026 (abajo).
 
-### Tarea 5.3: panel: "Pegar mensaje de WhatsApp" → ticket → solicitud (`js/pedidos.js`)
-- Botón en la Agenda junto a "+ Nueva solicitud"; modal con textarea; llamada a la función con la
-  sesión (`sb.functions.invoke('pedido-whatsapp', { body })`); ticket editable con "Confirmar
-  familia" (un toque, o buscador `attachAutocomplete`), dudas como `warnbox`, tipo cambio /
-  cancelación → abre la solicitud existente; "Revisar y elegir niñeras" crea la solicitud
-  (`estado 'sin_asignar'`, `pedido_id`, `chicos_texto`, `notas_para_ninera`) y abre 5.4. Si faltan
-  dirección o chicos: campos ahí mismo.
-- Tests: `tests/pedido-pegar.spec.js` (feliz, dudas, familia nueva, función que falla con cada
-  status, tope diario, doble toque, 390 px).
+Rama `claude/fase1-pedido` (worktree `.claude/worktrees/etapa5`). Migración `20261102_pedidos_app.sql`.
+Republicar `pedido-whatsapp` después de la migración, con OK.
 
-### Tarea 5.4: sugeridas (`ordenarSugeridas`) y envío
-- `ordenarSugeridas(pedido, datos) → [{ninera, bloque, puntaje, porque, marcas, enviable}]` pura;
-  `datos` = `{ninieras, historial (sittings por niñera y familia), hijos, zonasGrupos, reglasTemporada,
-  noDisponibles, cierres (prefiero otros), incidentes, solicitudesSemana, estadoGuia}`. Pantalla con
-  bloques, "Marcar las 10 primeras", "Ninguna", lista de precios de primera vez, "Enviar a N" →
-  `enviar_pedido_app`. Sin app → botón WhatsApp (`waLink` + `mensajeWA`). Práctica (`decisiones.md`
-  4.17): si la familia o alguna tildada tiene "(práctica)" en el nombre y hay tildada alguna real,
-  `warnbox` "Hay niñeras reales tildadas junto con una de práctica" y "Enviar" no sigue hasta
-  destildarlas.
-- Tests: unitarios de `ordenarSugeridas` (un caso por regla de `reglas-del-negocio.md` 5 y por
-  regla de temporada 4.5) y de pantalla (`tests/pedido-sugeridas.spec.js`), incluido el aviso de
-  práctica.
+### Respuestas de Diego (31/10/2026) que cambian la spec
+1. La guía (etapa 4) todavía no existe: la etapa 5 manda sin chequearla. La etapa 4 va antes de la prueba con
+   niñeras reales (después de la 7) y suma el freno en `enviar_pedido_app`. Hasta entonces, solo pedidos de
+   práctica.
+2. Una sola pantalla: "Elegir niñeras" reemplaza el cuerpo de "Asignar niñera" (`abrirModalAsignar`) para toda
+   solicitud. "Asignar" (la asignación directa de hoy, con su pago y "Guardar asignación") queda en cada fila y
+   sirve para cualquiera, con app o sin app.
+3. Chicos obligatorios para mandar (se cargan en el ticket si faltan). La dirección se pide con "Guardar" /
+   "Después": la exige la etapa 6, al elegir.
+4. Etapas 5 y 6 separadas. En la 5, las respuestas se ven en el modal de la solicitud de la Agenda y la elegida se
+   asigna con "Asignar".
+5. Maquetas (31/10/2026): botones "Puedo" / "No puedo" (no "Acepto"); sin "Aceptar no es quedar seleccionada" ni
+   "La familia elige entre las que aceptaron"; después de "Puedo", "¡Gracias! Te confirmamos a la brevedad." y el
+   pedido pasa a la sección "Esperando confirmación", aparte de "Pedidos por responder". El precio por hora de
+   cada tildada se puede editar (también el guardado) y, si cambia, sale la casilla "Guardar como precio de
+   [niñera] con esta familia" de siempre (`casillaPrecioNinera`). Nada de emojis de color: "Zona: Pocitos" en vez
+   del pin; los símbolos sin color (✓) sí. El panel en voseo.
+6. PR #92 de Codex: su commit (cc98de6) es el punto de partida de esta rama (ya está); el PR se cerró. Se
+   corrige: el lugar de `js/pedidos.js` en el orden de carga, que las que bajan queden debajo de las demás de
+   su bloque, "solo conocidas" y un test por cada regla de `reglas-del-negocio.md` 5.
 
-### Tarea 5.5: app de niñeras: tarjeta del pedido, Acepto / No puedo / días (`ninera/js/inicio.js`)
-- Textos de `textos.md` 4; `#pedido/<id>` desde el push; "Responde antes de las HH:MM"; después
-  de responder, estado en la tarjeta. Tests: `tests/ninera-pedido.spec.js` (aceptar, no puedo con
-  motivo, días, ya respondido por otro lado, pedido cerrado, sin conexión, 390 px, ningún `$` que
-  no sea el precio por hora).
+### Decisiones técnicas de Claude (31/10/2026)
+- Sin `solicitudes.pedido_id`: ya existe `pedidos_whatsapp.solicitud_id`. Sin `solicitudes.chicos_texto`: los
+  chicos salen siempre de la ficha (`chicos_texto(familia_id)`), que es obligatoria para mandar.
+- Sin `app_config 'temporada_reglas'`: la regla 4.5 ya vive en un solo lugar, `nineraPresenteEnZona`
+  (ninieras.js, la usa el filtro de Niñeras), y lo configurable son los grupos de `zona_grupos`
+  (`fuera_de_montevideo`). Las sugeridas la reusan.
+- Sin `visto_en` ni el estado `cubierto` (son de la etapa 6, que los suma si los necesita).
+- `enviar_pedido_app` no guarda precios: el panel guarda los que tienen la casilla tildada con
+  `guardarPrecioNineraFamilia`, después de mandar (como al registrar). Precarga: `precioHoraNinera` (el guardado
+  o la tarifa).
+- Una solicitud mandada por la app pasa a `pendiente_confirmar` (ese estado ya tiene color en la Agenda y nadie
+  lo escribía).
+- El fin del horario en el push y la tarjeta dice siempre "(aproximada, se puede extender)", como `textos.md` 1.
+- "Mostrar las que nunca fueron" (familia "solo conocidas") está siempre a mano, con el aviso de que la familia
+  no acepta nuevas: la admin decide cuándo abrirlo.
+- Los "No puedo" seguidos se cuentan desde su último "Puedo" en la
+  app; las respuestas por WhatsApp no cuentan.
+- "Prefiero otros perfiles" todavía no existe (etapa 7): `preferirOtros` llega vacío. La guía, igual
+  (`sinGuia` vacío hasta la etapa 4). "Sin avisos" no se marca en esta etapa.
 
-### Tarea 5.6: PR, migración + republicación (OK), merge.
+Después de la revisión del plan con un lector fresco (31/10/2026):
+- Chicos: para mandar hacen falta los chicos cargados uno por uno (`hijos_familia`). El texto libre viejo
+  (`familias.ninos`) puede traer nombres y apellido y el pedido les llega a varias: la base da `sin_chicos` y
+  `ninera_mis_pedidos` no lo usa.
+- Práctica: la misma regla en la pantalla y en la base, con o sin tilde ("(práctica)" / "(practica)",
+  `normaliza`): una niñera es `enviable` solo si es de práctica igual que la familia. "Marcar las 10 primeras" no
+  tilda a las que no son enviables. `solo_practica` (ver la pregunta a Diego) hace lo mismo con todas las reales.
+- Las ya mandadas por la app aparecen en su lugar del orden con su estado ("Puede", "No puede", "Sin
+  responder"), sin casilla. "Asignar" a una que dijo "Puedo" actualiza SU fila de la app a `confirmada` (no crea
+  otra) y el pago sugerido es su `precio_hora` × horas (`redondearPago`), lo que se le ofreció.
+- Temporada sin cargar (`nineraPresenteEnZona` da null): queda en su bloque con la marca "sin temporada
+  cargada", sin bajar. Pedido con varias zonas: está si está en cualquiera de ellas (como `coberturaPeriodo`).
+- Las dudas del ticket se guardan en `pedidos_whatsapp.dudas` (se sacan al tocar "Ya lo confirmé"; "Mandar
+  igual" las vacía): "Elegir niñeras" las lee por `solicitud_id`, también si se abre después desde la Agenda.
+- Pasar el ticket a la Agenda: primero se toma el pedido (`estado 'confirmado'` con `.eq('estado','borrador')`),
+  después se crea la solicitud y al final se le pone `solicitud_id` (ahí sale el aviso a las otras admins). Si otra
+  admin ya lo tomó, no se crea nada.
+- El modal de la solicitud se repinta con las respuestas por un canal de Realtime propio (como el chat de la
+  ficha, `alCerrarModal`).
+- `mapasSugeridas` cruza los nombres con `normaliza(nombre.trim())`, igual que `normaliza_nombre(btrim(...))`.
+- Pedido que termina pasada la medianoche: "20:00 – 00:30 del día siguiente (aproximada, se puede extender)" en
+  el push, la tarjeta y la lista.
+- `sugeridas_datos` reconoce por el nombre la familia de los registros sin `familia_id` (así sus chicos cuentan
+  para las edades) y `semana` cuenta solo sittings.
+
+### Restricciones de la etapa (además de las globales)
+- La niñera nunca ve la familia, la dirección, las notas ni el cobro en un pedido: solo día, horario, zona, chicos
+  y su precio por hora. Lo garantiza `ninera_mis_pedidos` y lo prueba `fase1_pedidos.sql`.
+- Nada sale a una niñera sin que una admin toque "Enviar a N". Nada sale a una madre (no hay mensaje a la madre
+  en esta etapa).
+- Práctica (4.17): la pantalla avisa y no deja enviar si se mezcla una "(práctica)" con una real; la base lo
+  rechaza igual (`practica_mezclada`).
+- Ningún test existente se borra ni se debilita: los de "Asignar niñera" (`solicitud-un-paso`,
+  `precio-ninera-familia`, `errores-plata`, `humo`, `escape`) se adaptan solo si un selector se movió, y el PR
+  lo dice.
+
+### Review Focus
+1. Dos admins: una manda mientras la otra asigna a mano o cancela → nada a medias; la que llega tarde ve "este
+   pedido ya se asignó o se canceló" (`cerrado`). Test en 5.5.
+2. La niñera toca "Puedo" dos veces, desde dos celulares o con el pedido ya asignado → una sola respuesta; la
+   tarjeta pasa a "Esperando confirmación" o desaparece con "Este pedido ya no está abierto." Test en 5.7.
+3. Pedido sin hora de fin o que termina pasada la medianoche → textos bien en el push, la tarjeta, el ticket ("sin
+   total hasta que se cargue el fin") y la lista. Tests en 5.1 (SQL), 5.6 y 5.7.
+4. Historia vieja sin ids (204 de 641 registros sin `ninera_id`, 31/10/2026) → cuenta por el nombre normalizado
+   y suma a la niñera correcta. Test en 5.4.
+5. Base sin migrar (la app publicada antes de la migración): "Asignar" sigue andando con el orden por zona e
+   historial; sin casillas de la app ni "Pegar WhatsApp" que rompa; la app de niñeras sin `ninera_mis_pedidos`
+   muestra el inicio como hoy. Tests en 5.5, 5.6 y 5.7.
+
+### Para la sesión de prueba en un iPhone real (al final de la fase)
+- El push del pedido con cuatro renglones (¿se ven los saltos de línea?) y tocarlo con la app instalada abre
+  `#pedido/<id>`.
+- Los botones de días que no puede con el dedo (área de toque) y el teclado de "Otro motivo".
+- "Pegar WhatsApp" pegando desde WhatsApp en el iPhone (texto con saltos y emojis de la madre).
+- Un pedido de práctica de punta a punta (Diego, 31/10/2026): pegar un WhatsApp inventado de "Familia (práctica)",
+  ticket, "Elegir niñeras", "Enviar a 1" a "Niñera (práctica)", el push en el iPhone de Diego, "Puedo", el aviso
+  "aceptó" a las admins, el modal de la solicitud con "Puede" y "Asignar". Repetir con "No puedo" y días.
+
+### Contrato de `ordenarSugeridas` (lo usa Codex para la entrada desde WhatsApp y la conciliación)
+```
+ordenarSugeridas(pedido, datos) → { sugeridas: Item[], ocultas: Item[], descartadas: Descartada[], inactivas: Item[] }
+pedido = { tipo: 'sitting'|'traslado', zona: string|null, fecha: 'AAAA-MM-DD', edades: number[],
+           chicos: number, ninera_pedida_id: uuid|null, solo_conocidas: boolean, mostrar_nuevas: boolean }
+datos  = { ninieras: [{id, nombre, tipo, zona, activa, user_id}],
+           historialFamilia, historialTotal, sittingsSemana, rechazosSeguidos: {[id]: number},
+           edadesCuidadas: {[id]: number[]}, maxChicos: {[id]: number},
+           noDisponibles, incidentesFamilia, preferirOtros, ocupadas, sinGuia, excluirIds: uuid[],
+           fueraTemporada: {[id]: string} }   // motivo, por ejemplo "En Punta del Este esa quincena"
+Item        = { ninera, bloque: 1|2|3, baja: boolean, bajas: string[], porque: string, conApp: boolean,
+                enviable: boolean, pedida: boolean, vecesFamilia, total, edad, varios }
+Descartada  = { ninera, motivo: string }
+```
+Los mapas van por id (el panel ya resolvió los nombres a ids con `mapasSugeridas`). Sin efectos: no lee la
+base ni el DOM. `ocultas`: los bloques 2 y 3 de una familia "solo conocidas" mientras `mostrar_nuevas` es false.
 
 ---
+
+### Tarea 5.1: migración `pedidos_app`, `schema.sql` y pruebas SQL
+
+**Archivos:**
+- Ya escritos (31/10/2026, revisión de Diego pendiente): `supabase/migraciones/20261102_pedidos_app.sql`,
+  `..._DESHACER.sql`, `supabase/pruebas/fase1_pedidos.sql`, `supabase/pruebas/catalogo_seguridad.sql` (4 funciones
+  nuevas en la lista).
+- Modificar: `supabase/schema.sql` (todo lo de la migración, en su sección).
+
+**Interfaces (producidas):**
+- `enviar_pedido_app(p_solicitud_id uuid, p_envios jsonb) returns integer`; errores por `raise` con código:
+  `no_autorizada`, `sin_ninieras`, `demasiadas_ninieras`, `no_existe`, `cerrado`, `solo_sittings`, `pasado`,
+  `sin_familia`, `sin_chicos`, `solo_practica`, `envio_invalido`, `precio_invalido`, `ninera_no_existe`, `ninera_inactiva`,
+  `ninera_sin_app`, `ninera_solo_traslados`, `practica_mezclada` (con el nombre de la niñera en `hint`;
+  `ninera_no_existe` lleva su id, revisión final 02/11/2026).
+- `ninera_mis_pedidos() returns table (id, estado, fecha, hora_inicio, hora_fin, termina_dia_siguiente, zona,
+  chicos, precio_hora, responder_hasta, enviado_en, respondido_en)`.
+- `responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo text default null, p_motivo_texto text default null)
+  returns text` → `'ok' | 'ya_respondido' | 'cerrado'`; motivos `otro_trabajo`, `facultad`, `lejos`, `tarde`,
+  `otro` (texto solo con `otro`, hasta 200).
+- `ninera_marcar_no_disponible(p_fechas date[], p_quitar boolean default false) returns integer`; tabla
+  `ninera_no_disponible (ninera_id, fecha)` legible por la niñera (las suyas) y las admins.
+- `sugeridas_datos(p_familia_id uuid, p_familia_nombre text, p_fecha date) returns jsonb` → `{historial:
+  [{ninera_id, ninera_clave, veces_familia, total, veces_familia_traslado, total_traslado, semana, edades,
+  max_chicos}], por_ninera: [{ninera_id, no_puedo_seguidos, incidente_familia, no_disponible}]}`. Los traslados
+  van aparte y `mapasSugeridas(respuesta, ninieras, tipo)` elige según el tipo del pedido; el último "Puedo" de
+  `no_puedo_seguidos` es una fila `acepto` o `confirmada` con `respondido_en` (revisión final, 02/11/2026).
+- Columnas: `solicitudes.ninera_pedida_id`, `notas_para_ninera`, `enviado_app_en`, `responder_hasta`;
+  `solicitud_ninieras.origen` ('panel' | 'app'), `precio_hora`, `enviado_en`, `respondido_en`, `motivo_no`,
+  `motivo_texto`, estados `acepto` y `no_puedo`; `familias.solo_conocidas`; `pedidos_whatsapp.ninera_pedida`.
+- Avisos: `pedido:<sn>:nuevo` (niñera, tipo `pedido`, url `#pedido/<sn>`), `admin:pedido:<sn>:acepto` y
+  `admin:pedido:<sol>:nuevo` (admins, tipo `pedidos`, url `?ir=agenda&solicitud=<id>`).
+
+- [ ] **Paso 1:** volcar la migración en `supabase/schema.sql` (tablas, columnas, checks, índices, políticas,
+  funciones, trigger y el insert de `app_config` como comentario, como las otras configuraciones).
+- [ ] **Paso 2:** correr y ver que pasan:
+  `PGLITE_DIR=<pglite> node scripts/probar-sql.mjs supabase/pruebas/*.sql` (sobre `schema.sql`) y
+  `... --schema <schema de main> --migracion <mig> --migracion <mig>_DESHACER --migracion <mig> supabase/pruebas/fase1_pedidos.sql`.
+  Esperado: `OK` en todos.
+- [ ] **Paso 3:** commit `Etapa 5: migración pedidos_app, schema y pruebas SQL`.
+
+### Tarea 5.2: `pedido-whatsapp` devuelve la niñera que pide la madre
+
+**Archivos:** modificar `supabase/functions/pedido-whatsapp/ticket.ts` y `ticket_test.ts`.
+
+**Interfaces (producidas):** `RespuestaModelo.ninera_pedida: string | null` y `Ticket.ninera_pedida: string | null`
+(recortada a 80); la fila guardada lleva `ninera_pedida`.
+
+- [ ] **Paso 1: test que falla** en `ticket_test.ts`: `validarRespuesta` con `ninera_pedida: "  Ana  "` da
+  `"Ana"`; con 120 caracteres, 80; con `null`, `null`; `procesarPedido` guarda `ninera_pedida` en la fila. El
+  `SISTEMA` menciona `ninera_pedida` ("si la madre pide a una niñera por su nombre, copialo tal cual; si no, null").
+- [ ] **Paso 2:** `npx deno@2 test --allow-env <copia fuera del repo>/pedido-whatsapp/` → falla.
+- [ ] **Paso 3:** sumar el campo al esquema zod (`.describe(...)`), a `SISTEMA` (una regla), a `Ticket` y a
+  `validarRespuesta` (`recortar(r.ninera_pedida, 80)`).
+- [ ] **Paso 4:** los tests de Deno pasan y `npx deno@2 check` sin errores.
+- [ ] **Paso 5:** commit. Publicar recién en 5.9, después de la migración y con OK.
+
+### Tarea 5.3: simulador de la etapa
+
+**Archivos:** modificar `tests/support/app.js`, `tests/support/rpc-ninera.js`, `tests/support/datos.js`.
+
+**Interfaces (producidas):**
+- `estado.db.ninera_no_disponible` y las columnas nuevas en los datos ficticios (una niñera con app, una sin app,
+  una de práctica; una familia con dos hijos, una sin hijos; historial con y sin ids).
+- RPC de admin simuladas en `app.js`: `enviar_pedido_app` (mismas validaciones y códigos que la base, con
+  `errorRpc(codigo)` y el nombre en `hint`; crea filas y avisos en `estado.db`) y `sugeridas_datos` (calculada
+  desde `estado.db` con la misma regla que el SQL).
+- RPC de la niñera en `rpc-ninera.js` (`RPC_ETAPA_5 = ['ninera_mis_pedidos', 'responder_pedido',
+  'ninera_marcar_no_disponible']`).
+- `abrirApp(..., { baseSinMigrar: 'etapa5' })` y `abrirAppNinera(..., { baseSinMigrar: 'etapa5' })`: las RPC de
+  la etapa dan 404 `PGRST202`, `ninera_no_disponible` no existe y las columnas nuevas dan error de columna.
+- `estado.funciones['pedido-whatsapp']` con un ticket ficticio por defecto (familia reconocida, una duda, la
+  niñera pedida).
+
+- [ ] **Paso 1: tests que fallan** en `tests/simulador-pedidos.spec.js`: el simulador rechaza a una sin app con
+  `ninera_sin_app`, no repite a una ya enviada, `responder_pedido` da `ya_respondido` al segundo toque y `cerrado`
+  con la solicitud confirmada, `ninera_mis_pedidos` no trae familia, y con `baseSinMigrar: 'etapa5'` las tres RPC
+  dan 404.
+- [ ] **Paso 2:** implementarlo; `npx playwright test tests/simulador-pedidos.spec.js` pasa y
+  `npm run test:static` sigue verde.
+- [ ] **Paso 3:** commit.
+
+### Tarea 5.4: `ordenarSugeridas` según las reglas (sobre el commit de Codex)
+
+**Archivos:** modificar `js/pedidos.js`, `index.html` (el script va entre `intermediaciones.js` y `bootstrap.js`),
+`tests/support/fuentes.js` (`ORDEN_SCRIPTS` igual), `tests/pedidos-sugeridas.spec.js`.
+
+**Interfaces:** el contrato de arriba. Además, `mapasSugeridas(respuestaSugeridasDatos, ninieras) → {historialFamilia,
+historialTotal, sittingsSemana, edadesCuidadas, maxChicos, rechazosSeguidos, incidentesFamilia, noDisponibles}`:
+suma por id lo que viene con `ninera_id` y lo que viene con `ninera_clave` (`normaliza(nombre)` de la lista).
+`sugeridaHaceTipo` se borra: se usa `nineraHaceTipo` (agenda.js; corre en tiempo de ejecución).
+
+Orden dentro de cada bloque (`reglas-del-negocio.md` 5): primero las que no bajan, después las que bajan; en cada
+mitad, bloque 1: la pedida, después más veces con la familia; bloques 2 y 3: más sittings, después más edades del
+pedido que cuidó, después (si el pedido tiene 3 o más chicos) las que cuidaron a 3 o más; al final, por nombre.
+Bajan (sin salir): no disponible ese día, 3 o más "No puedo" seguidos, incidente o queja con esa familia, "prefiero
+otros perfiles" con esa familia, 4 o más sittings esa semana. Cada una suma su texto a `bajas` (marca en la fila).
+
+- [ ] **Paso 1: tests que fallan**, uno por regla (en `page.evaluate`, datos ficticios):
+  `no hace sittings → descartada`, `ocupada → descartada`, `fuera por temporada → descartada con su motivo`,
+  `inactiva → al fondo (inactivas)`, `bloque 1 aunque sea de otra zona`, `bloque 1: la pedida primero`,
+  `bloque 1: más veces con la familia arriba`, `bloque 2: de la zona del pedido, más sittings arriba`,
+  `bloque 2: a igual sittings, la que cuidó esas edades`, `bloque 2: 3 o más chicos, la que cuidó a varios`,
+  `bloque 3: de otra zona, mismo orden`, y una por cada "baja" (`no disponible`, `3 No puedo seguidos` (2 no baja),
+  `incidente con esa familia`, `prefiere otros perfiles`, `4 sittings esa semana` (3 no baja)) comprobando que queda
+  DEBAJO de una del mismo bloque con menos sittings; `solo conocidas: bloques 2 y 3 en ocultas` y
+  `solo conocidas con mostrar_nuevas: vuelven`; `mapasSugeridas suma por id y por nombre normalizado`; `porque`
+  exacto para cada bloque ("La pidió la madre. Fue 5 veces.", "Fue 3 veces.", "48 sittings. Cuidó chicos de 4 y 7
+  años.", "31 sittings.").
+- [ ] **Paso 2:** `npx playwright test tests/pedidos-sugeridas.spec.js` → fallan los nuevos.
+- [ ] **Paso 3:** implementar sobre el código de Codex; mover el `<script>`.
+- [ ] **Paso 4:** pasan; `npm run test:static` verde (orden de scripts, globales duplicadas).
+- [ ] **Paso 5:** commit.
+
+### Tarea 5.5: "Elegir niñeras" (reemplaza el cuerpo de "Asignar niñera") y "Enviar a N"
+
+**Archivos:** modificar `js/pedidos.js` (pantalla), `js/agenda.js` (`abrirModalAsignar` llama a
+`abrirElegirNineras(solicitudId)`; `guardarAsignacionDirecta` pasa `snIdApp` a `cargarNineraYRegistro` cuando la
+elegida tiene fila de la app; las ya mandadas ya no se sacan de la lista con `excluirIds`: van con su estado), `index.html`
+(estilos de la pantalla, solo si hacen falta); test `tests/pedido-elegir.spec.js`.
+
+**Interfaces:**
+- Consume: `sugeridas_datos`, `enviar_pedido_app` (5.1), `ordenarSugeridas`, `mapasSugeridas` (5.4),
+  `precioHoraNinera`, `leerPreciosNinera`, `casillaPrecioNinera`, `guardarPrecioNineraFamilia`,
+  `avisoPrecioGuardado`, `chequearDobleReservaAgenda`, `nineraPresenteEnZona`, `waLink`, `mensajeWA`.
+- Produce: `abrirElegirNineras(solicitudId)` (lee las dudas sin resolver de `pedidos_whatsapp.dudas` por
+  `solicitud_id`; con dudas, "Enviar" deshabilitado), `enviarPedidoApp(solicitudId)`, `textoErrorEnvio(error) →
+  string`. `cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null)`: con `snIdApp` actualiza esa fila a
+  `confirmada` con el pago (`.eq('estado', estadoAntes)`) en vez de insertar otra.
+
+Pantalla (maqueta del 31/10/2026, columna 2): resumen del pedido; "Marcar las 10 primeras" (solo enviables) /
+"Ninguna"; bloques "Ya fueron a esa casa", "Nunca fueron, de [zona]", "Fuera de zona (N)" plegado, "No se les
+puede mandar (N)" plegado con el motivo de cada una, "Inactivas (N)" plegado; en cada bloque, "Bajan, pero se
+les puede mandar igual" antes de las que bajan. Fila: nombre, marcas (`sin app`, las bajas), el porqué; casilla
+solo si `enviable` (tiene app, sitting, pedido de hoy en adelante); "WhatsApp" si no tiene app (`waLink` +
+`mensajeWA`); "Asignar" en todas: es el `input[name="agenda-asignar-ninera"]` de siempre (radio con
+`value`/`data-nombre`, dentro de una etiqueta con forma de botón), que muestra `#agenda-asignar-pago-wrap` y
+"Guardar asignación" como hoy. Familia "solo conocidas": "Esta familia no acepta niñeras nuevas." y "Mostrar
+las que nunca fueron". Precios: un renglón por tildada, campo editable precargado con `precioHoraNinera`; si
+cambia, debajo la casilla `casillaPrecioNinera` ("Guardar como precio de [niñera] con esta familia"). Precios sin
+leer (`preciosNoLeidos`): aviso `avisoPreciosNoLeidosTarifa` y "Enviar" igual (el precio está a la vista).
+Práctica: con una "(práctica)" (familia o niñera) y otra real tildadas, `warnbox` "Hay niñeras reales tildadas
+junto con una de práctica." y "Enviar" no sigue. Pie fijo: "Enviar a N por la app" (`conGuardado`), gris con 0.
+
+Enviar: valida (al menos una, precios > 0 sin centavos con `redondearPago`, sin dudas pendientes) → RPC → guarda
+los precios con casilla tildada → cierra, recarga la Agenda y `toast('Enviado a N. Te avisamos cuando alguna diga
+que puede.')`; si alguno de los precios no se guardó, el aviso de `avisoPrecioGuardado`. Si la RPC devuelve 0:
+"Ya les había llegado a todas las tildadas." Errores (`textoErrorEnvio`): `cerrado` y `no_existe` → "No se mandó: mientras
+elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó."; `ninera_sin_app` / `ninera_inactiva`
+/ `ninera_solo_traslados` → "[nombre] ya no puede recibir pedidos por la app: destildala."; `ninera_no_existe` (su id en
+`hint`) → "[nombre] ya no está en la lista: destildala."; `demasiadas_ninieras` → "Hasta 40 por vez." (la pantalla tampoco deja
+tildar más de 40); `sin_chicos` →
+"Faltan los chicos de la familia: cargalos en su ficha."; `practica_mezclada` → el texto de práctica; `solo_practica` → "Por ahora, por la app solo se
+mandan pedidos de práctica. Para este, usá \"Asignar\" o WhatsApp."; `pasado`
+→ "Este pedido es de un día que ya pasó."; 404 `PGRST202` → "Falta actualizar la base para mandar por la app:
+avisale a Diego."; otro → `errBox`. Nada queda tildado como enviado si falló.
+
+Base sin migrar (`sugeridas_datos` 404): la pantalla se arma con el historial que leía `abrirModalAsignar`
+(conservar esa lectura como respaldo, en una función `datosSugeridasViejos`), sin casillas de la app.
+
+- [ ] **Paso 1: tests que fallan** (`tests/pedido-elegir.spec.js`): orden y bloques a 390 px; "Marcar las 10
+  primeras" no tilda a las sin app; precio guardado editable y la casilla aparece solo al cambiarlo; "Enviar a 2"
+  manda el cuerpo exacto a `enviar_pedido_app` y después guarda el precio tildado; RPC que falla con cada código
+  → su texto y nada guardado; doble toque → una sola llamada; práctica mezclada → no llama; dudas pendientes →
+  "Enviar" deshabilitado; solo conocidas; "Asignar" a una sin app guarda como antes (`solicitud_ninieras`
+  confirmada + registro); base sin migrar; escape (nombre de niñera con comillas y HTML); 1280 px.
+- [ ] **Paso 2:** fallan. **Paso 3:** implementar.
+- [ ] **Paso 4:** pasan los nuevos y los de "Asignar niñera": `npx playwright test tests/pedido-elegir.spec.js
+  tests/solicitud-un-paso.spec.js tests/precio-ninera-familia.spec.js tests/errores-plata.spec.js
+  tests/escape.spec.js tests/humo.spec.js` y `npm run test:static`. Si un test viejo cambia de selector, se adapta
+  y se anota para el PR.
+- [ ] **Paso 5:** commit.
+
+### Tarea 5.6: "Pegar WhatsApp" → ticket → solicitud
+
+**Archivos:** modificar `js/pedidos.js` y `js/agenda.js` (botón "Pegar WhatsApp" en la `mesbar`, al lado de "+
+Nueva solicitud"); test `tests/pedido-pegar.spec.js`.
+
+**Interfaces:**
+- Consume: `sb.functions.invoke('pedido-whatsapp', { body: { texto, familia_id? } })` → `{ pedido }` o error con
+  `status` (400, 401, 403, 422, 429 = tope diario, 502, 503); `abrirElegirNineras` (5.5); el alta de familia del
+  registro (`tests/familia-desde-registro.spec.js`, la misma función); `attachAutocomplete`; `horasSitting`,
+  `redondearCobro`; `checklistZonas` / `leerZonasChecklist`.
+- Produce: `abrirPegarWhatsApp()`, `pintarTicket(pedido)`, `crearSolicitudDesdeTicket({ mandar })`.
+
+Pantalla (maqueta, columna 1): textarea "Pegá el mensaje de la madre. Podés pegar varios mensajes seguidos." →
+"Armar pedido" (`conGuardado`). Ticket: "Mensaje pegado" plegable; familia propuesta con "Es esta" (un toque) y
+buscador si no ("Otra familia"); familia nueva → alta ahí mismo sin perder el ticket; día, inicio, fin con marca
+"aproximado" si `horario_aproximado`, "Termina al día siguiente"; zona (precargada de la familia si el ticket no
+trae); chicos de la ficha (`chicos_texto` armado en el panel con `edadHijo`); si no tiene, "Faltan los chicos" con
+"+ Agregar" (edad y nombre opcional, guarda en `hijos_familia`); "La madre pidió a" (autocompletar con las niñeras,
+precargado si `ninera_pedida` coincide con `normaliza`); "Notas para la niñera" (del ticket); precio esperado
+(`horasSitting` × `cobro_hora`, `redondearCobro`; sin fin, "Sin total hasta que se sepa la hora de fin"); cada
+duda con "Ya lo confirmé" y un "Mandar igual" para todas; "Falta la dirección" con campo, "Guardar" y "Después".
+Botones: "Revisar y elegir niñeras" (sitting: exige familia, día, inicio y chicos) y "Guardar sin mandar". Los dos
+crean la solicitud (`sin_asignar`, `familia_id`, `zona`, horario, `cobro_familia`, `notas_para_ninera`,
+`ninera_pedida_id`), marcan el pedido `confirmado` con su `solicitud_id` (con `.eq('estado','borrador')`; si no
+actualiza, avisa y no duplica), llevan la Agenda a ese día y, el primero, abren `abrirElegirNineras(id, { dudas })`.
+Traslado: crea la solicitud y abre la misma pantalla (sin casillas de la app). Cambio / cancelación / otra cosa:
+"Esto parece [un cambio / una cancelación / otra cosa], no un pedido nuevo." con los pedidos próximos de esa
+familia ("Abrir" → `abrirModalSolicitud`) y "Descartar" (pedido `descartado`).
+
+- [ ] **Paso 1: tests que fallan** (`tests/pedido-pegar.spec.js`): feliz (cuerpo exacto a la función, a
+  `solicitudes` y a `pedidos_whatsapp`; abre "Elegir niñeras"); "Es esta" y "Otra familia"; familia nueva; sin
+  chicos → bloqueado hasta agregar uno; dirección "Después" no bloquea y "Guardar" escribe en `familias`; dudas →
+  "Enviar" deshabilitado en la pantalla siguiente hasta "Ya lo confirmé"; sin hora de fin; cruza medianoche;
+  cancelación → no crea solicitud; la función falla con 400, 401, 422, 429 (texto del tope), 502 y sin conexión →
+  aviso claro y el texto pegado sigue ahí; doble toque en "Armar pedido" y en "Revisar..."; pedido ya confirmado
+  por otra admin; base sin migrar (sin `ninera_pedida_id`: se guarda sin esa columna y avisa); 390 y 1280 px;
+  escape del texto del modelo.
+- [ ] **Paso 2:** fallan. **Paso 3:** implementar. **Paso 4:** pasan con `npm run test:static`. **Paso 5:** commit.
+
+### Tarea 5.7: app de niñeras: "Pedidos por responder", "Esperando confirmación", "Puedo" / "No puedo"
+
+**Archivos:** crear `ninera/js/pedido.js` (después de `temporada.js`, antes de `arranque.js`, en
+`ninera/index.html` y `ORDEN_SCRIPTS_NINERA`); modificar `ninera/js/inicio.js` (las dos secciones arriba de
+"Próximos sittings"), `ninera/js/base.js` (ruta `#pedido/<id>`), `ninera/js/arranque.js` (`#pedido/` como ruta
+pedida al abrir desde un push), `ninera/estilos.css`; test `tests/ninera-pedido.spec.js`.
+
+**Interfaces:** consume `ninera_mis_pedidos`, `responder_pedido`, `ninera_marcar_no_disponible` y la tabla
+`ninera_no_disponible` (5.1). Produce `cargarPedidosNinera()`, `htmlPedidosNinera(filas, ahora)`,
+`responderPedidoNinera(snId, respuesta)`, `pantallaNoPuedoNinera(snId)`.
+
+Textos (en "tú", `textos.md` 4 con los cambios del 31/10/2026): tarjeta "Responde antes de las HH:MM" (pasada la
+hora, "Responde lo antes posible"), día ("Sábado 07/11"), lista: horario con "(aproximada, se puede extender)" o
+"sin hora de fin", "Zona: X", chicos, "Precio por hora: $X" (sin centavos y con punto de miles, como `pesos_texto` en la base); botones
+"Puedo" / "No puedo". Después de "Puedo": la tarjeta pasa a "Esperando confirmación" con "✓ Dijiste que puedes" y
+"¡Gracias! Te confirmamos a la brevedad." "No puedo": "¿Cuál es el motivo?" / "Lo ve solo el equipo." con los cinco
+motivos (Otro abre un campo de hasta 200) → "Enviar" → "¿Quieres marcar otros días en los que no puedes?" con los
+próximos 14 días (los ya marcados encendidos; tocar enciende o apaga) → "Guardar" / "No, gracias". Resultado
+`cerrado`: "Este pedido ya no está abierto." y se saca; `ya_respondido`: recarga. Sin pedidos: lo de hoy ("No tienes
+pedidos por ahora."). Al volver a la app (`visibilitychange`) y al llegar un push con la app abierta, recarga los
+pedidos como el chat. Nada de montos fuera del precio por hora.
+
+- [ ] **Paso 1: tests que fallan** (`tests/ninera-pedido.spec.js`): tarjeta con los textos exactos y sin la
+  familia ni la dirección; "Puedo" manda el cuerpo exacto y la pasa a "Esperando confirmación"; doble toque → una
+  llamada; "No puedo" con cada motivo y con "Otro" escrito; días: marcar dos y desmarcar uno (cuerpos exactos);
+  `cerrado` y `ya_respondido`; pasada la hora límite; sin hora de fin; `#pedido/<id>` desde un push lleva a la
+  tarjeta; base que falla al cargar y al responder (aviso, la tarjeta sigue); sin conexión; base sin migrar
+  (`'etapa5'`: el inicio como hoy, sin error); ningún `$` salvo "Precio por hora"; 390 y 1280 px.
+- [ ] **Paso 2:** fallan. **Paso 3:** implementar. **Paso 4:** pasan, también `tests/ninera-*.spec.js` y
+  `npm run test:static`. **Paso 5:** commit.
+
+### Tarea 5.8: el panel recibe las respuestas
+
+**Archivos:** modificar `js/agenda.js` (`abrirModalSolicitud`), `js/app-shell.js` (`?ir=agenda&solicitud=<id>` y
+`TIPOS_NOTIF`), `js/familias.js` (casilla "No acepta niñeras nuevas" en la ficha y el alta,
+`familias.solo_conocidas`); test `tests/pedido-respuestas.spec.js`.
+
+- Modal de la solicitud: las filas con `origen 'app'` dicen "Puede" (verde), "No puede: [motivo]" (rojo, con el
+  texto de "Otro") o "Sin responder" (amarillo), con el precio por hora; sin el botón "Confirmar" (elegir es la
+  etapa 6: se asigna con "Asignar niñera"); arriba "Mandado a N a las HH:MM. Responder antes de las HH:MM." El
+  botón de la solicitud `pendiente_confirmar` pasa a decir "Elegir niñeras" y abre la pantalla de 5.5.
+- `?ir=agenda&solicitud=<id>` (push de las admins): abre la Agenda en el día del pedido y su modal.
+- `TIPOS_NOTIF`: `{tipo:'pedidos', label:'Pedidos de la app', sub:'Cuando una niñera dice que puede o entra un
+  pedido de WhatsApp', icono:'agenda', defaultPush:true}`.
+- Ficha de la familia: la casilla se guarda con el resto; sin la columna (base sin migrar) se guarda igual sin
+  ella y avisa, como `leerFamiliasConTerminos`.
+
+- [ ] **Paso 1: tests que fallan**: los tres estados con su texto; "Confirmar" no aparece en filas de la app;
+  Realtime: una respuesta nueva repinta el modal abierto; `?ir=agenda&solicitud=` abre el modal; la preferencia
+  "Pedidos de la app" aparece; la casilla de la ficha guarda `solo_conocidas` y con la base sin migrar no rompe;
+  390 px.
+- [ ] **Paso 2:** fallan. **Paso 3:** implementar. **Paso 4:** pasan con `npm run test:static`. **Paso 5:** commit.
+
+### Tarea 5.9: documentación, revisión final, PR y producción (con OK)
+- [ ] `CLAUDE.md`: convenciones nuevas (pedido por la app, `ordenarSugeridas` y su contrato, `origen`, estados,
+  la regla del CV en la etapa 6), tests nuevos en "Tests", pendientes (sacar el de `ordenarSugeridas` /
+  `temporada_reglas`; sumar "Sin avisos" en sugeridas y lo de la sesión de iPhone). `decisiones.md` 5.5 y 6.3 con
+  las respuestas del 31/10/2026. `textos.md` 1, 4 y 9 sin emojis de color y con "Puedo". `textos-provisorios.md`:
+  "Responde lo antes posible", "Este pedido ya no está abierto.", "Dijiste que puedes".
+- [ ] Revisión final de toda la rama con un revisor fresco (Opus). Correr `npm test` completo y las pruebas SQL.
+- [ ] PR con: qué hace, archivos nuevos, la migración y sus funciones, el contrato de `ordenarSugeridas` (para
+  Codex), los tests viejos que se adaptaron, lo pendiente y la lista para el iPhone.
+- [ ] Antes del día del merge (Diego, 31/10/2026; lo carga una admin desde el panel, sin SQL): la niñera de
+  práctica pasa a llamarse con "(práctica)" (por ejemplo "Niñera (práctica)"; no tiene registros, fijos ni pedidos)
+  y se crea "Familia (práctica)" con dirección inventada, tarifa y al menos un chico cargado uno por uno. Claude lo
+  verifica con una consulta de lectura.
+- [ ] Con el OK de Diego: él corre la migración en el SQL Editor y la consulta de verificación; después se
+  publica `pedido-whatsapp` (verificar con `get_edge_function` y una prueba con `probar: true` y un mensaje
+  inventado); recién ahí el merge.
 
 ## Etapa 6: respuestas, elección y plantillas
 
 Rama `claude/fase1-eleccion`. Migración chica `AAAAMMDD_eleccion.sql`.
+
+**Decisión pendiente, confirmar con las dueñas ANTES de arrancar la etapa 6 (Diego, 31/10/2026):** si pasa un
+tiempo (media hora o una hora) y varias dijeron "Puedo", que se confirme sola la primera según el orden de las
+sugeridas. Hoy no se construye: cambia dos reglas aprobadas por las dueñas (elige la madre, `reglas-del-negocio.md`
+4.6; nada sale a una niñera sin confirmación de una admin, 4). Si lo aprueban, primero se cambian las reglas y
+después se detalla acá (cuánto tiempo, qué pasa si nadie respondió, qué ve la admin y qué la madre).
+
+Lo que deja la etapa 5 y hay que tener en cuenta:
+- CV para la madre (`reglas-del-negocio.md` 4.6, 31/10/2026): en "Mensaje con los perfiles", a las que ya fueron a
+  esa casa (bloque 1) va solo el nombre; el perfil de una nueva entra recién cuando una admin lo revisa y lo
+  confirma en la tarjeta (un toque por niñera). El CV hoy es el texto de "CV" de Niñeras (`generarMensajeCV`),
+  no un link: ninguna activa tiene `cv_url` (31/10/2026). Nunca sale un mensaje solo.
+- La app dice "Puedo" (estado `acepto`) y muestra "Esperando confirmación": "¡Quedaste seleccionada!" la saca
+  de ahí y la pasa a "Próximos sittings"; "Ya se cubrió", con su aviso, la saca.
+- Al elegir a una que respondió por la app, `elegir_ninera` actualiza SU fila (`origen 'app'`) a `confirmada` con el
+  pago; no crea otra (en la etapa 5, "Asignar" crea una fila `origen 'panel'` aparte, y la de la app queda como
+  estaba con el pedido ya cerrado).
+- La dirección pasa a ser obligatoria al elegir (respuesta 3 de Diego): si falta, se pide ahí.
+- `cubierto` y, si hace falta, `visto_en` se suman en esta migración.
 
 ### Tarea 6.1: `elegir_ninera(p_sn_id)` y reglas de tiempo de pedidos en `programar_avisos()`
 - Elegida → `confirmada`, las demás `acepto` / `invitada` → `cubierto`, solicitud → `confirmada`,

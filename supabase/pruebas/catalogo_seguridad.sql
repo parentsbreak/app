@@ -57,7 +57,13 @@ declare
     'ninera_marcar_chat_leido()',                -- niñera: solo su hilo; 0 si no es niñera
     -- Etapa 9 (01/11/2026): la temporada, por ninera_actual(). programar_avisos_temporada NO va.
     'ninera_guardar_temporada(p_lugares jsonb)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su ficha
-    'ninera_mi_temporada()'                      -- niñera: solo su fila; null si no es niñera
+    'ninera_mi_temporada()',                     -- niñera: solo su fila; null si no es niñera
+    -- Etapa 5 (02/11/2026): el pedido por la app. sugeridas_datos es invoker (no va);
+    -- pedidos_whatsapp_aviso_nuevo NO va: solo el trigger.
+    'enviar_pedido_app(p_solicitud_id uuid, p_envios jsonb)', -- admin: raise 'no_autorizada' si no es_usuaria_autorizada()
+    'ninera_marcar_no_disponible(p_fechas date[], p_quitar boolean)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus días
+    'ninera_mis_pedidos()',                      -- niñera: solo los suyos, sin familia ni plata salvo su precio por hora; vacío si no es niñera
+    'responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo text, p_motivo_texto text)' -- niñera: raise 'no_autorizada' / 'no_existe' si no es suyo
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

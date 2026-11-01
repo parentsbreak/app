@@ -12,12 +12,12 @@ const leer = rel => fs.readFileSync(path.join(RAIZ, rel), 'utf8');
 const ORDEN_SCRIPTS = [
   'js/comun.js', 'js/core.js', 'js/auth.js', 'js/app-shell.js', 'js/finanzas.js', 'js/juguetes.js', 'js/agenda.js',
   'js/contratos.js', 'js/marketing.js', 'js/postulantes.js', 'js/ninieras.js', 'js/familias.js',
-  'js/sittings.js', 'js/intermediaciones.js', 'js/bootstrap.js',
+  'js/sittings.js', 'js/intermediaciones.js', 'js/pedidos.js', 'js/bootstrap.js',
 ];
 // Crece con cada etapa de la fase 1; arranque.js siempre al final.
 const ORDEN_SCRIPTS_NINERA = [
   'js/comun.js', 'ninera/js/base.js', 'ninera/js/cuenta.js', 'ninera/js/perfil.js', 'ninera/js/inicio.js', 'ninera/js/chat.js',
-  'ninera/js/temporada.js', 'ninera/js/arranque.js',
+  'ninera/js/temporada.js', 'ninera/js/pedido.js', 'ninera/js/arranque.js',
 ];
 // Todos los archivos de las dos puertas, sin repetir (comun.js una sola vez).
 const TODOS_LOS_SCRIPTS = [...new Set([...ORDEN_SCRIPTS, ...ORDEN_SCRIPTS_NINERA])];
