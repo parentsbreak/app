@@ -882,6 +882,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
   `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
+- Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
+  primera sigue en `confirmada` y no recibe ningún aviso de que ya no va.
 - Etapa 5 (02/11/2026): dos admins que pegan el mismo mensaje crean dos solicitudes. Pregunta de producto para Diego: ¿se avisa o se
   bloquea?
 - Etapa 5 (02/11/2026): un ticket que se cierra sin pasar a la Agenda queda `borrador` y no se puede retomar. Propuesta: "Pedidos sin
