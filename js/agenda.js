@@ -316,6 +316,7 @@ function renderAgendaFilaMobile(s){
           ? (s.zona ? `<span class="badge accent" style="font-size:10px;padding:2px 7px;flex-shrink:0;">${escaparHtml(s.zona)}</span>` : '')
           : `<div style="font-size:11px;font-weight:700;color:${sinAsignar?'var(--warn)':'var(--good)'};flex-shrink:0;">${sinAsignar ? 'Sin asignar' : escaparHtml(ninTxt)}</div>`}
       ${previsto ? `<span class="agenda-previsto">Previsto</span>` : ''}
+      ${s.horario_aproximado && !s.cancelado && !esRegistro ? `<span class="badge warn" style="font-size:10px;padding:2px 7px;flex-shrink:0;">aproximado</span>` : ''}
     </div>
     ${esRegistro ? `<div style="display:flex;gap:14px;margin-top:4px;padding-left:46px;font-size:11px;color:var(--ink-soft);">
       <span>Cobro <b style="color:var(--ink);font-family:'IBM Plex Mono',monospace;">$${Number(s.cobro_familia||0).toLocaleString('es-UY')}</b></span>
@@ -331,7 +332,7 @@ function renderAgendaTarjetaDia(s){
   const previsto = !!(s._previsto || s._esPrevisto);
   return `<div style="background:var(--bg);border-radius:8px;padding:7px 8px;margin-bottom:6px;cursor:pointer;font-size:12px;" onclick="abrirModalSolicitud(${argJs(s.id)})">
     <div style="font-weight:700;color:var(--ink);margin-bottom:2px;">${escaparHtml(s.familia_nombre)}</div>
-    <div class="helper" style="margin:0 0 4px;">${horaTxt}${previsto ? ` · <span class="agenda-previsto">Previsto</span>` : ''}</div>
+    <div class="helper" style="margin:0 0 4px;">${horaTxt}${s.horario_aproximado && !s.cancelado && !esRegistro ? ', aproximado' : ''}${previsto ? ` · <span class="agenda-previsto">Previsto</span>` : ''}</div>
     ${s.cancelado
       ? `<span class="badge warn" style="font-size:10.5px;padding:3px 8px;">Cancelado</span>`
       : esRegistro
@@ -652,6 +653,7 @@ function abrirModalNuevaSolicitud(){
         <div class="field"><label>Pago a la niñera por viaje</label><div class="moneyfield"><input type="number" id="agenda-pago-traslado" oninput="marcarCampoEditadoManual('agenda-pago-traslado')"></div></div>
       </div>
       <label class="chk" style="margin:-4px 0 10px;"><input type="checkbox" id="agenda-cruza-medianoche" onchange="onAgendaCruzaChange()"> Termina al día siguiente</label>
+      <label class="chk" style="margin:-4px 0 10px;"><input type="checkbox" id="agenda-aproximado"> Horario aproximado (se puede extender)</label>
       <div class="helper" id="agenda-total-preview" style="min-height:16px;"></div>
       <div class="helper" id="agenda-pago-preview" style="min-height:16px;margin-top:2px;"></div>
     </div>
@@ -757,11 +759,18 @@ async function guardarSolicitudPuntual(){
     tipo, zona: zona || (fam ? fam.zona : null),
     fecha, hora_inicio: horaInicio, hora_fin: horaFin || null,
     termina_dia_siguiente: cruza,
+    horario_aproximado: !!document.getElementById('agenda-aproximado')?.checked,
     cobro_familia: cobroFinal,
     estado: ninera ? 'confirmada' : 'sin_asignar',
   };
+  const marcaAproximado = solicitud.horario_aproximado;
   const precioNinera = ninera && tipo==='sitting' ? precioNineraAGuardarAgenda() : null;
-  const { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  let { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  // Base sin la migración de la etapa 6: se guarda igual, sin la marca, y se avisa (como el ticket de WhatsApp).
+  if(esFaltaColumnaSolicitudApp(error)){
+    delete solicitud.horario_aproximado;
+    ({ data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single());
+  }
   if(error){ warn.innerHTML = errBox(error); return; }
   let resultado = null;
   if(ninera){
@@ -781,6 +790,7 @@ async function guardarSolicitudPuntual(){
   actualizarAgendaBadge();
   if(resultado) avisarResultadoAsignacion(resultado);
   else toast('Solicitud guardada.');
+  if(marcaAproximado && !('horario_aproximado' in solicitud)) toast('Falta actualizar la base: la solicitud se guardó sin la marca de horario aproximado. Avisale a Diego.', 'bad');
   // El precio de la niñera con esta familia, después de asignarla: si falla, lo asignado queda y se avisa.
   if(precioNinera){
     const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'Quedó asignada, pero');
@@ -998,7 +1008,7 @@ function cuerpoModalSolicitud(s){
   const ninierasHtml = s.ninieras.map(n=>filaNineraSolicitud(s, n)).join('');
   return `
     <h2>${escaparHtml(s.familia_nombre)}</h2>
-    <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.zona?escaparHtml(' · '+s.zona):''}</div>
+    <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.horario_aproximado ? ' (aproximado)' : ''}${s.zona?escaparHtml(' · '+s.zona):''}</div>
     ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}
     ${encabezadoEnvioApp(s)}
     <div style="margin:14px 0;">${ninierasHtml || '<div class="empty">Todavía no hay niñeras asignadas.</div>'}</div>

@@ -51,13 +51,13 @@ function horaMontevideoNinera(ts){
   return new Intl.DateTimeFormat('es-UY', { timeZone: 'America/Montevideo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
 }
 
-// El mismo texto que el push de la base: el fin siempre es aproximado; sin fin, "sin hora de fin"; si
-// pasa de la medianoche, se dice.
+// El mismo texto que el push de la base: "(aproximada, se puede extender)" solo si el pedido trae la marca
+// (horario_aproximado, etapa 6: antes iba siempre); sin fin, "sin hora de fin"; si pasa de la medianoche, se dice.
 function horarioPedidoNinera(p){
   if(!p.hora_inicio) return 'horario a confirmar';
   const inicio = horaCortaNinera(p.hora_inicio);
   if(!p.hora_fin) return `${inicio}, sin hora de fin`;
-  return `${inicio} – ${horaCortaNinera(p.hora_fin)}${p.termina_dia_siguiente ? ' del día siguiente' : ''} (aproximada, se puede extender)`;
+  return `${inicio} – ${horaCortaNinera(p.hora_fin)}${p.termina_dia_siguiente ? ' del día siguiente' : ''}${p.horario_aproximado ? ' (aproximada, se puede extender)' : ''}`;
 }
 
 function limitePedidoNinera(p, ahora){

@@ -770,10 +770,11 @@ async function pintarTicket(pedido){
     <div id="pedido-horario" onchange="actualizarPrecioTicket()">
       <div class="grid2">
         <div class="field"><label>Inicio</label>${selectHora('pedido-hi', hi[0]||'', hi[1]||'')}</div>
-        <div class="field"><label>Fin${pedido.horario_aproximado ? ' <span class="badge warn pedido-aprox">aproximado</span>' : ''}</label>${selectHora('pedido-hf', hf[0]||'', hf[1]||'')}</div>
+        <div class="field"><label>Fin</label>${selectHora('pedido-hf', hf[0]||'', hf[1]||'')}</div>
       </div>
       ${pedido.horario_nota ? enMensaje(pedido.horario_nota) : ''}
       <label class="chk" style="margin:2px 0 12px;"><input type="checkbox" id="pedido-cruza"${pedido.termina_dia_siguiente ? ' checked' : ''}> Termina al día siguiente</label>
+      <label class="chk" style="margin:2px 0 12px;"><input type="checkbox" id="pedido-aprox"${pedido.horario_aproximado ? ' checked' : ''}> Horario aproximado (se puede extender)</label>
     </div>
     <div id="pedido-zona-wrap" onchange="onZonaTicket()">${checklistZonas('pedido', zonaTicket || familia?.zona || '', 'Zona')}</div>
     ${pedido.zona && !zonaTicket ? enMensaje(pedido.zona) : ''}
@@ -1017,7 +1018,7 @@ async function guardarDudaTicket(indice){
 function leerHorarioTicket(){
   const valor = id => document.getElementById(id)?.value || '';
   return { tipo: valor('pedido-tipo'), fecha: valor('pedido-fecha'), hi: leerHora('pedido-hi'), hf: leerHora('pedido-hf'),
-    cruza: !!document.getElementById('pedido-cruza')?.checked };
+    cruza: !!document.getElementById('pedido-cruza')?.checked, aprox: !!document.getElementById('pedido-aprox')?.checked };
 }
 // El precio esperado para la madre: las horas a cobrar (horasSitting, con los términos de la familia)
 // por su tarifa, sin centavos (redondearCobro). Sin fin no hay total (como en la Agenda). `problema`:
@@ -1047,9 +1048,9 @@ function actualizarPrecioTicket(){
     : p.texto ? `<div class="pedido-precio-esperado">${escaparHtml(p.texto)}</div>` : '';
 }
 
-// Una columna de la etapa 5 que la base todavía no tiene (la app publicada antes de la migración).
+// Una columna de la etapa 5 o 6 que la base todavía no tiene (la app publicada antes de la migración).
 function esFaltaColumnaSolicitudApp(error){
-  return !!error && (error.code==='PGRST204' || error.code==='42703') && /ninera_pedida_id|notas_para_ninera/.test(error.message || '');
+  return !!error && (error.code==='PGRST204' || error.code==='42703') && /ninera_pedida_id|notas_para_ninera|horario_aproximado/.test(error.message || '');
 }
 
 async function crearSolicitudDesdeTicket({ mandar }){
@@ -1089,14 +1090,14 @@ async function crearSolicitudDesdeTicket({ mandar }){
   if(!tomado || !tomado.length){ aviso('No se creó nada: otra admin ya pasó este pedido a la Agenda (o lo descartó). Cerrá para ver cómo quedó.'); return; }
   // 2) La solicitud. Sin hora de fin no hay total (cobro_familia vacío, como en "+ Nueva solicitud").
   const solicitud = { familia_id: fam.id, familia_nombre: fam.nombre, tipo: h.tipo, zona, fecha: h.fecha,
-    hora_inicio: h.hi, hora_fin: h.hf || null, termina_dia_siguiente: !!(h.cruza && h.hf), cobro_familia: precio.cobro ?? null, estado: 'sin_asignar' };
+    hora_inicio: h.hi, hora_fin: h.hf || null, termina_dia_siguiente: !!(h.cruza && h.hf), horario_aproximado: h.aprox, cobro_familia: precio.cobro ?? null, estado: 'sin_asignar' };
   if(nineraId) solicitud.ninera_pedida_id = nineraId;
   if(notas) solicitud.notas_para_ninera = notas;
   let { data: creada, error: e2 } = await sb.from('solicitudes').insert(solicitud).select('id').single();
   let sinColumnas = false;
   if(esFaltaColumnaSolicitudApp(e2)){
-    // Base sin la migración de la etapa 5: se guarda igual, sin esas dos columnas, y se avisa.
-    const { ninera_pedida_id, notas_para_ninera, ...resto } = solicitud;
+    // Base sin la migración de la etapa 5 o 6: se guarda igual, sin esas columnas, y se avisa.
+    const { ninera_pedida_id, notas_para_ninera, horario_aproximado, ...resto } = solicitud;
     ({ data: creada, error: e2 } = await sb.from('solicitudes').insert(resto).select('id').single());
     sinColumnas = true;
   }
@@ -1115,7 +1116,7 @@ async function crearSolicitudDesdeTicket({ mandar }){
   if(lbl) lbl.textContent = agendaRangoLabel();
   await cargarAgendaSolicitudes();
   actualizarAgendaBadge();
-  if(sinColumnas) toast(`Falta actualizar la base: la solicitud se guardó sin ${[nineraId && 'la niñera que pidió la madre', notas && 'las notas para la niñera'].filter(Boolean).join(' ni ')} (quedan en el mensaje). Avisale a Diego.`, 'bad');
+  if(sinColumnas) toast(`Falta actualizar la base: la solicitud se guardó sin ${[nineraId && 'la niñera que pidió la madre', notas && 'las notas para la niñera', h.aprox && 'la marca de horario aproximado'].filter(Boolean).join(' ni ')} (quedan en el mensaje). Avisale a Diego.`, 'bad');
   if(e3){
     toast(`La solicitud quedó en la Agenda, pero no se pudo vincular con el mensaje de WhatsApp (${e3.message || e3}): revisá las dudas con la madre antes de mandarlo.`, 'bad');
     return;

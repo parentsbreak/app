@@ -219,3 +219,57 @@ test('a 390 px: el formulario entra en la pantalla (captura)', async ({ page }) 
   await page.locator('#editmodal').screenshot({ path: 'test-results/solicitud-un-paso-390.png' });
   verificarLimpio(e);
 });
+
+// Horario aproximado (etapa 6, 03/11/2026): la casilla de "+ Nueva solicitud" y su marca en la Agenda.
+test('horario aproximado: la casilla se guarda tildada, la tarjeta y el modal dicen "aproximado"', async ({ page }) => {
+  const e = await abrirApp(page);
+  await nuevaSolicitud(page);
+  await expect(page.locator('label.chk', { hasText: 'Horario aproximado (se puede extender)' })).toBeVisible();
+  await expect(page.locator('#agenda-aproximado')).not.toBeChecked();
+  await page.locator('#agenda-aproximado').check();
+  await guardar(page);
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ horario_aproximado: true, estado: 'sin_asignar' });
+  const tarjeta = tarjetas(page, 'Familia Prueba Dos').first();
+  await expect(tarjeta).toContainText('aproximado');
+  await tarjeta.click();
+  await expect(page.locator('#editmodal')).toContainText('(aproximado)');
+  verificarLimpio(e);
+});
+
+test('horario aproximado: sin tildar se guarda en false y la tarjeta no dice nada', async ({ page }) => {
+  const e = await abrirApp(page);
+  await nuevaSolicitud(page);
+  await guardar(page);
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo.horario_aproximado).toBe(false);
+  await expect(tarjetas(page, 'Familia Prueba Dos').first()).not.toContainText('aproximado');
+  verificarLimpio(e);
+});
+
+test('horario aproximado con niñera: la solicitud lo lleva y el registro se carga igual', async ({ page }) => {
+  const e = await abrirApp(page);
+  await nuevaSolicitud(page);
+  await elegirNinera(page, 'ana', 'Ana Ficticia');
+  await page.locator('#agenda-aproximado').check();
+  await guardar(page);
+  await expect(page.locator('.toaststack .toast', { hasText: 'ya quedó cargado en Sittings' })).toBeVisible();
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ horario_aproximado: true, estado: 'confirmada' });
+  expect(escrituras(e, 'sittings_traslados', 'POST')).toHaveLength(1);
+  verificarLimpio(e);
+});
+
+test('horario aproximado: base sin la migración de la etapa 6 guarda lo demás y avisa', async ({ page }) => {
+  const e = await abrirApp(page, { baseSinMigrar: 'etapa6' });
+  await nuevaSolicitud(page);
+  await page.locator('#agenda-aproximado').check();
+  await guardar(page);
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+  const posts = escrituras(e, 'solicitudes', 'POST');
+  expect(posts).toHaveLength(1);
+  expect(posts[0].cuerpo).not.toHaveProperty('horario_aproximado');
+  expect(posts[0].cuerpo).toMatchObject({ fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', cobro_familia: 1200, estado: 'sin_asignar' });
+  await expect(page.locator('.toaststack .toast.bad', { hasText: 'la marca de horario aproximado' })).toBeVisible();
+  expect(e.db.solicitudes.some(s => s.familia_nombre === 'Familia Prueba Dos' && s.fecha === '2026-10-06')).toBe(true);
+  verificarLimpio(e, { ignorar: [/status of 4\d\d/] });
+});
