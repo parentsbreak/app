@@ -17,6 +17,52 @@ const fila = (page, texto) => page.locator('.conc-fila', { hasText: texto });
 const boton = (page, tipo) => page.locator(`#conc-btn-${tipo}`);
 const escriturasSittings = e => e.escrituras.filter(w => w.tabla === 'sittings_traslados');
 
+for (const fallaSegunda of [false, true]) {
+  test(`conciliar dos propuestas: una recarga y ${fallaSegunda ? 'error sin éxito global si falla la segunda' : 'un único éxito sin Deshacer'}`, async ({ page }) => {
+    const d = datosBase();
+    d.familias.find(f => f.id === ID.fDos).cuenta_bancaria = ['0002345678'];
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'finanzas');
+    await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;2280\n03/10/2026;TRANSF 0002345678;450\n');
+    await expect(page.locator('.conc-fila input:checked')).toHaveCount(2);
+    await esperarQuieta(page);
+    // Observa las recargas y avisos del lote sin impedir su comportamiento real.
+    await page.evaluate(() => {
+      window.recargasConciliacion = 0;
+      window.avisosConciliacion = [];
+      const refrescar = refrescarFinanzasCompleto;
+      refrescarFinanzasCompleto = () => { window.recargasConciliacion++; return refrescar(); };
+      const avisar = toast;
+      toast = (mensaje, tipo, opciones) => {
+        window.avisosConciliacion.push({ mensaje, deshacer: !!opciones?.deshacer });
+        return avisar(mensaje, tipo, opciones);
+      };
+    });
+    if (fallaSegunda) {
+      e.fallar = p => p.tabla === 'sittings_traslados' && p.metodo === 'PATCH'
+        && p.params.id.includes('70000000-0000-4000-8000-000000000004')
+        ? { status: 500, message: 'Fallo de la segunda familia ficticia' } : null;
+    }
+    await boton(page, 'cobro').click();
+    await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+    if (fallaSegunda) {
+      await expect(page.locator('.toaststack')).toContainText('No se pudo actualizar');
+    } else {
+      await expect(page.locator('.toaststack .toast', { hasText: 'Marcado como cobrado' })).toHaveCount(1);
+      await expect(page.locator('.toaststack')).toContainText('Marcado como cobrado (2).');
+    }
+    await esperarQuieta(page);
+    const observado = await page.evaluate(() => ({ recargas: window.recargasConciliacion, avisos: window.avisosConciliacion }));
+    expect(observado.recargas).toBe(1);
+    expect(observado.avisos.filter(a => a.mensaje.startsWith('Marcado como cobrado')))
+      .toEqual(fallaSegunda ? [] : [{ mensaje: 'Marcado como cobrado (2).', deshacer: false }]);
+    await expect(page.locator('.toaststack').getByRole('button', { name: 'Deshacer' })).toHaveCount(0);
+    expect(e.db.sittings_traslados.filter(s => ID_SEP.includes(s.id)).every(s => s.cobrado)).toBe(true);
+    expect(e.db.sittings_traslados.find(s => s.id === '70000000-0000-4000-8000-000000000004').cobrado).toBe(!fallaSegunda);
+    verificarLimpio(e, { ignorar: fallaSegunda ? [/500 \(Internal Server Error\)/] : [] });
+  });
+}
+
 // B10: importes, cuentas y personas inventados. El mismo saldo que se descuenta en
 // Por cobrar / Por pagar debe descontarse y quedar usado al conciliar un extracto.
 const AJ_B10 = 'a5000000-0000-4000-8000-000000000010';

@@ -1553,7 +1553,7 @@ function cuentasPorPagarHtml(g){
   return `<div class="helper fin-falta-cuenta" style="margin:4px 0 0;color:var(--clay-text);">Falta la cuenta${link}</div>`;
 }
 // gastos: ids (cobro) o {id, concepto, monto} (pago, para mostrarlos en la confirmación).
-async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[], confirmado=false){
+async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[], {confirmado=false, silencioso=false}={}){
   const gastosIds = (gastos||[]).map(g=>typeof g==='string' ? g : g.id);
   if(campo==='pagado' && !confirmado && !(await confirmarPagoSittings(ids, {}, ajustes, gastos.filter(g=>typeof g!=='string')))) return;
   // Las dos marcando lo mismo a la vez (06/10/2026, testing de la noche): se marca solo lo
@@ -1576,13 +1576,13 @@ async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[], confirmado
   }
   if(!marcados.length && !gastosMarcados.length && okGastos){
     toast(`Ya estaba marcado como ${campo}: lo marcó alguien más hace un momento. No se cambió nada.`, 'bad');
-    refrescarFinanzasCompleto();
+    if(!silencioso) refrescarFinanzasCompleto();
     return;
   }
   const okSaldo = await registrarAplicacionAjustes(ajustes, ids, campo);
-  if(okSaldo && okGastos) toast(campo==='cobrado' ? 'Marcado como cobrado.' : 'Marcado como pagado.', 'good',
+  if(okSaldo && okGastos && !silencioso) toast(campo==='cobrado' ? 'Marcado como cobrado.' : 'Marcado como pagado.', 'good',
     { deshacer: ()=>deshacerMarca(campo, marcados, gastosMarcados, ajustes, ids) });
-  refrescarFinanzasCompleto();
+  if(!silencioso) refrescarFinanzasCompleto();
   return okSaldo && okGastos;
 }
 /* "Deshacer" del aviso (23/10/2026): desmarca solo lo que marcó ese toque (si la otra lo
@@ -2087,25 +2087,30 @@ async function confirmarConciliacion(tipo){
       toast('El saldo a favor cambió. Volvé a procesar el extracto antes de confirmar.', 'bad'); return;
     }
   }
-  for(const p of sel){
-    const ok = await marcarGrupoResuelto(p.ids, tipo==='cobro' ? 'cobrado' : 'pagado', p.ajustes, p.gastos||[], true);
-    if(!ok) return; // conserva el aviso de error o de que otra admin ya lo había marcado
-    p.hecha = true;
-    const fila = document.querySelector(`[data-conc-fila="${tipo}-${p.i}"]`);
-    const cb = fila?.querySelector('input');
-    if(cb){ cb.checked = false; cb.disabled = true; }
-    fila?.classList.add('conc-hecha');
-  }
-  // Otras propuestas que apuntaban a esos mismos sittings (opciones de una dudosa) ya no aplican.
-  concPropuestas[tipo].forEach(p=>{
-    if(!p.hecha && p.ids.some(id=>ids.includes(id))){
-      const cb = document.querySelector(`[data-conc-fila="${tipo}-${p.i}"] input`);
+  try {
+    for(const p of sel){
+      const ok = await marcarGrupoResuelto(p.ids, tipo==='cobro' ? 'cobrado' : 'pagado', p.ajustes, p.gastos||[], {confirmado:true, silencioso:true});
+      if(!ok) return; // conserva el aviso de error o de que otra admin ya lo había marcado
+      p.hecha = true;
+      const fila = document.querySelector(`[data-conc-fila="${tipo}-${p.i}"]`);
+      const cb = fila?.querySelector('input');
       if(cb){ cb.checked = false; cb.disabled = true; }
+      fila?.classList.add('conc-hecha');
     }
-  });
-  toast(tipo==='cobro' ? `Marcado como cobrado (${sel.length}).` : `Marcado como pagado (${sel.length}).`);
-  refrescarFinanzasCompleto();
-  setTimeout(actualizarTotalesConciliacion, 0);
+    toast(tipo==='cobro' ? `Marcado como cobrado (${sel.length}).` : `Marcado como pagado (${sel.length}).`);
+  } finally {
+    // Una sola recarga por lote, también si ya se marcó una parte y la siguiente falla.
+    // Las alternativas de lo efectivamente marcado dejan de estar disponibles.
+    const marcados = new Set(sel.filter(p=>p.hecha).flatMap(p=>p.ids));
+    concPropuestas[tipo].forEach(p=>{
+      if(!p.hecha && p.ids.some(id=>marcados.has(id))){
+        const cb = document.querySelector(`[data-conc-fila="${tipo}-${p.i}"] input`);
+        if(cb){ cb.checked = false; cb.disabled = true; }
+      }
+    });
+    refrescarFinanzasCompleto();
+    setTimeout(actualizarTotalesConciliacion, 0);
+  }
 }
 function confirmarCobrosConciliacion(sel){
   const total = sel.reduce((t,p)=>t+p.pendiente,0);
