@@ -1603,7 +1603,7 @@ function htmlPedidoEnCurso(s, historial, { enModal = false, filasExtra = '' } = 
       <button type="button" class="btn ghost" onclick="preguntarAMasNineras(${id})">Preguntar a más niñeras</button>
       <button type="button" class="btn ghost" onclick="abrirMensajePedidoEnCurso('buscando', ${id})">Todavía buscando</button>
       <button type="button" class="btn ghost" onclick="abrirMensajePedidoEnCurso('no_conseguimos', ${id})">No conseguimos</button>
-      <button type="button" class="btn ghost pedido-curso-cancelar" onclick="conGuardado(this, ()=>cancelarSolicitud(${id}))">Cancelar el pedido</button>
+      <button type="button" class="btn ghost pedido-curso-cancelar" onclick="conGuardado(this, ()=>cancelarSolicitud(${id}, ${argJs(s.estado)}))">Cancelar el pedido</button>
     </div>
   </div>`;
 }

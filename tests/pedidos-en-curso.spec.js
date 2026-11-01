@@ -198,16 +198,56 @@ test.describe('"Pedidos en curso" en Hoy', () => {
   test('"Cancelar el pedido": pregunta, cancela con un solo toque y el pedido sale de la tarjeta', async ({ page }) => {
     const e = await abrirHoy(page);
     e.demoraEscrituras = 400;
-    await tarjeta(page).locator('button', { hasText: 'Cancelar el pedido' }).click();
+    // Doble toque: el segundo llega con el botón ya deshabilitado (conGuardado) y no abre otra pregunta.
+    await tarjeta(page).locator('button', { hasText: 'Cancelar el pedido' }).evaluate(b => { b.click(); b.click(); });
+    await expect(page.locator('#confirm-si')).toHaveCount(1);
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló.');
+    await expect(page.locator('#confirm-si')).toHaveText('Cancelar el pedido');
     await page.locator('#confirm-si').click();
     await expect(tarjeta(page)).toHaveCount(0);
     const cancelaciones = escrituras(e, 'solicitudes', 'PATCH');
     expect(cancelaciones).toHaveLength(1);
     expect(cancelaciones[0].cuerpo).toEqual({ estado: 'cancelada' });
+    // Con la condición del estado que tenía en pantalla (dos admins a la vez).
+    expect(cancelaciones[0].params).toMatchObject({ id: `eq.${ID.sPendiente}`, estado: 'eq.pendiente_confirmar' });
     expect(e.db.solicitudes.find(s => s.id === ID.sPendiente).estado).toBe('cancelada');
     // El aviso "Se canceló el pedido" lo manda la base (trigger) a las que dijeron "Puedo".
     expect(e.db.avisos.filter(a => /cancelado/.test(a.clave || ''))).toHaveLength(2);
     await expect(tarjeta(page, ID.sPedida)).toBeVisible();
+    verificarLimpio(e);
+  });
+
+  test('"Cancelar el pedido" después de que otra admin lo asignó: no lo cancela, avisa y la tarjeta se pone al día', async ({ page }) => {
+    const e = await abrirHoy(page);
+    await tarjeta(page).locator('button', { hasText: 'Cancelar el pedido' }).click();
+    await expect(page.locator('#confirm-si')).toBeVisible();
+    // Mientras se confirmaba, otra admin asignó a Lola (la solicitud quedó confirmada).
+    e.db.solicitudes.find(s => s.id === ID.sPendiente).estado = 'confirmada';
+    e.db.solicitud_ninieras.find(x => x.id === ID.snPendLola).estado = 'confirmada';
+    await page.locator('#confirm-si').click();
+    await expect(toasts(page).last()).toHaveText(/No se canceló: mientras tanto alguien más asignó o canceló este pedido\. Fijate cómo quedó\./);
+    expect(e.db.solicitudes.find(s => s.id === ID.sPendiente).estado).toBe('confirmada');
+    expect(e.db.solicitud_ninieras.find(x => x.id === ID.snPendLola).estado).toBe('confirmada');
+    expect(e.db.avisos.filter(a => /cancelado/.test(a.clave || ''))).toEqual([]);
+    await expect(toasts(page).filter({ hasText: 'Cancelad' })).toHaveCount(0);
+    await expect(tarjeta(page)).toHaveCount(0); // se volvió a leer: ya no está en curso
+    await expect(tarjeta(page, ID.sPedida)).toBeVisible();
+    verificarLimpio(e);
+  });
+
+  test('desde el modal de la Agenda, una solicitud ya confirmada se cancela con la condición de "confirmada"', async ({ page }) => {
+    const d = datos();
+    d.solicitudes.find(s => s.id === ID.sUno).estado = 'confirmada';
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'agenda');
+    await page.evaluate(async () => { agendaAncla = '2026-10-05'; await cargarAgendaSolicitudes(); });
+    await page.evaluate(i => abrirModalSolicitud(i), ID.sUno);
+    await modal(page).locator('button', { hasText: 'Cancelar solicitud' }).click();
+    await page.locator('#confirm-si').click();
+    await expect(modal(page)).toHaveCount(0);
+    const [cancelacion] = escrituras(e, 'solicitudes', 'PATCH');
+    expect(cancelacion.params).toMatchObject({ id: `eq.${ID.sUno}`, estado: 'eq.confirmada' });
+    expect(e.db.solicitudes.find(s => s.id === ID.sUno).estado).toBe('cancelada');
     verificarLimpio(e);
   });
 

@@ -1083,7 +1083,7 @@ function cuerpoModalSolicitud(s){
     <div style="margin:14px 0;">${ninierasHtml || '<div class="empty">Todavía no hay niñeras asignadas.</div>'}</div>
     ${s.estado==='sin_asignar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirModalAsignar(${argJs(s.id)})">Asignar niñera</button>` : ''}
     ${s.estado==='pendiente_confirmar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirElegirNineras(${argJs(s.id)})">Elegir niñeras</button>` : ''}
-    ${s.estado!=='cancelada' ? `<button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>cancelarSolicitud(${argJs(s.id)}))">Cancelar solicitud</button>` : `<div class="warnbox">Esta solicitud fue cancelada.</div>`}
+    ${s.estado!=='cancelada' ? `<button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>cancelarSolicitud(${argJs(s.id)}, ${argJs(s.estado)}))">Cancelar solicitud</button>` : `<div class="warnbox">Esta solicitud fue cancelada.</div>`}
   `;
 }
 function abrirModalSolicitud(id){
@@ -2113,16 +2113,24 @@ async function confirmarNinera(solNineraId){
   }
   actualizarAgendaBadge();
 }
-async function cancelarSolicitud(id){
-  const ok = await confirmarAccion('¿Cancelar esta solicitud? Las niñeras invitadas quedarán sin efecto.', 'Cancelar solicitud');
+/* Cancelar un pedido, desde el modal de la Agenda y desde "Pedidos en curso" de Hoy (etapa 6). estadoAntes: el estado
+   que tenía en la pantalla. Se escribe con esa condición (regla de dos admins a la vez, 03/11/2026): si mientras se
+   confirmaba otra admin lo asignó (o lo canceló), no se pisa: antes quedaba cancelado con la niñera elegida, su
+   aviso y el registro en Sittings. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger). */
+async function cancelarSolicitud(id, estadoAntes){
+  const ok = await confirmarAccion('¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló.', 'Cancelar el pedido');
   if(!ok) return;
-  if(!(await sbGuardar(sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id), 'la cancelación'))) return;
+  let filas = null;
+  const consulta = sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id).eq('estado', estadoAntes).select('id')
+    .then(r=>{ filas = r.data; return r; });
+  if(!(await sbGuardar(consulta, 'la cancelación'))) return;
+  const cambio = !!(filas && filas.length);
   cerrarModal();
-  // Se cancela desde el modal de la Agenda y desde "Pedidos en curso" de Hoy (etapa 6): se pone al día lo que
-  // esté a la vista. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger).
+  // Se pone al día lo que esté a la vista (también si no se canceló: así se ve cómo quedó).
   if(document.getElementById('agenda-grid-wrap')) cargarAgendaSolicitudes();
   if(document.getElementById('dash-pedidos')) cargarPedidosEnCurso();
   actualizarAgendaBadge();
+  if(!cambio) toast('No se canceló: mientras tanto alguien más asignó o canceló este pedido. Fijate cómo quedó.', 'bad');
 }
 
 /* ---- Actualización en vivo (Supabase Realtime) ----
