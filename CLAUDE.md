@@ -410,7 +410,8 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   `pendiente_confirmar` de hoy en adelante con filas de la app, atajo de la pedida, "Asignar" por fila, "Preguntar a más niñeras",
   "Todavía buscando", "No conseguimos", "Cancelar el pedido" con la condición del estado y dos admins), "Perfiles para la madre" (regla
   del CV, "Revisé su perfil", aviso de adjuntar, "Ver ficha"), una sola lectura de historial, Realtime, lecturas que fallan, base
-  sin migrar 'etapa5' / 'etapa6', escape, 390 y 1280 px.
+  sin migrar 'etapa5' / 'etapa6', escape, 390 y 1280 px. Un pedido en curso no se repite en "Sin resolver · hoy y mañana"
+  (`esPedidoEnCurso`, pedidos.js; Diego, 01/11/2026).
 - `tests/ninera-seleccionada.spec.js` (01/11/2026): app de niñeras: tarjeta "¡Quedaste seleccionada!" y "Ver los datos"
   (`ninera_marcar_pedido_visto`, cuerpo exacto), el mismo detalle desde "Próximos sittings" (título "Sitting"), "Ya se cubrió" /
   "Se canceló" una sola vez (en memoria hasta cerrar sesión), `#pedido/<sn>` de un pedido ya elegido, "Indicaciones" y precio por
@@ -945,7 +946,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y
   se vuelve a leer con cada evento de Realtime de Hoy; conviene una RPC de conteo como `sugeridas_datos`. Además compara el nombre de la
   familia tal cual y `sugeridas_datos` lo normaliza: en historia vieja pueden dar números distintos.
-- Etapa 6 (01/11/2026): un pedido en curso de hoy o mañana sale también en "Sin resolver". Pregunta de producto para Diego: ¿se saca de ahí?
 - Etapa 6 (01/11/2026): quedan líneas viejas con "·" (la cabecera del modal de la solicitud, entre otras); un PR de limpieza de textos.
   El botón del modal de la Agenda sigue diciendo "Cancelar solicitud" (la tarjeta de Hoy dice "Cancelar el pedido").
 - Etapa 6 (01/11/2026): `chequearDobleReservaDB` (core.js) ignora el error de sus lecturas (si fallan, no avisa) y lee toda `asignaciones`

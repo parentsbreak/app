@@ -1646,6 +1646,12 @@ function abrirMensajePedidoEnCurso(clave, solicitudId){
   if(s) abrirMensajeMadre({ clave, solicitud: s });
 }
 
+/* Un pedido "en curso": mandado por la app (tiene filas origen 'app') y todavía sin elegida. La misma regla saca a
+   esos pedidos de "Sin resolver · hoy y mañana" (app-shell.js; Diego, 01/11/2026: un pedido no sale en los dos). */
+function esPedidoEnCurso(s){
+  return !!s && s.estado === 'pendiente_confirmar' && (s.ninieras || s.solicitud_ninieras || []).some(esRespuestaApp);
+}
+
 /* La tarjeta de Hoy: se carga aparte, sin frenar el resto de Hoy (como "Mensajes de niñeras"), en una lectura de
    las solicitudes con sus filas (columnas justas) y otra del historial. Si falla, un aviso corto adentro de la
    tarjeta y Hoy sigue. Sin la migración de la etapa 5 no hay pedidos por la app: no se muestra nada. El Realtime
@@ -1670,7 +1676,7 @@ async function cargarPedidosEnCurso(){
       <button type="button" class="smallbtn" onclick="cargarPedidosEnCurso()">Reintentar</button></div>`);
     return;
   }
-  const lista = (data || []).map(s => ({ ...s, ninieras: s.solicitud_ninieras || [] })).filter(s => s.ninieras.some(esRespuestaApp));
+  const lista = (data || []).map(s => ({ ...s, ninieras: s.solicitud_ninieras || [] })).filter(esPedidoEnCurso);
   if(!lista.length){ pintarSiCambio(caja, ''); return; }
   const historial = await historialPedidosEnCurso(lista);
   caja = document.getElementById('dash-pedidos');

@@ -255,6 +255,16 @@ async function renderDashboard(cont){
   // cuándo Hoy ya tiene sus datos (15/10/2026).
   return loadDashboardData();
 }
+/* "Sin resolver · hoy y mañana": los pedidos de hoy y mañana sin niñera, con el origen de sus filas para sacar los
+   que ya están en "Pedidos en curso". Con la base sin la columna origen (sin la migración de la etapa 5), la lectura
+   de siempre: ahí no hay pedidos por la app. */
+async function leerSinResolverHoy(){
+  const leer = cols => sb.from('solicitudes').select(cols).gte('fecha', todayISO()).lte('fecha', mananaISO())
+    .in('estado', ['sin_asignar','pendiente_confirmar']).order('fecha', {ascending:true});
+  const r = await leer('id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,estado,solicitud_ninieras(origen)');
+  if(r.error && (r.error.code==='42703' || r.error.code==='PGRST200')) return leer('id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,estado');
+  return r;
+}
 async function loadDashboardData(){
   await esperarConfigFijos(); // fijos automáticos: saber si hay que sacar los previstos
   const chartReady = asegurarChart(); // se descarga en paralelo con las consultas, no bloquea nada
@@ -269,7 +279,7 @@ async function loadDashboardData(){
     sb.from('gastos_generales').select('fecha,monto').gte('fecha', primerDiaMesesAtras(6)),
     sb.from('sittings_traslados').select('fecha,familia_nombre,ninera_nombre').gte('fecha', diasAtras(PENDIENTE_DIAS_ATRAS)).lte('fecha', todayISO()),
     sb.from('solicitudes').select('*').gte('fecha', diasAtras(PENDIENTE_DIAS_ATRAS)).lte('fecha', todayISO()).eq('estado','confirmada'),
-    sb.from('solicitudes').select('*').gte('fecha', todayISO()).lte('fecha', mananaISO()).in('estado', ['sin_asignar','pendiente_confirmar']).order('fecha', {ascending:true}),
+    leerSinResolverHoy(),
   ]);
   const okData = r => (r.status==='fulfilled' && !r.value.error) ? (r.value.data||[]) : [];
 
@@ -350,7 +360,8 @@ async function loadDashboardData(){
   const box = document.getElementById('agenda');
   try{
     if(!box) return;
-    const sinResolver = okData(solSinResolverR);
+    // Lo que ya está en "Pedidos en curso" (mandado por la app y sin elegida) no se repite acá (Diego, 01/11/2026).
+    const sinResolver = okData(solSinResolverR).filter(s=>!esPedidoEnCurso(s));
     if(!sinResolver.length){
       box.innerHTML = '<div class="empty">Todo lo de hoy y mañana ya tiene niñera confirmada.</div>';
     } else {

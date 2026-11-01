@@ -438,6 +438,26 @@ test.describe('"Pedidos en curso": lecturas, Realtime y fallas', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
+  test('un pedido en curso no se repite en "Sin resolver · hoy y mañana"; lo demás de hoy y mañana sigue ahí', async ({ page }) => {
+    // Diego, 01/11/2026: el pedido mandado por la app y sin elegida sale solo en "Pedidos en curso".
+    const d = datos();
+    Object.assign(d.solicitudes.find(s => s.id === ID.sPendiente), { fecha: '2026-10-05', hora_inicio: '19:15:00', hora_fin: '22:00:00' });
+    const base = d.solicitudes.find(s => s.id === ID.sPendiente);
+    d.solicitudes.push(
+      // Sin mandar todavía: sigue en "Sin resolver".
+      { ...base, id: '80000000-0000-4000-8000-000000000094', familia_id: null, familia_nombre: 'Familia Sin Mandar', estado: 'sin_asignar', hora_inicio: '08:30:00', enviado_app_en: null, responder_hasta: null },
+      // Pendiente sin filas de la app (cargado desde el panel): no está en curso, sigue en "Sin resolver".
+      { ...base, id: '80000000-0000-4000-8000-000000000095', familia_id: null, familia_nombre: 'Familia Panel Viejo', hora_inicio: '09:45:00' },
+    );
+    const e = await abrirApp(page, { datos: d });
+    await expect(tarjeta(page)).toBeVisible();
+    const sinResolver = page.locator('#agenda');
+    await expect(sinResolver).toContainText('Familia Sin Mandar');
+    await expect(sinResolver).toContainText('Familia Panel Viejo');
+    await expect(sinResolver).not.toContainText('19:15');
+    verificarLimpio(e);
+  });
+
   test('base sin la migración de la etapa 6: la tarjeta anda igual', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos(), baseSinMigrar: 'etapa6' });
     await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
