@@ -711,7 +711,7 @@ function checklistZonas(idPrefix, zonaActual, labelTexto='Zonas'){
         ${zonas.map(g=>chip(g.nombre, escaparHtml(g.nombre), '', (g.zonas||[]).join(', '))).join('')}
         ${sueltas.map(z=>chip(z, `${escaparHtml(z)} <span class="zona-chip-nota">sin zona</span>`, 'suelta')).join('')}
       </div>
-      ${sueltas.length ? `<div class="helper" style="margin:4px 0 0;color:var(--warn);">"${sueltas.join('", "')}" no pertenece a ninguna zona. Asignalo en <a href="#" onclick="abrirModalGruposZona(${argJs(idPrefix)});return false;">Editar zonas</a>.</div>` : ''}
+      ${sueltas.length ? `<div class="helper" style="margin:4px 0 0;color:var(--warn);">"${escaparHtml(sueltas.join('", "'))}" no pertenece a ninguna zona. Asignalo en <a href="#" onclick="abrirModalGruposZona(${argJs(idPrefix)});return false;">Editar zonas</a>.</div>` : ''}
       <details class="zona-detalle"><summary>Qué barrios tiene cada zona</summary>${detalle}<div style="margin-top:4px;"><a href="#" onclick="abrirModalGruposZona(${argJs(idPrefix)});return false;">Editar zonas</a></div></details>
     </div>`;
 }

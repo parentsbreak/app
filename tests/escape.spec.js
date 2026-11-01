@@ -175,4 +175,19 @@ test.describe('datos con comillas, apóstrofos y HTML', () => {
     await expect(page.locator('#editmodal')).toContainText(`Ana Ficticia${TRAMPA}`);
     verificarLimpio(e, { ignorar: [/ejemplo\.test|Failed to load resource/] });
   });
+  // 01/11/2026: el aviso de una zona que no pertenece a ninguna ("X" no pertenece...) ponía el texto
+  // sin escapar. La zona de una candidata llega del formulario público y la de una familia, escrita a
+  // mano; con un barrio conocido adentro (como en los datos tramposos) se reconoce y no llega al aviso.
+  test('una zona suelta con HTML se muestra como texto en el aviso de zonas', async ({ page }) => {
+    const zona = `Barrio raro"<img src=x onerror="window.__xss='Z'">`;
+    const d = datosBase();
+    d.familias = d.familias.map(f => f.id === ID.fUno ? { ...f, zona } : f);
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'familias');
+    await page.evaluate(id => editarFamilia(id), ID.fUno);
+    const aviso = page.locator('#ed-fam-zonas-field .helper', { hasText: 'no pertenece a ninguna zona' });
+    await expect(aviso).toContainText(`"${zona}" no pertenece a ninguna zona`);
+    await revisar(page, 'editar familia → zona suelta');
+    verificarLimpio(e, { ignorar: [/Failed to load resource/] });
+  });
 });
