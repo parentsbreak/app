@@ -309,12 +309,19 @@ select pg_temp.verificar('otra vuelta en el mismo minuto: nada nuevo',
 select public.programar_avisos_pedidos(pg_temp.mvd(0, '14:59'));
 select pg_temp.verificar('14:59: sin el de 3 horas antes',
   not pg_temp.hay_aviso('admin:pedido:e5000000-0000-4000-8000-000000000003:3h'));
+-- Con solo_practica prendido (Diego, 01/11/2026), el de 3 horas antes solo para familias de práctica.
+update app_config set valor = valor || '{"solo_practica": true}'::jsonb where id = 'pedidos_app';
 select public.programar_avisos_pedidos(pg_temp.mvd(0, '15:00'));
-select pg_temp.verificar('15:00: t3 (sin mandar) y t2 (mandado) sin niñera, con su texto',
-  (select titulo = 'Familia Prueba Uno hoy a las 18:00 sigue sin niñera' and cuerpo = 'Elegí a quién mandárselo.'
-     from avisos where clave = 'admin:pedido:e5000000-0000-4000-8000-000000000003:3h')
-  and (select cuerpo = 'Mirá las respuestas.' from avisos where clave = 'admin:pedido:e5000000-0000-4000-8000-000000000002:3h')
+select pg_temp.verificar('15:00 con solo_practica: t2 (práctica, mandado) sí; t3 (familia real) no',
+  (select titulo = 'Familia (práctica) hoy a las 18:00 sigue sin niñera' and cuerpo = 'Mirá las respuestas.'
+     from avisos where clave = 'admin:pedido:e5000000-0000-4000-8000-000000000002:3h')
+  and not pg_temp.hay_aviso('admin:pedido:e5000000-0000-4000-8000-000000000003:3h')
   and not pg_temp.hay_aviso('admin:pedido:e5000000-0000-4000-8000-000000000001:3h'));
+update app_config set valor = valor || '{"solo_practica": false}'::jsonb where id = 'pedidos_app';
+select public.programar_avisos_pedidos(pg_temp.mvd(0, '15:01'));
+select pg_temp.verificar('sin solo_practica: t3 (sin mandar, familia real) también, con su texto',
+  (select titulo = 'Familia Prueba Uno hoy a las 18:00 sigue sin niñera' and cuerpo = 'Elegí a quién mandárselo.'
+     from avisos where clave = 'admin:pedido:e5000000-0000-4000-8000-000000000003:3h'));
 update solicitudes set estado = 'confirmada' where id = 'e5000000-0000-4000-8000-000000000001';
 select pg_temp.verificar('un pedido ya asignado o con el cron parado de más: nada viejo',
   public.programar_avisos_pedidos(pg_temp.mvd(0, '18:00')) = 0);

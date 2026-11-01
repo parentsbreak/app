@@ -378,7 +378,8 @@ grant execute on function public.ninera_mis_sittings() to authenticated;
 --     mismo día del envío) o 30 min (otro día) después del primer envío.
 --   - admin:pedido:<sol>:nadie: nadie respondió nada, min_nadie (30) después del primer envío.
 --   - admin:pedido:<sol>:3h: pedido de hoy sin niñera (mandado por la app o no), aviso_sin_ninera_horas
---     (3) antes del inicio.
+--     (3) antes del inicio. Mientras solo_practica esté prendido, solo de familias de práctica (Diego,
+--     01/11/2026: se prende con todo lo demás antes de la prueba con niñeras reales).
 create or replace function public.programar_avisos_pedidos(p_ahora timestamp with time zone default now())
 returns integer
 language plpgsql
@@ -392,6 +393,7 @@ declare
   v_rec integer := coalesce((v_cfg->>'recordatorio_min_antes')::int, 10);
   v_nadie integer := coalesce((v_cfg->>'min_nadie')::int, 30);
   v_horas integer := coalesce((v_cfg->>'aviso_sin_ninera_horas')::int, 3);
+  v_solo_practica boolean := coalesce((v_cfg->>'solo_practica')::boolean, true);
   v_total integer := 0;
   v_min integer;
   v_inicio timestamp with time zone;
@@ -451,7 +453,10 @@ begin
   for r in
     select s.id, s.familia_nombre, s.hora_inicio, s.estado, s.fecha
       from public.solicitudes s
+      left join public.familias f on f.id = s.familia_id
      where s.estado in ('sin_asignar', 'pendiente_confirmar') and s.fecha = v_hoy
+       and (not v_solo_practica
+            or position('(practica)' in public.normaliza_nombre(coalesce(f.nombre, s.familia_nombre))) > 0)
   loop
     v_inicio := (r.fecha + r.hora_inicio) at time zone 'America/Montevideo';
     if p_ahora >= v_inicio - make_interval(hours => v_horas) and p_ahora < v_inicio

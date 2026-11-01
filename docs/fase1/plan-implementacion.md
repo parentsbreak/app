@@ -1501,8 +1501,9 @@ Rama `claude/fase1-etapa6` (worktree `.claude/worktrees/fase1-etapa6`). Migraci�
   no se asigna). Abajo, quién recibe qué. Después, la confirmación para la madre (pantalla 5). El mismo final para
   "Asignar" desde "Elegir niñeras".
 - "No conseguimos" solo arma el mensaje: cancelar es "Cancelar el pedido", aparte.
-- El aviso de 3 horas antes vale para todo pedido de hoy sin niñera (mandado por la app o no, sitting o traslado):
-  regla aprobada (reglas 4) y solo a admins, tipo `pedidos` (se apaga en sus preferencias).
+- El aviso de 3 horas antes vale para todo pedido de hoy sin niñera (mandado por la app o no, sitting o traslado),
+  solo a admins, tipo `pedidos`. Mientras `solo_practica` esté prendido, solo para familias de práctica (Diego,
+  01/11/2026): se prende con todo lo demás antes de la prueba con niñeras reales.
 - "Repasa la guía de [edad]" espera la etapa 4 (la guía no existe); la ficha de la familia, la etapa 8.
 - `textos.md` 7 dice "aceptaron": en el panel va "puede" / "pueden", como "Puedo".
 
