@@ -33,8 +33,9 @@ let pedidosNineraSinMigrar = false;
 let avisoPedidosNinera = '';
 let pedidoDestacadoNinera = null;
 let lecturaPedidosNinera = 0;
-// Los avisos de "Ya se cubrió" / "Se canceló" que ya se mostraron en este inicio (id → texto): la base los
-// devuelve una sola vez, y una lectura de más (volver a la app) no tiene que hacerlos desaparecer de golpe.
+// Los avisos de "Ya se cubrió" / "Se canceló" que ya se mostraron (id → texto): la base los devuelve una sola vez
+// y se marcan vistos al mostrarse, así que se guardan en memoria hasta cerrar sesión o recargar la app (fix 03/11/2026:
+// si iba a otra pantalla y volvía al inicio antes de leerlo, se perdía para siempre). cerrarSesionNinera los vacía.
 let avisosCierreNinera = new Map();
 let marcandoVistoNinera = new Set();
 let cargaPedidosNinera = Promise.resolve();
@@ -144,7 +145,6 @@ function htmlInicioPedidos(){
   const aviso = avisoPedidosNinera;
   avisoPedidosNinera = '';
   pedidoDestacadoNinera = null;
-  avisosCierreNinera = new Map();
   return `<div id="inicio-pedidos" aria-live="polite">
     ${aviso ? `<p class="aviso-info" id="pedidos-aviso" role="status">${escaparHtml(aviso)}</p>` : ''}
     <div id="pedidos-lista">${pedidosNineraSinMigrar ? `<p class="vacio">${SIN_PEDIDOS_NINERA}</p>` : '<p class="vacio">Cargando…</p>'}</div>

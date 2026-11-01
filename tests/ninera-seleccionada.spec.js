@@ -226,13 +226,31 @@ test.describe('"Ya se cubrió" y "Se canceló"', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
-  test('si volver a la app lee de nuevo, el aviso que ya se mostró sigue a la vista hasta cambiar de pantalla', async ({ page }) => {
+  // Adaptado (fix 03/11/2026): antes el aviso duraba hasta cambiar de pantalla; ahora, hasta cerrar sesión o recargar.
+  test('si volver a la app lee de nuevo, el aviso que ya se mostró sigue a la vista', async ({ page }) => {
     const e = await abrir(page, { datos: datosAvisos('cubierto') });
     await expect(page.locator('.aviso-pedido')).toHaveCount(1);
     await expect.poll(() => rpcs(e, 'ninera_marcar_pedido_visto').length).toBe(1);
     await page.evaluate(() => cargarPedidosNinera({ silencioso: true }));
     await expect(page.locator('.aviso-pedido')).toHaveCount(1);
     expect(rpcs(e, 'ninera_marcar_pedido_visto')).toHaveLength(1);
+    verificarLimpio(e, { ignorar: RUIDO });
+  });
+
+  test('el aviso sobrevive a ir a otra pantalla y volver al inicio, y se va al cerrar sesión', async ({ page }) => {
+    const e = await abrir(page, { datos: datosAvisos('cubierto') });
+    await expect(page.locator('.aviso-pedido')).toHaveCount(1);
+    await expect.poll(() => rpcs(e, 'ninera_marcar_pedido_visto').length).toBe(1);
+    await page.evaluate(() => irA('#temporada'));
+    await expect(page.locator('#inicio-pedidos')).toHaveCount(0);
+    await page.evaluate(() => irA('#inicio'));
+    await expect(page.locator('.aviso-pedido')).toHaveCount(1);
+    await expect(page.locator('.aviso-pedido')).toContainText('Este pedido ya se cubrió');
+    expect(rpcs(e, 'ninera_marcar_pedido_visto')).toHaveLength(1);
+    await page.getByRole('button', { name: 'Mi cuenta' }).click();
+    await modal(page).getByRole('button', { name: 'Cerrar sesión' }).click();
+    await expect(page.locator('#inicio-pedidos')).toHaveCount(0);
+    expect(await page.evaluate(() => avisosCierreNinera.size)).toBe(0);
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
