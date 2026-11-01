@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migración 03/11/2026 (fase 1, etapa 6): elegir la niñera de un pedido y avisarles a todas.
+-- Migración 01/11/2026 (fase 1, etapa 6): elegir la niñera de un pedido y avisarles a todas.
 --
 -- La admin asigna a la que eligió la madre (con "Asignar", desde "Pedidos en curso" o desde
 -- "Elegir niñeras"); a la elegida le llega "¡Quedaste seleccionada!" y ve los datos en la app, y a

@@ -1534,6 +1534,10 @@ Rama `claude/fase1-etapa6` (worktree `.claude/worktrees/fase1-etapa6`). Migraci�
 - El push "¡Quedaste seleccionada!" con la app cerrada y abierta: lleva a los datos.
 - Un pedido de práctica de punta a punta: mandar, "Puedo" desde dos niñeras de práctica, "Perfiles para la madre",
   "Asignar", la confirmación, "Ya se cubrió" en la otra; repetir cancelando.
+- (Agregado 01/11/2026, informes de 6.4 a 6.6) El cuadro editable del mensaje para la madre: el teclado con el cuadro
+  abierto y que "Abrir WhatsApp" lleve el texto editado. Los tres botones de "Cómo llegar" y "Ver los datos" de la
+  tarjeta "¡Quedaste seleccionada!" en la app instalada. "Ya se cubrió" / "Se canceló": que aparezcan una sola vez, aunque se
+  cambie de pantalla (quedan en memoria hasta cerrar sesión o recargar).
 
 ---
 
@@ -1555,9 +1559,9 @@ Rama `claude/fase1-etapa6` (worktree `.claude/worktrees/fase1-etapa6`). Migraci�
 
 - [x] **Paso 1:** migración, DESHACER y pruebas; pasan sobre el schema de main con aplicar → deshacer → aplicar
   (`fase1_eleccion.sql` y todas las de `supabase/pruebas/`).
-- [ ] **Paso 2:** con el OK de Diego a la migración, volcarla en `supabase/schema.sql` y correr
+- [x] **Paso 2:** con el OK de Diego a la migración, volcarla en `supabase/schema.sql` y correr
   `PGLITE_DIR=<pglite> node scripts/probar-sql.mjs supabase/pruebas/*.sql` → `OK` en todos.
-- [ ] **Paso 3:** commit `Etapa 6: migración eleccion_pedidos, schema y pruebas SQL`.
+- [x] **Paso 3:** commit `Etapa 6: migración eleccion_pedidos, schema y pruebas SQL`.
 
 ### Tarea 6.2: simulador de la etapa
 
@@ -1571,10 +1575,10 @@ práctica más ("Lola (práctica)" y "Mía (práctica)"), una solicitud `pendien
 `ninera_pedida_id` que dijo "Puedo"; `baseSinMigrar: 'etapa6'` (las columnas nuevas dan 42703 / PGRST204,
 `ninera_marcar_pedido_visto` 404, `ninera_mis_pedidos` y `ninera_mis_sittings` sin las columnas nuevas).
 
-- [ ] **Paso 1: tests que fallan**: asignar a una que dijo "Puedo" deja a la otra `cubierto` con su aviso y a la que no
+- [x] **Paso 1: tests que fallan**: asignar a una que dijo "Puedo" deja a la otra `cubierto` con su aviso y a la que no
   respondió sin aviso; cancelar; `solo_practica` con una real asignada a mano; la niñera ve la fila una vez y
   `ninera_marcar_pedido_visto` la saca; `'etapa6'`.
-- [ ] **Paso 2:** implementar; pasan con `npm run test:static`. **Paso 3:** commit.
+- [x] **Paso 2:** implementar; pasan con `npm run test:static`. **Paso 3:** commit.
 
 ### Tarea 6.3: horario aproximado
 
@@ -1584,10 +1588,10 @@ Nueva solicitud": la misma casilla, `guardarSolicitudPuntual` la guarda; la tarj
 "aproximado"), `ninera/js/pedido.js` (`horarioPedidoNinera`: "(aproximada, se puede extender)" solo con la marca);
 tests en `tests/pedido-pegar.spec.js`, `tests/solicitud-un-paso.spec.js`, `tests/ninera-pedido.spec.js`.
 
-- [ ] **Paso 1: tests que fallan**: el ticket con `horario_aproximado` la trae tildada y se guarda; destildada se guarda
+- [x] **Paso 1: tests que fallan**: el ticket con `horario_aproximado` la trae tildada y se guarda; destildada se guarda
   en false; "+ Nueva solicitud" la guarda; sin la columna se guarda lo demás y avisa (`esFaltaColumnaSolicitudApp`); la
   tarjeta de la niñera con y sin la marca.
-- [ ] **Paso 2:** implementar; pasan. **Paso 3:** commit.
+- [x] **Paso 2:** implementar; pasan. **Paso 3:** commit.
 
 ### Tarea 6.4: "Asignar", plantillas y la confirmación para la madre
 
@@ -1602,14 +1606,14 @@ reintenta sin ella); test `tests/pedido-asignar.spec.js` y los de "Asignar" que 
 Produce `abrirAsignarPedido(solicitudId, snId)` (pantalla 4, la usan "Pedidos en curso" y el atajo) y
 `abrirConfirmacionMadre(solicitudId, nineraNombre)` (pantalla 5).
 
-- [ ] **Paso 1: tests que fallan**: pago precargado con lo ofrecido × horas; sin dirección no deja asignar y "Guardar"
+- [x] **Paso 1: tests que fallan**: pago precargado con lo ofrecido × horas; sin dirección no deja asignar y "Guardar"
   la escribe en la familia; la falla al guardar la dirección no asigna; el registro lleva `solicitud_id`; la fila panel
   lleva `precio_hora`; después, la confirmación con el texto completo; "Copiar" y "Abrir WhatsApp" (link con el
   teléfono); sin teléfono; "Guardar como plantilla" muestra el modelo con corchetes y hace upsert de
   `plantilla_confirmacion`; la plantilla guardada se usa la próxima vez; falla al guardar la plantilla; dos admins
   (la segunda ve "alguien más ya asignó"); doble toque; escape (nombre de la madre y de la niñera con HTML); base sin
   migrar; 390 y 1280 px.
-- [ ] **Paso 2:** implementar; pasan junto con `pedido-elegir`, `solicitud-un-paso`, `precio-ninera-familia`,
+- [x] **Paso 2:** implementar; pasan junto con `pedido-elegir`, `solicitud-un-paso`, `precio-ninera-familia`,
   `errores-plata`, `escape`, `humo` y `npm run test:static`. **Paso 3:** commit.
 
 ### Tarea 6.5: "Pedidos en curso" en Hoy y en el modal de la solicitud
@@ -1629,14 +1633,14 @@ a la madre"; una fila por niñera (Puede / No puede: motivo / Sin responder) con
 nombre."), las nuevas con "Revisé su perfil" y "Ver ficha"; el cuadro con `plantilla_perfiles`; el aviso de adjuntar
 el CV; sin ninguna tildada, "Copiar" gris.
 
-- [ ] **Paso 1: tests que fallan**: la tarjeta con sus textos exactos y sin "·"; solo `pendiente_confirmar` de hoy en
+- [x] **Paso 1: tests que fallan**: la tarjeta con sus textos exactos y sin "·"; solo `pendiente_confirmar` de hoy en
   adelante; el atajo de la pedida (y que no sale si no dijo "Puedo"); "Asignar" en las que pueden y no en las demás;
   Perfiles: conocida tildada con solo el nombre, nueva fuera del mensaje hasta "Revisé su perfil", el aviso del CV y
   el de "todavía no tiene CV"; "Preguntar a más niñeras" abre "Elegir niñeras"; "Todavía buscando" ("hoy" / "el
   sábado 07/11") y "No conseguimos" no cambian el pedido; Realtime: una respuesta nueva repinta la tarjeta; la lectura
   que falla no rompe Hoy (aviso en la tarjeta); una sola lectura de historial para varios pedidos; escape; base sin
   migrar; 390 y 1280 px.
-- [ ] **Paso 2:** implementar; pasan junto con `pedido-respuestas`, `humo`, `mejoras-hoy`, `chat-admin` y
+- [x] **Paso 2:** implementar; pasan junto con `pedido-respuestas`, `humo`, `mejoras-hoy`, `chat-admin` y
   `npm run test:static`. **Paso 3:** commit.
 
 ### Tarea 6.6: app de niñeras: "¡Quedaste seleccionada!", "Ya se cubrió" y "Cómo llegar"
@@ -1648,16 +1652,16 @@ los datos), `ninera/js/inicio.js` (`abrirDetalleSittingNinera(id, {titulo})`: "I
 marca de aproximado; "Cómo llegar" abre la elección Google Maps / Waze / Mapas; "Ver los datos" marca visto), `ninera/
 estilos.css`; test `tests/ninera-seleccionada.spec.js`.
 
-- [ ] **Paso 1: tests que fallan**: tarjeta arriba con su texto; "Ver los datos" abre el detalle con título "¡Quedaste
+- [x] **Paso 1: tests que fallan**: tarjeta arriba con su texto; "Ver los datos" abre el detalle con título "¡Quedaste
   seleccionada!", dirección, madre con inicial, chicos, Indicaciones, precio por hora y la marca, y llama a
   `ninera_marcar_pedido_visto` (cuerpo exacto); desde "Próximos sittings" el mismo detalle con título "Sitting";
   "Ya se cubrió" y "Se canceló" una vez; `#pedido/<sn>` desde el push; los tres links de "Cómo llegar" con la dirección
   codificada; sin dirección, sin "Cómo llegar"; la marca que falla al guardarse no rompe (sale de nuevo la próxima vez);
   ningún `$` salvo "Precio por hora"; nada de notas internas; base sin migrar (`'etapa6'`); 390 y 1280 px.
-- [ ] **Paso 2:** implementar; pasan junto con `tests/ninera-*.spec.js` y `npm run test:static`. **Paso 3:** commit.
+- [x] **Paso 2:** implementar; pasan junto con `tests/ninera-*.spec.js` y `npm run test:static`. **Paso 3:** commit.
 
 ### Tarea 6.7: documentación, revisión final, PR y producción (con OK)
-- [ ] `CLAUDE.md`: convenciones (triggers de elegir y cancelar, `solicitud_id` del registro, plantillas, textos sin
+- [x] `CLAUDE.md`: convenciones (triggers de elegir y cancelar, `solicitud_id` del registro, plantillas, textos sin
   "·"), tests nuevos, pendientes (sacar lo de la etapa 6; sumar la API de Meta para mandar a la madre sin abrir
   WhatsApp). `decisiones.md` 6.3 y 7 con lo de arriba. `textos-provisorios.md`: todos los textos nuevos (panel y app).
 - [ ] Revisión final de toda la rama con un revisor fresco (Opus). `npm test` completo y las pruebas SQL.

@@ -32,7 +32,7 @@ const ID = {
   sUno: '80000000-0000-4000-8000-000000000002',
   sPracticaHoy: '80000000-0000-4000-8000-000000000003',
   sPractica: '80000000-0000-4000-8000-000000000004',
-  // Elección de la niñera (etapa 6, 03/11/2026): solo los carga datosEleccion().
+  // Elección de la niñera (etapa 6, 01/11/2026): solo los carga datosEleccion().
   nLola: '30000000-0000-4000-8000-000000000005',
   nMia: '30000000-0000-4000-8000-000000000006',
   uLola: '00000000-0000-4000-8000-000000000005',

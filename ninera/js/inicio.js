@@ -155,7 +155,7 @@ function lugarSittingNinera(s){
   return s.direccion || '';
 }
 
-// Las tres formas de llegar (etapa 6, 03/11/2026, Diego): antes se elegía una sola según el celular, pero
+// Las tres formas de llegar (etapa 6, 01/11/2026, Diego): antes se elegía una sola según el celular, pero
 // cada niñera usa la que tiene (Waze es muy común acá). Todas con la dirección codificada.
 function linksMapaNinera(lugar){
   const q = encodeURIComponent(lugar);

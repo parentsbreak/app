@@ -1187,7 +1187,7 @@ async function descartarPedidoWhatsApp(){
   toast('Mensaje descartado.');
 }
 
-/* ================= "Asignar", plantillas y mensajes para la madre (etapa 6, tarea 6.4, 03/11/2026) =================
+/* ================= "Asignar", plantillas y mensajes para la madre (etapa 6, tarea 6.4, 01/11/2026) =================
    "Asignar" (pantalla 4) asigna a una niñera que respondió por la app; asignar es lo mismo que "Guardar
    asignación" de "Elegir niñeras" (asignarNineraAlPedido, agenda.js) y las dos terminan en la confirmación
    para la madre (pantalla 5). Los mensajes para la madre salen de plantillas: el texto por defecto vive acá
@@ -1508,7 +1508,7 @@ async function guardarAsignarPedido(){
   if(ok) pedidoAsignar = null;
 }
 
-/* ================= "Pedidos en curso" (fase 1, etapa 6, tarea 6.5, 03/11/2026) =================
+/* ================= "Pedidos en curso" (fase 1, etapa 6, tarea 6.5, 01/11/2026) =================
    En Hoy y en el modal de la solicitud de la Agenda, cada pedido mandado por la app que sigue sin niñera
    ('pendiente_confirmar', de hoy en adelante) dice quién puede, quién no y quién no respondió, lo que se le ofreció
    por hora y si ya fue a esa casa. De ahí salen los dos caminos para elegir (decisiones de Diego, 01/11/2026):

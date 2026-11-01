@@ -1,4 +1,4 @@
-// "Pedidos en curso" en Hoy y en el modal de la solicitud (fase 1, etapa 6, tarea 6.5, 03/11/2026): una tarjeta por
+// "Pedidos en curso" en Hoy y en el modal de la solicitud (fase 1, etapa 6, tarea 6.5, 01/11/2026): una tarjeta por
 // pedido mandado por la app que sigue sin niñera ('pendiente_confirmar', de hoy en adelante), con quién puede, quién
 // no y quién no respondió, "Ya fue N veces" / "Nueva para esta familia" (una sola lectura del historial para todos),
 // el atajo de la niñera que pidió la madre, "Asignar" en las que pueden, "Perfiles para la madre" (la regla del CV),

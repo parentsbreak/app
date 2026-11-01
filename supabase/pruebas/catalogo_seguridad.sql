@@ -64,7 +64,7 @@ declare
     'ninera_marcar_no_disponible(p_fechas date[], p_quitar boolean)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus días
     'ninera_mis_pedidos()',                      -- niñera: solo los suyos, sin familia ni plata salvo su precio por hora; vacío si no es niñera
     'responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo text, p_motivo_texto text)', -- niñera: raise 'no_autorizada' / 'no_existe' si no es suyo
-    -- Etapa 6 (03/11/2026): elegir y avisar. Los triggers, pedido_puede_avisar y programar_avisos_pedidos NO van.
+    -- Etapa 6 (01/11/2026): elegir y avisar. Los triggers, pedido_puede_avisar y programar_avisos_pedidos NO van.
     'ninera_marcar_pedido_visto(p_sn_id uuid)'   -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus filas
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.

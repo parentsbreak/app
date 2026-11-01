@@ -806,7 +806,7 @@ async function guardarSolicitudPuntual(){
    snIdApp (etapa 5, 02/11/2026): la fila de esa niñera que ya recibió el pedido por la app. Se confirma
    esa misma fila, con la condición del estado que tenía al abrir (si respondió otra cosa mientras se
    elegía, no se pisa: respuestaCambio), en vez de insertar otra.
-   Etapa 6 (03/11/2026): la fila que nace en el panel lleva su precio por hora (lo ve la niñera en los
+   Etapa 6 (01/11/2026): la fila que nace en el panel lleva su precio por hora (lo ve la niñera en los
    datos del sitting; la de la app conserva el que se le ofreció), y el registro, el pedido del que sale
    (solicitud_id: de ahí la niñera lee las indicaciones). Con la base sin esas columnas se guarda sin ellas. */
 async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
@@ -946,7 +946,7 @@ async function guardarAsignacionDirecta(solicitudId){
     pago: redondearPago(document.getElementById('agenda-asignar-pago').value), snIdApp: sel.dataset.snApp || null,
   });
 }
-/* La asignación de una niñera a un pedido (etapa 6, 03/11/2026): la comparten "Guardar asignación" de "Elegir
+/* La asignación de una niñera a un pedido (etapa 6, 01/11/2026): la comparten "Guardar asignación" de "Elegir
    niñeras" y "Asignar" de "Pedidos en curso" (abrirAsignarPedido, pedidos.js), así la regla de dos admins a la
    vez vive en un solo lugar. Las dos pantallas usan los mismos campos: #agenda-asignar-direccion (solo si a
    la familia de un sitting le falta la dirección) y #agenda-asignar-warn.
@@ -962,7 +962,7 @@ async function asignarNineraAlPedido({ s, ninera, familia, pago, snIdApp = null 
   if(campoDireccion && !direccion){ aviso('<div class="warnbox">Falta la dirección de la familia. Escribila para asignar: la niñera la ve cuando queda confirmada.</div>'); return false; }
   // La doble reserva se mira en la base, no en lo que tiene cargado la Agenda: "Asignar" también se abre desde
   // Hoy (Pedidos en curso), donde la Agenda no está cargada y el chequeo pasaba sin mirar nada (revisión de la
-  // tarea 6.4, 03/11/2026). Además ve los registros y los fijos de ese día, no solo los pedidos confirmados.
+  // tarea 6.4, 01/11/2026). Además ve los registros y los fijos de ese día, no solo los pedidos confirmados.
   // Este pedido no choca consigo mismo: todavía no tiene ninguna fila 'confirmada' ni registro.
   const choque = await chequearDobleReservaDB(ninera.nombre, s.fecha, s.hora_inicio, s.hora_fin, { familiaId: familia?.id || s.familia_id || null });
   if(!(await avisarSiDobleReserva(choque && { ...choque, fecha: s.fecha }, ninera.nombre, 'Asignar igual'))) return false;
@@ -1068,7 +1068,7 @@ function cuerpoModalSolicitud(s){
     <h2>${escaparHtml(s.familia_nombre)}</h2>
     <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.horario_aproximado ? ' (aproximado)' : ''}${s.zona?escaparHtml(' · '+s.zona):''}</div>
     ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}`;
-  // Mandado por la app y sin elegida (etapa 6, 03/11/2026): el mismo detalle que "Pedidos en curso" de Hoy, con
+  // Mandado por la app y sin elegida (etapa 6, 01/11/2026): el mismo detalle que "Pedidos en curso" de Hoy, con
   // "Asignar", los mensajes para la madre y "Cancelar el pedido". Las filas del panel (sin origen) van al final de
   // la lista, como siempre (con "Confirmar"). El historial ("Ya fue N veces") llega después: lo pide abrirModalSolicitud.
   if(s.estado==='pendiente_confirmar' && (s.ninieras||[]).some(esRespuestaApp)){
@@ -2114,7 +2114,7 @@ async function confirmarNinera(solNineraId){
   actualizarAgendaBadge();
 }
 /* Cancelar un pedido, desde el modal de la Agenda y desde "Pedidos en curso" de Hoy (etapa 6). estadoAntes: el estado
-   que tenía en la pantalla. Se escribe con esa condición (regla de dos admins a la vez, 03/11/2026): si mientras se
+   que tenía en la pantalla. Se escribe con esa condición (regla de dos admins a la vez, 01/11/2026): si mientras se
    confirmaba otra admin lo asignó (o lo canceló), no se pisa: antes quedaba cancelado con la niñera elegida, su
    aviso y el registro en Sittings. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger). */
 async function cancelarSolicitud(id, estadoAntes){

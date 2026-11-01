@@ -640,7 +640,7 @@ create table public.sittings_traslados (
   -- Variantes de precio (23/10/2026): la base y cuáles se aplicaron, copiadas tal cual
   -- ({"base": {"cobro", "pago"}, "aplicadas": [...]}). Vacío = sin variantes.
   precio_variantes jsonb,
-  -- Etapa 6 (03/11/2026): el pedido de donde salió este registro (lo escribe "Asignar"). De ahí la
+  -- Etapa 6 (01/11/2026): el pedido de donde salió este registro (lo escribe "Asignar"). De ahí la
   -- app de niñeras saca las indicaciones, el precio por hora y la marca de horario aproximado.
   solicitud_id uuid,
   constraint sittings_traslados_precio_motivo_check CHECK ((precio_motivo = ANY (ARRAY['descuento'::text, 'extra'::text, 'sin_servicio'::text, 'otro'::text]))),
@@ -822,7 +822,7 @@ create table public.solicitud_ninieras (
   respondido_en timestamp with time zone,
   motivo_no text,
   motivo_texto text,
-  -- Etapa 6 (03/11/2026; ver 20261103_eleccion_pedidos.sql): seleccionada_en = cuándo le llegó
+  -- Etapa 6 (01/11/2026; ver 20261103_eleccion_pedidos.sql): seleccionada_en = cuándo le llegó
   -- "¡Quedaste seleccionada!"; visto_en = cuándo lo vio en la app (la tarjeta de arriba y los avisos
   -- de una vez se van). 'cubierto' = se asignó a otra; 'cancelado' = se canceló el pedido.
   seleccionada_en timestamp with time zone,
@@ -855,7 +855,7 @@ create table public.solicitudes (
   notas_para_ninera text,
   enviado_app_en timestamp with time zone,
   responder_hasta timestamp with time zone,
-  -- Etapa 6 (03/11/2026): la madre no dio una hora de fin cerrada; solo con la marca va
+  -- Etapa 6 (01/11/2026): la madre no dio una hora de fin cerrada; solo con la marca va
   -- "(aproximada, se puede extender)" en el aviso del pedido y en la app de niñeras.
   horario_aproximado boolean default false not null,
   constraint solicitudes_pkey PRIMARY KEY (id),

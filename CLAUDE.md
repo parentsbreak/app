@@ -399,6 +399,31 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   `ninera_mis_pedidos` (nunca familia, dirección ni cobro), `responder_pedido`, `ninera_marcar_no_disponible`, `sugeridas_datos`,
   el trigger del aviso y la ida y vuelta de la migración. La prueba del DESHACER con datos (respaldos de lo mandado, los días,
   "No acepta nuevas" y la niñera pedida) está en `supabase/pruebas/deshacer/` (`20261102_pedidos_app*.sql`), a mano (comando en su encabezado).
+- `tests/pedido-asignar.spec.js` (01/11/2026, etapa 6): "Asignar" (`abrirAsignarPedido`) y "Guardar asignación" de "Elegir niñeras"
+  con la misma `asignarNineraAlPedido`: pago de lo ofrecido × horas, dirección obligatoria (se guarda antes; si falla, no se asigna),
+  cuerpos exactos (toma con la condición del estado, fila de la app sin `precio_hora`, fila del panel con `precio_hora`, registro con
+  `solicitud_id`), doble reserva en la base sin la Agenda cargada, dos admins, falla la fila (vuelve atrás, sin avisos) o el registro
+  (queda asignada), `solo_practica` con una niñera real, "Quién recibe qué", la confirmación para la madre (Copiar, Abrir WhatsApp,
+  sin teléfono, dato faltante), "Guardar como plantilla" (modelo con corchetes, upsert, se usa la próxima vez, falla), escape, base
+  sin migrar 'etapa6', 390 y 1280 px.
+- `tests/pedidos-en-curso.spec.js` (01/11/2026): "Pedidos en curso" en Hoy y en el modal de la solicitud (textos sin "·", solo
+  `pendiente_confirmar` de hoy en adelante con filas de la app, atajo de la pedida, "Asignar" por fila, "Preguntar a más niñeras",
+  "Todavía buscando", "No conseguimos", "Cancelar el pedido" con la condición del estado y dos admins), "Perfiles para la madre" (regla
+  del CV, "Revisé su perfil", aviso de adjuntar, "Ver ficha"), una sola lectura de historial, Realtime, lecturas que fallan, base
+  sin migrar 'etapa5' / 'etapa6', escape, 390 y 1280 px.
+- `tests/ninera-seleccionada.spec.js` (01/11/2026): app de niñeras: tarjeta "¡Quedaste seleccionada!" y "Ver los datos"
+  (`ninera_marcar_pedido_visto`, cuerpo exacto), el mismo detalle desde "Próximos sittings" (título "Sitting"), "Ya se cubrió" /
+  "Se canceló" una sola vez (en memoria hasta cerrar sesión), `#pedido/<sn>` de un pedido ya elegido, "Indicaciones" y precio por
+  hora, "Cómo llegar" con Google Maps / Waze / Mapas, sin montos ni notas internas, marca que falla, base sin migrar, 390 y 1280 px.
+- `tests/simulador-pedidos.spec.js` (casos de la etapa 6): los triggers del simulador (`solicitud_ninieras_al_confirmar`,
+  `solicitudes_al_cancelar`, `pedido_puede_avisar`), `datosEleccion()` (= `datosPedidos()` más "Lola (práctica)" y "Mía (práctica)" y dos
+  solicitudes en `pendiente_confirmar`) y `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa6' })`: sin los triggers, columnas
+  nuevas 42703 / PGRST204 y `ninera_marcar_pedido_visto` 404.
+- `supabase/pruebas/fase1_eleccion.sql` (01/11/2026): los dos triggers (a la elegida, a las que dijeron "Puedo", a las que no
+  respondieron nada), `solo_practica` con una niñera real asignada a mano, `ninera_mis_pedidos` / `ninera_mis_sittings` como niñera
+  (`seleccionada_en`, `visto_en`, `notas_para_ninera` y dirección solo `confirmado`, `precio_hora`, sin plata ni notas internas),
+  `ninera_marcar_pedido_visto`, `programar_avisos_pedidos` (recordatorio, perfiles, nadie, 3 horas, sin duplicar) e ida y vuelta de la
+  migración `20261103_eleccion_pedidos` (la fecha del nombre queda: ordena después de la 20261102).
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -614,6 +639,39 @@ reporte.
   Realtime sobre `solicitud_ninieras` (filtro `solicitud_id`) y lo suelta con `alCerrarModal`; las filas `origen 'app'` dicen Puede / No
   puede: [motivo] / Sin responder y no llevan "Confirmar". `?ir=agenda&solicitud=<id>` (push y campanita) llega a `abrirSolicitudDeLink`.
   "No acepta niñeras nuevas" (`familias.solo_conocidas`) solo se manda si cambió; sin la columna se guarda lo demás y se avisa.
+- Elegir y cancelar un pedido (01/11/2026, etapa 6, sin RPC `elegir_ninera`): avisan triggers sobre las escrituras de siempre, así
+  cualquier camino que asigne o cancele avisa en la misma transacción. `solicitud_ninieras_al_confirmar` (la fila pasa a `confirmada`):
+  a la elegida con app, "¡Quedaste seleccionada!" y `seleccionada_en`; las demás filas de la app abiertas pasan a `cubierto` y a
+  las que dijeron "Puedo" les llega "Gracias por responder". `solicitudes_al_cancelar`: las abiertas pasan a `cancelado` y a las que
+  dijeron "Puedo", "Se canceló el pedido del [día]". Solo sittings; a las que no respondieron no les llega nada. `pedido_puede_avisar`:
+  con `solo_practica` prendido, ningún aviso de pedidos a una niñera real, aunque la asignen a mano. Los avisos de tiempo salen de
+  `programar_avisos_pedidos(p_ahora)` dentro del cron de cada minuto; el de 3 horas antes va a admins, para todo pedido de hoy sin
+  niñera, y con `solo_practica` solo para familias de práctica. La app nunca confirma sola a una niñera (las dueñas, 01/11/2026).
+- "Asignar" (01/11/2026): una sola función, `asignarNineraAlPedido` (agenda.js), para "Asignar" de "Pedidos en curso" y "Guardar
+  asignación" de "Elegir niñeras". Toma la solicitud con la condición del estado, exige la dirección de la familia en un sitting (la
+  guarda en `familias` antes; si falla, no asigna), mira la doble reserva en la base (`chequearDobleReservaDB`, no el caché de la
+  Agenda), escribe la fila de la niñera y el registro con `sittings_traslados.solicitud_id` (de ahí la niñera ve "Indicaciones" y su
+  precio). Si falla la fila, la solicitud vuelve atrás sin avisos; si falla el registro, queda asignada y el aviso dice qué faltó.
+  La fila de una niñera asignada desde el panel lleva `precio_hora` = `redondearPago(pago / horas)` (vacío sin hora de fin); la de la
+  app conserva lo que se le ofreció. `cancelarSolicitud(id, estadoAntes)` escribe con `.eq('estado', estadoAntes)`: si otra admin se
+  adelantó, avisa y no pisa. Sin las columnas nuevas (base sin migrar) los registros se guardan sin `solicitud_id` y la solicitud sin
+  `horario_aproximado`, con aviso. `solicitudes.horario_aproximado` (viene del ticket y se tilda a mano) agrega "(aproximada, se puede
+  extender)" al pedido, a la tarjeta y a "¡Quedaste seleccionada!".
+- Mensajes a la madre (01/11/2026): "Perfiles para la madre", la confirmación, "Todavía buscando" y "No conseguimos" salen de
+  `abrirMensajeMadre` (pedidos.js): cuadro editable, "Copiar" y "Abrir WhatsApp" (`waLink`), nada sale solo. Las plantillas viven en
+  `app_config 'plantilla_perfiles' | 'plantilla_confirmacion' | 'plantilla_buscando' | 'plantilla_no_conseguimos'` (`valor: {texto}`);
+  el texto por defecto está en el código (`PLANTILLAS_PEDIDO`) y "Guardar como plantilla" muestra cómo queda y hace upsert para las tres
+  admins. Corchetes que se completan solos: `[madre]` (primera palabra de `familias.nombre`), `[día]`, `[hora inicio]`, `[niñeras]`,
+  `[niñera]`, `[cuándo]`; con un corchete sin completar no se puede copiar ni abrir WhatsApp. Regla del CV en "Perfiles": a las que ya
+  fueron a esa casa va solo el nombre; una nueva entra recién con "Revisé su perfil" ("(te paso su CV)") y abajo "Adjuntá en WhatsApp el
+  CV de [niñera]." (el CV es un PDF de Canva, aparte). "Pedidos en curso" lee todo en una lectura (`cargarPedidosEnCurso`) y el
+  historial de "Ya fue N veces" en otra para todos (`historialPedidosEnCurso`).
+- App de niñeras, etapa 6 (01/11/2026): tarjeta "¡Quedaste seleccionada!" con `seleccionada_en` sin `visto_en` ("Ver los datos" llama a
+  `ninera_marcar_pedido_visto`); "Ya se cubrió" / "Se canceló" llegan una vez y quedan en memoria hasta cerrar sesión o recargar
+  (`avisosCierreNinera`). El detalle del sitting muestra "Indicaciones" (solo `notas_para_ninera`), "Precio por hora" y "Cómo llegar"
+  con Google Maps, Waze y Mapas (`linksMapaNinera`).
+- Textos nuevos sin "·" (Diego, 01/11/2026): en los textos nuevos o cambiados se usan comas, "a las" o renglones aparte; las líneas
+  viejas que no se tocaron quedan.
 - Dos puertas, una sesión cada una (26/10/2026): el cliente de `ninera/` usa
   `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
@@ -857,7 +915,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapas 4, 6, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha en la rama `claude/fase1-etapa6` (01/11/2026), pendientes su merge y la migración `20261103_eleccion_pedidos` (OK de Diego); etapas 4, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -873,7 +931,7 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (01/11/2026): `app_config 'pedidos_app'.solo_practica` está prendido (por la app solo salen pedidos de práctica, a
   "Niñera (práctica)"); se apaga por SQL con el OK de Diego después de la etapa 4 y de probar un pedido de práctica de punta a punta
   en el iPhone (lista en la etapa 5 del plan). Sin `app_config
-  'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. La regla del CV del 31/10/2026 va en la etapa 6.
+  'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. La regla del CV quedó en la etapa 6 ("Perfiles para la madre").
 - CV automático en el sistema (01/11/2026, tarea aparte, justo después de la etapa 6): hoy el CV se arma a mano en Canva desde
   un chat (plan gratis, sin Autofill). Idea: exportar una vez el fondo de la plantilla de Canva sin textos ni foto, y que la app
   genere sola el CV (nombre en violeta, foto circular, los 7 datos en coral; nunca teléfono, mail ni zona) como imagen o PDF desde
@@ -884,6 +942,17 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
 - Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
   primera sigue en `confirmada` y no recibe ningún aviso de que ya no va.
+- Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y
+  se vuelve a leer con cada evento de Realtime de Hoy; conviene una RPC de conteo como `sugeridas_datos`. Además compara el nombre de la
+  familia tal cual y `sugeridas_datos` lo normaliza: en historia vieja pueden dar números distintos.
+- Etapa 6 (01/11/2026): un pedido en curso de hoy o mañana sale también en "Sin resolver". Pregunta de producto para Diego: ¿se saca de ahí?
+- Etapa 6 (01/11/2026): quedan líneas viejas con "·" (la cabecera del modal de la solicitud, entre otras); un PR de limpieza de textos.
+  El botón del modal de la Agenda sigue diciendo "Cancelar solicitud" (la tarjeta de Hoy dice "Cancelar el pedido").
+- Etapa 6 (01/11/2026): `chequearDobleReservaDB` (core.js) ignora el error de sus lecturas (si fallan, no avisa) y lee toda `asignaciones`
+  en cada asignación. `actualizarAgendaBadge` no se refresca al asignar desde fuera de la Agenda.
+- Etapa 6 (01/11/2026): tildar "Revisé su perfil" en "Perfiles para la madre" rearma el mensaje y pisa lo tipeado a mano. Guardar la
+  dirección pisa sin condición la que otra admin acaba de cargar; la pantalla "Asignar" puede precargar $0 si la hora de fin deja las horas
+  en null; `plantillaACorchetes` confunde `[madre]` y `[niñera]` si valen lo mismo. "Cómo llegar" no cambia `aria-expanded`.
 - Etapa 5 (02/11/2026): dos admins que pegan el mismo mensaje crean dos solicitudes. Pregunta de producto para Diego: ¿se avisa o se
   bloquea?
 - Etapa 5 (02/11/2026): un ticket que se cierra sin pasar a la Agenda queda `borrador` y no se puede retomar. Propuesta: "Pedidos sin

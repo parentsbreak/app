@@ -368,7 +368,7 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
   });
 });
 
-// ---- Etapa 6 (03/11/2026): elegir la niñera, los triggers y lo que ve la niñera ----
+// ---- Etapa 6 (01/11/2026): elegir la niñera, los triggers y lo que ve la niñera ----
 // Espejo de 20261103_eleccion_pedidos.sql (y de supabase/pruebas/fase1_eleccion.sql). Los avisos salen de las
 // escrituras de siempre del panel: la fila de la niñera a 'confirmada' y la solicitud a 'cancelada'.
 test.describe('simulador de la elección de niñera (etapa 6)', () => {

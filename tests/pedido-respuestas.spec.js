@@ -46,7 +46,7 @@ test.describe('modal de la solicitud: respuestas de la app', () => {
     const e = await abrirApp(page, { datos: datos() });
     await abrirModal(page);
     const modal = page.locator('#editmodal');
-    // Etapa 6 (03/11/2026): el modal de un pedido en curso usa el detalle de "Pedidos en curso" de Hoy.
+    // Etapa 6 (01/11/2026): el modal de un pedido en curso usa el detalle de "Pedidos en curso" de Hoy.
     await expect(modal.locator('.sol-envio')).toHaveText('Puede 1, no puede 1, falta responder 1. Mandado a 3 a las 10:00.');
     await expect(fila(page, 'Carla Ejemplo')).toContainText('Puede');
     await expect(fila(page, 'Carla Ejemplo').locator('.badge')).toHaveClass(/good/);

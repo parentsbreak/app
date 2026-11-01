@@ -220,7 +220,7 @@ test('a 390 px: el formulario entra en la pantalla (captura)', async ({ page }) 
   verificarLimpio(e);
 });
 
-// Horario aproximado (etapa 6, 03/11/2026): la casilla de "+ Nueva solicitud" y su marca en la Agenda.
+// Horario aproximado (etapa 6, 01/11/2026): la casilla de "+ Nueva solicitud" y su marca en la Agenda.
 test('horario aproximado: la casilla se guarda tildada, la tarjeta y el modal dicen "aproximado"', async ({ page }) => {
   const e = await abrirApp(page);
   await nuevaSolicitud(page);

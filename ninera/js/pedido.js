@@ -4,7 +4,7 @@
 // Un push abre #pedido/<id>. Lee y escribe solo por ninera_mis_pedidos(), responder_pedido() y
 // ninera_marcar_no_disponible(): la base nunca manda la familia, la dirección, el cobro ni las notas.
 // Textos en "tú" (docs/fase1/textos.md 4). Nada de montos fuera del precio por hora.
-// Etapa 6 (03/11/2026): lo que se cerró llega una sola vez por la misma lectura. La tarjeta "¡Quedaste
+// Etapa 6 (01/11/2026): lo que se cerró llega una sola vez por la misma lectura. La tarjeta "¡Quedaste
 // seleccionada!" va arriba hasta que abre los datos ("Ver los datos" la marca vista); "Ya se cubrió" y "Se
 // canceló" (de las que habían dicho "Puedo") se muestran y se marcan vistos. Si marcar falla, no se rompe nada:
 // vuelve a salir la próxima vez.
@@ -34,7 +34,7 @@ let avisoPedidosNinera = '';
 let pedidoDestacadoNinera = null;
 let lecturaPedidosNinera = 0;
 // Los avisos de "Ya se cubrió" / "Se canceló" que ya se mostraron (id → texto): la base los devuelve una sola vez
-// y se marcan vistos al mostrarse, así que se guardan en memoria hasta cerrar sesión o recargar la app (fix 03/11/2026:
+// y se marcan vistos al mostrarse, así que se guardan en memoria hasta cerrar sesión o recargar la app (fix 01/11/2026:
 // si iba a otra pantalla y volvía al inicio antes de leerlo, se perdía para siempre). cerrarSesionNinera los vacía.
 let avisosCierreNinera = new Map();
 let marcandoVistoNinera = new Set();

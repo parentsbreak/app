@@ -66,7 +66,7 @@ function separarLista(txt) {
   return out;
 }
 // or=(familia_id.in.(a,b),familia_nombre.in.("Familia (práctica)")): las condiciones se separan por las comas de
-// afuera de todo paréntesis y comillas, y cada una queda tal cual (con sus comillas) para cumple() (03/11/2026,
+// afuera de todo paréntesis y comillas, y cada una queda tal cual (con sus comillas) para cumple() (01/11/2026,
 // "Pedidos en curso" lee el historial de varias familias en una sola lectura).
 function separarCondiciones(txt) {
   const out = []; let actual = ''; let comillas = false; let nivel = 0;
@@ -243,7 +243,7 @@ async function abrirAppNinera(page, opciones = {}) {
     if (fila) fila.user_id = USUARIO_NINERA.id;
   }
   // 'etapa5' (solo falta la de los pedidos), y también con true y 'etapa3' (la 5 es posterior a la 3).
-  // 'etapa6' (03/11/2026): solo falta la de elegir la niñera (la 6 es posterior a la 5).
+  // 'etapa6' (01/11/2026): solo falta la de elegir la niñera (la 6 es posterior a la 5).
   const sinEtapa5 = baseSinMigrar === true || baseSinMigrar === 'etapa3' || baseSinMigrar === 'etapa5';
   const sinEtapa6 = sinEtapa5 || baseSinMigrar === 'etapa6';
   Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6 }));
@@ -480,7 +480,7 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     }
     // Etapa 5 (02/11/2026): sin la migración de los pedidos, las columnas nuevas no existen: leerlas da
     // 42703 (select) y escribirlas PGRST204, como Supabase.
-    // Etapa 6 (03/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
+    // Etapa 6 (01/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
     const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : [])];
     if (columnasNuevas.length) {
       if (metodo === 'GET' || metodo === 'HEAD') {

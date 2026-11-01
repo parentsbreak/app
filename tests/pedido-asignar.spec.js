@@ -1,5 +1,5 @@
 // "Asignar" (pantalla 4), las plantillas de los mensajes para la madre y la confirmación (pantalla 5): fase 1,
-// etapa 6, tarea 6.4 (03/11/2026). "Asignar" desde "Pedidos en curso" (abrirAsignarPedido) y "Guardar asignación"
+// etapa 6, tarea 6.4 (01/11/2026). "Asignar" desde "Pedidos en curso" (abrirAsignarPedido) y "Guardar asignación"
 // desde "Elegir niñeras" comparten la misma asignación (asignarNineraAlPedido, agenda.js): la dirección de la
 // familia es obligatoria para un sitting, se toma el pedido con la condición del estado (dos admins a la vez),
 // la fila de la niñera y el registro (con solicitud_id) y, al final, la confirmación para la madre con la

@@ -200,7 +200,7 @@ function avisoPedidoNuevo(db, ahoraISO, fila) {
 }
 const ABIERTO = ['sin_asignar', 'pendiente_confirmar'];
 
-/* ---- Etapa 6 (03/11/2026): elegir la niñera, espejo de 20261103_eleccion_pedidos.sql ----
+/* ---- Etapa 6 (01/11/2026): elegir la niñera, espejo de 20261103_eleccion_pedidos.sql ----
    Los avisos los disparan triggers sobre las escrituras de siempre del panel; app.js los llama desde el
    REST simulado (POST / PATCH de solicitud_ninieras a 'confirmada' y PATCH de solicitudes a 'cancelada'),
    así que cualquier pantalla que ya escribe eso recibe los avisos sin hacer nada más. */
@@ -391,7 +391,7 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
 }
 
 // ahora: el reloj fijo del test (ISO con zona), para "hoy" y para el now() de los guardados.
-// sinEtapa6: la base sin la migración 20261103 (03/11/2026): ninera_marcar_pedido_visto no existe (lo pone app.js) y
+// sinEtapa6: la base sin la migración 20261103 (01/11/2026): ninera_marcar_pedido_visto no existe (lo pone app.js) y
 // ninera_mis_pedidos / ninera_mis_sittings devuelven lo de antes, sin las columnas nuevas.
 function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false } = {}) {
   const hoy = fechaMontevideo(ahora);
@@ -547,7 +547,7 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 =
     // Etapa 5 (02/11/2026), migración 20261102_pedidos_app.sql. Sus pedidos abiertos ('invitada' y
     // 'acepto', de la app, con la solicitud abierta y de hoy en adelante): nunca la familia, la dirección,
     // el cobro ni las notas, y los chicos solo si están cargados uno por uno.
-    // Etapa 6 (03/11/2026), 20261103_eleccion_pedidos.sql: además, una sola vez, lo que se cerró: la elegida
+    // Etapa 6 (01/11/2026), 20261103_eleccion_pedidos.sql: además, una sola vez, lo que se cerró: la elegida
     // ('confirmada' con seleccionada_en) hasta que abre los datos, y 'cubierto' / 'cancelado' de las que dijeron
     // "Puedo" hasta que lo ven (visto_en); y las columnas horario_aproximado y solicitud_id al final.
     ninera_mis_pedidos: () => (db.solicitud_ninieras || [])

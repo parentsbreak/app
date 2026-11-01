@@ -566,7 +566,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 });
 
-test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 03/11/2026)', () => {
+test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => {
   test('el ticket con horario aproximado trae la casilla tildada y la solicitud la guarda', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     conTicket(e, { horario_aproximado: true, dudas: [] });

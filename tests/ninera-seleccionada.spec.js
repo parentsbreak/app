@@ -1,4 +1,4 @@
-// App de niñeras (fase 1, etapa 6, tarea 6.6, 03/11/2026): la tarjeta "¡Quedaste seleccionada!" arriba del inicio,
+// App de niñeras (fase 1, etapa 6, tarea 6.6, 01/11/2026): la tarjeta "¡Quedaste seleccionada!" arriba del inicio,
 // el detalle del sitting con "Indicaciones", precio por hora y la marca de aproximado, los avisos de una sola vez
 // ("Ya se cubrió" / "Se canceló") y "Cómo llegar" con Google Maps, Waze o Mapas. Todo contra el simulador. Hoy
 // es el domingo 04/10/2026 a las 12:00 de Montevideo. La niñera de los tests es "Niñera (práctica)": el pedido
@@ -226,7 +226,7 @@ test.describe('"Ya se cubrió" y "Se canceló"', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
-  // Adaptado (fix 03/11/2026): antes el aviso duraba hasta cambiar de pantalla; ahora, hasta cerrar sesión o recargar.
+  // Adaptado (fix 01/11/2026): antes el aviso duraba hasta cambiar de pantalla; ahora, hasta cerrar sesión o recargar.
   test('si volver a la app lee de nuevo, el aviso que ya se mostró sigue a la vista', async ({ page }) => {
     const e = await abrir(page, { datos: datosAvisos('cubierto') });
     await expect(page.locator('.aviso-pedido')).toHaveCount(1);
