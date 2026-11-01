@@ -351,6 +351,15 @@ details.crit ul{margin:8px 0 0;padding-left:18px;line-height:1.6;}
 .zg-agregar-zona input{flex:1;}
 .fichadl div{padding:4px 0;border-bottom:1px dashed var(--line);white-space:pre-line;}
 .fichadl b{color:var(--ink-soft);font-weight:600;display:block;font-size:11px;text-transform:uppercase;letter-spacing:.02em;}
+/* CV de la niñera (01/11/2026): vista previa arriba en el celular, al costado en la compu. */
+.cv-pantalla{display:grid;gap:14px;}
+.cv-vista canvas{display:block;width:min(100%,230px);height:auto;margin:0 auto;border-radius:10px;border:1px solid var(--line);}
+.cv-vista #cv-estado{text-align:center;margin-top:6px;}
+.cv-campos textarea{min-height:0;resize:vertical;}
+.cv-fija{padding:9px 0;font-size:14px;}
+.cv-listo-caja{margin-top:10px;text-align:center;font-size:13px;}
+.cv-listo-botones,.perfiles-cv-app{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:8px;}
+@media (min-width:761px){.cv-pantalla{grid-template-columns:280px 1fr;align-items:start;}.cv-vista{position:sticky;top:0;}.cv-vista canvas{width:100%;}}
 .fichadl-row label{color:var(--ink-soft);font-weight:600;display:block;font-size:11px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:2px;}
 .fichadl-row textarea{margin-top:4px;min-height:52px;font-size:12.5px;white-space:normal;}
 .fichadl .field{grid-column:1/-1;padding:8px 0 12px;border-bottom:1px dashed var(--line);}

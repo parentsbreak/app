@@ -425,6 +425,12 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   (`seleccionada_en`, `visto_en`, `notas_para_ninera` y dirección solo `confirmado`, `precio_hora`, sin plata ni notas internas),
   `ninera_marcar_pedido_visto`, `programar_avisos_pedidos` (recordatorio, perfiles, nadie, 3 horas, sin duplicar) e ida y vuelta de la
   migración `20261103_eleccion_pedidos` (la fecha del nombre queda: ordena después de la 20261102).
+- `tests/cv-automatico.spec.js` (01/11/2026): el CV de la niñera: precarga, edad calculada, líneas vacías sin hueco, tamaño de la letra
+  (7, 6 que llenan, 3), no entra, sin foto y foto que no carga, subida (PNG de 1080×1920) y guardado exactos, lo que nunca aparece,
+  Compartir / Descargar, regenerar borra el anterior, fallas, doble toque, CV viejo, base sin migrar, escape, "Perfiles para la madre",
+  390 y 1280 px. El simulador: `abrirApp(..., { baseSinMigrar: 'cv' })` (sin `cv_datos` ni `cv_generado_con`), storage responde con
+  CORS y `estado.imagenStorage` cambia la imagen que baja, y cada subida anota `bytes`. En la base: `supabase/pruebas/cv_automatico.sql`
+  y el DESHACER con datos en `supabase/pruebas/deshacer/20261104_cv_automatico*.sql`.
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -665,7 +671,7 @@ reporte.
   admins. Corchetes que se completan solos: `[madre]` (primera palabra de `familias.nombre`), `[día]`, `[hora inicio]`, `[niñeras]`,
   `[niñera]`, `[cuándo]`; con un corchete sin completar no se puede copiar ni abrir WhatsApp. Regla del CV en "Perfiles": a las que ya
   fueron a esa casa va solo el nombre; una nueva entra recién con "Revisé su perfil" ("(te paso su CV)") y abajo "Adjuntá en WhatsApp el
-  CV de [niñera]." (el CV es un PDF de Canva, aparte). "Pedidos en curso" lee todo en una lectura (`cargarPedidosEnCurso`) y el
+  CV de [niñera]." si su CV es el viejo de Canva; si tiene el de la app (`cv_url`), "Compartir el CV de [niñeras]" los manda de un toque. "Pedidos en curso" lee todo en una lectura (`cargarPedidosEnCurso`) y el
   historial de "Ya fue N veces" en otra para todos (`historialPedidosEnCurso`).
 - App de niñeras, etapa 6 (01/11/2026): tarjeta "¡Quedaste seleccionada!" con `seleccionada_en` sin `visto_en` ("Ver los datos" llama a
   `ninera_marcar_pedido_visto`); "Ya se cubrió" / "Se canceló" llegan una vez y quedan en memoria hasta cerrar sesión o recargar
@@ -673,6 +679,15 @@ reporte.
   con Google Maps, Waze y Mapas (`linksMapaNinera`).
 - Textos nuevos sin "·" (Diego, 01/11/2026): en los textos nuevos o cambiados se usan comas, "a las" o renglones aparte; las líneas
   viejas que no se tocaron quedan.
+- CV automático (01/11/2026): "CV de [nombre]" (`abrirCvNinera`, ninieras.js; desde el botón "CV" de la lista y la fila "CV" de la
+  ficha) dibuja en un canvas el CV igual al de Canva sobre `img/cv/fondo-cv.png`, con las fuentes de `vendor/fuentes/` (League Spartan
+  800 el nombre, Arimo Bold los datos; OFL, sin CDN) y las medidas de `CV_MEDIDAS`, sacadas del CV de referencia. Al CV van solo el
+  nombre, la foto y las 7 líneas de `CV_LINEAS`: nunca teléfono, mail, zona, patologías ni nada de salud. Las líneas se precargan
+  desde la ficha (`precargaCv`) y se guardan en `ninieras.cv_datos`; con fecha de nacimiento la edad se calcula al dibujar y no se
+  guarda. "Guardar y generar CV" sube el PNG a `ninieras-fotos/cv/<uuid>.png` (nombre al azar), guarda `cv_url`, `cv_generado_en` y
+  `cv_generado_con` (nombre, foto y líneas dibujadas) y borra el anterior; si falla la base, borra lo subido. `motivoCvViejo` compara
+  `cv_generado_con` con lo de hoy (para un CV de Canva, solo el cumpleaños). Una foto que no carga no deja generar. "Compartir" usa
+  `navigator.share` con el archivo ya bajado antes del toque (el iPhone no deja esperar entre el toque y el menú); sin eso, "Descargar".
 - Dos puertas, una sesión cada una (26/10/2026): el cliente de `ninera/` usa
   `storageKey: 'sb-ninera-auth'` (`ninera/js/base.js`); el panel sigue con la clave por defecto.
   Comparten origen y `localStorage`: sin eso, una socia con las dos cuentas vería la sesión
@@ -933,11 +948,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   "Niñera (práctica)"); se apaga por SQL con el OK de Diego después de la etapa 4 y de probar un pedido de práctica de punta a punta
   en el iPhone (lista en la etapa 5 del plan). Sin `app_config
   'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. La regla del CV quedó en la etapa 6 ("Perfiles para la madre").
-- CV automático en el sistema (01/11/2026, tarea aparte, justo después de la etapa 6): hoy el CV se arma a mano en Canva desde
-  un chat (plan gratis, sin Autofill). Idea: exportar una vez el fondo de la plantilla de Canva sin textos ni foto, y que la app
-  genere sola el CV (nombre en violeta, foto circular, los 7 datos en coral; nunca teléfono, mail ni zona) como imagen o PDF desde
-  la ficha de la niñera, lo guarde en `cv_url` y lo regenere si cambian los datos. Para mandarlo, "Compartir"
-  (`navigator.share` con el archivo) desde el iPhone a WhatsApp. Cuando exista, el "Adjuntá el CV de X" de la etapa 6 pasa a ese botón.
+- CV automático (01/11/2026): probar en un iPhone real "Compartir" a WhatsApp (uno solo y varios desde "Perfiles para la madre")
+  y cómo llega el PNG. Los CV de Canva siguen fuera del sistema hasta que se generen desde la app.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
   `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.

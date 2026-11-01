@@ -8,7 +8,7 @@ const RAIZ = path.resolve(__dirname, '..', '..');
 const PUERTO = Number(process.env.PUERTO_TESTS || 4173);
 const TIPOS = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
 };
 

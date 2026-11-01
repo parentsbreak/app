@@ -99,7 +99,7 @@ test('guardar desde el formulario: lo editado va a notas_ficha y la respuesta or
   verificarLimpio(e);
 });
 
-test('lo corregido en la entrevista se ve en la ficha de la niñera y en el pedido de CV', async ({ page }) => {
+test('lo corregido en la entrevista se ve en la ficha de la niñera y en el CV', async ({ page }) => {
   const datos = datosBase();
   datos.ninieras[0].candidata_id = ID.cIntake;
   Object.assign(datos.candidatas[0], { estado: 'contratada', notas_ficha: { experiencia: 'Dos años con mellizos', idiomas: 'Francés' } });
@@ -111,8 +111,11 @@ test('lo corregido en la entrevista se ve en la ficha de la niñera y en el pedi
   await expect(page.locator('#editmodal')).toContainText('Francés');
   await expect(page.locator('#editmodal')).not.toContainText('Cuidó primos');
   await page.evaluate(() => cerrarModal());
-  await page.evaluate(id => generarMensajeCV(id), ID.nAna);
-  await expect(page.locator('#editmodal textarea')).toHaveValue(/Dos años con mellizos/);
+  // El CV (01/11/2026, ya no el mensaje para Canva) se precarga con lo corregido.
+  await page.evaluate(id => abrirCvNinera(id), ID.nAna);
+  await expect(page.locator('#cv-experiencia')).toHaveValue('Dos años con mellizos');
+  await expect(page.locator('#cv-idiomas')).toHaveValue('Francés');
+  await expect(page.locator('#cv-estado')).not.toContainText('Dibujando');
   verificarLimpio(e);
 });
 
