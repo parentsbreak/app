@@ -103,7 +103,10 @@ async function renderAgenda(cont){
         <div class="mesnav-label" id="agenda-fecha-label">${agendaRangoLabel()}</div>
         <button onclick="cambiarAgendaRango(1)" aria-label="Días siguientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 5l7 7-7 7"/></svg></button>
       </div>
-      <button class="smallbtn" onclick="abrirModalNuevaSolicitud()">+ Nueva solicitud</button>
+      <div class="agenda-acciones">
+        <button class="smallbtn" onclick="abrirPegarWhatsApp()">Pegar WhatsApp</button>
+        <button class="smallbtn" onclick="abrirModalNuevaSolicitud()">+ Nueva solicitud</button>
+      </div>
     </div>
     <div class="agenda-legend">
       <span><span class="agenda-dot dot-sinasignar"></span>Sin asignar</span>

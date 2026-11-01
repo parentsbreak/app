@@ -641,3 +641,504 @@ async function enviarPedidoApp(solicitudId){
     if(a) toast(a.texto, a.tipo);
   });
 }
+
+/* ================= "Pegar WhatsApp" (etapa 5, tarea 5.6, 02/11/2026) =================
+   En la Agenda, la admin pega el mensaje de la madre, la Edge Function pedido-whatsapp arma el ticket
+   (queda en pedidos_whatsapp como borrador) y la admin lo revisa y lo corrige acá. "Revisar y elegir
+   niñeras" y "Guardar sin mandar" lo pasan a la Agenda en tres pasos, en este orden: se toma el pedido
+   (estado 'confirmado', con la condición de que siga en 'borrador': si otra admin ya lo tomó, no se crea
+   nada), se crea la solicitud y al final se le pone solicitud_id (ahí la base le avisa a las otras admins).
+   Todo lo que viene del mensaje y del modelo es un dato: siempre escapado. Las dudas viven en
+   pedidos_whatsapp.dudas: "Elegir niñeras" las vuelve a leer y no deja mandar hasta resolverlas. */
+let pedidoTicket = null; // el ticket a la vista: el pedido, la familia elegida, sus chicos y lo que se tocó
+
+function abrirPegarWhatsApp(){
+  pedidoTicket = null;
+  abrirModal(`<div class="pedido-pegar">
+    <h2>Pedido nuevo de WhatsApp</h2>
+    <div class="helper">Pegá el mensaje de la madre. Podés pegar varios mensajes seguidos.</div>
+    <div class="field"><textarea id="pedido-texto" rows="8" aria-label="Mensaje de la madre"></textarea></div>
+    <div id="pedido-pegar-warn"></div>
+    <button class="btn primary" style="width:100%;margin-top:4px;" onclick="conGuardado(this, ()=>armarPedidoWhatsApp())">Armar pedido</button>
+  </div>`);
+  protegerModal('pedido-pegar'); // lo pegado vuelve si se recarga la página antes de armar el pedido
+}
+
+// El texto de un error de la Edge Function. Con un código que no es 2xx, supabase-js devuelve
+// FunctionsHttpError con la respuesta sin leer en `context`: el mensaje es el que armó la función
+// (ticket.ts / index.ts: texto vacío o largo, sesión vencida, sin acceso, tope del día...).
+async function textoErrorPedidoWhatsApp(error){
+  if(error?.name==='FunctionsHttpError' && error.context){
+    let mensaje = '';
+    try { mensaje = (await error.context.json())?.error || ''; } catch(_) { /* sin JSON: el texto genérico */ }
+    return mensaje ? String(mensaje) : `El asistente no respondió (error ${error.context.status}): probá de nuevo.`;
+  }
+  if(error?.name==='FunctionsFetchError') return 'No se pudo conectar con el asistente: revisá internet y probá de nuevo.';
+  return `No se pudo armar el pedido: ${error?.message || error}`;
+}
+
+async function armarPedidoWhatsApp(){
+  const warn = document.getElementById('pedido-pegar-warn');
+  const aviso = t => { if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml(t)}</div>`; };
+  if(warn) warn.innerHTML = '';
+  const texto = (document.getElementById('pedido-texto')?.value || '').trim();
+  if(!texto){ aviso('Pegá el mensaje de la madre.'); return; }
+  const token = modalToken;
+  const { data, error } = await sb.functions.invoke('pedido-whatsapp', { body: { texto } });
+  // Si mientras pensaba se cerró o se abrió otro modal, no se lo pisa (el pedido queda como borrador).
+  if(token!==modalToken || !document.getElementById('pedido-texto')) return;
+  if(error){ aviso(await textoErrorPedidoWhatsApp(error)); return; }
+  if(!data?.pedido?.id){ aviso('El asistente no devolvió un ticket válido. Probá de nuevo o cargalo a mano.'); return; }
+  await pintarTicket(data.pedido);
+}
+
+// La niñera que pidió la madre, tal cual la escribió: la de la lista con ese nombre (normaliza) o, si
+// escribió solo el primer nombre y hay una sola activa que se llama así, esa. Si no, nadie: la admin elige.
+function nineraPedidaDelTicket(texto){
+  const q = normaliza(String(texto||'').trim());
+  if(!q) return null;
+  const clave = n => normaliza(String(n.nombre||'').trim());
+  const exacta = agendaNinierasBase.find(n=>clave(n)===q);
+  if(exacta) return exacta;
+  const porNombre = agendaNinierasBase.filter(n=>clave(n).split(/\s+/)[0]===q);
+  return porNombre.length===1 ? porNombre[0] : null;
+}
+
+async function pintarTicket(pedido){
+  const token = modalToken;
+  if(!agendaFamilias.length) await cargarAgendaBase();
+  if(!zonaGruposCache) await cargarZonaGrupos();
+  if(token!==modalToken) return;
+  if(pedido.tipo && pedido.tipo!=='pedido_nuevo') return await pintarNoEsPedidoNuevo(pedido);
+  const familia = pedido.familia_id ? agendaFamilias.find(f=>f.id===pedido.familia_id) || null : null;
+  const ninera = nineraPedidaDelTicket(pedido.ninera_pedida);
+  // La zona del mensaje solo si es una de las nuestras (puede venir una dirección); si no, la de la familia.
+  const zonaTicket = zonasMencionadasEnTexto(pedido.zona||'').map(g=>g.nombre).join('/');
+  pedidoTicket = { pedido, familia, confirmada: false, buscando: !familia, hijos: null, hijosError: null, agregandoHijo: false,
+    direccion: null, direccionLeida: false, direccionDespues: false, direccionGuardada: false,
+    dudas: (Array.isArray(pedido.dudas) ? pedido.dudas : []).map(String), nineraPedidaId: ninera?.id || null,
+    zonaDelTicket: !!zonaTicket, zonaTocada: false };
+  const hi = (pedido.hora_inicio||'').slice(0,5).split(':'), hf = (pedido.hora_fin||'').slice(0,5).split(':');
+  const servicio = pedido.servicio==='traslado' || pedido.servicio==='sitting' ? pedido.servicio : '';
+  const enMensaje = t => `<div class="helper pedido-del-mensaje">${escaparHtml(`En el mensaje: "${t}"`)}</div>`;
+  abrirModal(`<div class="pedido-ticket">
+    <h2>Pedido nuevo de WhatsApp</h2>
+    <details class="pedido-msg" open><summary>Mensaje pegado</summary><div class="pedido-msg-texto">${escaparHtml(pedido.texto||'')}</div></details>
+    <div class="field"><label>Familia</label><div id="pedido-familia-box"></div></div>
+    <div class="grid2">
+      <div class="field"><label>Tipo</label><select id="pedido-tipo" onchange="actualizarPrecioTicket()">
+        ${servicio ? '' : '<option value="">Elegí</option>'}
+        <option value="sitting"${servicio==='sitting'?' selected':''}>Sitting</option>
+        <option value="traslado"${servicio==='traslado'?' selected':''}>Traslado</option></select></div>
+      <div class="field"><label>Día</label><input type="date" id="pedido-fecha" value="${escaparHtml(pedido.fecha||'')}" onchange="actualizarPrecioTicket()"></div>
+    </div>
+    <div id="pedido-horario" onchange="actualizarPrecioTicket()">
+      <div class="grid2">
+        <div class="field"><label>Inicio</label>${selectHora('pedido-hi', hi[0]||'', hi[1]||'')}</div>
+        <div class="field"><label>Fin${pedido.horario_aproximado ? ' <span class="badge warn pedido-aprox">aproximado</span>' : ''}</label>${selectHora('pedido-hf', hf[0]||'', hf[1]||'')}</div>
+      </div>
+      ${pedido.horario_nota ? enMensaje(pedido.horario_nota) : ''}
+      <label class="chk" style="margin:2px 0 12px;"><input type="checkbox" id="pedido-cruza"${pedido.termina_dia_siguiente ? ' checked' : ''}> Termina al día siguiente</label>
+    </div>
+    <div id="pedido-zona-wrap" onchange="onZonaTicket()">${checklistZonas('pedido', zonaTicket || familia?.zona || '', 'Zona')}</div>
+    ${pedido.zona && !zonaTicket ? enMensaje(pedido.zona) : ''}
+    <div class="field"><label>Chicos (de la ficha)</label><div id="pedido-chicos"></div></div>
+    <div class="field" style="position:relative;"><label>La madre pidió a</label>
+      <input type="text" id="pedido-ninera" autocomplete="off" placeholder="Nadie en especial" value="${escaparHtml(ninera?.nombre || '')}">
+      <div id="pedido-ninera-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
+      ${pedido.ninera_pedida && !ninera ? enMensaje(pedido.ninera_pedida) : ''}
+    </div>
+    <div class="field"><label>Notas para la niñera</label><textarea id="pedido-notas" rows="3" maxlength="1000">${escaparHtml(pedido.notas||'')}</textarea></div>
+    <div id="pedido-precio"></div>
+    <div id="pedido-ticket-dudas"></div>
+    <div id="pedido-direccion-wrap"></div>
+    <button class="btn ghost" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>crearSolicitudDesdeTicket({ mandar: false }))">Guardar sin mandar</button>
+    <div class="pedido-pie">
+      <div id="pedido-ticket-warn"></div>
+      <button class="btn primary" style="width:100%;" onclick="conGuardado(this, ()=>crearSolicitudDesdeTicket({ mandar: true }))">Revisar y elegir niñeras</button>
+      <div class="helper" style="text-align:center;margin:6px 0 0;">Guarda la solicitud en la Agenda (sin asignar) y abre las sugeridas.</div>
+    </div>
+  </div>`);
+  document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove(); // "Editar zonas" abriría otro modal encima del ticket
+  attachAutocomplete('pedido-ninera', 'pedido-ninera-dropdown', ()=>agendaNinierasBase,
+    n=>{ if(pedidoTicket) pedidoTicket.nineraPedidaId = n?.id || null; }, { sinCoincidencias: 'Ninguna niñera coincide.' });
+  pintarFamiliaTicket();
+  pintarChicosTicket();
+  pintarDudasTicket();
+  pintarDireccionTicket();
+  actualizarPrecioTicket();
+  protegerModal('pedido-whatsapp:'+pedido.id); // pregunta antes de cerrar con cambios
+}
+function onZonaTicket(){ if(pedidoTicket) pedidoTicket.zonaTocada = true; }
+
+// La familia: la propuesta con "Es esta" / "Otra familia"; elegida, con "Cambiar"; si no, el buscador
+// y "+ Familia nueva" (la ficha corta del registro, ahí mismo, sin perder el ticket).
+function pintarFamiliaTicket(){
+  const st = pedidoTicket, box = document.getElementById('pedido-familia-box');
+  if(!st || !box) return;
+  const p = st.pedido;
+  const enMensaje = p.familia_texto ? `<div class="helper" style="margin:2px 0 0;">${escaparHtml(`En el mensaje: "${p.familia_texto}"`)}</div>` : '';
+  if(st.familia && !st.buscando){
+    box.innerHTML = `<div class="pedido-fam">
+      <div class="pedido-fam-txt"><b>${escaparHtml(st.familia.nombre)}</b>${enMensaje}</div>
+      <div class="pedido-fam-acc">${st.confirmada
+        ? `<span class="badge good">Es esta ✓</span><button type="button" class="smallbtn" onclick="buscarOtraFamiliaTicket()">Cambiar</button>`
+        : `<button type="button" class="smallbtn pedido-ac" onclick="elegirFamiliaTicket(${argJs(st.familia.id)})">Es esta</button><button type="button" class="smallbtn" onclick="buscarOtraFamiliaTicket()">Otra familia</button>`}</div>
+    </div>`;
+    return;
+  }
+  box.innerHTML = `<div style="position:relative;"><input type="text" id="pedido-familia" autocomplete="off" placeholder="Buscá la familia" value="${escaparHtml(st.familia ? '' : (p.familia_texto || ''))}">
+      <div id="pedido-familia-dropdown" class="autocomplete-dropdown" style="display:none;"></div></div>
+    ${enMensaje}
+    <div id="pedido-familia-create" style="margin-top:6px;"></div>
+    <div id="pedido-familia-nueva"></div>`;
+  attachAutocomplete('pedido-familia', 'pedido-familia-dropdown', ()=>agendaFamilias,
+    f=>{ if(f) elegirFamiliaTicket(f.id); else pintarCrearFamiliaTicket(); }, { sinCoincidencias: '' });
+  pintarCrearFamiliaTicket();
+}
+function buscarOtraFamiliaTicket(){
+  const st = pedidoTicket;
+  if(!st) return;
+  st.buscando = true; st.confirmada = false; st.familia = null; st.hijos = null; st.hijosError = null;
+  st.direccionLeida = false; st.direccionGuardada = false;
+  pintarFamiliaTicket(); pintarChicosTicket(); pintarDireccionTicket(); actualizarPrecioTicket();
+  document.getElementById('pedido-familia')?.focus();
+}
+function pintarCrearFamiliaTicket(){
+  const box = document.getElementById('pedido-familia-create');
+  if(!box) return;
+  const val = (document.getElementById('pedido-familia')?.value || '').trim();
+  const existe = agendaFamilias.some(f=>normaliza(f.nombre)===normaliza(val));
+  const fichaAbierta = !!document.getElementById('pedfam-telefono');
+  box.innerHTML = val && !existe && !fichaAbierta ? `<button type="button" class="createbtn" onclick="abrirFamiliaNuevaTicket()">${escaparHtml(`+ Familia nueva "${val}"`)}</button>` : '';
+}
+function abrirFamiliaNuevaTicket(){
+  const panel = document.getElementById('pedido-familia-nueva');
+  if(!panel) return;
+  panel.innerHTML = fichaFamiliaNuevaHtml('pedfam', { cancelar: 'cerrarFamiliaNuevaTicket()', crear: 'crearFamiliaDesdeTicket()' });
+  panel.querySelector('.zona-detalle')?.remove(); // "Editar zonas" abre su propio modal en lugar de este
+  const dd = document.getElementById('pedido-familia-dropdown');
+  if(dd) dd.style.display = 'none';
+  pintarCrearFamiliaTicket();
+  document.getElementById('pedfam-telefono').focus();
+}
+function cerrarFamiliaNuevaTicket(){
+  const panel = document.getElementById('pedido-familia-nueva');
+  if(panel) panel.innerHTML = '';
+  pintarCrearFamiliaTicket();
+}
+async function crearFamiliaDesdeTicket(){
+  const nombre = (document.getElementById('pedido-familia')?.value || '').trim();
+  const data = await insertarFamiliaNueva('pedfam', nombre, agendaFamilias);
+  if(!data) return;
+  agendaFamilias.push(data); // así la Agenda y "Elegir niñeras" la encuentran sin recargar
+  toast('Familia creada. Cuentas y notas se agregan desde Familias.');
+  await elegirFamiliaTicket(data.id);
+}
+async function elegirFamiliaTicket(id){
+  const st = pedidoTicket, f = agendaFamilias.find(x=>x.id===id);
+  if(!st || !f) return;
+  Object.assign(st, { familia: f, confirmada: true, buscando: false, hijos: null, hijosError: null, agregandoHijo: false,
+    direccion: null, direccionLeida: false, direccionDespues: false, direccionGuardada: false });
+  pintarFamiliaTicket();
+  // Sin zona en el mensaje (y sin tocarla), la de la familia elegida.
+  if(!st.zonaDelTicket && !st.zonaTocada){
+    setZonasChecklist('pedido', f.zona || '', 'Zona');
+    document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove();
+  }
+  pintarChicosTicket(); pintarDireccionTicket(); actualizarPrecioTicket();
+  await leerFichaFamiliaTicket(id);
+}
+// Los chicos (uno por uno, hijos_familia: el texto libre viejo no cuenta) y la dirección, en paralelo.
+async function leerFichaFamiliaTicket(id){
+  const [hijos, fam] = await Promise.all([
+    sb.from('hijos_familia').select('id,fecha_nacimiento,edad_declarada,edad_declarada_en').eq('familia_id', id),
+    sb.from('familias').select('direccion').eq('id', id).maybeSingle(),
+  ]);
+  const st = pedidoTicket;
+  if(!st || st.familia?.id!==id) return; // se eligió otra mientras leía
+  st.hijos = hijos.error ? null : (hijos.data || []);
+  st.hijosError = hijos.error || null;
+  st.direccionLeida = !fam.error;
+  st.direccion = fam.data?.direccion || '';
+  pintarChicosTicket(); pintarDireccionTicket();
+}
+
+function pintarChicosTicket(){
+  const st = pedidoTicket, box = document.getElementById('pedido-chicos');
+  if(!st || !box) return;
+  const p = st.pedido;
+  const cantidad = Number(p.chicos_cantidad) || 0;
+  const partes = [cantidad ? `${cantidad} ${cantidad===1 ? 'chico' : 'chicos'}` : '', p.chicos_edades || ''].filter(Boolean);
+  const delMensaje = partes.length ? `<div class="helper" style="margin:4px 0 0;">${escaparHtml('En el mensaje: '+partes.join(', '))}</div>` : '';
+  if(!st.confirmada){ box.innerHTML = `<div class="helper" style="margin:0;">Confirmá la familia para ver sus chicos.</div>${delMensaje}`; return; }
+  if(st.hijosError){
+    box.innerHTML = `<div class="warnbox" style="margin-top:0;">${escaparHtml('No se pudieron leer los chicos de la familia: '+(st.hijosError.message || st.hijosError))}
+      <div style="margin-top:8px;"><button type="button" class="smallbtn" onclick="leerFichaFamiliaTicket(${argJs(st.familia.id)})">Reintentar</button></div></div>`;
+    return;
+  }
+  if(st.hijos===null){ box.innerHTML = '<div class="helper" style="margin:0;">Leyendo los chicos de la ficha…</div>'; return; }
+  const form = st.agregandoHijo ? `<div class="pedido-hijo-form">
+      <div class="grid2">
+        <div class="field"><label>Edad (años)</label><input type="number" inputmode="numeric" min="0" max="30" id="pedido-hijo-edad"></div>
+        <div class="field"><label>Nombre (opcional)</label><input type="text" id="pedido-hijo-nombre"></div>
+      </div>
+      <div id="pedido-hijo-warn"></div>
+      <button type="button" class="smallbtn pedido-ac" onclick="conGuardado(this, ()=>guardarHijoTicket())">Guardar</button>
+    </div>` : '<button type="button" class="smallbtn" onclick="abrirHijoTicket()">+ Agregar</button>';
+  if(st.hijos.length){
+    const edades = st.hijos.map(edadHijo).filter(e=>e!==null);
+    box.innerHTML = `<div class="pedido-chicos-txt">${escaparHtml(chicosPedidoTexto(edades, st.hijos.length))}</div><div style="margin-top:6px;">${form}</div>`;
+  } else {
+    box.innerHTML = `<div class="warnbox pedido-faltan" style="margin-top:0;"><b>Faltan los chicos</b> ${escaparHtml(`de ${st.familia.nombre}. Para mandar el pedido, cargá la edad de cada uno (el nombre es opcional).`)}
+      ${delMensaje}<div style="margin-top:8px;">${form}</div></div>`;
+  }
+  if(st.agregandoHijo) document.getElementById('pedido-hijo-edad')?.focus();
+}
+function abrirHijoTicket(){
+  if(!pedidoTicket) return;
+  pedidoTicket.agregandoHijo = true;
+  pintarChicosTicket();
+}
+async function guardarHijoTicket(){
+  const st = pedidoTicket;
+  if(!st?.familia || !st.hijos) return;
+  const warn = document.getElementById('pedido-hijo-warn');
+  const edadTxt = (document.getElementById('pedido-hijo-edad')?.value || '').trim();
+  const edad = Number(edadTxt);
+  if(!edadTxt || !Number.isInteger(edad) || edad < 0 || edad > 30){ warn.innerHTML = '<div class="warnbox">Poné la edad en años (un número entero).</div>'; return; }
+  const fila = { familia_id: st.familia.id, nombre: (document.getElementById('pedido-hijo-nombre')?.value || '').trim() || null,
+    edad_declarada: edad, edad_declarada_en: todayISO(), orden: st.hijos.length };
+  const { data, error } = await sb.from('hijos_familia').insert(fila).select('id,fecha_nacimiento,edad_declarada,edad_declarada_en').single();
+  if(error){ warn.innerHTML = errBox(error); return; }
+  if(pedidoTicket!==st || st.familia.id!==fila.familia_id) return;
+  st.hijos.push(data);
+  st.agregandoHijo = false;
+  pintarChicosTicket();
+}
+
+// "Falta la dirección" (la niñera la ve recién cuando la eligen, etapa 6): se puede guardar acá o dejar
+// para después; no bloquea.
+function pintarDireccionTicket(){
+  const st = pedidoTicket, wrap = document.getElementById('pedido-direccion-wrap');
+  if(!st || !wrap) return;
+  if(st.confirmada && st.direccionGuardada){ wrap.innerHTML = '<div class="helper pedido-ok" id="pedido-direccion-box">Dirección guardada.</div>'; return; }
+  if(!st.confirmada || !st.direccionLeida || st.direccion || st.direccionDespues){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div class="warnbox pedido-direccion" id="pedido-direccion-box"><b>${escaparHtml('Falta la dirección de '+st.familia.nombre)}</b>. La niñera la ve recién cuando la eligen.
+    <input type="text" id="pedido-direccion" placeholder="Calle, número, apto." autocomplete="off" style="margin-top:8px;">
+    <div id="pedido-direccion-warn"></div>
+    <div class="pedido-botones">
+      <button type="button" class="smallbtn pedido-ac" onclick="conGuardado(this, ()=>guardarDireccionTicket())">Guardar</button>
+      <button type="button" class="smallbtn" onclick="direccionDespuesTicket()">Después</button>
+    </div></div>`;
+}
+function direccionDespuesTicket(){
+  if(!pedidoTicket) return;
+  pedidoTicket.direccionDespues = true;
+  pintarDireccionTicket();
+}
+async function guardarDireccionTicket(){
+  const st = pedidoTicket;
+  if(!st?.familia) return;
+  const warn = document.getElementById('pedido-direccion-warn');
+  const valor = (document.getElementById('pedido-direccion')?.value || '').trim();
+  if(!valor){ warn.innerHTML = '<div class="warnbox">Escribí la dirección (o tocá "Después").</div>'; return; }
+  const familiaId = st.familia.id;
+  const { error } = await sb.from('familias').update({ direccion: valor }).eq('id', familiaId);
+  if(error){ warn.innerHTML = errBox(error); return; }
+  if(pedidoTicket!==st || st.familia?.id!==familiaId) return;
+  st.direccion = valor;
+  st.direccionGuardada = true;
+  pintarDireccionTicket();
+}
+
+// Las dudas del modelo: "Ya lo confirmé" saca una y "Mandar igual" las vacía, guardado en el pedido
+// (pedidos_whatsapp.dudas). No frenan el pase a la Agenda: frenan el envío en "Elegir niñeras".
+function pintarDudasTicket(error){
+  const st = pedidoTicket, cont = document.getElementById('pedido-ticket-dudas');
+  if(!st || !cont) return;
+  cont.innerHTML = st.dudas.length ? `<div class="warnbox">
+      ${st.dudas.map((d, i)=>`<div class="pedido-duda"><span>${escaparHtml('A confirmar: '+d)}</span>
+        <button type="button" class="smallbtn" onclick="conGuardado(this, ()=>guardarDudaTicket(${i}))">Ya lo confirmé</button></div>`).join('')}
+      <div style="margin:2px 0 0;">Preguntale a la madre antes de mandar.</div>
+      <div style="margin-top:8px;"><button type="button" class="smallbtn" onclick="conGuardado(this, ()=>guardarDudasTicket([]))">Mandar igual</button></div>
+      ${error ? `<div style="margin-top:6px;">${escaparHtml('No se guardó: '+(error.message || error))}</div>` : ''}
+    </div>` : '';
+}
+async function guardarDudasTicket(lista){
+  const st = pedidoTicket;
+  if(!st) return;
+  const { error } = await sb.from('pedidos_whatsapp').update({ dudas: lista }).eq('id', st.pedido.id);
+  if(pedidoTicket!==st) return;
+  if(error){ pintarDudasTicket(error); return; }
+  st.dudas = lista;
+  pintarDudasTicket();
+}
+async function guardarDudaTicket(indice){
+  if(!pedidoTicket) return;
+  await guardarDudasTicket(pedidoTicket.dudas.filter((_, i)=>i!==indice));
+}
+
+function leerHorarioTicket(){
+  const valor = id => document.getElementById(id)?.value || '';
+  return { tipo: valor('pedido-tipo'), fecha: valor('pedido-fecha'), hi: leerHora('pedido-hi'), hf: leerHora('pedido-hf'),
+    cruza: !!document.getElementById('pedido-cruza')?.checked };
+}
+// El precio esperado para la madre: las horas a cobrar (horasSitting, con los términos de la familia)
+// por su tarifa, sin centavos (redondearCobro). Sin fin no hay total (como en la Agenda). `problema`:
+// un horario que no se puede guardar.
+function precioTicket(){
+  const st = pedidoTicket, h = leerHorarioTicket();
+  if(h.tipo==='traslado') return { cobro: null, texto: 'El precio del traslado se calcula con los km al asignarlo.' };
+  if(cruceMedianocheMalMarcado(h.hi, h.hf, h.cruza)) return { cobro: null, problema: AVISO_CRUCE_MEDIANOCHE };
+  if(h.hi && h.hf && !h.cruza && h.hf <= h.hi) return { cobro: null, problema: 'La hora de fin tiene que ser después de la de inicio. Si termina pasada la medianoche, marcá "Termina al día siguiente".' };
+  if(!h.hi) return { cobro: null, texto: '' };
+  if(!h.hf) return { cobro: null, texto: 'Sin total hasta que se sepa la hora de fin.' };
+  const fam = st?.familia;
+  if(!fam) return { cobro: null, texto: 'Elegí la familia para ver el precio.' };
+  const tarifa = Number(fam.cobro_hora) || 0;
+  if(!tarifa) return { cobro: null, texto: `${fam.nombre} no tiene tarifa por hora cargada: el total se calcula al registrar.` };
+  const horas = horasSitting(h.hi, h.hf, h.cruza, fam, h.fecha);
+  if(!horas) return { cobro: null, texto: '' };
+  const cobro = redondearCobro(tarifa * horas.cobro);
+  const fin = textoFinCobrado(h.hf, horas);
+  return { cobro, texto: `Precio esperado para la madre: $${cobro.toLocaleString('es-UY')} (${horas.cobro.toFixed(1).replace('.0','')} h × $${tarifa.toLocaleString('es-UY')})${fin ? ' · '+fin : ''}` };
+}
+function actualizarPrecioTicket(){
+  const cont = document.getElementById('pedido-precio');
+  if(!cont || !pedidoTicket) return;
+  const p = precioTicket();
+  cont.innerHTML = p.problema ? `<div class="warnbox">${escaparHtml(p.problema)}</div>`
+    : p.texto ? `<div class="pedido-precio-esperado">${escaparHtml(p.texto)}</div>` : '';
+}
+
+// Una columna de la etapa 5 que la base todavía no tiene (la app publicada antes de la migración).
+function esFaltaColumnaSolicitudApp(error){
+  return !!error && (error.code==='PGRST204' || error.code==='42703') && /ninera_pedida_id|notas_para_ninera/.test(error.message || '');
+}
+
+async function crearSolicitudDesdeTicket({ mandar }){
+  const st = pedidoTicket;
+  if(!st || st.noNuevo) return;
+  const warn = document.getElementById('pedido-ticket-warn');
+  const aviso = t => { warn.innerHTML = `<div class="warnbox">${escaparHtml(t)}</div>`; };
+  warn.innerHTML = '';
+  const fam = st.confirmada ? st.familia : null;
+  if(!fam){ aviso(st.familia && !st.buscando ? 'Confirmá la familia ("Es esta") o elegí otra.' : 'Confirmá la familia: elegila de la lista o creala con "+ Familia nueva".'); return; }
+  const h = leerHorarioTicket();
+  if(!h.tipo){ aviso('Elegí si es un sitting o un traslado.'); return; }
+  if(!h.fecha){ aviso('Falta el día.'); return; }
+  if(!h.hi){ aviso('Falta la hora de inicio.'); return; }
+  const precio = precioTicket();
+  if(precio.problema){ aviso(precio.problema); return; }
+  // Para mandar un sitting hacen falta los chicos cargados uno por uno (la base da sin_chicos igual).
+  if(mandar && h.tipo==='sitting'){
+    if(st.hijosError){ aviso('No se pudieron leer los chicos de la familia: tocá "Reintentar" antes de mandar.'); return; }
+    if(st.hijos===null){ aviso('Esperá a que se lean los chicos de la familia.'); return; }
+    if(!st.hijos.length){ aviso('Faltan los chicos de la familia: cargalos acá arriba antes de mandar el pedido.'); return; }
+  }
+  const nineraTxt = (document.getElementById('pedido-ninera')?.value || '').trim();
+  let nineraId = nineraTxt ? st.nineraPedidaId : null;
+  if(nineraTxt && !nineraId){
+    const n = agendaNinierasBase.find(x=>normaliza(String(x.nombre||'').trim())===normaliza(nineraTxt));
+    if(!n){ aviso('Elegí de la lista a la niñera que pidió la madre, o dejá el campo vacío.'); return; }
+    nineraId = n.id;
+  }
+  const notas = (document.getElementById('pedido-notas')?.value || '').trim();
+  const zona = leerZonasChecklist('pedido') || fam.zona || null;
+
+  // 1) Se toma el pedido: si otra admin ya lo pasó a la Agenda (o lo descartó), no se crea nada.
+  const pid = st.pedido.id;
+  const { data: tomado, error: e1 } = await sb.from('pedidos_whatsapp').update({ estado: 'confirmado' }).eq('id', pid).eq('estado', 'borrador').select('id');
+  if(e1){ warn.innerHTML = errBox(e1); return; }
+  if(!tomado || !tomado.length){ aviso('No se creó nada: otra admin ya pasó este pedido a la Agenda (o lo descartó). Cerrá para ver cómo quedó.'); return; }
+  // 2) La solicitud. Sin hora de fin no hay total (cobro_familia vacío, como en "+ Nueva solicitud").
+  const solicitud = { familia_id: fam.id, familia_nombre: fam.nombre, tipo: h.tipo, zona, fecha: h.fecha,
+    hora_inicio: h.hi, hora_fin: h.hf || null, termina_dia_siguiente: !!(h.cruza && h.hf), cobro_familia: precio.cobro ?? null, estado: 'sin_asignar' };
+  if(nineraId) solicitud.ninera_pedida_id = nineraId;
+  if(notas) solicitud.notas_para_ninera = notas;
+  let { data: creada, error: e2 } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  let sinColumnas = false;
+  if(esFaltaColumnaSolicitudApp(e2)){
+    // Base sin la migración de la etapa 5: se guarda igual, sin esas dos columnas, y se avisa.
+    const { ninera_pedida_id, notas_para_ninera, ...resto } = solicitud;
+    ({ data: creada, error: e2 } = await sb.from('solicitudes').insert(resto).select('id').single());
+    sinColumnas = true;
+  }
+  if(e2){
+    // El pedido vuelve a borrador, así se puede reintentar.
+    const { error: eVuelta } = await sb.from('pedidos_whatsapp').update({ estado: 'borrador' }).eq('id', pid).eq('estado', 'confirmado');
+    warn.innerHTML = errBox(e2) + (eVuelta ? '<div class="warnbox">Además, el pedido quedó marcado como pasado a la Agenda sin solicitud: avisale a Diego.</div>' : '');
+    return;
+  }
+  // 3) Se vincula: recién acá la base avisa "Pedido nuevo" a las otras admins.
+  const { error: e3 } = await sb.from('pedidos_whatsapp').update({ solicitud_id: creada.id }).eq('id', pid);
+  pedidoTicket = null;
+  cerrarModal();
+  agendaAncla = h.fecha;
+  const lbl = document.getElementById('agenda-fecha-label');
+  if(lbl) lbl.textContent = agendaRangoLabel();
+  await cargarAgendaSolicitudes();
+  actualizarAgendaBadge();
+  if(sinColumnas) toast(`Falta actualizar la base: la solicitud se guardó sin ${[nineraId && 'la niñera que pidió la madre', notas && 'las notas para la niñera'].filter(Boolean).join(' ni ')} (quedan en el mensaje). Avisale a Diego.`, 'bad');
+  if(e3){
+    toast(`La solicitud quedó en la Agenda, pero no se pudo vincular con el mensaje de WhatsApp (${e3.message || e3}): revisá las dudas con la madre antes de mandarlo.`, 'bad');
+    return;
+  }
+  if(mandar && agendaSolicitudes.some(x=>x.id===creada.id)) await abrirElegirNineras(creada.id);
+  else if(mandar) toast('La solicitud quedó en la Agenda, pero no se pudo abrir "Elegir niñeras": tocala en la Agenda para elegir.', 'bad');
+  else toast('Solicitud guardada en la Agenda.');
+}
+
+// Un cambio, una cancelación u otra cosa: no se crea nada. Se muestran los pedidos próximos de esa
+// familia para abrir el que corresponde, y "Descartar" deja el mensaje como descartado.
+const TIPO_MENSAJE_TEXTO = { cambio: 'un cambio', cancelacion: 'una cancelación', otra_cosa: 'otra cosa' };
+async function pintarNoEsPedidoNuevo(pedido){
+  const token = modalToken;
+  const familia = pedido.familia_id ? agendaFamilias.find(f=>f.id===pedido.familia_id) || null : null;
+  let lista = '';
+  if(familia){
+    const { data, error } = await sb.from('solicitudes').select('id,fecha,hora_inicio,hora_fin,termina_dia_siguiente,tipo,estado')
+      .eq('familia_id', familia.id).gte('fecha', todayISO()).neq('estado', 'cancelada').order('fecha').order('hora_inicio').limit(10);
+    if(token!==modalToken) return;
+    lista = error ? errBox(error) : (data||[]).length ? (data||[]).map(s=>{
+      const fechaTxt = new Date(s.fecha+'T00:00:00').toLocaleDateString('es-UY', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      return `<div class="pedido-proximo">
+        <div class="pedido-proximo-txt"><b>${escaparHtml(fechaTxt)}</b> · ${s.tipo==='traslado' ? 'Traslado' : 'Sitting'} · ${escaparHtml(horarioPedidoTexto(s))}</div>
+        <button type="button" class="smallbtn" onclick="abrirSolicitudDesdeTicket(${argJs(s.id)}, ${argJs(s.fecha)})">Abrir</button>
+      </div>`;
+    }).join('') : '<div class="helper">No tiene pedidos próximos en la Agenda.</div>';
+  }
+  pedidoTicket = { pedido, noNuevo: true };
+  const tipo = TIPO_MENSAJE_TEXTO[pedido.tipo] || 'otra cosa';
+  abrirModal(`<div class="pedido-ticket pedido-no-nuevo">
+    <h2>Mensaje de WhatsApp</h2>
+    <details class="pedido-msg" open><summary>Mensaje pegado</summary><div class="pedido-msg-texto">${escaparHtml(pedido.texto||'')}</div></details>
+    <div class="warnbox">${escaparHtml(`Esto parece ${tipo}, no un pedido nuevo.`)}</div>
+    ${familia
+      ? `<div class="agenda-tier-label">${escaparHtml('Pedidos próximos de '+familia.nombre)}</div>${lista}`
+      : `<div class="helper">${escaparHtml(`No se reconoció la familia${pedido.familia_texto ? ` ("${pedido.familia_texto}")` : ''}: buscá el pedido en la Agenda.`)}</div>`}
+    <div id="pedido-ticket-warn"></div>
+    <button class="btn ghost" style="width:100%;margin-top:12px;" onclick="conGuardado(this, ()=>descartarPedidoWhatsApp())">Descartar</button>
+  </div>`);
+}
+async function abrirSolicitudDesdeTicket(id, fecha){
+  pedidoTicket = null;
+  cerrarModal();
+  agendaAncla = fecha;
+  const lbl = document.getElementById('agenda-fecha-label');
+  if(lbl) lbl.textContent = agendaRangoLabel();
+  await cargarAgendaSolicitudes();
+  abrirModalSolicitud(id);
+}
+async function descartarPedidoWhatsApp(){
+  const st = pedidoTicket;
+  if(!st) return;
+  const warn = document.getElementById('pedido-ticket-warn');
+  const { data, error } = await sb.from('pedidos_whatsapp').update({ estado: 'descartado' }).eq('id', st.pedido.id).eq('estado', 'borrador').select('id');
+  if(error){ warn.innerHTML = errBox(error); return; }
+  if(!data || !data.length){ warn.innerHTML = '<div class="warnbox">Otra admin ya pasó este mensaje a la Agenda o lo descartó.</div>'; return; }
+  pedidoTicket = null;
+  cerrarModal();
+  toast('Mensaje descartado.');
+}
