@@ -185,7 +185,8 @@ Panel de las admins (voseo):
 - Errores de "Enviar a N": "No se mandó: mientras elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó.",
   "[Niñera] ya no puede recibir pedidos por la app: destildala.", "Hay niñeras reales tildadas junto con una de práctica.",
   "Este pedido es de un día que ya pasó.", "El precio por hora de [niñera] no es válido.", "Falta actualizar la base para mandar
-  por la app: avisale a Diego.".
+  por la app: avisale a Diego.", "[Niñera] ya no está en la lista: destildala.", "Hasta 40 por vez." (también al querer tildar
+  la número 41).
 - Familia: casilla "No acepta niñeras nuevas"; "Se guardó lo demás. Falta actualizar la base y "No acepta niñeras nuevas" no se
   guardó. Avisale a Diego.".
 - Preferencia de avisos "Pedidos de la app": "Cuando una niñera dice que puede o entra un pedido de WhatsApp".

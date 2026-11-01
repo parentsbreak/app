@@ -151,6 +151,39 @@ test.describe('sugeridas de pedidos (5.4)', () => {
     expect(m.incidentesFamilia).toEqual(['a']);
     expect(m.noDisponibles).toEqual(['b']);
   });
+  // Revisión final (02/11/2026): "Elegir niñeras" también se usa para un traslado; ahí cuenta quién ya los hace.
+  test('mapasSugeridas con un traslado toma los traslados (con la familia y en total), no los sittings', async ({ page }) => {
+    const [s, t, sinTipo] = await page.evaluate(() => {
+      const r = { historial: [
+        { ninera_id: 'a', ninera_clave: null, veces_familia: 4, total: 30, veces_familia_traslado: 2, total_traslado: 7, semana: 1, edades: [5], max_chicos: 1 },
+        { ninera_id: null, ninera_clave: 'bruno ficticio', veces_familia: 0, total: 3, veces_familia_traslado: 1, total_traslado: 1, semana: 0, edades: [], max_chicos: null },
+      ], por_ninera: [] };
+      const ns = [{ id: 'a', nombre: 'Ana' }, { id: 'b', nombre: 'Bruno Ficticio' }];
+      return [mapasSugeridas(r, ns, 'sitting'), mapasSugeridas(r, ns, 'traslado'), mapasSugeridas(r, ns)];
+    });
+    expect(s.historialFamilia).toEqual({ a: 4 });
+    expect(s.historialTotal).toEqual({ a: 30, b: 3 });
+    expect(t.historialFamilia).toEqual({ a: 2, b: 1 });
+    expect(t.historialTotal).toEqual({ a: 7, b: 1 });
+    // La semana, las edades y los chicos no cambian con el tipo.
+    expect(t.sittingsSemana).toEqual({ a: 1 });
+    expect(t.edadesCuidadas).toEqual({ a: [5] });
+    // Sin tipo, como un sitting.
+    expect(sinTipo.historialTotal).toEqual(s.historialTotal);
+  });
+  test('el porqué de un traslado: "Fue N veces." en el bloque 1 y "N traslados." en el 2 y el 3', async ({ page }) => {
+    const datos = { ninieras: [nin('a', { tipo: 'Traslados' }), nin('b', { tipo: 'Ambas' }), nin('c', { tipo: 'Traslados', zona: 'Carrasco' }), nin('d', { tipo: 'Ambas' })],
+      historialFamilia: { a: 3 }, historialTotal: { a: 9, b: 1, c: 12 } };
+    const res = await ordenar(page, { tipo: 'traslado' }, datos);
+    expect(res.sug).toEqual(['a', 'b', 'd', 'c']);
+    expect(item(res, 'a').porque).toBe('Fue 3 veces.');
+    expect(item(res, 'b').porque).toBe('1 traslado.');
+    expect(item(res, 'c').porque).toBe('12 traslados.');
+    expect(item(res, 'd').porque).toBe('0 traslados.');
+    // Un sitting sigue igual.
+    const s = await ordenar(page, {}, { ninieras: [nin('b')], historialTotal: { b: 1 } });
+    expect(item(s, 'b').porque).toBe('1 sitting.');
+  });
   test('mapasSugeridas con respuesta vacía o nula no rompe', async ({ page }) => {
     const m = await page.evaluate(() => [mapasSugeridas(null, []), mapasSugeridas({}, [{ id: 'a', nombre: 'A' }])]);
     for (const x of m) { expect(x.historialFamilia).toEqual({}); expect(x.incidentesFamilia).toEqual([]); }

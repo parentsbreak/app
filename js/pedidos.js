@@ -31,10 +31,13 @@ function sugeridaTextoEdades(edades){
   return `${t} ${edades.length === 1 && edades[0] === 1 ? 'año' : 'años'}`;
 }
 
-function sugeridaPorque(item){
+// Con un traslado, vecesFamilia y total son traslados (mapasSugeridas): "Fue N veces." sirve igual y el
+// total dice "N traslados." (revisión final, 02/11/2026).
+function sugeridaPorque(item, tipo){
   const veces = `Fue ${item.vecesFamilia} ${item.vecesFamilia === 1 ? 'vez' : 'veces'}.`;
   if(item.bloque === 1) return item.pedida ? (item.vecesFamilia ? `La pidió la madre. ${veces}` : 'La pidió la madre.') : veces;
-  const partes = [`${item.total} ${item.total === 1 ? 'sitting' : 'sittings'}.`];
+  const [uno, varios] = tipo === 'traslado' ? ['traslado', 'traslados'] : ['sitting', 'sittings'];
+  const partes = [`${item.total} ${item.total === 1 ? uno : varios}.`];
   if(item.edadesCoinciden.length) partes.push(`Cuidó chicos de ${sugeridaTextoEdades(item.edadesCoinciden)}.`);
   if(item.varios) partes.push('Cuidó familias con 3 o más chicos.');
   return partes.join(' ');
@@ -42,8 +45,13 @@ function sugeridaPorque(item){
 
 /* Junta lo que devuelve la RPC `sugeridas_datos` en los mapas que usa `ordenarSugeridas`. Las filas
    con `ninera_id` suman por id; las sin id (204 de 641 registros viejos, 31/10/2026) traen
-   `ninera_clave` y se cruzan con el nombre normalizado de la lista: las dos suman a la misma niñera. */
-function mapasSugeridas(respuesta, ninieras){
+   `ninera_clave` y se cruzan con el nombre normalizado de la lista: las dos suman a la misma niñera.
+   `tipo` es el del pedido: con 'traslado', historialFamilia e historialTotal salen de
+   veces_familia_traslado y total_traslado (quién ya hace los traslados de esa familia); con
+   'sitting' o sin tipo, de veces_familia y total. La semana, las edades y los chicos son siempre de
+   los sittings (revisión final, 02/11/2026). */
+function mapasSugeridas(respuesta, ninieras, tipo){
+  const traslado = tipo === 'traslado';
   const porClave = {}, porId = {};
   (ninieras || []).forEach(n => { porId[n.id] = n; const k = sugeridaClave(n); if(k && !porClave[k]) porClave[k] = n; });
   const m = { historialFamilia: {}, historialTotal: {}, sittingsSemana: {}, edadesCuidadas: {}, maxChicos: {},
@@ -52,8 +60,8 @@ function mapasSugeridas(respuesta, ninieras){
   ((respuesta && respuesta.historial) || []).forEach(h => {
     const n = (h.ninera_id && porId[h.ninera_id]) || (h.ninera_clave && porClave[normaliza(String(h.ninera_clave).trim())]);
     if(!n) return;
-    sumar(m.historialFamilia, n.id, h.veces_familia);
-    sumar(m.historialTotal, n.id, h.total);
+    sumar(m.historialFamilia, n.id, traslado ? h.veces_familia_traslado : h.veces_familia);
+    sumar(m.historialTotal, n.id, traslado ? h.total_traslado : h.total);
     sumar(m.sittingsSemana, n.id, h.semana);
     const edades = new Set(m.edadesCuidadas[n.id] || []);
     (h.edades || []).forEach(e => edades.add(Number(e)));
@@ -140,7 +148,7 @@ function ordenarSugeridas(pedido, datos = {}){
     };
     const mismaZona = !!(pedido.zona && mismoGrupoZona(ninera.zona, pedido.zona));
     item.bloque = (vecesFamilia > 0 || pedida) ? 1 : (mismaZona ? 2 : 3);
-    item.porque = sugeridaPorque(item);
+    item.porque = sugeridaPorque(item, pedido.tipo);
     if(!activa) inactivas.push(item);
     else if(soloConocidas && item.bloque > 1) ocultas.push(item);
     else sugeridas.push(item);
@@ -176,18 +184,21 @@ function esFaltaFuncion(error){ return !!error && (error.code==='PGRST202' || er
 
 // El historial que leía "Asignar niñera" antes de la etapa 5: de respaldo con la base sin migrar o si
 // falla sugeridas_datos. Solo zona e historial (lo asignado desde la Agenda con esta familia y todo lo
-// registrado), por nombre normalizado.
+// registrado), por nombre normalizado. Solo lo del tipo del pedido, como sugeridas_datos: el porqué dice
+// "N sittings" o "N traslados" (revisión final, 02/11/2026).
 async function datosSugeridasViejos(s){
   await esperarConfigFijos(); // fijos automáticos: sacar los previstos del conteo
   const [{data:histFam}, {data:histTotal}, {data:sitTotal}] = await Promise.all([
-    sb.from('solicitud_ninieras').select('ninera_nombre, solicitudes!inner(familia_nombre)').eq('estado','confirmada').eq('solicitudes.familia_nombre', s.familia_nombre),
-    sb.from('solicitud_ninieras').select('ninera_nombre').eq('estado','confirmada'),
-    leerTodasLasFilas(()=>sinPrevistos(sb.from('sittings_traslados').select('ninera_nombre')).order('id')),
+    sb.from('solicitud_ninieras').select('ninera_nombre, solicitudes!inner(familia_nombre,tipo)').eq('estado','confirmada').eq('solicitudes.familia_nombre', s.familia_nombre),
+    sb.from('solicitud_ninieras').select('ninera_nombre, solicitudes!inner(tipo)').eq('estado','confirmada'),
+    leerTodasLasFilas(()=>sinPrevistos(sb.from('sittings_traslados').select('ninera_nombre').eq('tipo', s.tipo)).order('id')),
   ]);
   const historialFamilia = {}, historialTotal = {};
   const contar = (mapa, nombre) => { const k = normaliza(String(nombre||'').trim()); if(k) mapa[k] = (mapa[k]||0) + 1; };
-  (histFam||[]).forEach(r=>contar(historialFamilia, r.ninera_nombre));
-  (histTotal||[]).forEach(r=>contar(historialTotal, r.ninera_nombre));
+  // solicitud_ninieras es chica (lo asignado desde la Agenda): el tipo se mira acá.
+  const delTipo = r => r.solicitudes?.tipo === s.tipo;
+  (histFam||[]).filter(delTipo).forEach(r=>contar(historialFamilia, r.ninera_nombre));
+  (histTotal||[]).filter(delTipo).forEach(r=>contar(historialTotal, r.ninera_nombre));
   (sitTotal||[]).forEach(r=>contar(historialTotal, r.ninera_nombre));
   return { historialFamilia, historialTotal };
 }
@@ -265,7 +276,7 @@ async function abrirElegirNineras(solicitudId){
 
   // sugeridas_datos (una lectura) o, si la base no la tiene o falla, el historial de antes.
   const sinMigrar = esFaltaFuncion(sug.error);
-  const mapas = sug.error ? await datosSugeridasViejos(s) : mapasSugeridas(sug.data, ninieras);
+  const mapas = sug.error ? await datosSugeridasViejos(s) : mapasSugeridas(sug.data, ninieras, s.tipo);
   if(token!==modalToken) return;
   // Las ya mandadas por la app: su fila (estado y precio ofrecido), por niñera.
   const filasApp = {};
@@ -291,6 +302,9 @@ async function abrirElegirNineras(solicitudId){
 
   pedidoElegir = {
     s, familia, familiaId, sinFamilia: !familiaId, ninieras, filasApp, preciosFam: precios, puedeApp, practica, soloPractica,
+    // Para el precio de cada niñera: la familia de la Agenda o, si la Agenda no la tiene cargada (la sumó
+    // otra admin después), al menos su id, así se encuentran sus precios con esta familia.
+    familiaPrecios: familia || (familiaId ? { id: familiaId } : null),
     sinMigrar, falloLectura: !!sug.error && !sinMigrar, pagoTraslado,
     hijosLeidos, chicosTexto: chicosPedidoTexto(edades, (hijosLeidos||[]).length),
     soloConocidas: !fam.error && !!fam.data?.solo_conocidas, mostrarNuevas: false,
@@ -318,7 +332,7 @@ function pagoSugeridoElegir(n){
   const st = pedidoElegir, s = st.s;
   if(s.tipo==='traslado') return st.pagoTraslado;
   const ofrecido = Number(st.filasApp[n.id]?.precio_hora) || 0;
-  const pagoHora = ofrecido || Number(precioHoraNinera(st.familia, n.id, st.preciosFam)) || 0;
+  const pagoHora = ofrecido || Number(precioHoraNinera(st.familiaPrecios, n.id, st.preciosFam)) || 0;
   if(!pagoHora || !s.hora_inicio || !s.hora_fin) return 0;
   const mi = agendaMinutos(s.hora_inicio);
   let mf = agendaMinutos(s.hora_fin);
@@ -443,15 +457,28 @@ function mostrarNuevasPedido(){
   repintarListasPedido();
 }
 
+// El mismo tope que enviar_pedido_app (demasiadas_ninieras): más de 40 por vez no se tildan.
+const MAX_TILDADAS_PEDIDO = 40;
+function avisoTopePedido(mostrar){
+  const w = document.getElementById('pedido-enviar-warn');
+  if(!w) return;
+  if(mostrar) w.innerHTML = `<div class="warnbox" data-tope="1">Hasta ${MAX_TILDADAS_PEDIDO} por vez.</div>`;
+  else if(w.querySelector('[data-tope]')) w.innerHTML = '';
+}
 function tildarNineraPedido(nineraId, marcar){
   const st = pedidoElegir;
   if(!st) return;
+  const chk = [...document.querySelectorAll('#editmodal .pedido-tilde')].find(c=>c.dataset.id===nineraId);
   if(marcar && !st.tildadas.has(nineraId)){
-    const precio = precioHoraNinera(st.familia, nineraId, st.preciosFam);
+    if(st.tildadas.size >= MAX_TILDADAS_PEDIDO){
+      if(chk) chk.checked = false;
+      avisoTopePedido(true);
+      return;
+    }
+    const precio = precioHoraNinera(st.familiaPrecios, nineraId, st.preciosFam);
     st.tildadas.set(nineraId, { precio: precio==null ? '' : String(precio), tocado: false, guardar: undefined });
   }
-  if(!marcar) st.tildadas.delete(nineraId);
-  const chk = [...document.querySelectorAll('#editmodal .pedido-tilde')].find(c=>c.dataset.id===nineraId);
+  if(!marcar){ st.tildadas.delete(nineraId); avisoTopePedido(false); }
   if(chk) chk.checked = !!marcar;
   pintarPreciosPedido();
 }
@@ -460,7 +487,7 @@ function marcarPrimerasPedido(cantidad){
   const st = pedidoElegir;
   if(!st) return;
   const enviables = ordenElegirNineras().sugeridas.filter(i=>i.enviable);
-  if(!cantidad) st.tildadas.clear();
+  if(!cantidad){ st.tildadas.clear(); avisoTopePedido(false); }
   enviables.slice(0, cantidad).forEach(i=>{ if(!st.tildadas.has(i.ninera.id)) tildarNineraPedido(i.ninera.id, true); });
   document.querySelectorAll('#editmodal .pedido-tilde').forEach(c=>{
     c.checked = st.tildadas.has(c.dataset.id);
@@ -500,8 +527,8 @@ function pintarPreciosPedido(){
 }
 function casillaPrecioPedidoHtml(id){
   const st = pedidoElegir, t = st.tildadas.get(id);
-  const casilla = casillaPrecioNinera({ familiaId: st.familia?.id, nineraId: id, filas: st.preciosFam, valor: t.precio,
-    tocadoManual: t.tocado, pagoActual: precioHoraNinera(st.familia, id, st.preciosFam) });
+  const casilla = casillaPrecioNinera({ familiaId: st.familiaId, nineraId: id, filas: st.preciosFam, valor: t.precio,
+    tocadoManual: t.tocado, pagoActual: precioHoraNinera(st.familiaPrecios, id, st.preciosFam) });
   if(!casilla){ t.guardar = undefined; return ''; }
   if(t.guardar===undefined) t.guardar = casilla.tildada;
   const nombre = st.ninieras.find(n=>n.id===id)?.nombre || '';
@@ -589,7 +616,14 @@ function textoErrorEnvio(error){
   if(esFaltaFuncion(error)) return 'Falta actualizar la base para mandar por la app: avisale a Diego.';
   const quien = error?.hint || 'Una de las niñeras';
   switch(error?.message){
-    case 'cerrado': return 'No se mandó: mientras elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó.';
+    // no_existe: lo borraron mientras se elegía; para la admin es lo mismo que cerrado.
+    case 'cerrado': case 'no_existe': return 'No se mandó: mientras elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó.';
+    // La base ya no la tiene: el hint trae su id y el nombre sale de la lista que se está mirando.
+    case 'ninera_no_existe': {
+      const n = error?.hint && pedidoElegir?.ninieras.find(x=>x.id===error.hint);
+      return `${n ? n.nombre : quien} ya no está en la lista: destildala.`;
+    }
+    case 'demasiadas_ninieras': return `Hasta ${MAX_TILDADAS_PEDIDO} por vez.`;
     case 'ninera_sin_app': case 'ninera_inactiva': case 'ninera_solo_traslados':
       return `${quien} ya no puede recibir pedidos por la app: destildala.`;
     case 'sin_chicos': return 'Faltan los chicos de la familia: cargalos en su ficha.';
@@ -628,8 +662,9 @@ async function enviarPedidoApp(solicitudId){
   // Los precios con la casilla tildada, después de mandar (como al registrar): si alguno falla, lo
   // mandado queda y se avisa qué faltó.
   const aGuardar = envios.filter(e=>e.guardar);
-  const resultados = await Promise.all(aGuardar.map(e=>guardarPrecioNineraFamilia({ familiaId: st.familia.id, nineraId: e.ninera_id, pagoHora: e.precio_hora,
-    nueva: !(st.preciosFam||[]).some(p=>p.familia_id===st.familia.id && p.ninera_id===e.ninera_id) })));
+  // La familia por su id (st.familiaId): la de la Agenda puede no estar cargada (familiaPrecios).
+  const resultados = await Promise.all(aGuardar.map(e=>guardarPrecioNineraFamilia({ familiaId: st.familiaId, nineraId: e.ninera_id, pagoHora: e.precio_hora,
+    nueva: !(st.preciosFam||[]).some(p=>p.familia_id===st.familiaId && p.ninera_id===e.ninera_id) })));
   cerrarModal();
   pedidoElegir = null;
   await cargarAgendaSolicitudes();

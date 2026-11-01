@@ -8,7 +8,7 @@
 // (práctica)" tienen la app; Bruno solo hace traslados. El simulador arranca con solo_practica prendido.
 const { test, expect } = require('@playwright/test');
 const { abrirApp, irAModulo, esperarQuieta, verificarLimpio } = require('./support/app');
-const { datosPedidos, ID } = require('./support/datos');
+const { datosPedidos, sitting, ID } = require('./support/datos');
 const { errorRpc } = require('./support/rpc-ninera');
 
 const SOL_UNO = ID.sUno; // Familia Prueba Uno, martes 06/10, 20 a 23, Pocitos
@@ -259,6 +259,10 @@ test.describe('Elegir niñeras: cuando no se puede mandar', () => {
     ['practica_mezclada', 'Hay niñeras reales tildadas junto con una de práctica.'],
     ['solo_practica', 'Por ahora, por la app solo se mandan pedidos de práctica. Para este, usá "Asignar" o WhatsApp.'],
     ['pasado', 'Este pedido es de un día que ya pasó.'],
+    // Revisión final (02/11/2026): el pedido borrado da lo mismo que cerrado; la niñera borrada, con su nombre.
+    ['no_existe', 'No se mandó: mientras elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó.'],
+    ['ninera_no_existe', 'Carla Ejemplo ya no está en la lista: destildala.'],
+    ['demasiadas_ninieras', 'Hasta 40 por vez.'],
   ];
   test('cada error de la base con su texto; nada guardado y lo tildado sigue tildado', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
@@ -408,6 +412,130 @@ test.describe('Elegir niñeras: cuando no se puede mandar', () => {
     await expect(page.locator('#pedido-dudas')).toContainText('dar de cenar');
     await expect(botonEnviar(page)).toBeDisabled();
     verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+});
+
+// Revisión final (02/11/2026).
+test.describe('Elegir niñeras: lo que faltaba (revisión final)', () => {
+  const SOL_TRASLADO = '80000000-0000-4000-8000-000000000010';
+  // Un traslado de Familia Prueba Uno. Bruno (solo traslados, de Carrasco) ya hizo dos con esa familia; Carla
+  // (las dos cosas) hizo un sitting con esa familia y un traslado con otra.
+  function datosTraslado() {
+    const d = datos({ noPuede: false });
+    d.solicitudes.push({ id: SOL_TRASLADO, familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', tipo: 'traslado', zona: 'Pocitos', fecha: '2026-10-06', hora_inicio: '10:00:00', hora_fin: null, cobro_familia: 450, estado: 'sin_asignar', notas: null, created_at: '2026-10-01T00:00:00Z', termina_dia_siguiente: false });
+    const tr = { tipo: 'traslado', hora_inicio: '08:00:00', hora_fin: null, origen: 'Casa', destino: 'Colegio', cobro_familia: 450, pago_ninera: 250 };
+    d.sittings_traslados.push(
+      sitting('70000000-0000-4000-8000-0000000000c1', '2026-09-22', { ...tr, ninera_id: ID.nBruno, ninera_nombre: 'Bruno Inventado' }),
+      sitting('70000000-0000-4000-8000-0000000000c2', '2026-09-23', { ...tr, ninera_id: ID.nBruno, ninera_nombre: 'Bruno Inventado' }),
+      sitting('70000000-0000-4000-8000-0000000000c3', '2026-09-24', { ninera_id: ID.nCarla, ninera_nombre: 'Carla Ejemplo' }),
+      sitting('70000000-0000-4000-8000-0000000000c4', '2026-09-25', { ...tr, familia_id: ID.fDos, familia_nombre: 'Familia Prueba Dos', ninera_id: ID.nCarla, ninera_nombre: 'Carla Ejemplo' }),
+    );
+    return d;
+  }
+
+  test('un traslado ordena por los traslados: el que ya los hace con esa familia arriba, y el porqué en traslados', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosTraslado() });
+    await abrirElegir(page, SOL_TRASLADO);
+    const modal = page.locator('#editmodal');
+    const bloques = modal.locator('.pedido-bloque');
+    await expect(bloques.nth(0).locator('.agenda-tier-label').first()).toHaveText('Ya fueron a esa casa');
+    await expect(bloques.nth(0).locator('.pedido-nombre')).toHaveText(['Bruno Inventado']);
+    await expect(fila(page, ID.nBruno)).toContainText('Fue 2 veces.');
+    // Carla hizo un sitting con esa familia, pero para un traslado no "ya fue": va por su traslado.
+    await expect(bloques.nth(1).locator('.pedido-nombre')).toHaveText(['Carla Ejemplo']);
+    await expect(fila(page, ID.nCarla)).toContainText('1 traslado.');
+    await expect(modal).not.toContainText('sittings.');
+    // Un traslado no se manda por la app: sin casillas, y "Asignar" con el pago del traslado.
+    await expect(page.locator('#editmodal .pedido-tilde')).toHaveCount(0);
+    await fila(page, ID.nBruno).locator('input[name="agenda-asignar-ninera"]').check();
+    await expect(page.locator('#agenda-asignar-pago-wrap')).toBeVisible();
+    verificarLimpio(e);
+  });
+
+  test('un traslado con la base sin migrar: el historial de antes, contando solo traslados', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosTraslado(), baseSinMigrar: 'etapa5' });
+    await abrirElegir(page, SOL_TRASLADO);
+    await expect(fila(page, ID.nCarla)).toContainText('1 traslado.');
+    await expect(fila(page, ID.nBruno)).toContainText('3 traslados.');
+    await expect(page.locator('#editmodal')).not.toContainText('sittings.');
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('ninera_no_existe con el id en el hint: el nombre de la lista; sin hint, "Una de las niñeras"', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datos() });
+    soloPracticaApagado(e);
+    await abrirElegir(page, SOL_UNO);
+    await tilde(page, ID.nCarla).check();
+    e.rpc.enviar_pedido_app = () => { throw errorRpc('ninera_no_existe', { hint: ID.nCarla }); };
+    await botonEnviar(page).click();
+    await expect(warnEnvio(page)).toHaveText('Carla Ejemplo ya no está en la lista: destildala.');
+    e.rpc.enviar_pedido_app = () => { throw errorRpc('ninera_no_existe'); };
+    await botonEnviar(page).click();
+    await expect(warnEnvio(page)).toHaveText('Una de las niñeras ya no está en la lista: destildala.');
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('hasta 40 por vez: "Marcar las 10 primeras" y la casilla número 41 no pasan del tope, con el aviso', async ({ page }) => {
+    const d = datos({ noPuede: false });
+    const carla = d.ninieras.find(n => n.id === ID.nCarla);
+    const extras = Array.from({ length: 45 }, (_, i) => {
+      const n = String(i + 1).padStart(2, '0');
+      return { ...carla, id: `30000000-0000-4000-8000-0000000001${n}`, nombre: `Extra Inventada ${n}`, telefono: `0980001${n}`, zona: 'Pocitos', tipo: 'Niñera',
+        user_id: `00000000-0000-4000-8000-0000000001${n}`, temporada_token: `60000000-0000-4000-8000-0000000001${n}` };
+    });
+    d.ninieras.push(...extras);
+    const e = await abrirApp(page, { datos: d });
+    soloPracticaApagado(e);
+    await abrirElegir(page, SOL_UNO);
+    // Las 35 últimas a mano (Carla y las primeras extras quedan sin tildar).
+    for (const x of extras.slice(10)) await tilde(page, x.id).check();
+    await expect(botonEnviar(page)).toHaveText('Enviar a 35 por la app');
+    await expect(warnEnvio(page)).toBeEmpty();
+    await page.locator('#editmodal button', { hasText: 'Marcar las 10 primeras' }).click();
+    await expect(botonEnviar(page)).toHaveText('Enviar a 40 por la app');
+    await expect(warnEnvio(page)).toHaveText('Hasta 40 por vez.');
+    await expect(page.locator('#editmodal .pedido-tilde:checked')).toHaveCount(40);
+    // La 41 a mano no se tilda.
+    const libre = page.locator('#editmodal .pedido-tilde:not(:checked)').first();
+    await libre.click();
+    await expect(libre).not.toBeChecked();
+    await expect(botonEnviar(page)).toHaveText('Enviar a 40 por la app');
+    await expect(page.locator('#pedido-precios input[type=number]')).toHaveCount(40);
+    // Destildar una saca el aviso y deja tildar otra.
+    await tilde(page, extras[44].id).uncheck();
+    await expect(warnEnvio(page)).toBeEmpty();
+    await libre.check();
+    await expect(botonEnviar(page)).toHaveText('Enviar a 40 por la app');
+    await botonEnviar(page).click();
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    expect(envios(e)[0].cuerpo.p_envios).toHaveLength(40);
+    verificarLimpio(e);
+  });
+
+  test('pedido con familia_id de una familia que la Agenda no tiene cargada: manda, guarda el precio y no da un error falso', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datos({ noPuede: false, precios: [precio(ID.fUno, ID.nCarla, 300)] }) });
+    soloPracticaApagado(e);
+    await irAModulo(page, 'agenda');
+    // Como si la familia la hubiera cargado otra admin después de abrir la Agenda.
+    await page.evaluate(id => { agendaFamilias = agendaFamilias.filter(f => f.id !== id); }, ID.fUno);
+    await page.evaluate(i => abrirModalAsignar(i), SOL_UNO);
+    await expect(page.locator('#editmodal .pedido-elegir')).toBeVisible();
+    await esperarQuieta(page);
+    await tilde(page, ID.nCarla).check();
+    // Su precio con esta familia viene precargado aunque la familia no esté en la lista de la Agenda.
+    await expect(page.locator(`#pedido-precio-${ID.nCarla}`)).toHaveValue('300');
+    await page.locator('#editmodal details.pedido-plegado summary', { hasText: 'Fuera de zona' }).click();
+    await tilde(page, DORA).check();
+    await page.locator(`#pedido-precio-${DORA}`).fill('280');
+    await expect(page.locator(`#pedido-guardar-precio-${DORA}`)).toBeChecked();
+    await botonEnviar(page).click();
+    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('.toaststack .toast', { hasText: 'Enviado a 2. Te avisamos cuando alguna diga que puede.' })).toBeVisible();
+    await expect(page.locator('.toaststack .toast.bad')).toHaveCount(0);
+    const guardados = escrituras(e, 'precios_ninera_familia', 'POST');
+    expect(guardados).toHaveLength(1);
+    expect(guardados[0].cuerpo).toMatchObject({ familia_id: ID.fUno, ninera_id: DORA, pago_hora: 280 });
+    verificarLimpio(e);
   });
 });
 

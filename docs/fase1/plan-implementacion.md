@@ -1135,7 +1135,8 @@ base ni el DOM. `ocultas`: los bloques 2 y 3 de una familia "solo conocidas" mie
 - `enviar_pedido_app(p_solicitud_id uuid, p_envios jsonb) returns integer`; errores por `raise` con código:
   `no_autorizada`, `sin_ninieras`, `demasiadas_ninieras`, `no_existe`, `cerrado`, `solo_sittings`, `pasado`,
   `sin_familia`, `sin_chicos`, `solo_practica`, `envio_invalido`, `precio_invalido`, `ninera_no_existe`, `ninera_inactiva`,
-  `ninera_sin_app`, `ninera_solo_traslados`, `practica_mezclada` (con el nombre de la niñera en `hint`).
+  `ninera_sin_app`, `ninera_solo_traslados`, `practica_mezclada` (con el nombre de la niñera en `hint`;
+  `ninera_no_existe` lleva su id, revisión final 02/11/2026).
 - `ninera_mis_pedidos() returns table (id, estado, fecha, hora_inicio, hora_fin, termina_dia_siguiente, zona,
   chicos, precio_hora, responder_hasta, enviado_en, respondido_en)`.
 - `responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo text default null, p_motivo_texto text default null)
@@ -1144,8 +1145,10 @@ base ni el DOM. `ocultas`: los bloques 2 y 3 de una familia "solo conocidas" mie
 - `ninera_marcar_no_disponible(p_fechas date[], p_quitar boolean default false) returns integer`; tabla
   `ninera_no_disponible (ninera_id, fecha)` legible por la niñera (las suyas) y las admins.
 - `sugeridas_datos(p_familia_id uuid, p_familia_nombre text, p_fecha date) returns jsonb` → `{historial:
-  [{ninera_id, ninera_clave, veces_familia, total, semana, edades, max_chicos}], por_ninera: [{ninera_id,
-  no_puedo_seguidos, incidente_familia, no_disponible}]}`.
+  [{ninera_id, ninera_clave, veces_familia, total, veces_familia_traslado, total_traslado, semana, edades,
+  max_chicos}], por_ninera: [{ninera_id, no_puedo_seguidos, incidente_familia, no_disponible}]}`. Los traslados
+  van aparte y `mapasSugeridas(respuesta, ninieras, tipo)` elige según el tipo del pedido; el último "Puedo" de
+  `no_puedo_seguidos` es una fila `acepto` o `confirmada` con `respondido_en` (revisión final, 02/11/2026).
 - Columnas: `solicitudes.ninera_pedida_id`, `notas_para_ninera`, `enviado_app_en`, `responder_hasta`;
   `solicitud_ninieras.origen` ('panel' | 'app'), `precio_hora`, `enviado_en`, `respondido_en`, `motivo_no`,
   `motivo_texto`, estados `acepto` y `no_puedo`; `familias.solo_conocidas`; `pedidos_whatsapp.ninera_pedida`.
@@ -1266,9 +1269,11 @@ junto con una de práctica." y "Enviar" no sigue. Pie fijo: "Enviar a N por la a
 Enviar: valida (al menos una, precios > 0 sin centavos con `redondearPago`, sin dudas pendientes) → RPC → guarda
 los precios con casilla tildada → cierra, recarga la Agenda y `toast('Enviado a N. Te avisamos cuando alguna diga
 que puede.')`; si alguno de los precios no se guardó, el aviso de `avisoPrecioGuardado`. Si la RPC devuelve 0:
-"Ya les había llegado a todas las tildadas." Errores (`textoErrorEnvio`): `cerrado` → "No se mandó: mientras
+"Ya les había llegado a todas las tildadas." Errores (`textoErrorEnvio`): `cerrado` y `no_existe` → "No se mandó: mientras
 elegías, alguien asignó o canceló este pedido. Cerrá para ver cómo quedó."; `ninera_sin_app` / `ninera_inactiva`
-/ `ninera_solo_traslados` → "[nombre] ya no puede recibir pedidos por la app: destildala."; `sin_chicos` →
+/ `ninera_solo_traslados` → "[nombre] ya no puede recibir pedidos por la app: destildala."; `ninera_no_existe` (su id en
+`hint`) → "[nombre] ya no está en la lista: destildala."; `demasiadas_ninieras` → "Hasta 40 por vez." (la pantalla tampoco deja
+tildar más de 40); `sin_chicos` →
 "Faltan los chicos de la familia: cargalos en su ficha."; `practica_mezclada` → el texto de práctica; `solo_practica` → "Por ahora, por la app solo se
 mandan pedidos de práctica. Para este, usá \"Asignar\" o WhatsApp."; `pasado`
 → "Este pedido es de un día que ya pasó."; 404 `PGRST202` → "Falta actualizar la base para mandar por la app:

@@ -397,7 +397,8 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   preferencia "Pedidos de la app" y la casilla "No acepta niñeras nuevas" de la familia.
 - `supabase/pruebas/fase1_pedidos.sql` (02/11/2026): `enviar_pedido_app` (todo o nada, práctica, `sin_chicos`, `cerrado`),
   `ninera_mis_pedidos` (nunca familia, dirección ni cobro), `responder_pedido`, `ninera_marcar_no_disponible`, `sugeridas_datos`,
-  el trigger del aviso y la ida y vuelta de la migración.
+  el trigger del aviso y la ida y vuelta de la migración. La prueba del DESHACER con datos (respaldos de lo mandado, los días,
+  "No acepta nuevas" y la niñera pedida) está en `supabase/pruebas/deshacer/` (`20261102_pedidos_app*.sql`), a mano (comando en su encabezado).
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -586,8 +587,9 @@ reporte.
   por RPC (`ninera_enviar_mensaje`, `ninera_marcar_chat_leido`, `ninera_marcar_avisos_leidos`): no elige
   `de`, `autor` ni `ninera_id`. Las admins insertan solo `ninera_id, de, autor, texto` y actualizan solo
   `leido_admin_en`, y solo le escriben a una niñera con app (Diego, 29/10: cualquiera con app; solo texto;
-  el push del chat llega también de noche). El push nunca lleva plata y el del chat va recortado a 120
-  caracteres. Realtime por pantalla (canal propio por apertura de la ficha), con dedupe por id y sin
+  el push del chat llega también de noche). El push nunca lleva plata, salvo el del pedido nuevo, que
+  lleva solo el precio por hora ofrecido (`docs/fase1/textos.md` 1; nunca un total, un acumulado ni el
+  cobro a la familia), y el del chat va recortado a 120 caracteres. Realtime por pantalla (canal propio por apertura de la ficha), con dedupe por id y sin
   repintar el textarea. `alCerrarModal(fn)` (core.js) suelta el canal al cerrar la ficha. La campanita tiene
   su canal aparte, que se abre solo si la tabla `avisos` existe (con la base sin migrar no se une y no
   tumba nada); `avisos` y el tipo `chat` están en `TIPOS_NOTIF`. Una niñera inactiva fuera de la lista se
@@ -597,7 +599,7 @@ reporte.
   app o sin app, y si la niñera tiene fila de la app la actualiza a `confirmada` con su `precio_hora` × horas (`redondearPago`) en
   vez de crear otra. `ordenarSugeridas(pedido, datos)` es pura (sin base ni DOM; el contrato está en la cabecera de js/pedidos.js y en
   el plan) y los datos salen de una lectura, `sugeridas_datos` (invoker); `mapasSugeridas` cruza por id o por `normaliza(nombre.trim())`
-  (hay historia sin ids). `enviar_pedido_app` crea las filas (`origen 'app'`, estado `invitada`) y los avisos en una transacción,
+  (hay historia sin ids) y, para un traslado, cuenta traslados (`veces_familia_traslado`, `total_traslado`). `enviar_pedido_app` crea las filas (`origen 'app'`, estado `invitada`) y los avisos en una transacción,
   deja la solicitud en `pendiente_confirmar` y no guarda precios (el panel guarda las casillas tildadas después). Mientras
   `app_config 'pedidos_app'` tenga `solo_practica`, solo se mandan pedidos de práctica; se apaga por SQL con OK de Diego, cuando
   exista la guía (etapa 4) y después de la prueba real. Práctica: la misma regla en la pantalla y en la base ("(práctica)" con o sin
