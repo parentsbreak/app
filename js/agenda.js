@@ -1000,14 +1000,17 @@ async function asignarNineraAlPedido({ s, ninera, familia, pago, snIdApp = null 
   }
   avisarResultadoAsignacion(resultado);
   // Después, el mensaje para la madre (pantalla 5), con la Agenda al día atrás si está a la vista.
+  // Lo mismo con "Pedidos en curso" de Hoy, si se asignó desde ahí: el pedido sale de la tarjeta de atrás.
   const recarga = document.getElementById('agenda-grid-wrap') ? cargarAgendaSolicitudes().then(actualizarAgendaBadge) : null;
-  await Promise.all([abrirConfirmacionMadre(s.id, ninera.nombre), recarga]);
+  const recargaHoy = document.getElementById('dash-pedidos') ? cargarPedidosEnCurso() : null;
+  await Promise.all([abrirConfirmacionMadre(s.id, ninera.nombre), recarga, recargaHoy]);
   return true;
 }
 /* Respuestas de la app en el modal de la solicitud (fase 1, etapa 5, tarea 5.8, 02/11/2026). Las filas con
    origen 'app' son las que se mandaron por "Elegir niñeras": dicen "Puede", "No puede: [motivo]" o "Sin
    responder", con el precio por hora que se le ofreció, y no tienen "Confirmar": elegir a la que va se hace con
-   "Asignar" en "Elegir niñeras" (etapa 6 lo hará acá). Los textos del motivo son los mismos que ve la niñera
+   "Asignar" en "Elegir niñeras" y, desde la etapa 6, con "Asignar" en cada fila que puede (htmlPedidoEnCurso,
+   pedidos.js). Los textos del motivo son los mismos que ve la niñera
    (ninera/js/pedido.js); con "Otro" se muestra lo que ella escribió. */
 const MOTIVOS_NO_PUEDO_PANEL = { otro_trabajo:'Tengo otro trabajo o sitting', facultad:'Tengo examen o facultad', lejos:'Me queda lejos', tarde:'Es muy tarde para la vuelta', otro:'Otro motivo' };
 function textoMotivoNoPuede(n){
@@ -1061,11 +1064,21 @@ function cuerpoModalSolicitud(s){
     ? `${s.hora_inicio.slice(0,5)} → día siguiente${s.hora_fin?' '+s.hora_fin.slice(0,5):''}`
     : (s.hora_fin ? `${s.hora_inicio.slice(0,5)}–${s.hora_fin.slice(0,5)}` : s.hora_inicio.slice(0,5));
   const fechaTxt = new Date(s.fecha+'T00:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'});
-  const ninierasHtml = s.ninieras.map(n=>filaNineraSolicitud(s, n)).join('');
-  return `
+  const encabezado = `
     <h2>${escaparHtml(s.familia_nombre)}</h2>
     <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.horario_aproximado ? ' (aproximado)' : ''}${s.zona?escaparHtml(' · '+s.zona):''}</div>
-    ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}
+    ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}`;
+  // Mandado por la app y sin elegida (etapa 6, 03/11/2026): el mismo detalle que "Pedidos en curso" de Hoy, con
+  // "Asignar", los mensajes para la madre y "Cancelar el pedido". Las filas del panel (sin origen) van al final de
+  // la lista, como siempre (con "Confirmar"). El historial ("Ya fue N veces") llega después: lo pide abrirModalSolicitud.
+  if(s.estado==='pendiente_confirmar' && (s.ninieras||[]).some(esRespuestaApp)){
+    const historial = historialModalSolicitud && historialModalSolicitud.id===s.id ? historialModalSolicitud.historial : null;
+    const filasPanel = s.ninieras.filter(n=>!esRespuestaApp(n)).map(n=>filaNineraSolicitud(s, n)).join('');
+    return `${encabezado}
+    <div style="margin:10px 0 0;">${htmlPedidoEnCurso(s, historial, { enModal: true, filasExtra: filasPanel })}</div>`;
+  }
+  const ninierasHtml = s.ninieras.map(n=>filaNineraSolicitud(s, n)).join('');
+  return `${encabezado}
     ${encabezadoEnvioApp(s)}
     <div style="margin:14px 0;">${ninierasHtml || '<div class="empty">Todavía no hay niñeras asignadas.</div>'}</div>
     ${s.estado==='sin_asignar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirModalAsignar(${argJs(s.id)})">Asignar niñera</button>` : ''}
@@ -1078,6 +1091,7 @@ function abrirModalSolicitud(id){
   if(!s) return;
   if(s._fuente==='asignacion'){ abrirModalAsignacionFija(s); return; }
   if(s._fuente==='registro'){ abrirModalRegistroDesdeAgenda(s); return; }
+  historialModalSolicitud = null;
   abrirModal(`<div id="sol-cuerpo">${cuerpoModalSolicitud(s)}</div>`);
   // Las respuestas de las niñeras llegan con el modal abierto: canal propio, como el chat de la ficha de
   // la niñera. Se abre con el modal y se suelta al cerrarlo (alCerrarModal); el de todo el módulo no
@@ -1089,7 +1103,17 @@ function abrirModalSolicitud(id){
     })
     .subscribe();
   alCerrarModal(cerrarCanalModalSolicitud);
+  // "Ya fue N veces" de un pedido en curso: una lectura aparte, sin frenar el modal; si falla, sin esa línea.
+  if(s.estado==='pendiente_confirmar' && (s.ninieras||[]).some(esRespuestaApp)){
+    historialPedidosEnCurso([s]).then(h=>{
+      if(apertura !== aperturaModalSolicitud || !h) return;
+      historialModalSolicitud = { id, historial: h[id] || null };
+      const actual = agendaSolicitudes.find(x=>x.id===id), cuerpo = document.getElementById('sol-cuerpo');
+      if(actual && cuerpo) cuerpo.innerHTML = cuerpoModalSolicitud(actual);
+    });
+  }
 }
+let historialModalSolicitud = null; // { id, historial } del pedido en curso abierto en el modal
 let aperturaModalSolicitud = 0;
 let canalModalSolicitud = null;
 function cerrarCanalModalSolicitud(){
@@ -2094,7 +2118,10 @@ async function cancelarSolicitud(id){
   if(!ok) return;
   if(!(await sbGuardar(sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id), 'la cancelación'))) return;
   cerrarModal();
-  cargarAgendaSolicitudes();
+  // Se cancela desde el modal de la Agenda y desde "Pedidos en curso" de Hoy (etapa 6): se pone al día lo que
+  // esté a la vista. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger).
+  if(document.getElementById('agenda-grid-wrap')) cargarAgendaSolicitudes();
+  if(document.getElementById('dash-pedidos')) cargarPedidosEnCurso();
   actualizarAgendaBadge();
 }
 

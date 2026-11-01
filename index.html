@@ -171,6 +171,28 @@ textarea{resize:vertical;min-height:54px;}
 .mensaje-madre-plantilla{margin-top:12px;min-height:36px;}
 .mensaje-madre-modelo-caja{background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:10px;}
 .mensaje-madre-modelo-texto{white-space:pre-wrap;font-size:14px;color:var(--ink);line-height:1.45;margin:8px 0;}
+/* "Pedidos en curso" (Hoy y modal de la solicitud) y "Perfiles para la madre" (etapa 6, 03/11/2026) */
+.pedidos-curso-card h2{margin:0 0 4px;}
+.pedido-curso{padding:10px 0;border-top:1px solid var(--line);overflow-wrap:anywhere;}
+.pedidos-curso-card .pedido-curso:first-of-type{border-top:none;}
+#editmodal .pedido-curso{border-top:none;padding-top:0;}
+.pedido-curso-titulo{font-weight:600;color:var(--ink);}
+.pedido-curso .sol-envio{margin:4px 0 2px;}
+.pedido-curso-quien{min-width:0;}
+.pedido-curso-quien .helper{margin:2px 0 0;}
+.pedido-curso-acciones{display:flex;gap:6px;flex-shrink:0;}
+.pedido-curso-pedida{flex-wrap:wrap;}
+.pedido-curso-marca{font-size:13px;font-weight:600;color:var(--accent);margin-top:2px;}
+.pedido-curso-atajo{width:100%;min-height:44px;}
+.pedido-curso-botones{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.pedido-curso-botones .btn{flex:1 1 calc(50% - 8px);min-height:44px;padding:10px 12px;}
+.pedido-curso-botones .pedido-curso-perfiles{flex-basis:100%;}
+.pedido-curso-botones .pedido-curso-cancelar{color:var(--clay-text);}
+.perfiles-madre{overflow-wrap:anywhere;}
+.perfiles-fila{padding:8px 0;border-bottom:1px solid var(--line);}
+.perfiles-fila .helper{margin:2px 0 0;}
+.perfiles-nombre{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.perfiles-check{display:flex;align-items:center;gap:8px;margin-top:4px;cursor:pointer;}
 .pedido-precio-esperado{background:var(--accent-soft);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--accent);line-height:1.5;margin:4px 0 10px;}
 .pedido-botones{display:flex;gap:6px;margin-top:8px;}
 .pedido-ok{color:var(--good);font-weight:600;}

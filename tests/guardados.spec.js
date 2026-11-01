@@ -298,7 +298,8 @@ test.describe('terminar un fijo desde una fecha (antes "Quitar" lo borraba)', ()
     await page.locator('#editmodal button', { hasText: 'Terminar el fijo' }).click();
     await expect(page.locator('#terminar-warn')).toContainText('falta la migración');
     expect(e.escrituras).toEqual([]);
-    // 404: tablas nuevas (saldo a favor) que la base sin migrar todavía no tiene.
-    verificarLimpio(e, { ignorar: [/status of 404/] });
+    // 404: tablas nuevas (saldo a favor) que la base sin migrar todavía no tiene. 400: las columnas de los pedidos por
+    // la app (etapa 5) que lee "Pedidos en curso" de Hoy al entrar (sin ellas no muestra nada, 03/11/2026).
+    verificarLimpio(e, { ignorar: [/status of 40[04]/] });
   });
 });

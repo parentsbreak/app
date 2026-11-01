@@ -1282,8 +1282,8 @@ function cortarPorValorPlantilla(t, valor, clave){
 /* El cuadro del mensaje para la madre: el texto editable, "Copiar", "Abrir WhatsApp" (con el teléfono de la
    familia) y "Guardar como plantilla". clave: 'perfiles', 'confirmacion', 'buscando' o 'no_conseguimos'.
    solicitud: { id, familia_id, familia_nombre, fecha, hora_inicio }. extra: { nineraNombre, ninieras (una por
-   renglón), titulo, arriba (HTML ya escapado que va antes del texto) }. Lo usan la confirmación (pantalla 5) y,
-   desde la tarea 6.5, "Perfiles para la madre", "Todavía buscando" y "No conseguimos". */
+   renglón), titulo, arriba y abajo (HTML ya escapado que va antes y después del texto) }. Lo usan la confirmación
+   (pantalla 5) y, desde la tarea 6.5, "Perfiles para la madre", "Todavía buscando" y "No conseguimos". */
 let mensajeMadre = null;
 async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
   const s = solicitud || {};
@@ -1314,9 +1314,10 @@ async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
       <textarea id="mensaje-madre-texto" rows="5" oninput="revisarMensajeMadre()"></textarea>
       <div class="helper">Los datos del pedido se completaron solos. Podés cambiar el texto antes de mandarlo.</div>
     </div>
+    ${extra.abajo || ''}
     <div id="mensaje-madre-falta"></div>
     <div class="mensaje-madre-botones">
-      <button type="button" class="btn ghost" onclick="copiarMensajeMadre()">Copiar</button>
+      <button type="button" class="btn ghost" id="mensaje-madre-copiar" onclick="copiarMensajeMadre()">Copiar</button>
       ${telefono ? '<a class="btn primary" id="mensaje-madre-wa" href="#" target="_blank" rel="noopener" onclick="return mensajeMadreListo()">Abrir WhatsApp</a>' : ''}
     </div>
     ${telefono ? '' : `<div class="helper">${escaparHtml(sinTelefono)}</div>`}
@@ -1334,7 +1335,9 @@ function revisarMensajeMadre(){
   if(!st || !area) return;
   const faltan = faltanEnMensaje(area.value);
   const caja = document.getElementById('mensaje-madre-falta');
-  if(caja) caja.innerHTML = faltan.map(c => `<div class="warnbox">${escaparHtml(`Falta ${DATOS_PLANTILLA_PEDIDO[c]} para completar el mensaje.`)}</div>`).join('');
+  if(caja) caja.innerHTML = faltan.map(c => `<div class="warnbox">${escaparHtml(`${c === 'niñeras' ? 'Faltan' : 'Falta'} ${DATOS_PLANTILLA_PEDIDO[c]} para completar el mensaje.`)}</div>`).join('');
+  // "Copiar" gris mientras falte algo (en "Perfiles para la madre", sin ninguna tildada): igual responde con el aviso.
+  document.getElementById('mensaje-madre-copiar')?.classList.toggle('apagado', faltan.length > 0);
   const wa = document.getElementById('mensaje-madre-wa');
   if(wa){
     wa.setAttribute('href', waLink(st.telefono, area.value));
@@ -1503,4 +1506,262 @@ async function guardarAsignarPedido(){
     pago: redondearPago(document.getElementById('agenda-asignar-pago').value), snIdApp: st.sn.id,
   });
   if(ok) pedidoAsignar = null;
+}
+
+/* ================= "Pedidos en curso" (fase 1, etapa 6, tarea 6.5, 03/11/2026) =================
+   En Hoy y en el modal de la solicitud de la Agenda, cada pedido mandado por la app que sigue sin niñera
+   ('pendiente_confirmar', de hoy en adelante) dice quién puede, quién no y quién no respondió, lo que se le ofreció
+   por hora y si ya fue a esa casa. De ahí salen los dos caminos para elegir (decisiones de Diego, 01/11/2026):
+   "Asignar" en cada una que puede (o el atajo, si puede la que pidió la madre) y "Perfiles para la madre". Lo que va
+   a la madre sale siempre del cuadro editable (abrirMensajeMadre): el panel no manda nada solo, y los avisos a las
+   niñeras los mandan los triggers de la base al asignar o cancelar. Los pedidos que no se mandaron por la app
+   siguen en "Sin resolver". */
+let pedidosEnCursoDatos = {}; // id -> la solicitud pintada: los botones de la tarjeta la toman de acá
+let pedidosEnCursoLectura = 0; // cada lectura suma uno: solo pinta la última (vuelven en desorden)
+
+// Un valor de in.(...) dentro de un or= de PostgREST: entre comillas y con \ y " escapadas, porque el nombre de
+// una familia puede traer comas, paréntesis o comillas ("Familia (práctica)").
+function valorListaPostgrest(v){ return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; }
+
+/* "Ya fue N veces" / "Nueva para esta familia": UNA lectura de sittings_traslados para todos los pedidos que se
+   muestran (nunca una por pedido), solo sittings, sin cancelados ni previstos, de esas familias por familia_id o
+   por el nombre tal cual (los registros viejos no tienen ids). Se cuenta por niñera como en mapasSugeridas: por
+   id y, lo que no tiene id, por el nombre normalizado. Devuelve { [solicitud]: { porId, porClave } }, o null si la
+   lectura falló: quien la usa sigue sin esa línea ("Nueva" del lado seguro en Perfiles).
+   Los previstos se sacan siempre (estado <> 'previsto', como "Fue N veces" de sugeridas_datos en "Elegir niñeras":
+   las dos pantallas cuentan igual), no con sinPrevistos: un previsto todavía no pasó, y así la lectura lleva un
+   solo or= (el de las familias) y no depende de la marca de los fijos automáticos. estado nunca es nulo. */
+async function historialPedidosEnCurso(solicitudes){
+  const lista = (solicitudes || []).filter(s => s.familia_id || String(s.familia_nombre || '').trim());
+  if(!lista.length) return {};
+  const ids = [...new Set(lista.map(s => s.familia_id).filter(Boolean))];
+  const nombres = [...new Set(lista.map(s => s.familia_nombre).filter(n => String(n || '').trim()))];
+  const condiciones = [];
+  if(ids.length) condiciones.push(`familia_id.in.(${ids.join(',')})`);
+  if(nombres.length) condiciones.push(`familia_nombre.in.(${nombres.map(valorListaPostgrest).join(',')})`);
+  let respuesta;
+  try {
+    respuesta = await sb.from('sittings_traslados').select('ninera_id,ninera_nombre,familia_id,familia_nombre')
+      .eq('tipo', 'sitting').eq('cancelado', false).neq('estado', 'previsto').or(condiciones.join(','));
+  } catch(e){ respuesta = { error: e }; }
+  if(respuesta.error){ console.error('[pedidos en curso] historial', respuesta.error); return null; }
+  const out = {};
+  lista.forEach(s => {
+    const h = { porId: {}, porClave: {} };
+    (respuesta.data || []).forEach(r => {
+      // Con los dos ids, manda el id (dos familias con el mismo nombre no se mezclan); si no, el nombre tal cual.
+      const deEsta = r.familia_id && s.familia_id ? r.familia_id === s.familia_id : r.familia_nombre === s.familia_nombre;
+      if(!deEsta) return;
+      if(r.ninera_id) h.porId[r.ninera_id] = (h.porId[r.ninera_id] || 0) + 1;
+      else {
+        const clave = normaliza(String(r.ninera_nombre || '').trim());
+        if(clave) h.porClave[clave] = (h.porClave[clave] || 0) + 1;
+      }
+    });
+    out[s.id] = h;
+  });
+  return out;
+}
+function vecesEnFamilia(h, sn){
+  return (sn.ninera_id ? h.porId[sn.ninera_id] || 0 : 0) + (h.porClave[normaliza(String(sn.ninera_nombre || '').trim())] || 0);
+}
+
+// "Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 14:05." (sin "·"; lo que está en cero no se dice).
+function textoRespuestasCurso(filas, s){
+  const cuenta = estado => filas.filter(n => n.estado === estado).length;
+  const pueden = cuenta('acepto'), noPueden = cuenta('no_puedo'), faltan = cuenta('invitada');
+  const partes = [];
+  if(pueden) partes.push(pueden === 1 ? 'puede 1' : `pueden ${pueden}`);
+  if(noPueden) partes.push(noPueden === 1 ? 'no puede 1' : `no pueden ${noPueden}`);
+  if(faltan) partes.push(faltan === 1 ? 'falta responder 1' : `faltan responder ${faltan}`);
+  const enviado = horaMontevideoPanel(s.enviado_app_en || filas.map(n => n.enviado_en).filter(Boolean).sort()[0]);
+  const mandado = `Mandado a ${filas.length}${enviado ? ' a las ' + enviado : ''}.`;
+  if(!partes.length) return mandado;
+  const t = partes.join(', ');
+  return `${t[0].toUpperCase()}${t.slice(1)}. ${mandado}`;
+}
+
+const ORDEN_RESPUESTA_CURSO = { acepto: 0, invitada: 1, no_puedo: 2 };
+/* El detalle de un pedido en curso (lo usan la tarjeta de Hoy y el modal de la solicitud; enModal: sin el renglón
+   del pedido, que el modal ya tiene arriba, con el WhatsApp de cada niñera, como antes, y filasExtra: las filas del
+   panel, sin origen 'app', ya armadas). historial: el de esa
+   solicitud (historialPedidosEnCurso) o null si no se pudo leer o todavía no llegó. */
+function htmlPedidoEnCurso(s, historial, { enModal = false, filasExtra = '' } = {}){
+  pedidosEnCursoDatos[s.id] = s;
+  const filas = (s.ninieras || []).filter(esRespuestaApp);
+  // El atajo (Diego, 01/11/2026): la que pidió la madre, si dijo "Puedo", va primera y se asigna directo.
+  const pedida = s.ninera_pedida_id ? filas.find(n => n.ninera_id === s.ninera_pedida_id && n.estado === 'acepto') || null : null;
+  const orden = n => n === pedida ? -1 : (ORDEN_RESPUESTA_CURSO[n.estado] ?? 3);
+  const ordenadas = filas.map((n, i) => ({ n, i })).sort((a, b) => orden(a.n) - orden(b.n) || a.i - b.i).map(x => x.n);
+  const id = argJs(s.id);
+  return `<div class="pedido-curso" data-solicitud="${escaparHtml(s.id)}">
+    ${enModal ? '' : `<div class="pedido-curso-titulo">${escaparHtml(resumenPedidoTexto(s))}</div>`}
+    <div class="helper sol-envio">${escaparHtml(textoRespuestasCurso(filas, s))}</div>
+    <div class="pedido-curso-filas">${ordenadas.map(n => filaPedidoEnCurso(s, n, historial, n === pedida, enModal)).join('')}${filasExtra}</div>
+    <div class="pedido-curso-botones">
+      <button type="button" class="btn ${pedida ? 'ghost' : 'primary'} pedido-curso-perfiles" onclick="abrirPerfilesMadre(${id})">Perfiles para la madre</button>
+      <button type="button" class="btn ghost" onclick="preguntarAMasNineras(${id})">Preguntar a más niñeras</button>
+      <button type="button" class="btn ghost" onclick="abrirMensajePedidoEnCurso('buscando', ${id})">Todavía buscando</button>
+      <button type="button" class="btn ghost" onclick="abrirMensajePedidoEnCurso('no_conseguimos', ${id})">No conseguimos</button>
+      <button type="button" class="btn ghost pedido-curso-cancelar" onclick="conGuardado(this, ()=>cancelarSolicitud(${id}))">Cancelar el pedido</button>
+    </div>
+  </div>`;
+}
+function filaPedidoEnCurso(s, n, historial, esPedida, enModal){
+  const partes = [];
+  if(n.precio_hora != null && n.precio_hora !== '') partes.push(`$${Number(n.precio_hora).toLocaleString('es-UY')} por hora.`);
+  if(historial){
+    const veces = vecesEnFamilia(historial, n);
+    partes.push(veces ? `Ya fue ${veces} ${veces === 1 ? 'vez' : 'veces'}.` : 'Nueva para esta familia.');
+  }
+  const detalle = partes.length ? `<div class="helper">${escaparHtml(partes.join(' '))}</div>` : '';
+  const whatsapp = enModal ? `<a class="smallbtn" href="${urlSegura(waLink(agendaTelefonoNinera(n.ninera_nombre), mensajeWA(s, n.ninera_nombre)))}" target="_blank" rel="noopener">WhatsApp</a>` : '';
+  const asignar = `abrirAsignarPedido(${argJs(s.id)}, ${argJs(n.id)})`;
+  const boton = esPedida || n.estado !== 'acepto' ? '' : `<button type="button" class="smallbtn" onclick="${asignar}">Asignar</button>`;
+  return `<div class="agenda-ninerarow pedido-curso-fila${esPedida ? ' pedido-curso-pedida' : ''}">
+      <div class="pedido-curso-quien"><b>${escaparHtml(n.ninera_nombre)}</b> ${badgeRespuestaApp(n)}
+        ${esPedida ? '<div class="pedido-curso-marca">La pidió la madre y puede</div>' : ''}${detalle}</div>
+      ${boton || whatsapp ? `<div class="pedido-curso-acciones">${boton}${whatsapp}</div>` : ''}
+      ${esPedida ? `<button type="button" class="btn primary pedido-curso-atajo" onclick="${asignar}">Asignar y confirmar a la madre</button>` : ''}
+    </div>`;
+}
+/* "Preguntar a más niñeras" es "Elegir niñeras" (sin las ya mandadas, que conservan su estado). Esa pantalla usa lo
+   que carga la Agenda (sus familias, niñeras y la semana del pedido): desde Hoy se va a la Agenda, a la semana del
+   pedido (como el link del push), y se abre ahí. */
+async function preguntarAMasNineras(solicitudId){
+  const enAgenda = () => !!document.getElementById('agenda-grid-wrap') && agendaSolicitudes.some(x => x.id === solicitudId);
+  if(!enAgenda()){
+    const fecha = pedidosEnCursoDatos[solicitudId]?.fecha;
+    if(fecha) agendaAncla = fecha;
+    await setModulo('agenda');
+  }
+  if(!enAgenda()){ toast('No se encontró ese pedido en la Agenda.', 'bad'); return; }
+  await abrirElegirNineras(solicitudId);
+}
+// "Todavía buscando" y "No conseguimos": solo arman el mensaje. Cancelar es "Cancelar el pedido", aparte.
+function abrirMensajePedidoEnCurso(clave, solicitudId){
+  const s = pedidosEnCursoDatos[solicitudId];
+  if(s) abrirMensajeMadre({ clave, solicitud: s });
+}
+
+/* La tarjeta de Hoy: se carga aparte, sin frenar el resto de Hoy (como "Mensajes de niñeras"), en una lectura de
+   las solicitudes con sus filas (columnas justas) y otra del historial. Si falla, un aviso corto adentro de la
+   tarjeta y Hoy sigue. Sin la migración de la etapa 5 no hay pedidos por la app: no se muestra nada. El Realtime
+   de Hoy ya recarga con solicitudes y solicitud_ninieras (y espera si hay un modal abierto). */
+async function cargarPedidosEnCurso(){
+  if(!document.getElementById('dash-pedidos')) return;
+  const lectura = ++pedidosEnCursoLectura;
+  let respuesta;
+  try {
+    respuesta = await sb.from('solicitudes')
+      .select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,estado,enviado_app_en,ninera_pedida_id,solicitud_ninieras(id,ninera_id,ninera_nombre,estado,origen,precio_hora,motivo_no,motivo_texto,enviado_en)')
+      .eq('estado', 'pendiente_confirmar').gte('fecha', todayISO()).order('fecha').order('hora_inicio');
+  } catch(e){ respuesta = { error: e }; }
+  const { data, error } = respuesta;
+  let caja = document.getElementById('dash-pedidos');
+  if(!caja || lectura !== pedidosEnCursoLectura) return;
+  if(error){
+    if(error.code === '42703' || error.code === 'PGRST200' || esFaltaTabla(error)){ pintarSiCambio(caja, ''); return; }
+    console.error('[pedidos en curso]', error);
+    pintarSiCambio(caja, `<div class="card pedidos-curso-card"><h2>Pedidos en curso</h2>
+      <div class="warnbox">No se pudieron cargar los pedidos en curso. Revisá la conexión.</div>
+      <button type="button" class="smallbtn" onclick="cargarPedidosEnCurso()">Reintentar</button></div>`);
+    return;
+  }
+  const lista = (data || []).map(s => ({ ...s, ninieras: s.solicitud_ninieras || [] })).filter(s => s.ninieras.some(esRespuestaApp));
+  if(!lista.length){ pintarSiCambio(caja, ''); return; }
+  const historial = await historialPedidosEnCurso(lista);
+  caja = document.getElementById('dash-pedidos');
+  if(!caja || lectura !== pedidosEnCursoLectura) return;
+  pintarSiCambio(caja, `<div class="card pedidos-curso-card"><h2>Pedidos en curso</h2>
+    ${lista.map(s => htmlPedidoEnCurso(s, historial ? historial[s.id] : null)).join('')}</div>`);
+}
+
+/* "Perfiles para la madre" (pantalla 2, regla del CV de reglas-del-negocio 4.6 y Diego, 01/11/2026): solo las que
+   dijeron "Puedo". Las que ya fueron a esa casa vienen tildadas y van con el nombre solo; una nueva entra recién
+   cuando la admin tilda "Revisé su perfil", con "(te paso su CV)", y abajo el aviso de adjuntar su CV (o de que
+   todavía no tiene). Lo tildado se recuerda por pedido mientras la app está abierta: "Ver ficha" abre la ficha en
+   lugar de este cuadro y, al volver, sigue igual. */
+let perfilesMadre = null; // { solicitudId, items, tildadas }
+const perfilesMadreMarcas = new Map(); // solicitud -> { tildadas: Set, vistas: Set } (filas de solicitud_ninieras)
+async function abrirPerfilesMadre(solicitudId){
+  perfilesMadre = null;
+  abrirModal('<div class="empty"><span class="spinner dark"></span> Cargando las respuestas…</div>');
+  const token = modalToken;
+  const titulo = `<h2>${escaparHtml(TITULOS_MENSAJE_MADRE.perfiles)}</h2>`;
+  const { data: s, error } = await sb.from('solicitudes')
+    .select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,estado,solicitud_ninieras(id,ninera_id,ninera_nombre,estado,origen)')
+    .eq('id', solicitudId).maybeSingle();
+  if(token !== modalToken) return;
+  if(error){ abrirModal(`${titulo}${errBox(error)}`); return; }
+  if(!s || s.estado !== 'pendiente_confirmar'){
+    abrirModal(`${titulo}<div class="warnbox">Este pedido ya no está abierto: alguien más lo asignó o lo canceló. Cerrá para ver cómo quedó.</div>`);
+    return;
+  }
+  const pueden = (s.solicitud_ninieras || []).filter(n => esRespuestaApp(n) && n.estado === 'acepto');
+  if(!pueden.length){
+    abrirModal(`${titulo}<div class="helper pedido-resumen">${escaparHtml(resumenPedidoTexto(s))}</div>
+      <div class="warnbox">Todavía ninguna niñera dijo que puede. Cuando alguna responda, armás el mensaje desde acá.</div>`);
+    return;
+  }
+  const ids = [...new Set(pueden.map(n => n.ninera_id).filter(Boolean))];
+  const [historial, cvs] = await Promise.all([
+    historialPedidosEnCurso([s]),
+    ids.length ? sb.from('ninieras').select('id,cv_generado_en').in('id', ids) : { data: [] },
+  ]);
+  if(token !== modalToken) return;
+  const h = historial ? historial[s.id] : null;
+  // Sin poder leer los CV no se avisa que falta: solo se pide adjuntarlo.
+  const cvPorId = cvs.error ? null : new Map((cvs.data || []).map(n => [n.id, n.cv_generado_en]));
+  // Las que ya fueron, arriba.
+  const items = pueden.map((n, i) => ({
+    i, snId: n.id, nineraId: n.ninera_id || null, nombre: n.ninera_nombre || '',
+    conocida: !!h && vecesEnFamilia(h, n) > 0,
+    sinCv: !!cvPorId && !!n.ninera_id && cvPorId.has(n.ninera_id) && !cvPorId.get(n.ninera_id),
+  })).sort((a, b) => (b.conocida - a.conocida) || a.i - b.i);
+  const marcas = perfilesMadreMarcas.get(s.id) || { tildadas: new Set(), vistas: new Set() };
+  items.forEach(it => {
+    if(!marcas.vistas.has(it.snId)){ marcas.vistas.add(it.snId); if(it.conocida) marcas.tildadas.add(it.snId); }
+  });
+  perfilesMadreMarcas.set(s.id, marcas);
+  const estado = { solicitudId: s.id, items, tildadas: marcas.tildadas };
+  perfilesMadre = estado;
+  const arriba = `<div class="perfiles-madre">
+    <div class="helper pedido-resumen">${escaparHtml(resumenPedidoTexto(s))}</div>
+    ${items.map(filaPerfilMadre).join('')}
+  </div>`;
+  await abrirMensajeMadre({ clave: 'perfiles', solicitud: s, extra: { ninieras: textoNinerasPerfiles(), arriba, abajo: '<div id="perfiles-cv"></div>' } });
+  if(perfilesMadre === estado && mensajeMadre?.clave === 'perfiles') pintarAvisosCvPerfiles();
+}
+function filaPerfilMadre(it){
+  const casilla = etiqueta => `<label class="perfiles-check"><input type="checkbox"${perfilesMadre.tildadas.has(it.snId) ? ' checked' : ''} onchange="tildarPerfilMadre(${argJs(it.snId)}, this.checked)"> ${etiqueta}</label>`;
+  if(it.conocida) return `<div class="perfiles-fila">${casilla(`<b>${escaparHtml(it.nombre)}</b>`)}
+    <div class="helper">Ya fue a esa casa: va solo el nombre.</div></div>`;
+  return `<div class="perfiles-fila">
+    <div class="perfiles-nombre"><b>${escaparHtml(it.nombre)}</b>${it.nineraId ? `<button type="button" class="smallbtn" onclick="abrirFichaNineraCuandoCargue(${argJs(it.nineraId)})">Ver ficha</button>` : ''}</div>
+    <div class="helper">Nueva para esta familia.</div>
+    ${casilla('Revisé su perfil')}</div>`;
+}
+// [niñeras]: una por renglón, en el orden de la lista; la nueva con "(te paso su CV)".
+function textoNinerasPerfiles(){
+  const st = perfilesMadre;
+  return st.items.filter(it => st.tildadas.has(it.snId)).map(it => `- ${it.nombre}${it.conocida ? '' : ' (te paso su CV)'}`).join('\n');
+}
+// Al tildar o destildar se vuelve a armar el mensaje con la plantilla (lo escrito a mano en el cuadro se reemplaza).
+function tildarPerfilMadre(snId, marcar){
+  const st = perfilesMadre, area = document.getElementById('mensaje-madre-texto');
+  if(!st || !area || mensajeMadre?.clave !== 'perfiles') return;
+  if(marcar) st.tildadas.add(snId); else st.tildadas.delete(snId);
+  mensajeMadre.datos['niñeras'] = textoNinerasPerfiles();
+  area.value = completarPlantilla(mensajeMadre.plantilla, mensajeMadre.datos).texto;
+  revisarMensajeMadre();
+  pintarAvisosCvPerfiles();
+}
+function pintarAvisosCvPerfiles(){
+  const st = perfilesMadre, caja = document.getElementById('perfiles-cv');
+  if(!st || !caja) return;
+  const nuevas = st.items.filter(it => !it.conocida && st.tildadas.has(it.snId));
+  const conCv = nuevas.filter(it => !it.sinCv).map(it => it.nombre);
+  caja.innerHTML = (conCv.length ? `<div class="helper">${escaparHtml(`Adjuntá en WhatsApp el CV de ${listaNombresTexto(conCv)}.`)}</div>` : '')
+    + nuevas.filter(it => it.sinCv).map(it => `<div class="warnbox">${escaparHtml(`${it.nombre} todavía no tiene CV: generalo desde su ficha.`)}</div>`).join('');
 }

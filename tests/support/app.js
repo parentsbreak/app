@@ -53,11 +53,30 @@ function comparar(a, b) {
   return String(a).localeCompare(String(b));
 }
 function separarLista(txt) {
-  // in.(a,b,"c, d")
+  // in.(a,b,"c, d","con \"comillas\""): dentro de las comillas, la barra escapa el carácter siguiente (PostgREST).
   const out = []; let actual = ''; let comillas = false;
-  for (const c of txt) {
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (comillas && c === '\\') { actual += txt[++i] ?? ''; continue; }
     if (c === '"') { comillas = !comillas; continue; }
     if (c === ',' && !comillas) { out.push(actual); actual = ''; continue; }
+    actual += c;
+  }
+  if (actual !== '') out.push(actual);
+  return out;
+}
+// or=(familia_id.in.(a,b),familia_nombre.in.("Familia (práctica)")): las condiciones se separan por las comas de
+// afuera de todo paréntesis y comillas, y cada una queda tal cual (con sus comillas) para cumple() (03/11/2026,
+// "Pedidos en curso" lee el historial de varias familias en una sola lectura).
+function separarCondiciones(txt) {
+  const out = []; let actual = ''; let comillas = false; let nivel = 0;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (comillas && c === '\\') { actual += c + (txt[++i] ?? ''); continue; }
+    if (c === '"') comillas = !comillas;
+    else if (!comillas && c === '(') nivel++;
+    else if (!comillas && c === ')') nivel--;
+    else if (c === ',' && !comillas && nivel === 0) { out.push(actual); actual = ''; continue; }
     actual += c;
   }
   if (actual !== '') out.push(actual);
@@ -94,7 +113,7 @@ function filtrar(filas, params) {
   for (const [k, v] of params) {
     if (PARAMS_NO_FILTRO.has(k)) continue;
     if (k === 'or') { // or=(estado.neq.previsto,fecha.lte.2026-10-04): alguna de las condiciones
-      const conds = separarLista(v.replace(/^\(|\)$/g, ''));
+      const conds = separarCondiciones(v.replace(/^\(|\)$/g, ''));
       out = out.filter(f => conds.some(c => { const i = c.indexOf('.'); return cumple(f, c.slice(0, i), c.slice(i + 1)); }));
       continue;
     }

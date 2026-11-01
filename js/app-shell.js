@@ -239,6 +239,7 @@ async function renderDashboard(cont){
       <div class="pendbanner-link">Ver</div>
     </button>
     <div id="dash-autoconf"></div>
+    <div id="dash-pedidos"></div>
     <div id="dash-chat"></div>
     <div id="dash-faltan"></div>
     <div class="card">
@@ -246,8 +247,10 @@ async function renderDashboard(cont){
       <div id="agenda" class="agendabox"><div class="empty">Cargando…</div></div>
     </div>
   `;
-  // Los mensajes de niñeras van aparte: no frenan el resto de Hoy ni la pantalla de entrada.
+  // Los mensajes de niñeras y los pedidos en curso (pedidos.js) van aparte: no frenan el resto de Hoy ni la
+  // pantalla de entrada, y si su lectura falla, Hoy sigue.
   cargarMensajesNinerasHoy();
+  cargarPedidosEnCurso();
   // Se devuelve la carga para que la pantalla de entrada y el indicador de sección sepan
   // cuándo Hoy ya tiene sus datos (15/10/2026).
   return loadDashboardData();
