@@ -873,8 +873,12 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (01/11/2026): `app_config 'pedidos_app'.solo_practica` está prendido (por la app solo salen pedidos de práctica, a
   "Niñera (práctica)"); se apaga por SQL con el OK de Diego después de la etapa 4 y de probar un pedido de práctica de punta a punta
   en el iPhone (lista en la etapa 5 del plan). Sin `app_config
-  'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. Antes de la etapa 6, decidir con las dueñas si una niñera que
-  dijo "Puedo" se confirma sola (ver la etapa 6 del plan). La regla del CV del 31/10/2026 va en la etapa 6.
+  'temporada_reglas'`: la regla 4.5 vive en `nineraPresenteEnZona`. La regla del CV del 31/10/2026 va en la etapa 6.
+- CV automático en el sistema (01/11/2026, tarea aparte, justo después de la etapa 6): hoy el CV se arma a mano en Canva desde
+  un chat (plan gratis, sin Autofill). Idea: exportar una vez el fondo de la plantilla de Canva sin textos ni foto, y que la app
+  genere sola el CV (nombre en violeta, foto circular, los 7 datos en coral; nunca teléfono, mail ni zona) como imagen o PDF desde
+  la ficha de la niñera, lo guarde en `cv_url` y lo regenere si cambian los datos. Para mandarlo, "Compartir"
+  (`navigator.share` con el archivo) desde el iPhone a WhatsApp. Cuando exista, el "Adjuntá el CV de X" de la etapa 6 pasa a ese botón.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
   `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
@@ -1023,6 +1027,8 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
 - Dependen de WhatsApp: cumpleaños de la niñera a las 9:00, mensaje a la familia poco
   activa (cada 4 semanas, 5% de descuento; falta el texto). El recordatorio de cobros
   atrasados ya no espera a la API: va con el link de WhatsApp (ver "Próximas tareas").
+- Mensajes a la madre sin abrir WhatsApp (01/11/2026, para más adelante): los de la etapa 6 (perfiles, confirmación,
+  "Todavía buscando", "No conseguimos") hoy se copian o abren WhatsApp; mandarlos directo depende de la API de Meta.
 - whatsapp-webhook ya publicado exige la firma de Meta y hoy rechaza todo. Cuando arranquemos,
   cargar `WHATSAPP_APP_SECRET` (App Secret de la app de Meta) en Supabase > Edge Functions >
   Secrets.

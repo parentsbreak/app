@@ -196,7 +196,8 @@ select pg_temp.verificar('un aviso por niñera, con el formato lista y sin la fa
   (select count(*) = 2 from avisos a join solicitud_ninieras sn on a.clave = 'pedido:' || sn.id || ':nuevo'
     where sn.solicitud_id = 'd4000000-0000-4000-8000-000000000001')
   and (select a.titulo = 'Sitting ' || to_char(public.hoy_mvd() + 1, 'DD/MM')
-          and a.cuerpo = E'20:00 – 00:30 del día siguiente (aproximada, se puede extender)\nZona: Pocitos\n2 chicos (4 y 7 años)\nPrecio por hora: $1.250'
+          -- Sin la marca de horario aproximado, sin "(aproximada, se puede extender)" (etapa 6, Diego 01/11/2026).
+          and a.cuerpo = E'20:00 – 00:30 del día siguiente\nZona: Pocitos\n2 chicos (4 y 7 años)\nPrecio por hora: $1.250'
           and a.para_ninera_id = 'd2000000-0000-4000-8000-000000000002' and a.url = '#pedido/' || sn.id and a.tipo = 'pedido'
          from avisos a join solicitud_ninieras sn on a.clave = 'pedido:' || sn.id || ':nuevo'
         where sn.ninera_id = 'd2000000-0000-4000-8000-000000000002')
