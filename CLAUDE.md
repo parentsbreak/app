@@ -884,7 +884,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   terminar" en "Pegar WhatsApp".
 - Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
   nuevo igual" en esa pantalla.
-- `checklistZonas` (core.js, 02/11/2026) no escapa el aviso de la zona "suelta" (`"X" no pertenece...`): escaparlo.
 - `tests/precio-ninera-familia.spec.js` (31/10/2026): 12 tests de Sittings fallan en local, también sobre `main` (el CI de #91 pasó).
   Investigar, probablemente dependen de la fecha.
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
