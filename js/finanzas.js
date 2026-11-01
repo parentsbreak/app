@@ -795,7 +795,7 @@ function bucketLabelFecha(bucketKey, frecuencia, hasta=null){
    Con la base sin migrar (sin la tabla) todo sigue como antes.
    ============================================================ */
 let ajustesSaldoDisponible = true;
-async function cargarAjustesSaldo(filtro){
+async function cargarAjustesSaldo(filtro, estricto=false){
   if(!ajustesSaldoDisponible) return [];
   let q = sb.from('ajustes_saldo').select('*').order('fecha', {ascending:true});
   if(filtro?.familia_id) q = q.eq('familia_id', filtro.familia_id);
@@ -803,6 +803,7 @@ async function cargarAjustesSaldo(filtro){
   const { data, error } = await q;
   if(error){
     if(error.code==='PGRST205' || error.code==='42P01'){ ajustesSaldoDisponible = false; return []; }
+    if(estricto) throw new Error(error.message);
     toast('No se pudieron leer los saldos a favor: '+error.message, 'bad');
     return [];
   }
@@ -1552,9 +1553,9 @@ function cuentasPorPagarHtml(g){
   return `<div class="helper fin-falta-cuenta" style="margin:4px 0 0;color:var(--clay-text);">Falta la cuenta${link}</div>`;
 }
 // gastos: ids (cobro) o {id, concepto, monto} (pago, para mostrarlos en la confirmación).
-async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[]){
+async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[], confirmado=false){
   const gastosIds = (gastos||[]).map(g=>typeof g==='string' ? g : g.id);
-  if(campo==='pagado' && !(await confirmarPagoSittings(ids, {}, ajustes, gastos.filter(g=>typeof g!=='string')))) return;
+  if(campo==='pagado' && !confirmado && !(await confirmarPagoSittings(ids, {}, ajustes, gastos.filter(g=>typeof g!=='string')))) return;
   // Las dos marcando lo mismo a la vez (06/10/2026, testing de la noche): se marca solo lo
   // que seguía sin marcar. Si la otra ya lo había marcado, no se descuenta el saldo a favor
   // por segunda vez (se perdía lo que sobraba) y se avisa en vez de decir "Marcado".
@@ -1582,6 +1583,7 @@ async function marcarGrupoResuelto(ids, campo, ajustes=[], gastos=[]){
   if(okSaldo && okGastos) toast(campo==='cobrado' ? 'Marcado como cobrado.' : 'Marcado como pagado.', 'good',
     { deshacer: ()=>deshacerMarca(campo, marcados, gastosMarcados, ajustes, ids) });
   refrescarFinanzasCompleto();
+  return okSaldo && okGastos;
 }
 /* "Deshacer" del aviso (23/10/2026): desmarca solo lo que marcó ese toque (si la otra lo
    desmarcó mientras tanto, no se toca) y devuelve el saldo a favor que se había usado. */
@@ -1895,18 +1897,29 @@ function mapaPorCuenta(fichas){
   };
 }
 // Propuestas para un conjunto de movimientos del extracto ya agrupados (por ficha y período).
+// El saldo se reparte primero sobre los períodos más viejos con aplicarAjustesAGrupos.
+// Al juntar períodos, reunimos las porciones del mismo ajuste antes de registrar su uso.
+function totalConciliacion(grupos, sujeto){
+  const ajustes = new Map();
+  grupos.flatMap(g=>g.ajustes||[]).forEach(a=>{
+    const anterior = ajustes.get(a.id);
+    ajustes.set(a.id, {...a, monto:Math.round(((anterior?.monto||0)+a.monto)*100)/100});
+  });
+  return totalParcial(grupos.reduce((t,g)=>t+g.total,0), [...ajustes.values()], sujeto);
+}
 function proponerCoincidencias(movsAgrupados, gruposPend, claveFicha){
   const props = [];
   const sinCoincidencia = [];
   const casi = (a,b)=>Math.abs(a-b) < 1;
   const anteriores = (fecha, g)=> g.bucket.slice(0,10) <= fecha; // el período empezó antes del movimiento
+  const total = grupos => totalConciliacion(grupos, claveFicha==='familia_id' ? 'familia' : 'ninera').total;
   movsAgrupados.forEach(m=>{
     const detalleExtracto = m.movs.map(x=>`${fmtFechaCortaFin(x.fecha)} ${x.concepto||'(sin concepto)'}`).join(' · ');
     if(m.fichas.length===1){
       const fichaId = m.fichas[0].id;
       const delaFicha = gruposPend.filter(g=>g[claveFicha]===fichaId && anteriores(m.fecha, g));
-      const exactos = delaFicha.filter(g=>casi(g.total, m.total));
-      const suma = delaFicha.reduce((t,g)=>t+g.total, 0);
+      const exactos = delaFicha.filter(g=>casi(total([g]), m.total));
+      const suma = total(delaFicha);
       if(exactos.length===1){
         props.push({ grupos:exactos, extracto:m.total, detalleExtracto, tildada:true, motivo:null });
       } else if(exactos.length>1){
@@ -1915,14 +1928,14 @@ function proponerCoincidencias(movsAgrupados, gruposPend, claveFicha){
         props.push({ grupos:delaFicha, extracto:m.total, detalleExtracto, tildada:true, motivo:null, nota:'Pagó varios períodos juntos' });
       } else if(delaFicha.length){
         const ultimo = delaFicha.slice().sort((a,b)=>b.bucket.localeCompare(a.bucket))[0];
-        props.push({ grupos:[ultimo], extracto:m.total, detalleExtracto, tildada:false, motivo:`Monto distinto: el extracto dice ${plataFin(m.total)} y lo pendiente es ${plataFin(ultimo.total)}` });
+        props.push({ grupos:[ultimo], extracto:m.total, detalleExtracto, tildada:false, motivo:`Monto distinto: el extracto dice ${plataFin(m.total)} y lo pendiente es ${plataFin(total([ultimo]))}` });
       } else {
         sinCoincidencia.push({ ...m, motivo:`${m.fichas[0].nombre} no tiene nada pendiente de antes de esa fecha` });
       }
       return;
     }
     // Sin ficha identificada (o la cuenta está en varias fichas): solo puede coincidir el monto.
-    const candidatos = gruposPend.filter(g=>casi(g.total, m.total) && anteriores(m.fecha, g) && (!m.fichas.length || m.fichas.some(f=>f.id===g[claveFicha])));
+    const candidatos = gruposPend.filter(g=>casi(total([g]), m.total) && anteriores(m.fecha, g) && (!m.fichas.length || m.fichas.some(f=>f.id===g[claveFicha])));
     if(!candidatos.length){ sinCoincidencia.push({ ...m, motivo: m.cuenta ? 'La cuenta no está cargada en ninguna ficha' : 'Sin cuenta en el concepto y ningún pendiente con ese monto' }); return; }
     const motivo = m.fichas.length>1 ? `La cuenta está cargada en ${m.fichas.length} fichas: elegí cuál`
       : candidatos.length>1 ? `Sin cuenta en el extracto y el mismo monto coincide con ${candidatos.length} pendientes: elegí cuál`
@@ -1947,7 +1960,13 @@ async function procesarExtractoConciliacion(){
   const debitos = leido.movimientos.filter(m=>m.debito).map(m=>({ fecha:m.fecha, concepto:m.concepto, cuenta:m.cuenta, monto:m.debito }));
   if(!creditos.length && !debitos.length){ box.innerHTML = '<div class="empty">No encontré movimientos en el archivo.</div>'; return; }
 
-  const { gruposCobrar, gruposPagar, fams, nins } = await calcularPendientesAgrupados();
+  const { gruposCobrar, gruposPagar, fams, nins, error } = await calcularPendientesAgrupados();
+  if(error){ box.innerHTML = errorConReintentoHtml(error); return; }
+  let ajustes;
+  try { ajustes = await cargarAjustesSaldo(null, true); }
+  catch(e){ box.innerHTML = `<div class="empty">No se pudieron leer los saldos a favor: ${escaparHtml(e.message)}. Volvé a procesar el extracto.</div>`; return; }
+  aplicarAjustesAGrupos(gruposCobrar, ajustes, 'familia');
+  aplicarAjustesAGrupos(gruposPagar, ajustes, 'ninera');
   const famsDeCuenta = mapaPorCuenta(fams);
   const ninsDeCuenta = mapaPorCuenta(nins);
   const famFrec = {}; fams.forEach(f=>{ famFrec[f.id] = f.frecuencia_cobro || 'mensual'; });
@@ -1975,7 +1994,8 @@ async function procesarExtractoConciliacion(){
   const conCodigo = (lista, tipo) => lista.map((p,i)=>({ ...p, i, tipo,
     ids: [...new Set(p.grupos.flatMap(g=>g.ids))],
     gastos: p.grupos.flatMap(g=>g.gastos||[]),
-    pendiente: p.grupos.reduce((t,g)=>t+g.total,0),
+    pendiente: totalConciliacion(p.grupos, tipo==='cobro' ? 'familia' : 'ninera').total,
+    ajustes: totalConciliacion(p.grupos, tipo==='cobro' ? 'familia' : 'ninera').usados,
     nombre: p.grupos[0].nombre,
     periodo: p.grupos.map(g=>bucketLabelFecha(g.bucket, g.frec, g.hasta)).join(' + '),
     hecha:false }));
@@ -2015,6 +2035,7 @@ function seccionConciliacion(tipo, titulo, textoBoton){
         <div style="flex:1;min-width:0;">
           <div style="font-weight:600;">${escaparHtml(p.nombre)}${p.nota?` <span class="helper" style="margin:0;">· ${escaparHtml(p.nota)}</span>`:''}</div>
           <div class="helper" style="margin:2px 0 0;">${escaparHtml(p.periodo)} · en el extracto: ${escaparHtml(p.detalleExtracto)}</div>
+          ${lineasAjustesHtml(p.ajustes)}
           ${p.motivo ? `<div class="conc-motivo">${escaparHtml(p.motivo)}</div>` : ''}
         </div>
         <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap;">${plataFin(p.pendiente)}</span>
@@ -2043,25 +2064,38 @@ async function confirmarConciliacion(tipo){
   const sel = tildadasConciliacion(tipo);
   if(!sel.length){ toast('No hay nada tildado.', 'bad'); return; }
   const ids = [...new Set(sel.flatMap(p=>p.ids))];
-  if(tipo==='cobro' && !(await confirmarCobrosConciliacion(sel))) return;
   const gastos = sel.flatMap(p=>p.gastos||[]);
-  if(tipo==='pago' && !(await confirmarPagoSittings(ids, {}, [], gastos))) return;
-  if(ids.length){
-    const { error } = await sb.from('sittings_traslados').update({[tipo==='cobro'?'cobrado':'pagado']:true}).in('id', ids);
-    if(error){ toast('No se pudo marcar: '+error.message, 'bad'); return; }
+  // Dos propuestas alternativas no pueden gastar el mismo sitting o gasto dos veces.
+  if(ids.length!==sel.flatMap(p=>p.ids).length || new Set(gastos.map(g=>g.id)).size!==gastos.length){
+    toast('Hay propuestas para los mismos registros. Elegí una sola y volvé a confirmar.', 'bad'); return;
   }
-  // Gastos extra del mismo grupo (08/10/2026): se marcan cobrados / reintegrados junto.
-  if(gastos.length){
-    const { error: eg } = await sb.from('gastos_extra').update({[tipo==='cobro'?'cobrado':'reintegrado']:true}).in('id', gastos.map(g=>g.id));
-    if(eg) toast('Se marcaron los registros, pero no los gastos extra ('+eg.message+'). Avisale a Diego.', 'bad');
+  if(tipo==='cobro' && !(await confirmarCobrosConciliacion(sel))) return;
+  const ajustes = sel.flatMap(p=>p.ajustes||[]);
+  if(tipo==='pago' && !(await confirmarPagoSittings(ids, {}, ajustes, gastos))) return;
+  // La pantalla puede llevar un rato abierta: no consumir una porción ya usada en otra vista.
+  if(ajustes.length){
+    let actuales;
+    try { actuales = await cargarAjustesSaldo(null, true); }
+    catch(e){ toast('No se pudo verificar el saldo a favor: '+e.message, 'bad'); return; }
+    const requeridos = new Map();
+    ajustes.forEach(a=>requeridos.set(a.id, (requeridos.get(a.id)||0)+Math.abs(a.monto)));
+    if([...requeridos].some(([id,monto])=>{
+      const a = actuales.find(a=>a.id===id);
+      return !a || Math.sign(a.monto)!==Math.sign(ajustes.find(x=>x.id===id).monto)
+        || Math.round(Math.abs(pendienteAjuste(a))*100)<Math.round(monto*100);
+    })){
+      toast('El saldo a favor cambió. Volvé a procesar el extracto antes de confirmar.', 'bad'); return;
+    }
   }
-  sel.forEach(p=>{
+  for(const p of sel){
+    const ok = await marcarGrupoResuelto(p.ids, tipo==='cobro' ? 'cobrado' : 'pagado', p.ajustes, p.gastos||[], true);
+    if(!ok) return; // conserva el aviso de error o de que otra admin ya lo había marcado
     p.hecha = true;
     const fila = document.querySelector(`[data-conc-fila="${tipo}-${p.i}"]`);
     const cb = fila?.querySelector('input');
     if(cb){ cb.checked = false; cb.disabled = true; }
     fila?.classList.add('conc-hecha');
-  });
+  }
   // Otras propuestas que apuntaban a esos mismos sittings (opciones de una dudosa) ya no aplican.
   concPropuestas[tipo].forEach(p=>{
     if(!p.hecha && p.ids.some(id=>ids.includes(id))){
@@ -2085,7 +2119,8 @@ function confirmarCobrosConciliacion(sel){
         <div id="cobro-detalle">
           ${sel.map(p=>`<div class="pago-fila">
             <div style="min-width:0;"><div style="font-weight:600;">${escaparHtml(p.nombre)}</div>
-            <div class="helper" style="margin:2px 0 0;">${escaparHtml(p.periodo)} · ${p.ids.length} ${p.ids.length===1?'registro':'registros'}${p.motivo?' · dudosa, elegida a mano':''}</div></div>
+            <div class="helper" style="margin:2px 0 0;">${escaparHtml(p.periodo)} · ${p.ids.length} ${p.ids.length===1?'registro':'registros'}${p.motivo?' · dudosa, elegida a mano':''}</div>
+            ${lineasAjustesHtml(p.ajustes)}</div>
             <div class="pago-monto">${plataFin(p.pendiente)}</div>
           </div>`).join('')}
           <div class="pago-fila pago-total-fila"><div style="font-weight:700;">Total</div><div class="pago-monto" id="cobro-total" style="font-weight:700;">${plataFin(total)}</div></div>

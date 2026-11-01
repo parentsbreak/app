@@ -8,14 +8,209 @@ const { abrirApp, irAModulo, esperarQuieta, verificarLimpio } = require('./suppo
 const { datosBase, sitting, ID } = require('./support/datos');
 
 const ID_SEP = ['70000000-0000-4000-8000-000000000002', '70000000-0000-4000-8000-000000000003'];
-async function procesar(page, csv) {
+async function procesar(page, csv, resultado = /créditos? leídos? del extracto/) {
   await page.setInputFiles('#fin-conciliar-file', { name: 'extracto.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await page.locator('button[onclick*="procesarExtractoConciliacion"]').click();
-  await expect(page.locator('#fin-conciliar-resultado')).toContainText(/créditos? leídos? del extracto/);
+  await expect(page.locator('#fin-conciliar-resultado')).toContainText(resultado);
 }
 const fila = (page, texto) => page.locator('.conc-fila', { hasText: texto });
 const boton = (page, tipo) => page.locator(`#conc-btn-${tipo}`);
 const escriturasSittings = e => e.escrituras.filter(w => w.tabla === 'sittings_traslados');
+
+// B10: importes, cuentas y personas inventados. El mismo saldo que se descuenta en
+// Por cobrar / Por pagar debe descontarse y quedar usado al conciliar un extracto.
+const AJ_B10 = 'a5000000-0000-4000-8000-000000000010';
+function datosSaldoConciliacion(sujeto = 'familia', monto = -300) {
+  const d = datosBase();
+  d.ajustes_saldo = [{ id: AJ_B10, sujeto, monto, aplicado: 0, aplicaciones: [],
+    familia_id: sujeto === 'familia' ? ID.fUno : null,
+    ninera_id: sujeto === 'ninera' ? ID.nAna : null,
+    nombre: sujeto === 'familia' ? 'Familia Prueba Uno' : 'Ana Ficticia',
+    motivo: 'Saldo de prueba', fecha: '2026-09-01' }];
+  return d;
+}
+
+test('B10 cobro neto: descuenta el saldo, cancelar no lo consume y confirmar impide reutilizarlo', async ({ page }) => {
+  const d = datosSaldoConciliacion();
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;1980\n');
+  const f = fila(page, 'Familia Prueba Uno');
+  await expect(f.locator('input')).toBeChecked();
+  await expect(f).toContainText('Saldo: −$300');
+  await expect(boton(page, 'cobro')).toContainText('$1.980');
+  await boton(page, 'cobro').click();
+  const modal = page.locator('[aria-label="Confirmar cobros"]');
+  await expect(modal).toContainText('Saldo: −$300');
+  await expect(modal.locator('#cobro-total')).toHaveText('$1.980');
+  await modal.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(0);
+  expect(escriturasSittings(e)).toEqual([]);
+  await boton(page, 'cobro').click();
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(f).toHaveClass(/conc-hecha/);
+  expect(e.db.ajustes_saldo[0]).toMatchObject({ aplicado: 300, aplicaciones: [expect.objectContaining({ monto: -300, en: 'cobrado', sittings: ID_SEP })] });
+  // Otro cobro posterior ya no debe descontar esos $300.
+  e.db.sittings_traslados.push(sitting('70000000-0000-4000-8000-0000000000d1', '2026-10-01', {}));
+  await procesar(page, 'Fecha;Concepto;Crédito\n04/10/2026;TRANSF 0001234567;1140\n');
+  await expect(fila(page, 'Familia Prueba Uno').locator('input')).toBeChecked();
+  await expect(fila(page, 'Familia Prueba Uno')).not.toContainText('Saldo:');
+  expect(e.db.ajustes_saldo[0].aplicaciones).toHaveLength(1);
+  verificarLimpio(e);
+});
+
+test('B10 pago neto: el detalle E3 y la aplicación usan sólo el saldo restante', async ({ page }) => {
+  const d = datosSaldoConciliacion('ninera', -500);
+  d.ajustes_saldo[0].aplicado = 200;
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Débito;Crédito\n04/10/2026;TRANSF 0099887766;450;\n');
+  const f = page.locator('[data-conc-seccion="pago"] .conc-fila', { hasText: 'Ana Ficticia' });
+  await expect(f.locator('input')).toBeChecked();
+  await boton(page, 'pago').click();
+  await expect(page.locator('#pago-detalle')).toContainText('Saldo a favor');
+  await expect(page.locator('#pago-total')).toHaveText('$450');
+  await page.locator('#pago-confirmar').click();
+  await expect(f).toHaveClass(/conc-hecha/);
+  expect(e.db.ajustes_saldo[0]).toMatchObject({ aplicado: 500, aplicaciones: [expect.objectContaining({ monto: -300, en: 'pagado' })] });
+  verificarLimpio(e);
+});
+
+test('B10 varios períodos: sólo consume la porción del saldo asignada al período confirmado', async ({ page }) => {
+  const d = datosSaldoConciliacion('familia', -2500);
+  d.sittings_traslados.push(sitting('70000000-0000-4000-8000-0000000000d2', '2026-10-01', {}));
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;920\n');
+  const f = fila(page, 'Familia Prueba Uno');
+  await expect(f.locator('input')).toBeChecked();
+  await boton(page, 'cobro').click();
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(f).toHaveClass(/conc-hecha/);
+  // El saldo se reserva al período más viejo: sólo se concilia octubre (1140 - 220).
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(220);
+  expect(e.db.ajustes_saldo[0].aplicaciones).toHaveLength(1);
+  expect(e.db.sittings_traslados.filter(s => ID_SEP.includes(s.id)).every(s => !s.cobrado)).toBe(true);
+  verificarLimpio(e);
+});
+
+test('B10 dos meses juntos: registra una sola aplicación de saldo para todos los sittings', async ({ page }) => {
+  const d = datosSaldoConciliacion();
+  const nuevo = '70000000-0000-4000-8000-0000000000d3';
+  d.sittings_traslados.push(sitting(nuevo, '2026-10-01', {}));
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;3120\n');
+  const f = fila(page, 'Familia Prueba Uno');
+  await expect(f).toContainText('Pagó varios períodos juntos');
+  await expect(f.locator('input')).toBeChecked();
+  await boton(page, 'cobro').click();
+  await expect(page.locator('#cobro-total')).toHaveText('$3.120');
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(f).toHaveClass(/conc-hecha/);
+  expect(e.db.ajustes_saldo[0]).toMatchObject({ aplicado: 300, aplicaciones: [expect.objectContaining({ monto: -300, sittings: [...ID_SEP, nuevo] })] });
+  verificarLimpio(e);
+});
+
+test('B10 un saldo mayor al cobro: no aplica más de lo necesario y conserva el resto', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion('familia', -2500) });
+  await irAModulo(page, 'finanzas');
+  // Una transferencia ficticia de $1 no coincide con deuda neta $0: continúa siendo dudosa.
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;1\n');
+  const f = fila(page, 'Familia Prueba Uno');
+  await expect(f.locator('input')).not.toBeChecked();
+  await expect(f).toContainText('Saldo: −$2.280');
+  await f.locator('input').check();
+  await boton(page, 'cobro').click();
+  await expect(page.locator('#cobro-total')).toHaveText('$0');
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(f).toHaveClass(/conc-hecha/);
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(2280);
+  await expect(page.locator('#fin-porcobrar-wrap')).toContainText('Familia Prueba Uno: −$220');
+  verificarLimpio(e);
+});
+
+test('B10 sin cuenta: una coincidencia neta sigue siendo dudosa', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion() });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;CAMBIOS;1980\n');
+  const f = fila(page, 'Familia Prueba Uno');
+  await expect(f.locator('input')).not.toBeChecked();
+  await expect(f.locator('.conc-motivo')).toContainText('Sin cuenta en el extracto');
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(0);
+  verificarLimpio(e);
+});
+
+test('B10 saldo consumido mientras se confirma: pide reprocesar y no marca', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion() });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;1980\n');
+  await boton(page, 'cobro').click();
+  e.db.ajustes_saldo[0].aplicado = 300;
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(page.locator('.toaststack')).toContainText('El saldo a favor cambió');
+  expect(escriturasSittings(e)).toEqual([]);
+  expect(e.escrituras.filter(w => w.tabla === 'ajustes_saldo')).toEqual([]);
+  verificarLimpio(e);
+});
+
+test('B10 si otra admin ya cobró el grupo, no consume su saldo por segunda vez', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion() });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;1980\n');
+  await boton(page, 'cobro').click();
+  e.db.sittings_traslados.filter(s => ID_SEP.includes(s.id)).forEach(s => { s.cobrado = true; });
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(page.locator('.toaststack')).toContainText('Ya estaba marcado como cobrado');
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(0);
+  expect(e.db.ajustes_saldo[0].aplicaciones).toEqual([]);
+  verificarLimpio(e);
+});
+
+test('B10 error leyendo saldos: no propone conciliar con un total que los ignore', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion() });
+  await irAModulo(page, 'finanzas');
+  await esperarQuieta(page);
+  await page.route(/\/rest\/v1\/ajustes_saldo\?/, r => r.request().method() === 'GET'
+    ? r.fulfill({ status: 500, json: { code: 'XX000', message: 'Fallo de prueba' } }) : r.fallback());
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;2280\n', /No se pudieron leer los saldos a favor/);
+  await expect(page.locator('#fin-conciliar-resultado')).toContainText('No se pudieron leer los saldos a favor');
+  await expect(page.locator('.conc-fila')).toHaveCount(0);
+  expect(escriturasSittings(e)).toEqual([]);
+  verificarLimpio(e, { ignorar: [/500 \(Internal Server Error\)/] });
+});
+
+test('B10 si falla guardar el saldo, informa que quedó pendiente sin anunciar éxito', async ({ page }) => {
+  const e = await abrirApp(page, { datos: datosSaldoConciliacion() });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;1980\n');
+  e.fallar = p => p.tabla === 'ajustes_saldo' && p.metodo === 'PATCH' ? { status: 500, message: 'Fallo de prueba' } : null;
+  await boton(page, 'cobro').click();
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(page.locator('.toaststack')).toContainText('no se pudo descontar el saldo a favor');
+  await expect(page.locator('.toaststack')).not.toContainText('Marcado como cobrado');
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(0);
+  expect(e.db.sittings_traslados.filter(s => ID_SEP.includes(s.id)).every(s => s.cobrado)).toBe(true);
+  verificarLimpio(e, { ignorar: [/500 \(Internal Server Error\)/] });
+});
+
+test('B10 saldo y gasto extra se incluyen una sola vez en el cobro', async ({ page }) => {
+  const d = datosSaldoConciliacion();
+  d.gastos_extra = [{ id: 'b6000000-0000-4000-8000-000000000010', sitting_id: ID_SEP[0],
+    concepto: 'Gasto ficticio', monto: 100, pagado_por: 'ninera', cobrado: false, reintegrado: false, absorbe_pb: false }];
+  const e = await abrirApp(page, { datos: d });
+  await irAModulo(page, 'finanzas');
+  await procesar(page, 'Fecha;Concepto;Crédito\n03/10/2026;TRANSF 0001234567;2080\n');
+  await expect(fila(page, 'Familia Prueba Uno').locator('input')).toBeChecked();
+  await boton(page, 'cobro').click();
+  await expect(page.locator('#cobro-total')).toHaveText('$2.080');
+  await page.locator('[aria-label="Confirmar cobros"]').getByRole('button', { name: 'Confirmar cobro', exact: true }).click();
+  await expect(fila(page, 'Familia Prueba Uno')).toHaveClass(/conc-hecha/);
+  expect(e.db.ajustes_saldo[0].aplicado).toBe(300);
+  expect(e.db.gastos_extra[0].cobrado).toBe(true);
+  expect(e.db.gastos_extra[0].reintegrado).toBe(false);
+  verificarLimpio(e);
+});
 
 test('coincidencia segura: viene tildada, pero no se marca nada hasta confirmar', async ({ page }) => {
   const e = await abrirApp(page);
@@ -124,7 +319,7 @@ test('pagos a niñeras: el débito a la cuenta de Ana viene tildado y se confirm
   expect(escriturasSittings(e)).toEqual([]);
   await modal.locator('button', { hasText: 'Confirmar pago' }).click();
   await expect(page.locator('.toaststack .toast').last()).toContainText('Marcado como pagado (1)');
-  expect(escriturasSittings(e)).toEqual([expect.objectContaining({ metodo: 'PATCH', cuerpo: { pagado: true }, params: { id: 'in.(70000000-0000-4000-8000-000000000003)' } })]);
+  expect(escriturasSittings(e)).toEqual([expect.objectContaining({ metodo: 'PATCH', cuerpo: { pagado: true }, params: { id: 'in.(70000000-0000-4000-8000-000000000003)', pagado: 'eq.false', select: 'id' } })]);
   verificarLimpio(e);
 });
 
