@@ -82,7 +82,7 @@ function pintarMensajeNinera(texto, acciones = ''){
   </main>`);
 }
 
-/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #inactiva, #error ----
+/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #pedido/<id>, #no-puedo, #inactiva, #error ----
    La URL dice en qué pantalla está. Se cambia con replaceState, sin sumar pasos al historial:
    "Atrás" en el celular no tiene que volver a una pantalla vieja (el login después de entrar). */
 function marcarRuta(hash){
@@ -93,6 +93,8 @@ function irA(hash){
   // #avisos es la pantalla para activar los avisos del celular; #mis-avisos, la lista (etapa 3).
   const pantallas = { '#inicio': renderInicio, '#login': pantallaLogin, '#instalar': pantallaInstalar, '#avisos': pantallaAvisos, '#perfil': abrirMiPerfil,
     '#chat': pantallaChatNinera, '#mis-avisos': pantallaAvisosNinera, '#temporada': pantallaTemporadaNinera };
+  // #pedido/<id>: el link de un push de pedido nuevo (pedido.js).
+  if(typeof hash === 'string' && hash.startsWith('#pedido/')) return abrirPedidoNinera(hash.slice('#pedido/'.length));
   return pantallas[hash] ? pantallas[hash]() : undefined;
 }
 

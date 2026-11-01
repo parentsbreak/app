@@ -22,7 +22,7 @@ async function renderInicio(){
     </header>
     <div id="inicio-avisos"></div>
     <div id="inicio-temporada"></div>
-    <p class="vacio">No tienes pedidos por ahora.</p>
+    ${htmlInicioPedidos()}
     ${perfilNineraSinMigrar ? '' : `<section id="proximos-sittings" class="proximos" aria-live="polite">
       <h2>Próximos sittings</h2>
       <div id="proximos-sittings-lista"><p class="vacio">Cargando…</p></div>
@@ -33,6 +33,8 @@ async function renderInicio(){
       <button type="button" class="link-boton" onclick="abrirMiCuentaNinera()">Mi cuenta</button>
     </footer>
   </main>`);
+  // Los pedidos (pedido.js) llegan solos a su lugar, arriba de los sittings.
+  cargarPedidosNinera();
   // Sin esperar: los sittings llegan solos a su sección y lo de arriba ya está en pantalla. Con la
   // base sin la migración de la etapa 2 ni se piden (ya se supo al leer el perfil).
   if(!perfilNineraSinMigrar) cargarProximosSittings();

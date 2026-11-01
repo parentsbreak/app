@@ -209,3 +209,32 @@ button.aviso-item:hover{border-color:var(--accent);}
 .temp-otro[hidden]{display:none;}
 .pantalla .temp-otro input[type=text]{padding:13px 14px;min-height:50px;border-radius:10px;}
 #temp-resto-boton{margin-bottom:0;}
+
+/* ---- Pedidos (etapa 5, 02/11/2026, pedido.js) ----
+   "Pedidos por responder" y "Esperando confirmación" arriba de los próximos sittings. Una tarjeta por
+   pedido; "Puedo" / "No puedo" a lo ancho y altos para el dedo. */
+#inicio-pedidos{margin-bottom:6px;}
+#inicio-pedidos .aviso-info{margin:0 0 14px;}
+#pedidos-lista .vacio + .reintentar{margin-top:12px;}
+.pedidos{margin:0 0 22px;}
+.pedidos h2{font-size:21px;margin:0 0 8px;}
+.pedido-tarjeta{background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);padding:16px;margin:0 0 12px;overflow-wrap:anywhere;scroll-margin-top:16px;}
+.pedido-destacado{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft), var(--shadow-sm);}
+.pedido-limite{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--clay-text);}
+.pedido-dia{font-size:20px;margin:0 0 6px;}
+.pedido-datos p{margin:0 0 3px;font-size:16px;line-height:1.45;}
+.pedido-dijiste{margin:12px 0 2px;font-size:16px;font-weight:700;color:var(--good);}
+.pedido-tarjeta .helper{margin:2px 0 0;font-size:15px;}
+.pedido-botones{margin-top:14px;}
+.pedido-botones .btn.ancho + .btn.ancho{margin-top:10px;}
+.pedido-error:empty{display:none;}
+.pedido-error{margin:10px 0 0;}
+.pantalla-pedido .helper{font-size:15px;}
+#motivo-otro{margin:0 0 12px;}
+#motivo-otro[hidden]{display:none;}
+.pantalla #motivo-otro input[type=text]{padding:13px 14px;min-height:50px;border-radius:10px;}
+.dias-grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin:0 0 16px;}
+.dia-op{min-height:48px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font:600 15px 'Inter',sans-serif;color:var(--ink);cursor:pointer;transition:border-color var(--ease), background var(--ease);}
+.dia-op:hover{border-color:var(--accent);}
+.dia-op[aria-pressed="true"]{background:#666EAE;border-color:#666EAE;color:#fff;}
+.pantalla-pedido #dias-error:empty,.pantalla-pedido #motivo-error:empty{display:none;}
