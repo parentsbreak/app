@@ -805,7 +805,10 @@ async function guardarSolicitudPuntual(){
    traslado no tiene hora de fin: lleva su cobro total.
    snIdApp (etapa 5, 02/11/2026): la fila de esa niñera que ya recibió el pedido por la app. Se confirma
    esa misma fila, con la condición del estado que tenía al abrir (si respondió otra cosa mientras se
-   elegía, no se pisa: respuestaCambio), en vez de insertar otra. */
+   elegía, no se pisa: respuestaCambio), en vez de insertar otra.
+   Etapa 6 (03/11/2026): la fila que nace en el panel lleva su precio por hora (lo ve la niñera en los
+   datos del sitting; la de la app conserva el que se le ofreció), y el registro, el pedido del que sale
+   (solicitud_id: de ahí la niñera lee las indicaciones). Con la base sin esas columnas se guarda sin ellas. */
 async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
   const filaApp = snIdApp ? (s.ninieras||[]).find(x=>x.id===snIdApp) : null;
   if(filaApp){
@@ -814,23 +817,46 @@ async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
     if(errorNinera) return { errorNinera };
     if(!tocadas || !tocadas.length) return { errorNinera: { message: 'La respuesta cambió mientras se elegía.' }, respuestaCambio: true };
   } else {
-    const { error: errorNinera } = await sb.from('solicitud_ninieras').insert({
-      solicitud_id: s.id, ninera_id: ninera.id, ninera_nombre: ninera.nombre,
-      estado: 'confirmada', pago_ninera: pago,
-    });
+    const fila = { solicitud_id: s.id, ninera_id: ninera.id, ninera_nombre: ninera.nombre, estado: 'confirmada', pago_ninera: pago };
+    const precioHora = precioHoraDelPago(s, pago);
+    if(precioHora!=null) fila.precio_hora = precioHora;
+    const { error: errorNinera } = await insertarSinColumnasFaltantes('solicitud_ninieras', fila, ['precio_hora']);
     if(errorNinera) return { errorNinera };
   }
   const faltaFin = s.tipo!=='traslado' && !s.hora_fin;
-  const { error: errorRegistro } = await sb.from('sittings_traslados').insert({
+  const { error: errorRegistro } = await insertarSinColumnasFaltantes('sittings_traslados', {
     tipo: s.tipo, registrado_por: registradoPorUsuario(),
     familia_id: familia?.id || s.familia_id || null, familia_nombre: s.familia_nombre,
     ninera_id: ninera.id, ninera_nombre: ninera.nombre,
     fecha: s.fecha, hora_inicio: s.hora_inicio, hora_fin: s.hora_fin || null,
     termina_dia_siguiente: !!s.termina_dia_siguiente,
     cobro_familia: faltaFin ? 0 : (Number(s.cobro_familia)||0), pago_ninera: pago,
-    cobrado: false, pagado: false, notas: 'Asignado desde Agenda',
-  });
+    cobrado: false, pagado: false, notas: 'Asignado desde Agenda', solicitud_id: s.id,
+  }, ['solicitud_id']);
   return { errorRegistro, faltaFin };
+}
+// El precio por hora de una niñera asignada sin pasar por la app: el pago por las horas reales (las que se
+// le pagan; el redondeo de los términos es solo del cobro). Solo sittings, y solo con hora de fin y pago.
+function precioHoraDelPago(s, pago){
+  if(s.tipo!=='sitting' || !(Number(pago) > 0)) return null;
+  const horas = horasSitting(s.hora_inicio, s.hora_fin, !!s.termina_dia_siguiente, null, s.fecha);
+  return horas && horas.real > 0 ? redondearPago(Number(pago) / horas.real) : null;
+}
+// Inserta y, si la base todavía no tiene alguna de las columnas `opcionales` (el panel se publica antes que la
+// migración: Supabase da PGRST204), la vuelve a mandar sin esa columna. Cualquier otro error vuelve tal cual.
+async function insertarSinColumnasFaltantes(tabla, fila, opcionales){
+  const cuerpo = { ...fila };
+  let res = await sb.from(tabla).insert(cuerpo);
+  for(let intento = 0; res.error && intento < opcionales.length; intento++){
+    const falta = opcionales.find(c => c in cuerpo && esFaltaColumnaLlamada(res.error, c));
+    if(!falta) break;
+    delete cuerpo[falta];
+    res = await sb.from(tabla).insert(cuerpo);
+  }
+  return res;
+}
+function esFaltaColumnaLlamada(error, columna){
+  return !!error && (error.code==='PGRST204' || error.code==='42703') && new RegExp(`\\b${columna}\\b`).test(error.message || '');
 }
 function avisarResultadoAsignacion({errorRegistro, faltaFin}){
   if(errorRegistro) toast('Quedó asignado, pero no se pudo cargar en Sittings & traslados: '+errorRegistro.message, 'bad');
@@ -913,40 +939,66 @@ async function guardarAsignacionDirecta(solicitudId){
   const warn = document.getElementById('agenda-asignar-warn');
   if(!sel){ warn.innerHTML = '<div class="warnbox">Elegí una niñera.</div>'; return; }
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
-  const choque = chequearDobleReservaAgenda(sel.dataset.nombre, s?.fecha, s?.hora_inicio, s?.hora_fin, solicitudId);
-  if(!(await avisarSiDobleReserva(choque, sel.dataset.nombre, 'Asignar igual'))) return;
-  const familia = familiaDeSolicitud(s);
-  if(familia && s?.hora_inicio){
-    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, sel.dataset.nombre, null);
-    if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return;
+  if(!s) return;
+  // Si ya le llegó por la app (etapa 5), se confirma SU fila en vez de crear otra.
+  await asignarNineraAlPedido({
+    s, ninera: { id: sel.value, nombre: sel.dataset.nombre }, familia: familiaDeSolicitud(s),
+    pago: redondearPago(document.getElementById('agenda-asignar-pago').value), snIdApp: sel.dataset.snApp || null,
+  });
+}
+/* La asignación de una niñera a un pedido (etapa 6, 03/11/2026): la comparten "Guardar asignación" de "Elegir
+   niñeras" y "Asignar" de "Pedidos en curso" (abrirAsignarPedido, pedidos.js), así la regla de dos admins a la
+   vez vive en un solo lugar. Las dos pantallas usan los mismos campos: #agenda-asignar-direccion (solo si a
+   la familia de un sitting le falta la dirección) y #agenda-asignar-warn.
+   s: la solicitud con sus filas (s.ninieras); snIdApp: la fila de la app de esa niñera, si la tiene.
+   Los avisos a las niñeras ("¡Quedaste seleccionada!", "Ya se cubrió") los manda la base con un trigger
+   cuando la fila pasa a 'confirmada': el panel no manda nada. Devuelve true si quedó asignada. */
+async function asignarNineraAlPedido({ s, ninera, familia, pago, snIdApp = null }){
+  const warn = document.getElementById('agenda-asignar-warn');
+  const aviso = html => { if(warn) warn.innerHTML = html; };
+  aviso('');
+  const campoDireccion = document.getElementById('agenda-asignar-direccion');
+  const direccion = campoDireccion ? campoDireccion.value.trim() : null;
+  if(campoDireccion && !direccion){ aviso('<div class="warnbox">Falta la dirección de la familia. Escribila para asignar: la niñera la ve cuando queda confirmada.</div>'); return false; }
+  const choque = chequearDobleReservaAgenda(ninera.nombre, s.fecha, s.hora_inicio, s.hora_fin, s.id);
+  if(!(await avisarSiDobleReserva(choque, ninera.nombre, 'Asignar igual'))) return false;
+  if(familia && s.hora_inicio){
+    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, ninera.nombre, null);
+    if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return false;
   }
-  const pago = redondearPago(document.getElementById('agenda-asignar-pago').value);
+  // La dirección va a la ficha de la familia antes de tomar el pedido: si no se pudo guardar, no se asigna
+  // (la niñera elegida la necesita para llegar).
+  if(campoDireccion){
+    const familiaId = familia?.id || s.familia_id;
+    const { error: eDir } = await sb.from('familias').update({ direccion }).eq('id', familiaId);
+    if(eDir){ aviso(errBox(eDir) + '<div class="warnbox">No se pudo guardar la dirección. No se asignó.</div>'); return false; }
+  }
   // Primero se toma el pedido, con la condición de que siga sin asignar: si otra admin lo asignó
   // (o lo canceló) mientras se elegía, no se carga una segunda niñera ni un segundo registro
   // (auditoría, 21/10/2026). Si las dos guardan a la vez, la base deja pasar a una sola.
-  const estadoAntes = s?.estado || 'sin_asignar';
+  const estadoAntes = s.estado || 'sin_asignar';
   const { data: tomada, error: e0 } = await sb.from('solicitudes').update({estado:'confirmada'})
-    .eq('id', solicitudId).in('estado', ['sin_asignar','pendiente_confirmar']).select('id');
-  if(e0){ warn.innerHTML = errBox(e0); return; }
+    .eq('id', s.id).in('estado', ['sin_asignar','pendiente_confirmar']).select('id');
+  if(e0){ aviso(errBox(e0)); return false; }
   if(!tomada || !tomada.length){
-    warn.innerHTML = '<div class="warnbox">No se cargó nada: mientras elegías, alguien más ya asignó este pedido (o lo canceló). Cerrá para ver cómo quedó.</div>';
-    return;
+    aviso('<div class="warnbox">No se cargó nada: mientras elegías, alguien más ya asignó este pedido (o lo canceló). Cerrá para ver cómo quedó.</div>');
+    return false;
   }
-  // Si ya le llegó por la app (etapa 5), se confirma SU fila en vez de crear otra.
-  const resultado = await cargarNineraYRegistro(s, { id: sel.value, nombre: sel.dataset.nombre }, pago, familia, sel.dataset.snApp || null);
+  const resultado = await cargarNineraYRegistro(s, ninera, pago, familia, snIdApp);
   if(resultado.errorNinera){
     // El pedido vuelve a como estaba, así se puede reintentar sin que quede "confirmado" sin niñera.
-    const { error: eVuelta } = await sb.from('solicitudes').update({estado: estadoAntes}).eq('id', solicitudId).eq('estado', 'confirmada');
+    const { error: eVuelta } = await sb.from('solicitudes').update({estado: estadoAntes}).eq('id', s.id).eq('estado', 'confirmada');
     const motivo = resultado.respuestaCambio
-      ? `<div class="warnbox">${escaparHtml(`La respuesta de ${sel.dataset.nombre} cambió mientras elegías: no se asignó. Cerrá y volvé a abrir el pedido.`)}</div>`
+      ? `<div class="warnbox">${escaparHtml(`La respuesta de ${ninera.nombre} cambió mientras elegías: no se asignó. Cerrá y volvé a abrir el pedido.`)}</div>`
       : errBox(resultado.errorNinera);
-    warn.innerHTML = motivo + (eVuelta ? '<div class="warnbox">Además, el pedido quedó como confirmado sin niñera: avisale a Diego.</div>' : '');
-    return;
+    aviso(motivo + (eVuelta ? '<div class="warnbox">Además, el pedido quedó como confirmado sin niñera: avisale a Diego.</div>' : ''));
+    return false;
   }
-  cerrarModal();
-  await cargarAgendaSolicitudes();
-  actualizarAgendaBadge();
   avisarResultadoAsignacion(resultado);
+  // Después, el mensaje para la madre (pantalla 5), con la Agenda al día atrás si está a la vista.
+  const recarga = document.getElementById('agenda-grid-wrap') ? cargarAgendaSolicitudes().then(actualizarAgendaBadge) : null;
+  await Promise.all([abrirConfirmacionMadre(s.id, ninera.nombre), recarga]);
+  return true;
 }
 /* Respuestas de la app en el modal de la solicitud (fase 1, etapa 5, tarea 5.8, 02/11/2026). Las filas con
    origen 'app' son las que se mandaron por "Elegir niñeras": dicen "Puede", "No puede: [motivo]" o "Sin

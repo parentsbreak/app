@@ -257,7 +257,7 @@ async function abrirElegirNineras(solicitudId){
   if(!zonaGruposCache) await cargarZonaGrupos();
   const familia = familiaDeSolicitud(s);
   const familiaId = familia?.id || s.familia_id || null;
-  const [nins, sug, precios, hijos, fam, cfg, dudas, sns] = await Promise.all([
+  const [nins, sug, precios, hijos, fam, cfg, dudas, sns, dir] = await Promise.all([
     // Todas, también las inactivas (van al fondo), con lo que necesita la temporada.
     sb.from('ninieras').select('id,nombre,zona,tipo,telefono,activa,user_id,temporada,temporada_actualizada_en,temporada_fuente,temporada_lugares,temporada_lugares_en').order('nombre'),
     sb.rpc('sugeridas_datos', { p_familia_id: familiaId, p_familia_nombre: s.familia_nombre, p_fecha: s.fecha }),
@@ -268,6 +268,8 @@ async function abrirElegirNineras(solicitudId){
     sb.from('pedidos_whatsapp').select('id,dudas').eq('solicitud_id', s.id),
     // Las respuestas pueden haber llegado después de cargar la Agenda.
     sb.from('solicitud_ninieras').select('*').eq('solicitud_id', s.id),
+    // La dirección: para asignar un sitting es obligatoria (etapa 6); si falta, se pide abajo.
+    familiaId && s.tipo==='sitting' ? sb.from('familias').select('direccion').eq('id', familiaId).maybeSingle() : { data: null },
   ]);
   if(token!==modalToken) return;
   if(nins.error){ abrirModal(`<h2>Elegir niñeras</h2>${errBox(nins.error)}`); return; }
@@ -308,6 +310,8 @@ async function abrirElegirNineras(solicitudId){
     sinMigrar, falloLectura: !!sug.error && !sinMigrar, pagoTraslado,
     hijosLeidos, chicosTexto: chicosPedidoTexto(edades, (hijosLeidos||[]).length),
     soloConocidas: !fam.error && !!fam.data?.solo_conocidas, mostrarNuevas: false,
+    // Si no se pudo leer, no se pide: la familia puede tenerla y una lectura fallida no frena la asignación.
+    pideDireccion: !dir.error && !!dir.data && !String(dir.data.direccion || '').trim(),
     dudas: dudas.error ? null : (dudas.data||[]).map(p=>({ id: p.id, lista: Array.isArray(p.dudas) ? p.dudas.map(String) : [] })),
     tildadas: new Map(), // id -> { precio, tocado, guardar }
     pedido: { tipo: s.tipo, zona: zonaPedido, fecha: s.fecha, edades, chicos: (hijosLeidos||[]).length,
@@ -414,6 +418,7 @@ function pintarElegirNineras(){
           <div class="helper" id="agenda-asignar-quien" style="margin:0 0 6px;"></div>
           <div class="field"><label>Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" oninput="marcarCampoEditadoManual('agenda-asignar-pago')"></div></div>
           <div id="agenda-asignar-precio-aviso"></div>
+          ${st.pideDireccion ? campoDireccionAsignar() : ''}
           <div id="agenda-asignar-warn"></div>
           <button class="btn primary" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignacionDirecta(${argJs(s.id)}))">Guardar asignación</button>
         </div>
@@ -435,7 +440,8 @@ function repintarListasPedido(){
   const elegida = modal.querySelector('input[name="agenda-asignar-ninera"]:checked')?.value;
   const wrap = document.getElementById('agenda-asignar-pago-wrap');
   const pie = { visible: wrap && wrap.style.display!=='none', pago: document.getElementById('agenda-asignar-pago')?.value,
-    tocado: document.getElementById('agenda-asignar-pago')?.dataset.tocadoManual, warn: document.getElementById('pedido-enviar-warn')?.innerHTML };
+    tocado: document.getElementById('agenda-asignar-pago')?.dataset.tocadoManual, warn: document.getElementById('pedido-enviar-warn')?.innerHTML,
+    direccion: document.getElementById('agenda-asignar-direccion')?.value };
   pintarElegirNineras();
   document.querySelectorAll('#editmodal details.pedido-plegado').forEach(d=>{ if(abiertos.includes(d.dataset.clave)) d.open = true; });
   if(elegida){
@@ -447,6 +453,8 @@ function repintarListasPedido(){
     const input = document.getElementById('agenda-asignar-pago');
     input.value = pie.pago;
     if(pie.tocado) input.dataset.tocadoManual = pie.tocado;
+    const dirCampo = document.getElementById('agenda-asignar-direccion');
+    if(dirCampo && pie.direccion) dirCampo.value = pie.direccion;
     onAgendaNineraSel(Number(pie.pago)||0);
   }
   if(pie.warn && document.getElementById('pedido-enviar-warn')) document.getElementById('pedido-enviar-warn').innerHTML = pie.warn;
@@ -1177,4 +1185,322 @@ async function descartarPedidoWhatsApp(){
   pedidoTicket = null;
   cerrarModal();
   toast('Mensaje descartado.');
+}
+
+/* ================= "Asignar", plantillas y mensajes para la madre (etapa 6, tarea 6.4, 03/11/2026) =================
+   "Asignar" (pantalla 4) asigna a una niñera que respondió por la app; asignar es lo mismo que "Guardar
+   asignación" de "Elegir niñeras" (asignarNineraAlPedido, agenda.js) y las dos terminan en la confirmación
+   para la madre (pantalla 5). Los mensajes para la madre salen de plantillas: el texto por defecto vive acá
+   y "Guardar como plantilla" deja otro en app_config ('plantilla_<clave>', valor {texto}) para las tres
+   admins. Nada sale a la madre sin que una admin toque "Copiar" o "Abrir WhatsApp". */
+
+const DIAS_LARGOS_PEDIDO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+// "sábado 07/11"
+function diaPedidoTexto(fechaISO){
+  if(!fechaISO) return '';
+  return `${DIAS_LARGOS_PEDIDO[new Date(fechaISO+'T12:00:00').getDay()]} ${fechaISO.slice(8, 10)}/${fechaISO.slice(5, 7)}`;
+}
+// "Familia Prueba, sábado 07/11, de 18:00 a 22:00": sin "·" (Diego, 01/11/2026).
+function resumenPedidoTexto(s){
+  const hi = (s.hora_inicio || '').slice(0, 5);
+  const horario = !hi ? '' : s.hora_fin ? `de ${hi} a ${s.hora_fin.slice(0, 5)}${s.termina_dia_siguiente ? ' del día siguiente' : ''}` : `a las ${hi}, sin hora de fin`;
+  return [s.familia_nombre, diaPedidoTexto(s.fecha), horario].filter(Boolean).join(', ');
+}
+// "Ana", "Ana y Lola", "Ana, Lola y Mía".
+function listaNombresTexto(nombres){
+  return nombres.length > 1 ? nombres.slice(0, -1).join(', ') + ' y ' + nombres[nombres.length - 1] : (nombres[0] || '');
+}
+
+// Los textos por defecto (textos.md 9 y las respuestas de Diego del 01/11/2026). Los corchetes se completan solos.
+const PLANTILLAS_PEDIDO = {
+  perfiles: '¡Hola [madre]! Te paso las niñeras disponibles para el [día] a las [hora inicio]:\n[niñeras]\nAvísame cuál preferís y te la confirmo.',
+  confirmacion: '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio].',
+  buscando: '¡Hola [madre]! Estamos viendo quién puede [cuándo]. Te avisamos a la brevedad.',
+  no_conseguimos: '¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?',
+};
+const TITULOS_MENSAJE_MADRE = { perfiles: 'Perfiles para la madre', confirmacion: 'Confirmación para la madre', buscando: 'Todavía buscando', no_conseguimos: 'No conseguimos' };
+// Los corchetes que se completan solos, y cómo se nombra cada uno en "Falta [dato] para completar el mensaje."
+const DATOS_PLANTILLA_PEDIDO = { 'madre': 'el nombre de la madre', 'día': 'el día', 'hora inicio': 'la hora de inicio', 'cuándo': 'el día', 'niñera': 'la niñera', 'niñeras': 'las niñeras' };
+
+// El texto de la plantilla: el guardado o, si no hay (o no se pudo leer), el de siempre. Una lectura fallida
+// nunca deja el mensaje sin texto.
+async function leerPlantillaPedido(clave){
+  const { data, error } = await sb.from('app_config').select('valor').eq('id', 'plantilla_'+clave).maybeSingle();
+  const guardado = !error && typeof data?.valor?.texto === 'string' ? data.valor.texto : '';
+  return guardado.trim() ? guardado : (PLANTILLAS_PEDIDO[clave] || '');
+}
+const RE_CORCHETE_PEDIDO = /\[([^[\]\n]+)\]/g;
+function claveCorchete(t){ const c = String(t).trim().toLowerCase(); return c in DATOS_PLANTILLA_PEDIDO ? c : null; }
+// Completa los corchetes conocidos con los datos del pedido. Lo que falta queda entre corchetes y vuelve en
+// `faltan` (las claves); un corchete que no es de los nuestros queda tal cual.
+function completarPlantilla(texto, datos){
+  const faltan = [];
+  const completo = String(texto || '').replace(RE_CORCHETE_PEDIDO, (todo, nombre) => {
+    const clave = claveCorchete(nombre);
+    if(!clave) return todo;
+    const valor = datos[clave];
+    if(valor == null || !String(valor).trim()){ if(!faltan.includes(clave)) faltan.push(clave); return todo; }
+    return String(valor);
+  });
+  return { texto: completo, faltan };
+}
+// Los corchetes de los nuestros que siguen en un texto (los que la admin todavía no completó).
+function faltanEnMensaje(texto){
+  const faltan = [];
+  for(const m of String(texto || '').matchAll(RE_CORCHETE_PEDIDO)){
+    const clave = claveCorchete(m[1]);
+    if(clave && !faltan.includes(clave)) faltan.push(clave);
+  }
+  return faltan;
+}
+/* "Guardar como plantilla": lo que en el texto coincide con un dato del pedido vuelve a su corchete. Va del
+   valor más largo al más corto (la lista de niñeras antes que un nombre suelto) y solo palabras enteras (la
+   madre "Ana" no toca "Mariana"); lo ya convertido no se vuelve a mirar. */
+function plantillaACorchetes(texto, datos){
+  const pares = Object.entries(datos).filter(([, v]) => v != null && String(v).trim()).map(([k, v]) => [k, String(v)])
+    .sort((a, b) => b[1].length - a[1].length);
+  let partes = [{ t: String(texto || ''), libre: true }];
+  for(const [clave, valor] of pares) partes = partes.flatMap(p => p.libre ? cortarPorValorPlantilla(p.t, valor, clave) : [p]);
+  return partes.map(p => p.t).join('');
+}
+const ES_LETRA_PLANTILLA = /[\p{L}\p{N}]/u;
+function cortarPorValorPlantilla(t, valor, clave){
+  const borde = c => c === undefined || !ES_LETRA_PLANTILLA.test(c);
+  const out = [];
+  let inicio = 0, busca = 0, i;
+  while((i = t.indexOf(valor, busca)) !== -1){
+    if(borde(t[i - 1]) && borde(t[i + valor.length])){
+      if(i > inicio) out.push({ t: t.slice(inicio, i), libre: true });
+      out.push({ t: `[${clave}]`, libre: false });
+      inicio = busca = i + valor.length;
+    } else busca = i + 1;
+  }
+  if(inicio < t.length) out.push({ t: t.slice(inicio), libre: true });
+  return out;
+}
+
+/* El cuadro del mensaje para la madre: el texto editable, "Copiar", "Abrir WhatsApp" (con el teléfono de la
+   familia) y "Guardar como plantilla". clave: 'perfiles', 'confirmacion', 'buscando' o 'no_conseguimos'.
+   solicitud: { id, familia_id, familia_nombre, fecha, hora_inicio }. extra: { nineraNombre, ninieras (una por
+   renglón), titulo, arriba (HTML ya escapado que va antes del texto) }. Lo usan la confirmación (pantalla 5) y,
+   desde la tarea 6.5, "Perfiles para la madre", "Todavía buscando" y "No conseguimos". */
+let mensajeMadre = null;
+async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
+  const s = solicitud || {};
+  abrirModal('<div class="empty"><span class="spinner dark"></span> Armando el mensaje…</div>');
+  const token = modalToken;
+  const [plantilla, fam] = await Promise.all([
+    leerPlantillaPedido(clave),
+    s.familia_id ? sb.from('familias').select('nombre,telefono').eq('id', s.familia_id).maybeSingle() : { data: null },
+  ]);
+  if(token !== modalToken) return;
+  const familia = fam.error ? null : fam.data;
+  // [madre] es la primera palabra del nombre de la familia (decisiones 4.16: se carga con el de la madre).
+  const datos = {
+    'madre': String(familia?.nombre || s.familia_nombre || '').trim().split(/\s+/)[0] || '',
+    'día': diaPedidoTexto(s.fecha),
+    'hora inicio': (s.hora_inicio || '').slice(0, 5),
+    'cuándo': !s.fecha ? '' : s.fecha === todayISO() ? 'hoy' : 'el ' + diaPedidoTexto(s.fecha),
+    'niñera': extra.nineraNombre || '',
+    'niñeras': extra.ninieras || '',
+  };
+  const telefono = String(familia?.telefono || '').trim();
+  mensajeMadre = { clave, plantilla, datos, telefono, modelo: null };
+  const sinTelefono = fam.error ? 'No se pudo leer el teléfono de la familia: copiá el mensaje.' : 'Falta el teléfono de la familia.';
+  abrirModal(`<div class="mensaje-madre">
+    <h2>${escaparHtml(extra.titulo || TITULOS_MENSAJE_MADRE[clave] || 'Mensaje para la madre')}</h2>
+    ${extra.arriba || ''}
+    <div class="field" style="margin-top:12px;"><label for="mensaje-madre-texto">Mensaje</label>
+      <textarea id="mensaje-madre-texto" rows="5" oninput="revisarMensajeMadre()"></textarea>
+      <div class="helper">Los datos del pedido se completaron solos. Podés cambiar el texto antes de mandarlo.</div>
+    </div>
+    <div id="mensaje-madre-falta"></div>
+    <div class="mensaje-madre-botones">
+      <button type="button" class="btn ghost" onclick="copiarMensajeMadre()">Copiar</button>
+      ${telefono ? '<a class="btn primary" id="mensaje-madre-wa" href="#" target="_blank" rel="noopener" onclick="return mensajeMadreListo()">Abrir WhatsApp</a>' : ''}
+    </div>
+    ${telefono ? '' : `<div class="helper">${escaparHtml(sinTelefono)}</div>`}
+    <button type="button" class="smallbtn mensaje-madre-plantilla" onclick="verModeloPlantilla()">Guardar como plantilla</button>
+    <div id="mensaje-madre-modelo" hidden></div>
+    <div id="mensaje-madre-warn"></div>
+  </div>`);
+  // El texto va por .value (no por el HTML): sale tal cual, con sus renglones y lo que traiga el nombre.
+  document.getElementById('mensaje-madre-texto').value = completarPlantilla(plantilla, datos).texto;
+  revisarMensajeMadre();
+}
+// Con cada cambio del texto: el aviso de lo que falta y el link de WhatsApp con lo escrito.
+function revisarMensajeMadre(){
+  const st = mensajeMadre, area = document.getElementById('mensaje-madre-texto');
+  if(!st || !area) return;
+  const faltan = faltanEnMensaje(area.value);
+  const caja = document.getElementById('mensaje-madre-falta');
+  if(caja) caja.innerHTML = faltan.map(c => `<div class="warnbox">${escaparHtml(`Falta ${DATOS_PLANTILLA_PEDIDO[c]} para completar el mensaje.`)}</div>`).join('');
+  const wa = document.getElementById('mensaje-madre-wa');
+  if(wa){
+    wa.setAttribute('href', waLink(st.telefono, area.value));
+    wa.classList.toggle('apagado', faltan.length > 0);
+  }
+}
+// Con un corchete sin completar no se copia ni se abre WhatsApp: a la madre no le llega "[madre]".
+function mensajeMadreListo(){
+  const area = document.getElementById('mensaje-madre-texto');
+  if(!area) return false;
+  if(faltanEnMensaje(area.value).length){ toast('Completá lo que falta antes de mandarlo.', 'bad'); return false; }
+  if(!area.value.trim()){ toast('El mensaje está vacío.', 'bad'); return false; }
+  return true;
+}
+function copiarMensajeMadre(){
+  if(!mensajeMadreListo()) return;
+  copiarAlPortapapeles(document.getElementById('mensaje-madre-texto').value, 'Mensaje copiado.');
+}
+// "Guardar como plantilla": primero muestra cómo va a quedar, con los corchetes; recién "Guardar plantilla" guarda.
+function verModeloPlantilla(){
+  const st = mensajeMadre, area = document.getElementById('mensaje-madre-texto'), cont = document.getElementById('mensaje-madre-modelo');
+  if(!st || !area || !cont) return;
+  const warn = document.getElementById('mensaje-madre-warn');
+  warn.innerHTML = '';
+  // [cuándo] ("el sábado 07/11") se busca solo si la plantilla lo usa: si no, "Confirmamos a Ana el sábado 07/11"
+  // quedaría "Confirmamos a [niñera] [cuándo]" y otro día diría "hoy" donde iba la fecha.
+  const datos = { ...st.datos };
+  if(!st.plantilla.includes('[cuándo]')) delete datos['cuándo'];
+  const modelo = plantillaACorchetes(area.value, datos);
+  if(!modelo.trim()){ warn.innerHTML = '<div class="warnbox">Escribí el mensaje antes de guardarlo como plantilla.</div>'; return; }
+  st.modelo = modelo;
+  cont.hidden = false;
+  cont.innerHTML = `<div class="mensaje-madre-modelo-caja">
+    <div class="helper" style="margin:0;">La próxima vez va a salir así. Lo que está entre corchetes se completa solo.</div>
+    <div class="mensaje-madre-modelo-texto">${escaparHtml(modelo)}</div>
+    <div class="helper" style="margin:0;">Cambia el mensaje de las tres admins.</div>
+    <div class="mensaje-madre-botones">
+      <button type="button" class="btn ghost" onclick="ocultarModeloPlantilla()">Volver</button>
+      <button type="button" class="btn primary" onclick="conGuardado(this, ()=>guardarPlantillaPedido())">Guardar plantilla</button>
+    </div>
+  </div>`;
+}
+function ocultarModeloPlantilla(){
+  const cont = document.getElementById('mensaje-madre-modelo');
+  if(cont){ cont.hidden = true; cont.innerHTML = ''; }
+  if(mensajeMadre) mensajeMadre.modelo = null;
+}
+async function guardarPlantillaPedido(){
+  const st = mensajeMadre;
+  if(!st || !st.modelo) return;
+  const warn = document.getElementById('mensaje-madre-warn');
+  const { error } = await sb.from('app_config').upsert({ id: 'plantilla_'+st.clave, valor: { texto: st.modelo }, actualizado_at: new Date().toISOString() }, { onConflict: 'id' });
+  if(error){ if(warn) warn.innerHTML = `<div class="warnbox">${escaparHtml('No se pudo guardar la plantilla: '+(error.message || 'error de conexión'))}</div>`; return; }
+  st.plantilla = st.modelo;
+  ocultarModeloPlantilla();
+  toast('Plantilla guardada. La próxima vez el mensaje sale así.');
+}
+
+/* Pantalla 5: la confirmación para la madre, después de asignar (desde "Asignar" o desde "Elegir niñeras").
+   "Ya le llegó el aviso" solo si la base de verdad lo mandó: el trigger pone seleccionada_en cuando le encola
+   "¡Quedaste seleccionada!" (no lo hace sin app, con solo_practica para una niñera real, con un pedido pasado
+   ni con la base sin migrar). Se lee después de escribir, nunca de la respuesta de la escritura. */
+async function abrirConfirmacionMadre(solicitudId, nineraNombre){
+  abrirModal('<div class="empty"><span class="spinner dark"></span> Armando el mensaje…</div>');
+  const token = modalToken;
+  const [sol, filas] = await Promise.all([
+    sb.from('solicitudes').select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio').eq('id', solicitudId).maybeSingle(),
+    sb.from('solicitud_ninieras').select('seleccionada_en').eq('solicitud_id', solicitudId).eq('estado', 'confirmada'),
+  ]);
+  if(token !== modalToken) return;
+  const nombre = nineraNombre || '';
+  const seleccionada = !filas.error && (filas.data || []).some(f => f.seleccionada_en);
+  const ok = nombre ? `<div class="okbox">${escaparHtml(seleccionada ? `${nombre} quedó seleccionada. Ya le llegó el aviso.` : `${nombre} quedó asignada.`)}</div>` : '';
+  if(sol.error || !sol.data){
+    abrirModal(`<h2>${escaparHtml(TITULOS_MENSAJE_MADRE.confirmacion)}</h2>${ok}${sol.error ? errBox(sol.error) : '<div class="warnbox">No se encontró el pedido.</div>'}`);
+    return;
+  }
+  await abrirMensajeMadre({ clave: 'confirmacion', solicitud: sol.data, extra: { nineraNombre: nombre, arriba: ok } });
+}
+
+/* Pantalla 4: "Asignar" a una niñera que respondió el pedido por la app (snId: su fila de solicitud_ninieras).
+   Lo usan "Pedidos en curso" y el atajo "Asignar y confirmar a la madre" (tarea 6.5). El pago se precarga con
+   lo que se le ofreció por las horas; la dirección se pide si a la familia de un sitting le falta; abajo, quién
+   recibe qué (lo mandan los triggers de la base, con la misma regla de pedido_puede_avisar). */
+let pedidoAsignar = null;
+async function abrirAsignarPedido(solicitudId, snId){
+  pedidoAsignar = null;
+  abrirModal('<div class="empty"><span class="spinner dark"></span> Cargando el pedido…</div>');
+  const token = modalToken;
+  const [sol, filas, cfg] = await Promise.all([
+    sb.from('solicitudes').select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,cobro_familia,estado,familias(id,nombre,direccion)').eq('id', solicitudId).maybeSingle(),
+    sb.from('solicitud_ninieras').select('id,solicitud_id,ninera_id,ninera_nombre,estado,precio_hora,origen,ninieras(id,nombre,user_id)').eq('solicitud_id', solicitudId),
+    sb.from('app_config').select('valor').eq('id', 'pedidos_app').maybeSingle(),
+  ]);
+  if(token !== modalToken) return;
+  const error = sol.error || filas.error;
+  if(error){ abrirModal(`<div class="asignar-pedido"><h2>Asignar</h2>${errBox(error)}</div>`); return; }
+  const s = sol.data, sn = (filas.data || []).find(x => x.id === snId);
+  if(!s || !sn){ abrirModal('<div class="asignar-pedido"><h2>Asignar</h2><div class="warnbox">No se encontró el pedido o la respuesta de esa niñera. Cerrá y volvé a abrirlo.</div></div>'); return; }
+  s.ninieras = filas.data || [];
+  const familia = s.familias || null;
+  const nombre = sn.ninera_nombre || sn.ninieras?.nombre || '';
+  const abierto = ['sin_asignar', 'pendiente_confirmar'].includes(s.estado);
+  const pideDireccion = s.tipo === 'sitting' && !!familia && !String(familia.direccion || '').trim();
+  // El pago: lo que se le ofreció por hora, por las horas reales (las que se le pagan).
+  const horas = s.tipo === 'sitting' ? horasSitting(s.hora_inicio, s.hora_fin, !!s.termina_dia_siguiente, null, s.fecha) : null;
+  const ofrecido = Number(sn.precio_hora) || 0;
+  const pago = horas && ofrecido ? redondearPago(ofrecido * horas.real) : 0;
+  const horasTxt = horas ? `${horas.real.toLocaleString('es-UY', { maximumFractionDigits: 2 })} ${horas.real === 1 ? 'hora' : 'horas'}` : '';
+  const ayudaPago = horas && ofrecido ? `${horasTxt} a $${ofrecido.toLocaleString('es-UY')} por hora, lo que se le ofreció.`
+    : s.tipo === 'sitting' && !s.hora_fin ? 'Sin hora de fin: el pago se calcula cuando la cargues en Sittings & traslados.' : '';
+  pedidoAsignar = { s, sn, familia, nombre };
+  const estadoNinera = sn.estado === 'no_puedo' ? `<div class="warnbox">${escaparHtml(`${nombre} dijo que no puede. Si lo arreglaron por otro lado, la podés asignar igual.`)}</div>`
+    : sn.estado === 'invitada' ? `<div class="helper">${escaparHtml(`${nombre} todavía no respondió.`)}</div>` : '';
+  abrirModal(`<div class="asignar-pedido">
+    <h2>Asignar</h2>
+    <div class="helper pedido-resumen">${escaparHtml(resumenPedidoTexto({ ...s, familia_nombre: familia?.nombre || s.familia_nombre }))}</div>
+    <div class="asignar-ninera"><b>${escaparHtml(nombre)}</b></div>
+    ${abierto ? `${estadoNinera}
+      <div class="field"><label for="agenda-asignar-pago">Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" value="${escaparHtml(String(pago))}"></div>
+        ${ayudaPago ? `<div class="helper">${escaparHtml(ayudaPago)}</div>` : ''}</div>
+      ${pideDireccion ? campoDireccionAsignar() : ''}
+      <div class="asignar-quien"><div class="agenda-tier-label">Quién recibe qué</div><ul>${quienRecibeQue(s, sn, nombre, familia, cfg).map(t => `<li>${escaparHtml(t)}</li>`).join('')}</ul></div>
+      <div id="agenda-asignar-warn"></div>
+      <button class="btn primary" id="pedido-asignar-btn" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignarPedido())">Asignar</button>`
+    : '<div class="warnbox">Este pedido ya no está abierto: alguien más lo asignó o lo canceló. Cerrá para ver cómo quedó.</div>'}
+  </div>`);
+}
+// La dirección de la familia, cuando falta y el pedido es un sitting (la usan "Asignar" y "Elegir niñeras").
+function campoDireccionAsignar(){
+  return `<div class="field"><label for="agenda-asignar-direccion">Dirección de la familia</label>
+    <input type="text" id="agenda-asignar-direccion" placeholder="Calle, número, apto." autocomplete="off">
+    <div class="helper">Falta en su ficha y hace falta para asignar: la niñera la ve recién cuando queda confirmada. Se guarda en la ficha.</div></div>`;
+}
+/* Lo que les llega a las niñeras al asignar, con la regla de los triggers (solicitud_ninieras_al_confirmar y
+   pedido_puede_avisar): solo sittings de hoy en adelante; con solo_practica prendido (o sin poder leerlo, como
+   la base), solo si la familia y la niñera son de práctica. A la elegida, si tiene la app; a las otras de la
+   app que dijeron "Puedo", que ya se cubrió; a las que no respondieron, nada. */
+function quienRecibeQue(s, sn, nombre, familia, cfg){
+  const soloPractica = cfg.error || !cfg.data ? true : cfg.data.valor?.solo_practica !== false;
+  const nombreFamilia = familia?.nombre || s.familia_nombre;
+  const avisa = n => s.tipo === 'sitting' && s.fecha >= todayISO()
+    && (!soloPractica || (nineraEsPractica({ nombre: nombreFamilia }) && nineraEsPractica({ nombre: n })));
+  const lineas = [];
+  if(!sn.ninieras?.user_id) lineas.push(`${nombre} no tiene la app: avisale por WhatsApp.`);
+  else if(avisa(nombre)) lineas.push(`A ${nombre} le llega "¡Quedaste seleccionada!" con los datos del sitting.`);
+  else lineas.push(`A ${nombre} no le llega aviso por la app: avisale por WhatsApp.`);
+  if(s.tipo === 'sitting'){
+    const otras = (s.ninieras || []).filter(x => x.id !== sn.id && x.origen === 'app');
+    const pueden = otras.filter(x => x.estado === 'acepto').map(x => x.ninera_nombre || '');
+    const avisadas = pueden.filter(avisa), sinAviso = pueden.filter(n => !avisa(n));
+    if(avisadas.length) lineas.push(`A ${listaNombresTexto(avisadas)} ${avisadas.length === 1 ? 'le' : 'les'} llega que ya se cubrió.`);
+    if(sinAviso.length) lineas.push(sinAviso.length === 1
+      ? `${sinAviso[0]} dijo "Puedo" y no le llega aviso por la app: avisale por WhatsApp.`
+      : `${listaNombresTexto(sinAviso)} dijeron "Puedo" y no les llega aviso por la app: avisales por WhatsApp.`);
+    if(otras.some(x => x.estado === 'invitada')) lineas.push('A las que no respondieron no les llega nada: el pedido se les va solo.');
+  }
+  lineas.push('Después sale el mensaje para la madre, para copiar o mandar por WhatsApp.');
+  return lineas;
+}
+async function guardarAsignarPedido(){
+  const st = pedidoAsignar;
+  if(!st) return;
+  const ok = await asignarNineraAlPedido({
+    s: st.s, ninera: { id: st.sn.ninera_id, nombre: st.nombre }, familia: st.familia ? { id: st.familia.id, nombre: st.familia.nombre } : null,
+    pago: redondearPago(document.getElementById('agenda-asignar-pago').value), snIdApp: st.sn.id,
+  });
+  if(ok) pedidoAsignar = null;
 }

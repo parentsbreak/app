@@ -156,6 +156,8 @@ test.describe('Agenda → asignar niñera a un pedido que ya asignó otra', () =
     await page.evaluate(i => abrirModalAsignar(i), SOL);
     await page.locator('#editmodal input[name="agenda-asignar-ninera"]:visible').first().check();
     await expect(page.locator('#agenda-asignar-pago')).toBeVisible();
+    // Etapa 6: la Familia Prueba Dos no tiene dirección y para asignar un sitting es obligatoria.
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2');
   }
   const guardar = page => page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
 
@@ -236,6 +238,7 @@ test.describe('pedido sin hora de fin: la tarifa por hora no es el total', () =>
     await irAModulo(page, 'agenda');
     await page.evaluate(i => abrirModalAsignar(i), datos.solicitudes[0].id);
     await page.locator('#editmodal input[name="agenda-asignar-ninera"]:visible').first().check();
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: obligatoria para un sitting
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
     await expect(page.locator('.toaststack .toast').last()).toContainText('Falta la hora de fin');
     const [registro] = escriturasEn(e, 'sittings_traslados', 'POST');

@@ -345,8 +345,9 @@ test.describe('Agenda: asignar niñera, días de un fijo y reemplazos', () => {
     await elegirEnAsignar(page, ID.nCarla);
     await expect(page.locator('#agenda-asignar-pago')).toHaveValue('780'); // 3 h a $260, la tarifa
     await elegirEnAsignar(page, ID.nAna);
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: la Familia Dos no tiene y es obligatoria
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nAna, pago_ninera: 900 });
     verificarLimpio(e);
   });
@@ -811,8 +812,9 @@ test.describe('escape: niñera con nombre tramposo', () => {
     await expect(page.locator('#agenda-asignar-pago')).toHaveValue('900'); // 3 h a $300, su precio
     await expect(page.locator('#editmodal .agenda-ninera-pick img')).toHaveCount(0);
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: la Familia Dos no tiene y es obligatoria
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, ninera_nombre: TRAMPOSO, pago_ninera: 900 });
     verificarLimpio(e);
   });
@@ -848,8 +850,9 @@ test.describe('lectura de precios que falla: la tarifa con el aviso a la vista (
     await expect(page.locator('#agenda-asignar-precio-aviso .warnbox')).toHaveText(avisoNoLeido('Ana Ficticia'));
     await elegirEnAsignarFinal(page, ID.nCarla);
     await expect(page.locator('#agenda-asignar-precio-aviso .warnbox')).toHaveText(avisoNoLeido('Carla Ejemplo'));
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: la Familia Dos no tiene y es obligatoria
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_ninera: 780 });
     verificarLimpio(e, { ignorar: [/status of 500/] });
   });
@@ -879,8 +882,9 @@ test('"Asignar niñera": la familia es la del pedido (por id), aunque le hayan c
   await page.evaluate(i => abrirModalAsignar(i), SOL_DOS);
   await elegirEnAsignarFinal(page, ID.nAna);
   await expect(page.locator('#agenda-asignar-pago')).toHaveValue('900'); // 3 h a $300, su precio con la Familia Dos
+  await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: la Familia Dos no tiene y es obligatoria
   await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-  await expect(page.locator('#editmodal')).toHaveCount(0);
+  await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre
   expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ familia_id: ID.fDos, ninera_id: ID.nAna, pago_ninera: 900 });
   verificarLimpio(e);
 });

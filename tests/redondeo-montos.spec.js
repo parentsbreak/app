@@ -175,6 +175,7 @@ test.describe('montos tipeados a mano', () => {
     await page.evaluate(id => abrirModalAsignar(id), d.solicitudes[0].id);
     await page.locator('input[name="agenda-asignar-ninera"]').first().check();
     await page.fill('#agenda-asignar-pago', '600.5');
+    await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2'); // etapa 6: la Familia Dos no tiene y es obligatoria
     await page.locator('#editmodal button', { hasText: /Asignar|Confirmar|Guardar/ }).last().click();
     await expect.poll(() => escrituras(e, 'sittings_traslados', 'POST').length).toBe(1);
     expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ pago_ninera: 600 });

@@ -59,8 +59,8 @@ test('con niñera: queda confirmada, con su niñera y cargada en Sittings; la ta
   await expect(page.locator('#editmodal')).toHaveCount(0);
   expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ familia_id: ID.fDos, familia_nombre: 'Familia Prueba Dos', tipo: 'sitting', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', cobro_familia: 1200, estado: 'confirmada' });
   const sol = e.db.solicitudes.find(s => s.estado === 'confirmada' && s.fecha === '2026-10-06');
-  expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({ solicitud_id: sol.id, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 780 });
-  expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ tipo: 'sitting', familia_id: ID.fDos, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', termina_dia_siguiente: false, cobro_familia: 1200, pago_ninera: 780, cobrado: false, pagado: false, notas: 'Asignado desde Agenda' });
+  expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({ solicitud_id: sol.id, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 780, precio_hora: 260 }); // etapa 6: su precio por hora
+  expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ tipo: 'sitting', familia_id: ID.fDos, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', termina_dia_siguiente: false, cobro_familia: 1200, pago_ninera: 780, cobrado: false, pagado: false, notas: 'Asignado desde Agenda', solicitud_id: sol.id });
   // En la Agenda queda la tarjeta del registro: el cobro total y el pago de la niñera por hora.
   const tarjeta = tarjetas(page, 'Familia Prueba Dos').filter({ hasText: '16:00' });
   await expect(tarjeta).toHaveCount(1);
