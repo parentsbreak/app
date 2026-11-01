@@ -155,13 +155,27 @@ function lugarSittingNinera(s){
   return s.direccion || '';
 }
 
-// En el iPhone abre Mapas de Apple; en el resto, Google Maps (web o la app si está instalada).
-function linkMapaNinera(lugar){
+// Las tres formas de llegar (etapa 6, 03/11/2026, Diego): antes se elegía una sola según el celular, pero
+// cada niñera usa la que tiene (Waze es muy común acá). Todas con la dirección codificada.
+function linksMapaNinera(lugar){
   const q = encodeURIComponent(lugar);
-  return /iPhone|iPad/.test(navigator.userAgent) ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+  return [
+    ['Google Maps', `https://www.google.com/maps/search/?api=1&query=${q}`],
+    ['Waze', `https://waze.com/ul?q=${q}&navigate=yes`],
+    ['Mapas', `https://maps.apple.com/?q=${q}`],
+  ];
 }
 
-function abrirDetalleSittingNinera(id){
+// "Cómo llegar" despliega la elección ahí mismo: sin otro modal, "Cerrar" sigue siendo uno solo.
+function alternarComoLlegarNinera(){
+  const op = document.getElementById('como-llegar-opciones');
+  if(op) op.hidden = !op.hidden;
+}
+
+// titulo: 'Sitting' desde la lista; "¡Quedaste seleccionada!" cuando se abre desde su tarjeta (pedido.js).
+// Las Indicaciones y el precio por hora (lo que se le ofreció, nunca un total) llegan solo si el registro salió
+// de un pedido y está confirmado; la base nunca manda notas internas.
+function abrirDetalleSittingNinera(id, { titulo } = {}){
   const s = sittingsNineraCargados.find(x => x.id === id);
   if(!s) return;
   const linea = (etiqueta, valor) => valor ? `<p><span class="detalle-etiqueta">${etiqueta}:</span> ${escaparHtml(valor)}</p>` : '';
@@ -172,15 +186,21 @@ function abrirDetalleSittingNinera(id){
   // La base manda la dirección solo si está confirmado. Un previsto (un fijo antes de su día) la
   // muestra el día; un confirmado sin dirección cargada no promete nada.
   if(!lugar && s.estado === 'previsto') donde = '<p class="helper">La dirección aparece el día del sitting.</p>';
-  abrirModalNinera(`<h2 class="modal-titulo">${escaparHtml(tipoSittingNinera(s))}</h2>
+  const precio = pesosTextoNinera(s.precio_hora);
+  abrirModalNinera(`<h2 class="modal-titulo">${escaparHtml(titulo || tipoSittingNinera(s))}</h2>
     <div class="detalle-sitting">
-      <p class="detalle-cuando">${escaparHtml(textoDiaNinera(s.fecha, todayISO()))}, ${escaparHtml(horasSittingNinera(s))}</p>
+      <p class="detalle-cuando">${escaparHtml(textoDiaNinera(s.fecha, todayISO()))}, ${escaparHtml(horasSittingNinera(s))}${s.horario_aproximado ? ` ${MARCA_APROXIMADA_NINERA}` : ''}</p>
       ${linea('Zona', s.zona)}
       ${linea('Madre', s.madre)}
       ${linea('Chicos', s.chicos)}
       ${donde}
+      ${linea('Indicaciones', s.notas_para_ninera)}
+      ${linea('Precio por hora', precio)}
     </div>
-    ${lugar ? `<a class="btn primary ancho" href="${urlSegura(linkMapaNinera(lugar))}" target="_blank" rel="noopener">Cómo llegar</a>` : ''}
+    ${lugar ? `<button type="button" class="btn primary ancho" aria-controls="como-llegar-opciones" onclick="alternarComoLlegarNinera()">Cómo llegar</button>
+    <div id="como-llegar-opciones" class="como-llegar" hidden>
+      ${linksMapaNinera(lugar).map(([nombre, url]) => `<a class="btn ghost ancho" href="${urlSegura(url)}" target="_blank" rel="noopener">${nombre}</a>`).join('')}
+    </div>` : ''}
     <button type="button" class="btn ghost ancho" onclick="descargarIcsSitting(${argJs(s)})">Agregar al calendario</button>`);
 }
 
