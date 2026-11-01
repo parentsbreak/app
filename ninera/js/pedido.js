@@ -14,6 +14,9 @@ const FALLA_RESPONDER_PEDIDO = 'No pudimos enviar tu respuesta. Revisa tu conexi
 const FALLA_GUARDAR_DIAS = 'No pudimos guardar tus días. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_CARGAR_DIAS = 'No pudimos cargar tus días. Revisa tu conexión a internet y vuelve a intentar.';
 const PEDIDO_CERRADO = 'Este pedido ya no está abierto.';
+// Texto provisorio (01/11/2026): un push viejo cuyo pedido ya no se lee. No sabemos si se cerró o si la eligieron
+// y ya vio sus datos (entonces la base no lo devuelve más), así que no decimos que está cerrado.
+const PEDIDO_NO_ENCONTRADO = 'Si te eligieron, lo ves en Próximos sittings.';
 const MARCA_APROXIMADA_NINERA = '(aproximada, se puede extender)';
 const DATOS_INCOMPLETOS_NINERA = 'Los datos todavía no están completos: escríbenos.';
 const SIN_PEDIDOS_NINERA = 'No tienes pedidos por ahora.';
@@ -242,7 +245,8 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // #pedido/<id>, de un push (o de un aviso): el inicio con ese pedido marcado y a la vista. Si ya no está
-// (se cubrió, lo cancelaron o ya lo respondió y salió de la lista), el aviso de siempre.
+// (se cubrió, lo cancelaron, ya lo respondió, o la eligieron y ya vio sus datos), un aviso neutro: la base no
+// distingue esos casos y decir "ya no está abierto" a la que fue elegida asusta.
 async function abrirPedidoNinera(id){
   if(document.getElementById('pedidos-lista')){
     marcarRuta('#inicio');
@@ -253,7 +257,7 @@ async function abrirPedidoNinera(id){
   }
   const buscado = pedidosNineraCargados.find(p => p.id === id);
   if(!buscado){
-    if(!pedidosNineraSinMigrar && document.getElementById('pedidos-lista')) avisarPedidosNinera(PEDIDO_CERRADO);
+    if(!pedidosNineraSinMigrar && document.getElementById('pedidos-lista')) avisarPedidosNinera(PEDIDO_NO_ENCONTRADO);
     return;
   }
   // Ya la eligieron: sus datos. Lo que se cerró ya está a la vista como aviso.

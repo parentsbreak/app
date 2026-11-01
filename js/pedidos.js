@@ -1566,7 +1566,7 @@ function vecesEnFamilia(h, sn){
   return (sn.ninera_id ? h.porId[sn.ninera_id] || 0 : 0) + (h.porClave[normaliza(String(sn.ninera_nombre || '').trim())] || 0);
 }
 
-// "Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 14:05." (sin "·"; lo que está en cero no se dice).
+// "Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 14:05. Responder antes de las 14:35." (sin "·"; lo que está en cero no se dice).
 function textoRespuestasCurso(filas, s){
   const cuenta = estado => filas.filter(n => n.estado === estado).length;
   const pueden = cuenta('acepto'), noPueden = cuenta('no_puedo'), faltan = cuenta('invitada');
@@ -1575,7 +1575,9 @@ function textoRespuestasCurso(filas, s){
   if(noPueden) partes.push(noPueden === 1 ? 'no puede 1' : `no pueden ${noPueden}`);
   if(faltan) partes.push(faltan === 1 ? 'falta responder 1' : `faltan responder ${faltan}`);
   const enviado = horaMontevideoPanel(s.enviado_app_en || filas.map(n => n.enviado_en).filter(Boolean).sort()[0]);
-  const mandado = `Mandado a ${filas.length}${enviado ? ' a las ' + enviado : ''}.`;
+  // El plazo de respuesta (revisión final, 01/11/2026: se había perdido de la pantalla).
+  const hasta = horaMontevideoPanel(s.responder_hasta);
+  const mandado = `Mandado a ${filas.length}${enviado ? ' a las ' + enviado : ''}.${hasta ? ' Responder antes de las ' + hasta + '.' : ''}`;
   if(!partes.length) return mandado;
   const t = partes.join(', ');
   return `${t[0].toUpperCase()}${t.slice(1)}. ${mandado}`;

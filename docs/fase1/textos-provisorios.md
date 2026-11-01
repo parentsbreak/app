@@ -263,3 +263,13 @@ Plantillas para la madre (editables, `[madre]` es la primera palabra del nombre 
 - Todavía buscando: "¡Hola [madre]! Estamos viendo quién puede [cuándo]. Te avisamos a la brevedad." ([cuándo] es "hoy" o "el sábado
   07/11").
 - No conseguimos: "¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?"
+
+Revisión final (01/11/2026, PROVISORIOS):
+- Niñera, push viejo de un pedido en el que la eligieron y ya vio sus datos (o que ya no se lee): "Si te eligieron, lo ves en
+  Próximos sittings." (antes decía "Este pedido ya no está abierto.", que asusta a la elegida; ese texto queda para cuando responde
+  y el pedido se cerró).
+- Panel, cancelar un pedido ya asignado (nadie recibe aviso): "¿Cancelar el pedido? A [niñera] no le llega ningún aviso: avisale por
+  WhatsApp y cancelá el registro en Sittings & traslados." (sin nombre: "A la niñera").
+- Panel, línea de respuestas de "Pedidos en curso": se vuelve a decir el plazo, "Pueden 2, no puede 1, falta responder 1. Mandado a 4
+  a las 14:05. Responder antes de las 14:35."
+- Nota para las dueñas: la plantilla "perfiles" mezcla "Avísame" (tú) y "preferís" (vos). Decidir con cuál queda, porque la madre lo lee igual.

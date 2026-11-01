@@ -536,6 +536,92 @@ Mensaje con los perfiles (construido el 01/11/2026; los textos de las cuatro pla
 Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_config 'plantilla_perfiles'`,
 `'plantilla_confirmacion'`, `'plantilla_buscando'` y `'plantilla_no_conseguimos'` (no en una sola fila `plantillas`).
 
+### 6.4 El día (etapa 7)
+- Antes: "Estoy saliendo" (evento `saliendo`) / "Voy a llegar tarde" → 10 / 20 / 30 min o más
+  (evento `tarde`, minutos) → aviso a admins con "Contactarla" (abre WhatsApp al celular de la
+  niñera, que sí ven las admins).
+- Al llegar: "Ya entré" (`entre`, hora real) / "Estoy afuera y no me abren" (`no_abren`) / "No
+  encuentro la casa" (`no_encuentro`): los dos últimos avisan al instante.
+- Si a los 15 minutos del inicio previsto (puntuales, configurable) no marcó "Ya entré": aviso a
+  admins "no marcó que llegó" con "Contactarla". Los fijos no disparan este aviso (4.10).
+- A la hora de fin prevista: push "¿Ya te retiraste del hogar?"; a los 30 min sin cierre, "Te
+  falta cerrar el sitting" con "Se extendió el sitting" (abre el cierre con la hora actual).
+- Cierre (`ninera_cerrar_sitting`): "¿Hasta qué hora estuviste?" (hora real, con la diferencia
+  con lo previsto, sin montos; si pasa de medianoche, marca "al día siguiente"), "¿Hubo algún
+  gasto extra?" (monto + foto del comprobante → `ninera_cargar_gasto`: sube al bucket
+  `comprobantes` bajo su carpeta e inserta `gastos_extra` con `pagado_por 'ninera'`; "Te lo
+  reintegramos junto al pago" es el único texto permitido sobre reintegro), comentarios extras
+  (campo libre → aviso instantáneo a admins), calificación de la familia (1 a 5, ¿volverías?
+  Sí / Prefiero otros perfiles, ¿a qué jugaron?, comentarios para el equipo). "¡Gracias,
+  [niñera]! Ya quedó registrado." Se guarda en `sitting_cierres` y avisa a admins "[niñera]
+  terminó en [familia] a las [hora]".
+- Admin, Hoy → "Cierre de los fijos" (existente) pasa a listar también los puntuales con cierre
+  de la niñera sin revisar: muestra la hora real que mandó, el gasto (con "Elige quién lo paga")
+  y los comentarios; "Sí, terminó" confirma con la hora de la niñera (recalcula cobro y pago con
+  la tarifa, los términos y las variantes, como hoy) y marca `revisado_en`; "Otra hora" deja
+  corregir. El registro final sigue viviendo en `sittings_traslados`.
+
+### 6.5 Ficha de la familia, cambios y cancelaciones (etapa 8)
+- Ficha: los 18 campos y las 6 casillas de la guía original, en `fichas_familia (id, familia_id,
+  sitting_id, ninera_id, datos jsonb, creada_en)`. En el sitting del día: "Repásala con los
+  padres antes de que se vayan", precargada con la última ficha de esa familia (cualquier
+  niñera). La siguiente niñera la ve en "¡Quedaste seleccionada!"; las admins, en la ficha de
+  la familia (con "Copiar para la próxima niñera").
+- Cambio de horario: cuando una admin cambia `hora_inicio` / `hora_fin` de un sitting futuro de
+  una niñera con app (trigger en `sittings_traslados`), aviso "Cambió el horario de tu sitting
+  del [día]" con Ok / "A esa hora no puedo" (`ninera_responder_cambio`; "No puedo" avisa a las
+  admins "Busca a otra" y deja el registro como está: la admin decide).
+- Cancelación (`cancelado = true` o solicitud `cancelada`): aviso "Se canceló tu sitting del
+  [día] / Con [madre: nombre + inicial]". Es el único aviso que nombra a la madre.
+
+### 6.6 Temporada (etapa 9)
+Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.
+- Pantalla por quincena: Punta del Este / Montevideo / La Paloma / Fuera del país / Otro (con texto, hasta 80
+  caracteres). De diciembre a marzo (8 quincenas, vacías hasta que las elige) y el resto del año plegado, en
+  Montevideo. Atajo "Todo el verano en Punta" (2da de diciembre a 2da de febrero). No se guarda con alguna de
+  las 8 vacía.
+- Se guarda en `ninieras.temporada_lugares` (`{"0": "montevideo", "8": "punta", "9": {"otro": "texto"}}`) con
+  `temporada_lugares_en`, y a la vez se escribe `ninieras.temporada` en el formato de hoy (`{<id grupo
+  Punta>: [quincenas en Punta]}`) con `temporada_fuente = 'app'` y `temporada_actualizada_en`: el filtro de
+  Niñeras y el panel siguen andando. Las quincenas no tienen año: la temporada empieza el 1/9 a las 0:00 de
+  Montevideo (Diego pidió el 1/10; quedó el 1/9 como el panel porque el formulario sale a fin de setiembre), y
+  una temporada de un año anterior se ve como "sin temporada cargada" (filtro, ficha y panel).
+- El filtro, la ficha y el panel de temporadas leen también los lugares nuevos ("Fuera del país", "Otro" con su
+  texto, "La Paloma"). La regla de qué pedidos recibe cada respuesta vive en `app_config 'temporada_reglas'`
+  (sección 4.5) y la leen las sugeridas: va en la etapa 5.
+- Avisos: primer aviso apenas se publica la etapa (1/10 en adelante, de 9 a 21 h) a las activas con app sin
+  la temporada al día; recordatorio cada 15 días desde su primer aviso, hasta el 31/12. Desde 2027, el 1/10 a
+  las 9. Los avisos pasan a ser obligatorios al entrar a la app (sin "Ahora no"), para que la app la persiga sola.
+- La página actual de temporada (Cloudflare) y `temporada-ninera` siguen como están para las niñeras sin app
+  (sección 10).
+- A las admins no se les pide nada por las niñeras con app (Diego, 31/10/2026, cambia lo del 27/10): sin paso
+  previo al editar, sin "Pedirle por WhatsApp" ("Se la pide la app"), sin badge ni aviso anual por ellas. Para
+  las que no tienen app, el paso previo, "Pedirle por WhatsApp" y el aviso anual del 1/10 siguen igual
+  (`enviar-push-urgentes` no cambia, no se republica). No se apagan globalmente.
+- Va después de la etapa 3 y antes de la 4 (orden del 27/10/2026): necesita la cola de avisos.
+
+### 6.7 Carsitting (etapa 10)
+- Una pantalla: los campos de `carsitting_datos` + fotos de licencia, libreta, asientos, auto por
+  dentro y por fuera (bucket privado, comprimidas en el celular como las fotos de niñeras).
+  "¡Listo! Gracias." Aviso a admins "[niñera] completó el carsitting / Revísalo".
+- Admin: "Carsitting para revisar" en Hoy (ver fotos con links firmados, Aprobar / Pedir de
+  nuevo con un comentario que le llega por chat). Aprobar → `aprobado_en` y "Ya puedes recibir
+  solicitudes de traslados". En Niñeras, panel plegable "Car sitting" con "Completaron / Faltan"
+  (de las que hacen traslados) y "Sin app" con el botón de WhatsApp.
+- Recordatorio semanal (lunes 10:00) a las que marcaron Carsittings y no completaron.
+
+### 6.8 Chat (etapa 3)
+Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo
+escribió). `chat_mensajes (id, ninera_id, de 'ninera' | 'admin', autor text, texto text, creado_en,
+leido_ninera_en, leido_admin_en)`. Realtime en las dos puertas (RLS filtra). Push "[nombre de la
+admin] / [mensaje]" a la niñera y "[niñera] / [mensaje]" a las admins. En Hoy, "Mensajes de
+niñeras" con los no leídos; en la ficha de la niñera, el hilo completo. Niñera: "Contáctate con
+una operadora de Parents' Break."
+
+Decisiones de Diego (29/10/2026): (1) una admin puede escribirle a cualquier niñera que tenga la app (la
+regla de "solo con un pedido" se lee como "nada de mensajes masivos ni publicidad"); (2) el chat es solo
+de texto en esta etapa, las fotos van después; (3) el aviso del chat llega siempre, también de noche.
+
 ## 7. Catálogo de avisos (clave, cuándo, a quién, etapa)
 Niñera (todos con los textos de `textos.md`, sección 1; cuerpo en "tú"):
 | clave | cuándo | etapa |

@@ -74,7 +74,7 @@ test.describe('"Pedidos en curso" en Hoy', () => {
     await expect(zona(page).locator('.pedido-curso').first()).toHaveAttribute('data-solicitud', ID.sPendiente);
     const t = tarjeta(page);
     await expect(t.locator('.pedido-curso-titulo')).toHaveText('Familia (práctica), miércoles 07/10, de 18:00 a 22:00');
-    await expect(t.locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00.');
+    await expect(t.locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     await expect(fila(t, 'Niñera (práctica)').locator('.badge')).toHaveText('Puede');
     await expect(fila(t, 'Niñera (práctica)')).toContainText('$200 por hora. Ya fue 2 veces.');
     await expect(fila(t, 'Lola (práctica)')).toContainText('$210 por hora. Nueva para esta familia.');
@@ -103,7 +103,7 @@ test.describe('"Pedidos en curso" en Hoy', () => {
     const e = await abrirHoy(page);
     const t = tarjeta(page, ID.sPedida);
     await expect(t.locator('.pedido-curso-titulo')).toHaveText('Familia (práctica), jueves 08/10, de 18:00 a 22:00');
-    await expect(t.locator('.sol-envio')).toHaveText('Puede 1, falta responder 1. Mandado a 2 a las 11:00.');
+    await expect(t.locator('.sol-envio')).toHaveText('Puede 1, falta responder 1. Mandado a 2 a las 11:00. Responder antes de las 11:30.');
     const pedida = t.locator('.pedido-curso-fila').first();
     await expect(pedida).toHaveClass(/pedido-curso-pedida/);
     await expect(pedida).toContainText('Niñera (práctica)');
@@ -391,11 +391,11 @@ test.describe('"Pedidos en curso": lecturas, Realtime y fallas', () => {
 
   test('una respuesta nueva repinta la tarjeta; con un modal abierto espera a que se cierre', async ({ page }) => {
     const e = await abrirHoy(page);
-    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00.');
+    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     const mia = e.db.solicitud_ninieras.find(x => x.id === ID.snPendMia);
     Object.assign(mia, { estado: 'acepto', respondido_en: '2026-10-04T14:20:00.000Z' });
     await expect.poll(() => e.emitirRealtime('solicitud_ninieras', 'UPDATE', mia)).toBeGreaterThan(0);
-    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 3, no puede 1. Mandado a 4 a las 11:00.');
+    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 3, no puede 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     await expect(fila(tarjeta(page), 'Mía (práctica)').locator('button', { hasText: 'Asignar' })).toHaveCount(1);
     // Con "Todavía buscando" abierto, otra respuesta no repinta Hoy hasta cerrarlo.
     await tarjeta(page).locator('button', { hasText: 'Todavía buscando' }).click();
@@ -406,9 +406,9 @@ test.describe('"Pedidos en curso": lecturas, Realtime y fallas', () => {
     e.emitirRealtime('solicitud_ninieras', 'UPDATE', lola);
     await page.waitForTimeout(1500);
     await expect(texto(page)).toHaveValue('Escribiendo algo para la madre');
-    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 3, no puede 1. Mandado a 4 a las 11:00.');
+    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 3, no puede 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     await modal(page).locator('.modal-close').click();
-    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no pueden 2. Mandado a 4 a las 11:00.');
+    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no pueden 2. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
@@ -440,7 +440,7 @@ test.describe('"Pedidos en curso": lecturas, Realtime y fallas', () => {
 
   test('base sin la migración de la etapa 6: la tarjeta anda igual', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos(), baseSinMigrar: 'etapa6' });
-    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00.');
+    await expect(tarjeta(page).locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     await expect(tarjeta(page, ID.sPedida)).toContainText('La pidió la madre y puede');
     // Los 404 son del chat y los avisos, que el simulador también saca con 'etapa6'.
     verificarLimpio(e, { ignorar: RUIDO });
@@ -509,7 +509,7 @@ test.describe('"Pedidos en curso" en el modal de la solicitud (Agenda)', () => {
     await page.evaluate(i => abrirModalSolicitud(i), ID.sPendiente);
     const m = modal(page);
     await expect(m.locator('h2').first()).toHaveText('Familia (práctica)');
-    await expect(m.locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00.');
+    await expect(m.locator('.sol-envio')).toHaveText('Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 11:00. Responder antes de las 11:30.');
     await expect(fila(m, 'Niñera (práctica)')).toContainText('$200 por hora. Ya fue 2 veces.');
     await expect(fila(m, 'Lola (práctica)').locator('button', { hasText: 'Asignar' })).toHaveCount(1);
     await expect(fila(m, 'Carla Ejemplo').locator('button')).toHaveCount(0);

@@ -425,9 +425,10 @@ test.describe('abrir un pedido desde un push (#pedido/<id>)', () => {
     verificarLimpio(e);
   });
 
-  test('un pedido que ya no está abierto: va al inicio y avisa', async ({ page }) => {
+  test('un pedido que ya no se lee (push viejo): va al inicio y avisa sin decir que está cerrado', async ({ page }) => {
+    // Cambio deliberado (01/11/2026, revisión final): la base no distingue "cerrado" de "la eligieron y ya vio sus datos".
     const e = await abrir(page, { ruta: '/ninera/#pedido/81000000-0000-4000-8000-0000000000ff' });
-    await expect(page.locator('#pedidos-aviso')).toHaveText(CERRADO);
+    await expect(page.locator('#pedidos-aviso')).toHaveText('Si te eligieron, lo ves en Próximos sittings.');
     await expect(tarjeta(page)).toBeVisible();
     verificarLimpio(e);
   });

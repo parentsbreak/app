@@ -2118,7 +2118,15 @@ async function confirmarNinera(solNineraId){
    confirmaba otra admin lo asignó (o lo canceló), no se pisa: antes quedaba cancelado con la niñera elegida, su
    aviso y el registro en Sittings. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger). */
 async function cancelarSolicitud(id, estadoAntes){
-  const ok = await confirmarAccion('¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló.', 'Cancelar el pedido');
+  // Ya asignado (revisión final, 01/11/2026): no queda ninguna fila abierta, así que no sale ningún aviso y el registro
+  // de la elegida sigue en Sittings. El texto no puede prometer lo que no pasa.
+  let textoCancelar = '¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló.';
+  if(estadoAntes === 'confirmada'){
+    const sol = agendaSolicitudes.find(x=>x.id===id);
+    const elegida = sol && (sol.ninieras||[]).find(n=>n.estado==='confirmada' && n.ninera_nombre);
+    textoCancelar = `¿Cancelar el pedido? A ${elegida ? elegida.ninera_nombre : 'la niñera'} no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.`;
+  }
+  const ok = await confirmarAccion(textoCancelar, 'Cancelar el pedido');
   if(!ok) return;
   let filas = null;
   const consulta = sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id).eq('estado', estadoAntes).select('id')

@@ -181,9 +181,11 @@ test.describe('¡Quedaste seleccionada!', () => {
     verificarLimpio(e, { ignorar: RUIDO });
   });
 
-  test('#pedido/<sn> de una selección que ya vio: el aviso de siempre', async ({ page }) => {
+  test('#pedido/<sn> de una selección que ya vio: texto neutro, nunca "ya no está abierto"', async ({ page }) => {
     const e = await abrir(page, { datos: datos({ sn: { visto_en: '2026-10-04T15:00:00.000Z' } }), ruta: `/ninera/#pedido/${SN}` });
-    await expect(page.locator('#pedidos-aviso')).toHaveText('Este pedido ya no está abierto.');
+    await expect(page.locator('#pedidos-aviso')).toHaveText('Si te eligieron, lo ves en Próximos sittings.');
+    await expect(page.locator('#app')).not.toContainText('ya no está abierto');
+    await expect(page.locator('#app')).toContainText('Próximos sittings');
     await expect(modal(page)).toHaveCount(0);
     verificarLimpio(e, { ignorar: RUIDO });
   });

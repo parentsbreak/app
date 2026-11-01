@@ -959,6 +959,15 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   terminar" en "Pegar WhatsApp".
 - Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
   nuevo igual" en esa pantalla.
+- Etapa 8 (01/11/2026): cancelar un pedido ya asignado (`confirmada`) no le manda aviso a la elegida ni cancela su registro
+  (`sitting:<id>:cancelado`); hoy el texto de "Cancelar" solo le pide a la admin que avise por WhatsApp y cancele en Sittings.
+- `confirmarNinera` (01/11/2026): confirma una fila sin tomar la solicitud; con filas viejas del panel en `invitada` sobre una solicitud
+  `pendiente_confirmar`, el trigger cierra las de la app y la solicitud sigue `pendiente_confirmar` (solo datos viejos).
+- "+ Nueva solicitud" con niñera (01/11/2026) se salta la dirección obligatoria y la confirmación para la madre, pero igual le manda
+  "¡Quedaste seleccionada!": unificarlo con "Asignar".
+- Push de una elegida que ya vio sus datos (01/11/2026): no puede mostrarlos (`ninera_mis_pedidos` ya no devuelve su fila; hoy sale el
+  texto neutro "Si te eligieron, lo ves en Próximos sittings."). Para mostrarlos, que la lectura la siga devolviendo hasta la fecha o
+  llevar el id de la solicitud en la URL (migración).
 - `tests/precio-ninera-familia.spec.js` (31/10/2026): 12 tests de Sittings fallan en local, también sobre `main` (el CI de #91 pasó).
   Investigar, probablemente dependen de la fecha.
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
@@ -1069,8 +1078,6 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
 - "Editar horarios futuros" (`guardarHorarioAsignacionFija`) no permite fijos que cruzan medianoche.
 - Finanzas: el balance termina siempre en el mes actual aunque se navegue a otro, y el subtítulo
   del margen no cambia de mes.
-- Solicitudes: nadie escribe el estado `pendiente_confirmar`; sobran la leyenda, el botón "Agregar
-  otra niñera" y la notificación.
 - `chequearFijoNuevoContraTodo` corre dentro de un loop por día (fijo con horario por día);
   `abrirModalAsignar` lee toda la historia de registros cada vez que se abre.
 - Editar un registro de una niñera inactiva deja `ninera_id` nulo (`cargarSitBase` trae solo activas).
