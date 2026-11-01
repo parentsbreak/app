@@ -18,6 +18,7 @@ const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAP
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
+const COLUMNAS_CV = { ninieras: ['cv_datos', 'cv_generado_con'] };
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const USUARIO = {
@@ -189,6 +190,8 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *     y las tres RPC de la niñera dan 404 PGRST202, ninera_no_disponible 404 PGRST205 y las columnas nuevas
  *     (solicitudes, solicitud_ninieras, familias.solo_conocidas, pedidos_whatsapp.ninera_pedida) dan el error
  *     de columna de Supabase al leerlas o escribirlas.
+ *     'cv' (01/11/2026): solo falta 20261104_cv_automatico: ninieras sin cv_datos ni cv_generado_con (leerlas da
+ *     42703 y escribirlas PGRST204). true también las saca.
  *   Con los pedidos de la etapa 5, app_config 'pedidos_app'.solo_practica arranca en true (como la migración): un
  *   test que manda pedidos de familias reales lo apaga con estado.db.app_config (ver tests/simulador-pedidos.spec.js).
  */
@@ -206,8 +209,10 @@ async function abrirApp(page, opciones = {}) {
   if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinMigrarTodo) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
   if (sinMigrarTodo) sacarColumnasEtapa2(estado.db);
+  const sinCv = sinMigrarTodo || baseSinMigrar === 'cv';
+  if (sinCv) (estado.db.ninieras || []).forEach(n => { delete n.cv_datos; delete n.cv_generado_con; });
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinCv, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -325,7 +330,7 @@ function crearEstado(datos) {
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -422,9 +427,12 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         const status = falla.status || 500;
         return route.fulfill({ status, json: { statusCode: String(status), error: 'falla simulada', message: falla.message || 'falla simulada' } });
       }
-      if (metodo === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG_1X1, 'base64') });
+      // Con el permiso CORS de Supabase (CV automático, 01/11/2026): sin eso la foto no se puede dibujar
+      // en un lienzo que después se exporta. estado.imagenStorage (base64) cambia la imagen que devuelve.
+      if (metodo === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: Buffer.from(estado.imagenStorage || PNG_1X1, 'base64') });
       if (estado.demoraEscrituras) await new Promise(r => setTimeout(r, estado.demoraEscrituras));
-      estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData() });
+      // bytes: lo subido tal cual (un PNG dentro del multipart de supabase-js), para mirar la imagen.
+      estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData(), bytes: req.postDataBuffer() });
       if (metodo === 'POST' && url.pathname.startsWith('/storage/v1/object/sign/')) {
         return route.fulfill({ json: { signedURL: `${url.pathname.replace('/storage/v1', '')}?token=ficticio` } });
       }
@@ -481,7 +489,8 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     // Etapa 5 (02/11/2026): sin la migración de los pedidos, las columnas nuevas no existen: leerlas da
     // 42703 (select) y escribirlas PGRST204, como Supabase.
     // Etapa 6 (01/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
-    const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : [])];
+    // CV automático (01/11/2026): sin 20261104_cv_automatico, ninieras no tiene cv_datos ni cv_generado_con.
+    const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : []), ...(sinCv ? COLUMNAS_CV[tabla] || [] : [])];
     if (columnasNuevas.length) {
       if (metodo === 'GET' || metodo === 'HEAD') {
         const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(url.searchParams.get('select') || ''));

@@ -1,14 +1,10 @@
 /* ---- Niñeras ---- */
 let ninierasItems = [];
 let sitHistResenas = {};
-// CV desactualizado: cumplió años después de la última vez que se generó el CV de Canva.
-// Compartido entre la ficha y el badge de la lista.
-function cvEstaDesactualizado(n){
-  const cd = n.candidatas || {};
-  const edadCalculada = calcularEdad(cd.fecha_nacimiento);
-  if(!n.cv_generado_en || edadCalculada===null) return false;
-  return calcularEdad(cd.fecha_nacimiento, n.cv_generado_en) < edadCalculada;
-}
+// CV desactualizado: el de la app, si cambió algo de lo que se dibujó; el de Canva, si cumplió años
+// después de generarlo (motivoCvViejo, más abajo). Compartido entre la ficha, el badge de la lista y
+// la campanita.
+function cvEstaDesactualizado(n){ return !!motivoCvViejo(n); }
 // Cumple hoy (mismo día y mes que la fecha de nacimiento, año aparte).
 function esCumpleHoy(n){
   const fn = n.candidatas?.fecha_nacimiento;
@@ -346,7 +342,7 @@ function filtrarNinieras(){
       <div class="rowbtns">
         <button class="smallbtn" onclick="verNinera(${argJs(n.id)})">Ver ficha</button>
         <button class="smallbtn" onclick="editarNinera(${argJs(n.id)})">Editar</button>
-        <button class="smallbtn" onclick="generarMensajeCV(${argJs(n.id)})">CV</button>
+        <button class="smallbtn" onclick="abrirCvNinera(${argJs(n.id)})">CV</button>
         <button class="pcard-delete" style="position:static;box-shadow:none;" onclick="conGuardado(this, ()=>eliminarNinera(${argJs(n.id)}))" title="Eliminar niñera" aria-label="Eliminar niñera">${ICONS.trash}</button>
       </div>
     </div>`;
@@ -412,8 +408,8 @@ async function verNinera(id){
   // en la lista de campos — así nunca se muestran las dos ni queda la vieja dando vueltas.
   const rows = FICHA_CAMPOS.filter(f=>cd[f.key] && !(f.key==='edad' && edadCalculada!==null)).map(f=>`<div><b>${f.label}</b>${escaparHtml(cd[f.key])}</div>`).join('');
   const edadRow = edadCalculada!==null ? `<div><b>Edad</b>${edadCalculada} años</div>` : '';
-  // Aviso si el CV de Canva quedó viejo: cumplió años después de la última vez que se generó.
-  const cvDesactualizado = cvEstaDesactualizado(n);
+  // Aviso si el CV quedó viejo (motivoCvViejo: cambió la foto, el nombre o los datos, o cumplió años).
+  const motivoCv = motivoCvViejo(n);
   const fotoHtml = n.foto ? `<img src="${urlSegura(n.foto)}" alt="Foto de ${escaparHtml(n.nombre)}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;margin-bottom:12px;cursor:zoom-in;" onclick="abrirLightboxFoto(${argJs(n.foto)}, ${argJs('Foto de '+n.nombre)})" onerror="this.style.display='none'">` : '';
   abrirModal(`
     ${fotoHtml}
@@ -423,8 +419,8 @@ async function verNinera(id){
       <button class="smallbtn" onclick="abrirModalIncidente(${argJs({ninera_id:n.id, ninera_nombre:n.nombre})})">+ Registrar incidente</button>
     </div>
     ${htmlCambioTelefono(n)}
-    ${cvDesactualizado ? `<div class="warnbox" style="margin-bottom:10px;">Cumplió años desde que se generó el CV — convendría rehacerlo.</div>` : ''}
-    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.cv_url?`<div><b>CV</b><a href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver CV</a></div>`:''}<div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
+    ${motivoCv ? `<div class="warnbox cv-viejo" style="margin-bottom:10px;">${escaparHtml(`El CV quedó viejo (${motivoCv}): generalo de nuevo.`)}</div>` : ''}
+    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div><div><b>CV</b><button type="button" class="smallbtn" onclick="abrirCvNinera(${argJs(n.id)})">${n.cv_url ? 'Ver el CV' : 'Generar el CV'}</button></div><div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
     ${htmlFichaTemporada(n)}
     <div id="vn-chat" data-ninera="${escaparHtml(n.id)}" style="margin-top:18px;"></div>
     <div id="vn-carsitting"></div>
@@ -1406,70 +1402,440 @@ async function eliminarNinera(id){
   restaurarScrollMainarea(scrollN2);
 }
 
-/* ---- Generar CV: arma el pedido para pegarle a Claude en el chat ---- */
-const CV_CANVA_DESIGN_ID = 'DAHUzD60KqA';
-const CV_CANVA_DESIGN_NOMBRE = 'PLANTILLA BASE v2 - CV niñeras';
-function generarMensajeCV(id){
-  const n = nineraPorId(id);
-  if(!n) return;
+/* ---- CV automático (01/11/2026, pendiente "CV automático en el sistema") ----
+   La app dibuja el CV igual al de la plantilla de Canva y lo sube a ninieras-fotos/cv/; antes había
+   que pedírselo a Claude en un chat con un mensaje armado y pasar por Canva.
+   Medidas (sobre 1080×1920, de la plantilla y del CV de referencia): fondo img/cv/fondo-cv.png; nombre
+   en League Spartan 800 a 97 px con las letras 6 px más juntas (así las mayúsculas miden 65 px de alto y
+   el ancho queda como en Canva, que usa otra fuente), en mayúsculas, hasta dos renglones con 108 px de
+   base a base, desde x=108 y 495 px de ancho; foto en un círculo de 378 px
+   en (603, 64), recortada al centro; datos en Arimo Bold (mide igual que Arial) a 74,5 px, 117 px de
+   base a base, viñeta de 21 px centrada en x=82 y texto desde x=122 hasta x=1053, primera base en
+   y=506. Las fuentes están en vendor/fuentes/ (licencia OFL): sin CDN, los renglones cortan igual en
+   el iPhone, la compu y los tests.
+   Al CV van solo el nombre, la foto y las líneas de CV_LINEAS: nunca teléfono, mail, zona,
+   patologías ni nada de salud (lo ven las madres). */
+const CV_LINEAS = [
+  { key:'edad', label:'Edad' },
+  { key:'estudios', label:'Estudios' },
+  { key:'experiencia', label:'Experiencia' },
+  { key:'panales', label:'Cambia pañales' },
+  { key:'idiomas', label:'Idiomas' },
+  { key:'certificaciones', label:'Certificaciones' },
+  { key:'diferenciales', label:'Diferenciales' },
+];
+const CV_MEDIDAS = {
+  ancho: 1080, alto: 1920,
+  // espacio: lo que se juntan las letras a 97 px (se achica junto con la letra).
+  nombre: { x: 108, base: 244, renglon: 108, ancho: 495, tam: 97, espacio: -6, tamMin: 50, color: '#757cbe' },
+  foto: { x: 603, y: 64, d: 378 },
+  // arriba: borde de la caja de datos; abajo: hasta dónde puede bajar la letra sin pisar la nube.
+  datos: { arriba: 436, base: 506, puntoX: 82, punto: 10.75, subePunto: 22.5, textoX: 122, derecha: 1053, abajo: 1700, tam: 74.5, renglon: 117, tamMin: 60, color: '#df8386' },
+};
+const CV_FUENTE_NOMBRE = 'CV League Spartan';
+const CV_FUENTE_DATOS = 'CV Arimo';
+
+const limpiarLineaCv = t => String(t ?? '').replace(/\s+/g, ' ').trim();
+function edadCalculadaCv(n){ return calcularEdad(datosFichaCandidata(n.candidatas).fecha_nacimiento); }
+
+// Primera versión de las líneas, desde la ficha (lo corregido en la entrevista incluido). Es una
+// sugerencia: las respuestas del formulario suelen ser largas y una admin las acorta antes de generar.
+// Con fecha de nacimiento la edad no se guarda: se calcula sola al dibujar.
+function precargaCv(n){
   const cd = datosFichaCandidata(n.candidatas);
-  // Importante: NUNCA incluir teléfono, mail ni zona acá — esos son datos internos
-  // (quedan en la ficha/directorio), no van en el CV que ve la familia.
-  const datos = [`Nombre: ${n.nombre}`];
-  if(n.foto) datos.push(`Foto (URL): ${n.foto}`);
-  // Si hay fecha de nacimiento cargada, la edad calculada pisa al texto viejo ("edad") —
-  // así el CV siempre sale con la edad real de hoy, no la que tenía cuando se cargó el dato.
-  const edadCalculada = calcularEdad(cd.fecha_nacimiento);
-  FICHA_CAMPOS.forEach(f=>{
-    if(f.key==='edad' && edadCalculada!==null){ datos.push(`${f.label}: ${edadCalculada} años`); return; }
-    if(cd[f.key]) datos.push(`${f.label}: ${cd[f.key]}`);
-  });
-  if(n.notas) datos.push(`Notas: ${n.notas}`);
-  const mensaje = `Generame el CV de ${n.nombre} en Canva.
-
-Antes de generarlo, leé en los Files de este Project el archivo "instrucciones_generar_cv_ninieras.md" y la imagen de ejemplo de un CV ya terminado — ahí está el paso a paso exacto y el formato visual a respetar (fondo salvia, nombre en violeta bold, foto circular, bullets coral).
-
-Usá como plantilla base el diseño "${CV_CANVA_DESIGN_NOMBRE}" (ID: ${CV_CANVA_DESIGN_ID}) de mi cuenta de Canva conectada — copiá su única página a un diseño nuevo con Canva:copy-design (no edites la plantilla base en sí), reemplazá los placeholders por los datos de abajo respetando el formato ya definido (fondo salvia, nombre en violeta bold, foto circular, bullets coral), y mandámelo acá como PDF.
-
-Datos de la niñera:
-${datos.map(d=>'- '+d).join('\n')}`;
-  abrirModal(`
-    <h2 style="margin:0 0 10px;">Mensaje para pedirle el CV a Claude</h2>
-    <div class="helper">Copiá esto (o descargalo) y pegalo en un chat con Claude dentro de este Project — tiene todo lo que necesita para generar el CV de ${escaparHtml(n.nombre)} y mandártelo en PDF. Para que funcione, el Project tiene que tener cargados el archivo de instrucciones y una imagen de ejemplo de CV en su sección de Files.</div>
-    <textarea id="cv-msg-${id}" readonly style="min-height:220px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;">${escaparHtml(mensaje)}</textarea>
-    <div class="confirmbtns">
-      <button class="btn ghost" onclick="descargarMensajeCV(${argJs(id)})">Descargar .txt</button>
-      <button class="btn primary" onclick="copiarMensajeCV(${argJs(id)})">Copiar mensaje</button>
-    </div>`);
+  const si = t => /^s[ií]\b/i.test(limpiarLineaCv(t));
+  const certificaciones = [cd.primeros_auxilios, cd.capacitacion_extra].map(limpiarLineaCv)
+    .filter(t => t && !/^no\b/i.test(t))
+    .map(t => si(t) && t.length <= 3 ? 'Hizo un curso de primeros auxilios' : t.replace(/\.$/, ''));
+  const edadTexto = limpiarLineaCv(cd.edad);
+  return {
+    ...(edadCalculadaCv(n) === null ? { edad: /^\d+$/.test(edadTexto) ? `${edadTexto} años` : edadTexto } : {}),
+    estudios: limpiarLineaCv(cd.universidad),
+    experiencia: limpiarLineaCv(cd.experiencia),
+    panales: si(cd.cambia_panales) ? 'Cambia pañales' : '',
+    idiomas: limpiarLineaCv(cd.idiomas),
+    certificaciones: certificaciones.join('. '),
+    diferenciales: '',
+  };
 }
-async function copiarMensajeCV(id){
-  const ta = document.getElementById('cv-msg-'+id);
-  try{
-    await navigator.clipboard.writeText(ta.value);
-    toast('Mensaje copiado — pegalo en el chat con Claude.');
-    marcarCvGenerado(id);
-  }catch(e){
-    ta.select();
-    toast('No se pudo copiar automático — seleccioná el texto y copiá a mano.', 'bad');
+// Lo que va al CV, en orden y sin las vacías: [{ key, label, texto }].
+function itemsCv(n, datos){
+  const edad = edadCalculadaCv(n);
+  return CV_LINEAS.map(l => ({ ...l, texto: l.key === 'edad' && edad !== null ? `${edad} años` : limpiarLineaCv(datos?.[l.key]) }))
+    .filter(it => it.texto);
+}
+
+// Por qué el CV quedó viejo, o null. Con un CV de la app se compara con lo que se dibujó; con uno de
+// Canva (solo cv_generado_en) lo único que se sabe es si cumplió años después.
+function motivoCvViejo(n){
+  const g = n.cv_generado_con;
+  if(g && typeof g === 'object'){
+    if(!n.cv_url) return null;
+    if((g.nombre || '') !== (n.nombre || '')) return 'cambió el nombre';
+    if((g.foto || null) !== (n.foto || null)) return 'cambió la foto';
+    const lineas = itemsCv(n, n.cv_datos || {}).map(it => it.texto);
+    if(JSON.stringify(lineas) === JSON.stringify(g.lineas || [])) return null;
+    const edad = edadCalculadaCv(n);
+    return edad !== null && !(g.lineas || []).includes(`${edad} años`) ? 'cumplió años' : 'cambiaron los datos';
   }
+  const fn = n.candidatas?.fecha_nacimiento;
+  const edad = calcularEdad(fn);
+  if(!n.cv_generado_en || edad === null) return null;
+  return calcularEdad(fn, n.cv_generado_en) < edad ? 'cumplió años' : null;
 }
-// Marca la fecha de hoy como "último CV pedido" para esta niñera — así la ficha puede avisar
-// más adelante si cumple años y el CV queda desactualizado. Se asume optimista: si pidió el
-// mensaje, es porque va a generar el CV ahora — no hace falta que confirme de vuelta.
-async function marcarCvGenerado(id){
-  const { error } = await sb.from('ninieras').update({ cv_generado_en: todayISO() }).eq('id', id);
-  if(error){ toast('No se pudo anotar la fecha del CV: '+error.message, 'bad'); return; }
-  const n = nineraPorId(id);
-  if(n) n.cv_generado_en = todayISO();
+
+// Corta un texto en renglones de hasta anchoMax. Una palabra que sola no entra (un link, un nombre
+// larguísimo) se corta por letras. medir(texto) devuelve el ancho con la letra que corresponda.
+function partirEnRenglones(texto, anchoMax, medir){
+  const renglones = [];
+  let actual = '';
+  for(const palabra of String(texto).split(/\s+/).filter(Boolean)){
+    const junto = actual ? actual + ' ' + palabra : palabra;
+    if(medir(junto) <= anchoMax){ actual = junto; continue; }
+    if(actual) renglones.push(actual);
+    actual = '';
+    for(const letra of palabra){
+      if(actual && medir(actual + letra) > anchoMax){ renglones.push(actual); actual = ''; }
+      actual += letra;
+    }
+  }
+  if(actual) renglones.push(actual);
+  return renglones;
 }
-function descargarMensajeCV(id){
+// Ancho del nombre con las letras juntadas (N.espacio entre cada par, proporcional a la letra).
+function medirNombreCv(medir, texto, tam){
+  const n = [...texto].length;
+  return medir(texto, tam) + Math.max(0, n - 1) * CV_MEDIDAS.nombre.espacio * tam / CV_MEDIDAS.nombre.tam;
+}
+const bajarMedioPunto = tam => Math.round((tam - 0.5) * 10) / 10;
+// El nombre en mayúsculas, en uno o dos renglones sin cortar palabras; si no entra a 88,2 px, se achica.
+// medir(texto, tam) es el ancho con la letra del nombre.
+function armarNombreCv(nombre, medir){
+  const M = CV_MEDIDAS.nombre;
+  const texto = limpiarLineaCv(nombre).toLocaleUpperCase('es');
+  const palabras = texto.split(' ').filter(Boolean);
+  for(let tam = M.tam; tam >= M.tamMin; tam = bajarMedioPunto(tam)){
+    if(palabras.some(p => medir(p, tam) > M.ancho)) continue;
+    const renglones = partirEnRenglones(texto, M.ancho, t => medir(t, tam));
+    if(renglones.length <= 2) return { ok: true, tam, renglones };
+  }
+  return { ok: false };
+}
+// Los datos: con menos de 7 líneas la letra puede crecer (5 o 6: hasta +12%, 4 o menos: hasta +50%)
+// para que ocupen la tarjeta, pero solo si entra y gana al menos un 5%: el CV de referencia tiene 6
+// líneas que ya llenan la tarjeta a 74,5 px y así queda igual. Si no entran hasta abajo, se achica
+// hasta 60 px. La viñeta, la sangría y el interlineado siguen a la letra. medir(texto, tam) con la
+// letra de los datos.
+function armarDatosCv(items, medir){
+  const M = CV_MEDIDAS.datos;
+  const maximo = items.length >= 7 ? M.tam : items.length >= 5 ? M.tam * 1.12 : M.tam * 1.5;
+  const tamanios = [];
+  for(let t = Math.round(maximo * 10) / 10; t >= M.tam * 1.05; t = bajarMedioPunto(t)) tamanios.push(t);
+  for(let t = M.tam; t >= M.tamMin; t = bajarMedioPunto(t)) tamanios.push(t);
+  let ultimo = null;
+  for(const tam of tamanios){
+    const k = tam / M.tam;
+    const textoX = M.puntoX + (M.textoX - M.puntoX) * k;
+    const partes = items.map(it => partirEnRenglones(it.texto, M.derecha - textoX, t => medir(t, tam)));
+    const total = partes.reduce((s, p) => s + p.length, 0);
+    const base0 = M.arriba + (M.base - M.arriba) * k;
+    ultimo = { tam, partes };
+    // 0,21 de la letra: lo que baja una "p" o una "g" debajo de la base.
+    if(base0 + (total - 1) * M.renglon * k + 0.21 * tam > M.abajo) continue;
+    const renglones = [];
+    let i = 0;
+    partes.forEach(p => p.forEach((texto, j) => renglones.push({ texto, base: base0 + (i++) * M.renglon * k, punto: j === 0 })));
+    return { ok: true, tam, k, textoX, renglones };
+  }
+  // No entra ni con la letra más chica: se señala la que más renglones ocupa.
+  const masLarga = ultimo ? ultimo.partes.reduce((m, p, i) => p.length > ultimo.partes[m].length ? i : m, 0) : 0;
+  return { ok: false, masLarga: items[masLarga] };
+}
+
+// Fuentes y fondo se cargan una vez, la primera vez que se abre un CV (no en el arranque de la app).
+let recursosCvPromesa = null;
+function cargarImagenCv(src){
+  return new Promise((ok, mal) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // la foto viene de Supabase: sin esto el lienzo queda "sucio" y no se puede exportar
+    img.onload = () => ok(img);
+    img.onerror = () => mal(new Error('No cargó la imagen'));
+    img.src = src;
+  });
+}
+function cargarRecursosCv(){
+  if(!recursosCvPromesa){
+    recursosCvPromesa = (async () => {
+      const fuentes = [
+        new FontFace(CV_FUENTE_NOMBRE, 'url(vendor/fuentes/league-spartan-latin.woff2)', { weight: '100 900' }),
+        new FontFace(CV_FUENTE_DATOS, 'url(vendor/fuentes/arimo-bold-latin.woff2)', { weight: '700' }),
+      ];
+      await Promise.all(fuentes.map(f => f.load()));
+      fuentes.forEach(f => document.fonts.add(f));
+      return { fondo: await cargarImagenCv('img/cv/fondo-cv.png') };
+    })();
+    recursosCvPromesa.catch(() => { recursosCvPromesa = null; }); // la próxima vez se reintenta
+  }
+  return recursosCvPromesa;
+}
+const fotosCv = new Map(); // url -> promesa de la imagen (una falla se borra para reintentar)
+function cargarFotoCv(url){
+  if(!fotosCv.has(url)){
+    const p = cargarImagenCv(url);
+    p.catch(() => fotosCv.delete(url));
+    fotosCv.set(url, p);
+  }
+  return fotosCv.get(url);
+}
+
+// Dibuja el CV en el lienzo de 1080×1920 y dice si hay algo que impide generarlo:
+// { problema: texto | null, lineas: [textos dibujados] }. Dibuja igual aunque haya un problema, así la
+// vista previa muestra qué pasa.
+async function dibujarCv(canvas, n, datos){
+  let recursos;
+  try { recursos = await cargarRecursosCv(); }
+  catch(e){ return { problema: 'No se pudieron cargar las letras o el fondo del CV. Revisá tu conexión y volvé a abrirlo.', lineas: [] }; }
+  const fotoUrl = n.foto ? urlSegura(n.foto) : '';
+  let foto = null;
+  if(fotoUrl){ try { foto = await cargarFotoCv(fotoUrl); } catch(e){ foto = null; } }
+  const ctx = canvas.getContext('2d');
+  const medirCon = familia => (t, tam) => { ctx.font = `${familia === CV_FUENTE_NOMBRE ? 800 : 700} ${tam}px "${familia}"`; return ctx.measureText(t).width; };
+  const nombre = armarNombreCv(n.nombre, (t, tam) => medirNombreCv(medirCon(CV_FUENTE_NOMBRE), t, tam));
+  const items = itemsCv(n, datos);
+  const bloque = armarDatosCv(items, medirCon(CV_FUENTE_DATOS));
+  const { ancho, alto, foto: F, nombre: N, datos: D } = CV_MEDIDAS;
+
+  ctx.clearRect(0, 0, ancho, alto);
+  ctx.drawImage(recursos.fondo, 0, 0, ancho, alto);
+  if(foto){
+    // "cover": llena el círculo y recorta lo que sobra, centrado.
+    const r = F.d / 2, esc = Math.max(F.d / foto.naturalWidth, F.d / foto.naturalHeight);
+    const w = foto.naturalWidth * esc, h = foto.naturalHeight * esc;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(F.x + r, F.y + r, r, 0, Math.PI * 2); ctx.clip();
+    ctx.drawImage(foto, F.x + r - w / 2, F.y + r - h / 2, w, h);
+    ctx.restore();
+  }
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  if(nombre.ok){
+    ctx.fillStyle = N.color;
+    const medir = medirCon(CV_FUENTE_NOMBRE), espacio = N.espacio * nombre.tam / N.tam;
+    nombre.renglones.forEach((t, i) => {
+      const base = N.base + i * N.renglon * nombre.tam / N.tam;
+      // Letra por letra (no ctx.letterSpacing, que no todos los Safari tienen): cada una va donde termina
+      // lo anterior medido entero, así se conserva el ajuste entre pares de letras, más el espacio.
+      const letras = [...t];
+      letras.forEach((letra, j) => {
+        const x = N.x + medir(letras.slice(0, j).join(''), nombre.tam) + j * espacio;
+        ctx.font = `800 ${nombre.tam}px "${CV_FUENTE_NOMBRE}"`;
+        ctx.fillText(letra, x, base);
+      });
+    });
+  }
+  if(bloque.ok){
+    ctx.fillStyle = D.color;
+    ctx.font = `700 ${bloque.tam}px "${CV_FUENTE_DATOS}"`;
+    bloque.renglones.forEach(r => {
+      if(r.punto){ ctx.beginPath(); ctx.arc(D.puntoX, r.base - D.subePunto * bloque.k, D.punto * bloque.k, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillText(r.texto, bloque.textoX, r.base);
+    });
+  }
+
+  let problema = null;
+  if(fotoUrl && !foto) problema = `No se pudo cargar la foto de ${n.nombre}. Revisá tu conexión o volvé a subirla desde Editar.`;
+  else if(!nombre.ok) problema = 'El nombre no entra en dos renglones: acortalo desde Editar.';
+  else if(!items.length) problema = 'Completá al menos una línea.';
+  else if(!bloque.ok) problema = `No entra todo: acortá alguna línea (la que más ocupa es ${bloque.masLarga.label}).`;
+  return { problema, lineas: items.map(it => it.texto) };
+}
+
+// Pantalla "CV de [nombre]": la vista previa arriba (al costado en la compu) y las líneas abajo.
+function abrirCvNinera(id){
   const n = nineraPorId(id);
-  const ta = document.getElementById('cv-msg-'+id);
-  if(!ta) return;
-  const blob = new Blob([ta.value], {type:'text/plain;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download = `pedido_cv_${(n?.nombre||'ninera').replace(/\s+/g,'_')}.txt`; a.click(); URL.revokeObjectURL(url);
-  marcarCvGenerado(id);
+  if(!n){ toast('No se encontró la niñera.', 'bad'); return; }
+  const datos = n.cv_datos || precargaCv(n);
+  const edad = edadCalculadaCv(n);
+  const motivo = motivoCvViejo(n);
+  const campos = CV_LINEAS.map(l => {
+    if(l.key === 'edad' && edad !== null) return `<div class="field"><label>Edad</label>
+      <div class="cv-fija">${edad} años <span class="helper">(sale de la fecha de nacimiento)</span></div></div>`;
+    return `<div class="field"><label for="cv-${l.key}">${escaparHtml(l.label)}</label>
+      <textarea id="cv-${l.key}" rows="2" oninput="programarRedibujoCv(${argJs(id)})">${escaparHtml(datos[l.key] || '')}</textarea></div>`;
+  }).join('');
+  abrirModal(`
+    <h2 style="margin:0 0 6px;padding-right:44px;">CV de ${escaparHtml(n.nombre)}</h2>
+    <div class="helper" style="margin-bottom:10px;">${n.cv_datos ? 'Una línea vacía no va al CV.' : 'Precargado con la ficha: revisalo y acortá lo que no entre. Una línea vacía no va al CV.'}</div>
+    ${n.cv_url && motivo ? `<div class="warnbox cv-viejo" style="margin:0 0 10px;">${escaparHtml(`El CV quedó viejo (${motivo}): generalo de nuevo.`)}</div>` : ''}
+    <div class="cv-pantalla">
+      <div class="cv-vista">
+        <canvas id="cv-lienzo" width="${CV_MEDIDAS.ancho}" height="${CV_MEDIDAS.alto}" role="img" aria-label="Vista previa del CV"></canvas>
+        <div id="cv-estado" class="helper" role="status"><span class="spinner dark"></span> Dibujando…</div>
+        <div id="cv-listo"></div>
+      </div>
+      <div class="cv-campos">
+        ${campos}
+        <div class="confirmbtns">
+          <button class="btn primary" onclick="conGuardado(this, ()=>generarCv(${argJs(id)}))">Guardar y generar CV</button>
+        </div>
+      </div>
+    </div>`);
+  protegerModal('cv:' + id);
+  pintarCvListo(id);
+  return redibujarCv(id);
+}
+// Lo que se escribió en la pantalla, por clave (la edad solo si no hay fecha de nacimiento).
+function leerDatosCv(n){
+  const datos = {};
+  CV_LINEAS.forEach(l => {
+    const el = document.getElementById('cv-' + l.key);
+    if(el) datos[l.key] = limpiarLineaCv(el.value);
+  });
+  if(edadCalculadaCv(n) !== null) delete datos.edad;
+  return datos;
+}
+let redibujoCvTimer = null, redibujoCvVuelta = 0;
+function programarRedibujoCv(id){
+  clearTimeout(redibujoCvTimer);
+  redibujoCvTimer = setTimeout(() => redibujarCv(id), 150);
+}
+async function redibujarCv(id){
+  const n = nineraPorId(id), canvas = document.getElementById('cv-lienzo');
+  if(!n || !canvas) return null;
+  const vuelta = ++redibujoCvVuelta;
+  const r = await dibujarCv(canvas, n, leerDatosCv(n));
+  const estado = document.getElementById('cv-estado');
+  // Si mientras tanto se escribió otra cosa o se cerró la pantalla, esta vuelta ya no cuenta.
+  if(vuelta !== redibujoCvVuelta || !estado || canvas !== document.getElementById('cv-lienzo')) return r;
+  estado.innerHTML = r.problema ? `<div class="warnbox" style="margin-top:8px;">${escaparHtml(r.problema)}</div>` : 'Así va a quedar.';
+  return r;
+}
+
+// Sin la migración 20261104_cv_automatico (base sin las columnas nuevas): mismo error que Supabase.
+const esFaltaColumnaCv = error => ['PGRST204', '42703'].includes(error?.code) && /cv_datos|cv_generado_con/.test(error?.message || '');
+const nombreArchivoCv = n => `CV ${limpiarLineaCv(n.nombre).replace(/[\\/:*?"<>|]/g, '')}.png`;
+const archivosCv = new Map(); // id de la niñera -> { url, archivo } listo para compartir
+
+async function generarCv(id){
+  const n = nineraPorId(id), canvas = document.getElementById('cv-lienzo');
+  if(!n || !canvas) return;
+  const datos = leerDatosCv(n);
+  ++redibujoCvVuelta; // un redibujo pendiente no pisa este
+  const r = await dibujarCv(canvas, n, datos);
+  if(r.problema){
+    const estado = document.getElementById('cv-estado');
+    if(estado) estado.innerHTML = `<div class="warnbox" style="margin-top:8px;">${escaparHtml(r.problema)}</div>`;
+    toast(r.problema, 'bad');
+    return;
+  }
+  let blob = null;
+  try { blob = await new Promise(ok => canvas.toBlob(ok, 'image/png')); } catch(e){ blob = null; }
+  if(!blob){ toast('No se pudo armar la imagen del CV. Probá de nuevo.', 'bad'); return; }
+  // Nombre al azar (como las fotos): el link es público y no tiene que decir de quién es.
+  const ruta = `cv/${crypto.randomUUID()}.png`;
+  const bucket = sb.storage.from('ninieras-fotos');
+  try {
+    const { error } = await bucket.upload(ruta, blob, { contentType: 'image/png', upsert: false });
+    if(error) throw error;
+  } catch(e){
+    toast(`No se pudo subir el CV (${e?.message || 'revisá tu conexión'}). No se guardó nada.`, 'bad');
+    return;
+  }
+  const url = bucket.getPublicUrl(ruta).data.publicUrl;
+  const cambios = { cv_datos: datos, cv_url: url, cv_generado_en: todayISO(), cv_generado_con: { nombre: n.nombre, foto: n.foto || null, lineas: r.lineas } };
+  let res;
+  try { res = await sb.from('ninieras').update(cambios).eq('id', id).select('id'); }
+  catch(e){ res = { error: { message: 'Revisá tu conexión' } }; }
+  if(res.error || !res.data?.length){
+    // Que la imagen no quede suelta en el bucket público: no la usa ninguna ficha.
+    try { await bucket.remove([ruta]); } catch(e){ /* nada más que hacer */ }
+    if(esFaltaColumnaCv(res.error)) toast('Falta actualizar la base para el CV nuevo: avisale a Diego. No se guardó nada.', 'bad');
+    else if(res.error) toast(`No se pudo guardar el CV: ${res.error.message}. No se guardó nada.`, 'bad');
+    else toast('No se encontró la niñera: puede que la hayan borrado. No se guardó nada.', 'bad');
+    return;
+  }
+  const anterior = n.cv_url;
+  Object.assign(n, cambios);
+  archivosCv.set(id, { url, archivo: new File([blob], nombreArchivoCv(n), { type: 'image/png' }) });
+  if(anterior && anterior !== url) await borrarCvAnterior(anterior, id);
+  filtrarNinieras();
+  await abrirCvNinera(id); // la misma pantalla, ahora con "Compartir"
+  toast('CV listo.');
+}
+// El CV anterior se borra para no dejar archivos sueltos, solo si es uno de la app (ninieras-fotos/cv/)
+// y ninguna otra ficha lo usa. Si no se puede, solo se anota: el nuevo ya está guardado.
+async function borrarCvAnterior(url, id){
+  const ruta = rutaEnFotosNinieras(url);
+  if(!ruta || !ruta.startsWith('cv/') || ninierasItems.some(x => x.id !== id && x.cv_url === url)) return;
+  try {
+    const { error } = await sb.storage.from('ninieras-fotos').remove([ruta]);
+    if(error) console.warn('[CV] no se pudo borrar el anterior', error);
+  } catch(e){ console.warn('[CV] no se pudo borrar el anterior', e); }
+}
+
+// Compartir: el iPhone solo deja abrir el menú de compartir en el mismo toque, sin esperas en el medio,
+// así que el archivo se baja antes (al abrir la pantalla) y el botón lo usa ya listo.
+function puedeCompartirArchivos(archivos){
+  try { return !!(navigator.canShare && navigator.canShare({ files: archivos })); } catch(e){ return false; }
+}
+function prepararArchivoCv(id, url, nombre){
+  const listo = archivosCv.get(id);
+  if(listo && listo.url === url) return Promise.resolve(listo.archivo);
+  return fetch(url).then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(blob => {
+      const archivo = new File([blob], nombreArchivoCv({ nombre }), { type: 'image/png' });
+      archivosCv.set(id, { url, archivo });
+      return archivo;
+    });
+}
+async function pintarCvListo(id){
+  const n = nineraPorId(id), caja = document.getElementById('cv-listo');
+  if(!n || !caja || !n.cv_url || motivoCvViejo(n)) return;
+  const fecha = n.cv_generado_en ? ` el ${fmtFechaCv(n.cv_generado_en)}` : '';
+  caja.innerHTML = `<div class="cv-listo-caja">
+      <div>${escaparHtml(`CV generado${fecha}.`)}</div>
+      <div class="cv-listo-botones">
+        <button type="button" class="btn primary" id="cv-compartir" disabled onclick="compartirCv(${argJs(id)})"><span class="spinner"></span> Preparando…</button>
+        <a class="btn ghost" href="${urlSegura(n.cv_url)}" target="_blank" rel="noopener">Ver el CV</a>
+      </div>
+    </div>`;
+  const url = n.cv_url;
+  let archivo = null;
+  try { archivo = await prepararArchivoCv(id, url, n.nombre); } catch(e){ archivo = null; }
+  const btn = document.getElementById('cv-compartir');
+  if(!btn || nineraPorId(id)?.cv_url !== url) return;
+  if(!archivo){
+    btn.outerHTML = `<div class="helper">No se pudo preparar el CV para compartir: abrilo con "Ver el CV".</div>`;
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = puedeCompartirArchivos([archivo]) ? 'Compartir' : 'Descargar';
+}
+function fmtFechaCv(iso){ const [a, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${a}`; }
+function compartirCv(id){
+  const n = nineraPorId(id), listo = archivosCv.get(id);
+  if(!n || !listo || listo.url !== n.cv_url){ toast('El CV todavía se está preparando. Probá de nuevo en un momento.', 'bad'); return; }
+  compartirArchivosCv([listo.archivo], `CV de ${n.nombre}`);
+}
+function compartirArchivosCv(archivos, titulo){
+  if(puedeCompartirArchivos(archivos)){
+    navigator.share({ files: archivos, title: titulo }).catch(e => {
+      if(e?.name === 'AbortError') return; // cerró el menú de compartir
+      descargarArchivosCv(archivos);
+      toast('No se pudo abrir Compartir: se descargó.', 'bad');
+    });
+    return;
+  }
+  descargarArchivosCv(archivos);
+}
+function descargarArchivosCv(archivos){
+  archivos.forEach(f => {
+    const u = URL.createObjectURL(f);
+    const a = document.createElement('a');
+    a.href = u; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  });
 }
 
 

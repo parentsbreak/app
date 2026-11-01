@@ -445,6 +445,14 @@ create table public.ninieras (
   foto_propuesta_en timestamp with time zone,
   temporada_lugares jsonb,
   temporada_lugares_en timestamp with time zone,
+  -- CV automático (01/11/2026, 20261104_cv_automatico): las líneas que carga una admin en "CV de
+  -- [nombre]" (edad sin fecha de nacimiento, estudios, experiencia, panales, idiomas,
+  -- certificaciones, diferenciales; vacía = no va) y con qué se dibujó el último CV (nombre, foto,
+  -- líneas), para avisar que quedó viejo. El PNG va a ninieras-fotos y el link a cv_url.
+  cv_datos jsonb,
+  cv_generado_con jsonb,
+  constraint ninieras_cv_datos_objeto CHECK (cv_datos is null or jsonb_typeof(cv_datos) = 'object'),
+  constraint ninieras_cv_generado_con_objeto CHECK (cv_generado_con is null or jsonb_typeof(cv_generado_con) = 'object'),
   constraint ninieras_pkey PRIMARY KEY (id),
   constraint ninieras_user_id_key UNIQUE (user_id)
 );

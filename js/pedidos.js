@@ -1715,17 +1715,19 @@ async function abrirPerfilesMadre(solicitudId){
   const ids = [...new Set(pueden.map(n => n.ninera_id).filter(Boolean))];
   const [historial, cvs] = await Promise.all([
     historialPedidosEnCurso([s]),
-    ids.length ? sb.from('ninieras').select('id,cv_generado_en').in('id', ids) : { data: [] },
+    ids.length ? sb.from('ninieras').select('id,cv_generado_en,cv_url').in('id', ids) : { data: [] },
   ]);
   if(token !== modalToken) return;
   const h = historial ? historial[s.id] : null;
   // Sin poder leer los CV no se avisa que falta: solo se pide adjuntarlo.
-  const cvPorId = cvs.error ? null : new Map((cvs.data || []).map(n => [n.id, n.cv_generado_en]));
+  // El CV de la app (cv_url) se comparte con un toque; el de Canva (solo cv_generado_en) se adjunta a mano.
+  const cvPorId = cvs.error ? null : new Map((cvs.data || []).map(n => [n.id, n]));
   // Las que ya fueron, arriba.
   const items = pueden.map((n, i) => ({
     i, snId: n.id, nineraId: n.ninera_id || null, nombre: n.ninera_nombre || '',
     conocida: !!h && vecesEnFamilia(h, n) > 0,
-    sinCv: !!cvPorId && !!n.ninera_id && cvPorId.has(n.ninera_id) && !cvPorId.get(n.ninera_id),
+    sinCv: !!cvPorId && !!n.ninera_id && cvPorId.has(n.ninera_id) && !cvPorId.get(n.ninera_id).cv_generado_en && !cvPorId.get(n.ninera_id).cv_url,
+    cvUrl: (cvPorId && n.ninera_id && cvPorId.get(n.ninera_id)?.cv_url) || null,
   })).sort((a, b) => (b.conocida - a.conocida) || a.i - b.i);
   const marcas = perfilesMadreMarcas.get(s.id) || { tildadas: new Set(), vistas: new Set() };
   items.forEach(it => {
@@ -1765,11 +1767,32 @@ function tildarPerfilMadre(snId, marcar){
   revisarMensajeMadre();
   pintarAvisosCvPerfiles();
 }
+// Las nuevas con CV de la app: "Compartir los CV" los manda todos de un toque (los archivos se bajan
+// antes, al pintar: el iPhone no deja esperar entre el toque y el menú de compartir). Las de Canva:
+// adjuntarlo a mano. Sin ninguno: generarlo desde la ficha.
 function pintarAvisosCvPerfiles(){
   const st = perfilesMadre, caja = document.getElementById('perfiles-cv');
   if(!st || !caja) return;
   const nuevas = st.items.filter(it => !it.conocida && st.tildadas.has(it.snId));
-  const conCv = nuevas.filter(it => !it.sinCv).map(it => it.nombre);
-  caja.innerHTML = (conCv.length ? `<div class="helper">${escaparHtml(`Adjuntá en WhatsApp el CV de ${listaNombresTexto(conCv)}.`)}</div>` : '')
+  const deLaApp = nuevas.filter(it => it.cvUrl);
+  const aMano = nuevas.filter(it => !it.sinCv && !it.cvUrl).map(it => it.nombre);
+  caja.innerHTML = (deLaApp.length ? `<div class="perfiles-cv-app">
+        <button type="button" class="btn" id="perfiles-compartir-cv" onclick="compartirCvsPerfiles()">${escaparHtml(`Compartir el CV de ${listaNombresTexto(deLaApp.map(it => it.nombre))}`)}</button>
+        <div class="helper">Mandalo en el chat con la madre, después del mensaje.</div></div>` : '')
+    + (aMano.length ? `<div class="helper">${escaparHtml(`Adjuntá en WhatsApp el CV de ${listaNombresTexto(aMano)}.`)}</div>` : '')
     + nuevas.filter(it => it.sinCv).map(it => `<div class="warnbox">${escaparHtml(`${it.nombre} todavía no tiene CV: generalo desde su ficha.`)}</div>`).join('');
+  deLaApp.forEach(it => prepararArchivoCv(it.nineraId, it.cvUrl, it.nombre).catch(() => {}));
+}
+function compartirCvsPerfiles(){
+  const st = perfilesMadre;
+  if(!st) return;
+  const deLaApp = st.items.filter(it => !it.conocida && st.tildadas.has(it.snId) && it.cvUrl);
+  const listos = deLaApp.map(it => archivosCv.get(it.nineraId)).filter((a, i) => a && a.url === deLaApp[i].cvUrl);
+  if(listos.length < deLaApp.length){
+    // Se reintenta bajar los que fallaron, para el próximo toque.
+    deLaApp.forEach(it => prepararArchivoCv(it.nineraId, it.cvUrl, it.nombre).catch(() => {}));
+    toast('Los CV todavía se están preparando (o no se pudieron bajar). Probá de nuevo en un momento.', 'bad');
+    return;
+  }
+  compartirArchivosCv(listos.map(a => a.archivo), 'CV');
 }
