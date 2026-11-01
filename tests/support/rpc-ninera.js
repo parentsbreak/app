@@ -200,6 +200,70 @@ function avisoPedidoNuevo(db, ahoraISO, fila) {
 }
 const ABIERTO = ['sin_asignar', 'pendiente_confirmar'];
 
+/* ---- Etapa 6 (03/11/2026): elegir la niñera, espejo de 20261103_eleccion_pedidos.sql ----
+   Los avisos los disparan triggers sobre las escrituras de siempre del panel; app.js los llama desde el
+   REST simulado (POST / PATCH de solicitud_ninieras a 'confirmada' y PATCH de solicitudes a 'cancelada'),
+   así que cualquier pantalla que ya escribe eso recibe los avisos sin hacer nada más. */
+const RPC_ETAPA_6 = ['ninera_marcar_pedido_visto'];
+// Sin la migración, estas columnas no existen (leerlas da 42703 y escribirlas PGRST204). ninera_mis_pedidos y
+// ninera_mis_sittings existen pero con la forma de antes (sin las columnas nuevas): rpcNinera(..., { sinEtapa6 }).
+const COLUMNAS_ETAPA_6 = {
+  solicitudes: ['horario_aproximado'],
+  solicitud_ninieras: ['seleccionada_en', 'visto_en'],
+  sittings_traslados: ['solicitud_id'],
+};
+// pedido_puede_avisar(): con solo_practica prendido (o sin la fila: como la migración, prendido), solo si la
+// familia y la niñera son las dos de práctica; apagado, siempre.
+function pedidoPuedeAvisar(db, familiaId, familiaNombre, nineraNombre) {
+  const cfg = (db.app_config || []).find(c => c.id === 'pedidos_app')?.valor ?? {};
+  if (!(cfg.solo_practica ?? true)) return true;
+  const fam = (db.familias || []).find(f => f.id === familiaId);
+  return esPractica(fam ? fam.nombre : familiaNombre) && esPractica(nineraNombre);
+}
+// solicitud_ninieras_al_confirmar(): corre cuando una fila pasa a 'confirmada' (o se inserta así). Las demás filas
+// de la app abiertas ('invitada' / 'acepto') pasan a 'cubierto' y a las que habían dicho "Puedo" les llega "Gracias
+// por responder"; a la elegida, si tiene app y el pedido es de hoy en adelante, "¡Quedaste seleccionada!" y
+// seleccionada_en. Solo sittings. Sin avisos si pedidoPuedeAvisar da false.
+function alConfirmarFila(db, ahoraISO, sn) {
+  const hoy = fechaMontevideo(ahoraISO);
+  const s = (db.solicitudes || []).find(x => x.id === sn.solicitud_id);
+  if (!s || s.tipo !== 'sitting') return;
+  for (const otra of (db.solicitud_ninieras || [])) {
+    if (otra.solicitud_id !== sn.solicitud_id || otra.id === sn.id || (otra.origen ?? 'panel') !== 'app' || !['invitada', 'acepto'].includes(otra.estado)) continue;
+    otra.estado = 'cubierto';
+    if (otra.respondido_en != null && s.fecha >= hoy && pedidoPuedeAvisar(db, s.familia_id, s.familia_nombre, otra.ninera_nombre)) {
+      encolarAviso(db, ahoraISO, {
+        clave: `pedido:${otra.id}:cubierto`, para_ninera_id: otra.ninera_id, tipo: 'pedido', titulo: 'Gracias por responder',
+        cuerpo: 'Este sitting ya quedó cubierto. ¡Te tendremos en cuenta para el próximo!', url: '#inicio', datos: { solicitud_ninera_id: otra.id },
+      });
+    }
+  }
+  if (sn.ninera_id == null || sn.seleccionada_en != null || s.fecha < hoy) return;
+  const n = (db.ninieras || []).find(x => x.id === sn.ninera_id);
+  if (!n || n.user_id == null || !pedidoPuedeAvisar(db, s.familia_id, s.familia_nombre, n.nombre)) return;
+  sn.seleccionada_en = ahoraISO;
+  encolarAviso(db, ahoraISO, {
+    clave: `pedido:${sn.id}:seleccionada`, para_ninera_id: n.id, tipo: 'pedido', titulo: '¡Quedaste seleccionada!',
+    cuerpo: `${diaCortoTexto(s.fecha)} a las ${hhmm(s.hora_inicio)}. Ya tienes todos los datos en la app.`, url: `#pedido/${sn.id}`,
+    datos: { solicitud_ninera_id: sn.id },
+  });
+}
+// solicitudes_al_cancelar(): la solicitud pasó a 'cancelada'. Las filas de la app abiertas pasan a 'cancelado' y a las
+// que dijeron "Puedo", "Se canceló el pedido del [día]".
+function alCancelarSolicitud(db, ahoraISO, s) {
+  const hoy = fechaMontevideo(ahoraISO);
+  for (const otra of (db.solicitud_ninieras || [])) {
+    if (otra.solicitud_id !== s.id || (otra.origen ?? 'panel') !== 'app' || !['invitada', 'acepto'].includes(otra.estado)) continue;
+    otra.estado = 'cancelado';
+    if (otra.respondido_en != null && s.fecha >= hoy && pedidoPuedeAvisar(db, s.familia_id, s.familia_nombre, otra.ninera_nombre)) {
+      encolarAviso(db, ahoraISO, {
+        clave: `pedido:${otra.id}:cancelado`, para_ninera_id: otra.ninera_id, tipo: 'pedido', titulo: `Se canceló el pedido del ${diaCortoTexto(s.fecha)}`,
+        cuerpo: 'Gracias por responder.', url: '#inicio', datos: { solicitud_ninera_id: otra.id },
+      });
+    }
+  }
+}
+
 // enviar_pedido_app y sugeridas_datos. admin: false simula la sesión de una niñera (la guarda
 // es_usuaria_autorizada() da false: no_autorizada). El valor por defecto de app_config 'pedidos_app'
 // (solo_practica = true si falta) es el de la migración.
@@ -227,7 +291,7 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
       if (!practica && (cfg.solo_practica ?? true)) throw errorRpc('solo_practica');
       const zona = [s.zona, fam.zona].map(z => String(z ?? '').trim()).find(z => z !== '') ?? null;
       const horario = hhmm(s.hora_inicio) + (s.hora_fin == null ? ', sin hora de fin'
-        : ` – ${hhmm(s.hora_fin)}${s.termina_dia_siguiente ? ' del día siguiente' : ''} (aproximada, se puede extender)`);
+        : ` – ${hhmm(s.hora_fin)}${s.termina_dia_siguiente ? ' del día siguiente' : ''}${s.horario_aproximado ? ' (aproximada, se puede extender)' : ''}`);
 
       // Todo o nada: se valida todo y recién al final se escribe (la SQL lo logra con la transacción).
       const nuevas = [];
@@ -247,7 +311,7 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
         if (esPractica(n.nombre) !== practica) throw errorRpc('practica_mezclada', { hint: n.nombre });
         if (yaEnviada(n.id)) continue;
         nuevas.push({ id: randomUUID(), solicitud_id: s.id, ninera_id: n.id, ninera_nombre: n.nombre, pago_ninera: null, estado: 'invitada',
-          created_at: ahoraISO, origen: 'app', precio_hora: precio, enviado_en: ahoraISO, respondido_en: null, motivo_no: null, motivo_texto: null });
+          created_at: ahoraISO, origen: 'app', precio_hora: precio, enviado_en: ahoraISO, respondido_en: null, motivo_no: null, motivo_texto: null, seleccionada_en: null, visto_en: null });
       }
       (db.solicitud_ninieras = db.solicitud_ninieras || []).push(...nuevas);
       for (const sn of nuevas) {
@@ -327,7 +391,9 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
 }
 
 // ahora: el reloj fijo del test (ISO con zona), para "hoy" y para el now() de los guardados.
-function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
+// sinEtapa6: la base sin la migración 20261103 (03/11/2026): ninera_marcar_pedido_visto no existe (lo pone app.js) y
+// ninera_mis_pedidos / ninera_mis_sittings devuelven lo de antes, sin las columnas nuevas.
+function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false } = {}) {
   const hoy = fechaMontevideo(ahora);
   const ahoraISO = new Date(ahora).toISOString();
   const miFila = () => (db.ninieras || []).find(n => n.id === nineraId);
@@ -394,6 +460,7 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
         .map(s => {
           const f = (db.familias || []).find(x => x.id === s.familia_id) || null;
           const confirmado = s.estado === 'confirmado';
+          const sol = s.solicitud_id ? (db.solicitudes || []).find(x => x.id === s.solicitud_id) : null;
           return {
             id: s.id, tipo: s.tipo, fecha: s.fecha, hora_inicio: s.hora_inicio ?? null, hora_fin: s.hora_fin ?? null,
             termina_dia_siguiente: !!s.termina_dia_siguiente, estado: s.estado,
@@ -403,7 +470,15 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
             origen: confirmado ? s.origen ?? null : null,
             destino: confirmado ? s.destino ?? null : null,
             chicos: chicosTexto(db, f ? f.id : null, hoy),
-            notas_para_ninera: null,
+            // Etapa 6: si el registro salió de un pedido, las indicaciones (solo confirmado, como la dirección),
+            // la marca de horario aproximado y su precio por hora (el de su fila confirmada: nunca un total).
+            notas_para_ninera: sinEtapa6 ? null : (confirmado ? String(sol?.notas_para_ninera ?? '').trim() || null : null),
+            ...(sinEtapa6 ? {} : {
+              horario_aproximado: !!sol?.horario_aproximado,
+              precio_hora: (db.solicitud_ninieras || []).filter(x => x.solicitud_id === s.solicitud_id && x.ninera_id === s.ninera_id && x.estado === 'confirmada')
+                .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.precio_hora ?? null,
+              solicitud_id: s.solicitud_id ?? null,
+            }),
           };
         });
     },
@@ -472,10 +547,15 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
     // Etapa 5 (02/11/2026), migración 20261102_pedidos_app.sql. Sus pedidos abiertos ('invitada' y
     // 'acepto', de la app, con la solicitud abierta y de hoy en adelante): nunca la familia, la dirección,
     // el cobro ni las notas, y los chicos solo si están cargados uno por uno.
+    // Etapa 6 (03/11/2026), 20261103_eleccion_pedidos.sql: además, una sola vez, lo que se cerró: la elegida
+    // ('confirmada' con seleccionada_en) hasta que abre los datos, y 'cubierto' / 'cancelado' de las que dijeron
+    // "Puedo" hasta que lo ven (visto_en); y las columnas horario_aproximado y solicitud_id al final.
     ninera_mis_pedidos: () => (db.solicitud_ninieras || [])
       .map(sn => ({ sn, s: (db.solicitudes || []).find(x => x.id === sn.solicitud_id) }))
-      .filter(({ sn, s }) => nineraId && s && sn.ninera_id === nineraId && (sn.origen ?? 'panel') === 'app'
-        && ['invitada', 'acepto'].includes(sn.estado) && ABIERTO.includes(s.estado) && s.fecha >= hoy)
+      .filter(({ sn, s }) => nineraId && s && sn.ninera_id === nineraId && s.fecha >= hoy && (
+        ((sn.origen ?? 'panel') === 'app' && ['invitada', 'acepto'].includes(sn.estado) && ABIERTO.includes(s.estado))
+        || (!sinEtapa6 && sn.estado === 'confirmada' && sn.seleccionada_en != null && sn.visto_en == null && s.estado === 'confirmada')
+        || (!sinEtapa6 && (sn.origen ?? 'panel') === 'app' && ['cubierto', 'cancelado'].includes(sn.estado) && sn.respondido_en != null && sn.visto_en == null)))
       .sort((a, b) => a.s.fecha.localeCompare(b.s.fecha) || horaParaOrdenar(a.s).localeCompare(horaParaOrdenar(b.s)))
       .map(({ sn, s }) => {
         const f = (db.familias || []).find(x => x.id === s.familia_id);
@@ -485,8 +565,19 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
           id: sn.id, estado: sn.estado, fecha: s.fecha, hora_inicio: s.hora_inicio ?? null, hora_fin: s.hora_fin ?? null,
           termina_dia_siguiente: !!s.termina_dia_siguiente, zona, chicos: conHijos ? chicosTexto(db, s.familia_id, hoy) : null,
           precio_hora: sn.precio_hora ?? null, responder_hasta: s.responder_hasta ?? null, enviado_en: sn.enviado_en ?? null, respondido_en: sn.respondido_en ?? null,
+          ...(sinEtapa6 ? {} : { horario_aproximado: !!s.horario_aproximado, solicitud_id: s.id }),
         };
       }),
+    // La niñera vio la tarjeta de "Seleccionada" o el aviso de "cubierto" / "cancelado": no se le vuelve a mostrar.
+    // Solo sus filas; true si marcó algo.
+    ninera_marcar_pedido_visto: (cuerpo = {}) => {
+      if (!nineraId) throw errorRpc('no_autorizada');
+      const sn = (db.solicitud_ninieras || []).find(x => x.id === cuerpo.p_sn_id && x.ninera_id === nineraId && x.visto_en == null
+        && ['confirmada', 'cubierto', 'cancelado'].includes(x.estado));
+      if (!sn) return false;
+      sn.visto_en = ahoraISO;
+      return true;
+    },
     // 'acepto' ("Puedo") o 'no_puedo' con motivo (el texto solo con 'otro'). 'ok', 'ya_respondido' o
     // 'cerrado'; un "Puedo" avisa a las admins (admin:pedido:<sn>:acepto).
     responder_pedido: (cuerpo = {}) => {
@@ -564,4 +655,4 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString()) {
   };
 }
 
-module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };
+module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, pedidoPuedeAvisar, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };

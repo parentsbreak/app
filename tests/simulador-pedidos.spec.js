@@ -8,8 +8,8 @@
 // `soloPracticaApagado(e)` (pone solo_practica en false en e.db.app_config).
 const { test, expect } = require('@playwright/test');
 const { abrirApp, abrirAppNinera, verificarLimpio } = require('./support/app');
-const { ID, datosPedidos } = require('./support/datos');
-const { rpcPedidosAdmin } = require('./support/rpc-ninera');
+const { ID, datosPedidos, datosEleccion } = require('./support/datos');
+const { rpcPedidosAdmin, alConfirmarFila } = require('./support/rpc-ninera');
 
 const RUIDO_4XX = /status of 4\d\d/;
 const SOL_UNO = '80000000-0000-4000-8000-000000000002'; // Familia Prueba Uno, con chicos, 06/10
@@ -31,6 +31,15 @@ const envio = (id, precio = 300) => ({ ninera_id: id, precio_hora: precio });
 const AHORA = '2026-10-04T12:00:00-03:00';
 // Manda un pedido desde Node (como una admin) para armar la situación de un test de la niñera.
 const mandar = (e, sol, envios) => rpcPedidosAdmin(e.db, AHORA, { admin: true }).enviar_pedido_app({ p_solicitud_id: sol, p_envios: envios });
+
+// Lo que hace "Asignar", desde Node, para armar la situación de un test de la niñera: la solicitud y la
+// fila a confirmada, con las mismas reglas de la base que el REST simulado (alConfirmarFila).
+const asignarDesdeNode = (e, sol, snId) => {
+  e.db.solicitudes.find(s => s.id === sol).estado = 'confirmada';
+  const sn = e.db.solicitud_ninieras.find(x => x.id === snId);
+  sn.estado = 'confirmada';
+  alConfirmarFila(e.db, new Date(AHORA).toISOString(), sn);
+};
 
 test.describe('simulador del pedido por la app (etapa 5)', () => {
   test('enviar_pedido_app valida como la SQL, en el mismo orden y con el nombre en el hint', async ({ page }) => {
@@ -121,7 +130,8 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
       clave: `pedido:${filas[0].id}:nuevo`, para_ninera_id: ID.nPractica, para_admin: null, tipo: 'pedido',
       titulo: 'Sitting 06/10', url: `#pedido/${filas[0].id}`, datos: { solicitud_ninera_id: filas[0].id },
     });
-    expect(avisos[0].cuerpo).toBe('20:00 – 23:00 (aproximada, se puede extender)\nZona: Pocitos\n1 chico (4 años)\nPrecio por hora: $1.250');
+    // Etapa 6: sin la marca horario_aproximado el horario va solo (antes iba siempre "aproximada").
+    expect(avisos[0].cuerpo).toBe('20:00 – 23:00\nZona: Pocitos\n1 chico (4 años)\nPrecio por hora: $1.250');
   });
 
   test('responder_hasta: 15 min si es para hoy; el horario sin fin y el que cruza la medianoche', async ({ page }) => {
@@ -138,6 +148,12 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     Object.assign(e.db.solicitudes.find(s => s.id === SOL_PRACTICA_HOY), { hora_inicio: '20:00:00', hora_fin: '00:30:00', termina_dia_siguiente: true, estado: 'sin_asignar' });
     e.db.solicitud_ninieras.length = 0;
     await enviar(SOL_PRACTICA_HOY);
+    expect(e.db.avisos.filter(a => a.titulo === 'Sitting 04/10').pop().cuerpo.split('\n')[0]).toBe('20:00 – 00:30 del día siguiente');
+    // Con la marca (etapa 6), sí.
+    Object.assign(e.db.solicitudes.find(s => s.id === SOL_PRACTICA_HOY), { horario_aproximado: true, estado: 'sin_asignar' });
+    e.db.solicitud_ninieras.length = 0;
+    e.db.avisos = e.db.avisos.filter(a => !a.clave.startsWith('pedido:'));
+    await enviar(SOL_PRACTICA_HOY);
     expect(e.db.avisos.filter(a => a.titulo === 'Sitting 04/10').pop().cuerpo.split('\n')[0]).toBe('20:00 – 00:30 del día siguiente (aproximada, se puede extender)');
     verificarLimpio(e);
   });
@@ -153,6 +169,8 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
       id: sn.id, estado: 'invitada', fecha: '2026-10-06', hora_inicio: '20:00:00', hora_fin: '23:00:00', termina_dia_siguiente: false,
       zona: 'Pocitos', chicos: '1 chico (4 años)', precio_hora: 1250, responder_hasta: e.db.solicitudes.find(s => s.id === SOL_PRACTICA).responder_hasta,
       enviado_en: sn.enviado_en, respondido_en: null,
+      // Etapa 6: las dos columnas nuevas, al final.
+      horario_aproximado: false, solicitud_id: SOL_PRACTICA,
     });
     const texto = JSON.stringify(lista.data);
     for (const prohibido of ['familia', 'Familia', 'direccion', 'cobro', 'notas']) expect(texto).not.toContain(prohibido);
@@ -346,6 +364,188 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     expect(r).toEqual({ tabla: 'PGRST205', colSol: '42703', colSn: '42703', colFam: '42703', colPed: '42703', escribe: 'PGRST204', sinColumnas: null });
     // Lo que ya existía anda como siempre.
     expect(e.db.solicitudes.length).toBeGreaterThan(0);
+    verificarLimpio(e, { ignorar: [RUIDO_4XX, /status of 4\d\d|Failed to load resource/] });
+  });
+});
+
+// ---- Etapa 6 (03/11/2026): elegir la niñera, los triggers y lo que ve la niñera ----
+// Espejo de 20261103_eleccion_pedidos.sql (y de supabase/pruebas/fase1_eleccion.sql). Los avisos salen de las
+// escrituras de siempre del panel: la fila de la niñera a 'confirmada' y la solicitud a 'cancelada'.
+test.describe('simulador de la elección de niñera (etapa 6)', () => {
+  // Como "Asignar": la solicitud a confirmada y la fila de la niñera a confirmada, por el REST simulado.
+  const asignar = (page, sol, snId, extra = {}) => page.evaluate(async ([s, id, ex]) => {
+    const a = await sb.from('solicitudes').update({ estado: 'confirmada' }).eq('id', s);
+    const b = await sb.from('solicitud_ninieras').update({ estado: 'confirmada', ...ex }).eq('id', id);
+    return [a.error, b.error];
+  }, [sol, snId, extra]);
+  const fila = (e, id) => e.db.solicitud_ninieras.find(x => x.id === id);
+  const avisosDe = (e, clave) => e.db.avisos.filter(a => a.clave === clave);
+
+  test('asignar a una que dijo "Puedo": la otra que dijo "Puedo" queda cubierta con su aviso y la que no respondió, sin aviso', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion() });
+    expect(await asignar(page, ID.sPendiente, ID.snPendPractica)).toEqual([null, null]);
+    expect(fila(e, ID.snPendPractica)).toMatchObject({ estado: 'confirmada', seleccionada_en: '2026-10-04T15:00:00.000Z', visto_en: null });
+    const sel = avisosDe(e, `pedido:${ID.snPendPractica}:seleccionada`);
+    expect(sel).toHaveLength(1);
+    expect(sel[0]).toMatchObject({
+      para_ninera_id: ID.nPractica, para_admin: null, tipo: 'pedido', titulo: '¡Quedaste seleccionada!',
+      cuerpo: 'mié 07/10 a las 18:00. Ya tienes todos los datos en la app.', url: `#pedido/${ID.snPendPractica}`,
+      datos: { solicitud_ninera_id: ID.snPendPractica },
+    });
+    expect(fila(e, ID.snPendLola).estado).toBe('cubierto');
+    expect(fila(e, ID.snPendMia).estado).toBe('cubierto');
+    const cub = avisosDe(e, `pedido:${ID.snPendLola}:cubierto`);
+    expect(cub).toHaveLength(1);
+    expect(cub[0]).toMatchObject({ para_ninera_id: ID.nLola, tipo: 'pedido', titulo: 'Gracias por responder',
+      cuerpo: 'Este sitting ya quedó cubierto. ¡Te tendremos en cuenta para el próximo!', url: '#inicio', datos: { solicitud_ninera_id: ID.snPendLola } });
+    expect(avisosDe(e, `pedido:${ID.snPendMia}:cubierto`)).toEqual([]);
+    // Volver a tocar la fila no repite nada.
+    await page.evaluate(async id => { await sb.from('solicitud_ninieras').update({ pago_ninera: 801, estado: 'confirmada' }).eq('id', id); }, ID.snPendPractica);
+    expect(e.db.avisos.filter(a => /^pedido:.*:(seleccionada|cubierto)$/.test(a.clave))).toHaveLength(2);
+    verificarLimpio(e);
+  });
+
+  test('asignar con una fila nueva avisa; un traslado, una niñera sin app y un pedido pasado, no; la real con solo_practica, tampoco', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion() });
+    const insertar = (sol, ninera, nombre) => page.evaluate(async ([s, n, nom]) => (await sb.from('solicitud_ninieras').insert({ solicitud_id: s, ninera_id: n, ninera_nombre: nom, estado: 'confirmada', pago_ninera: 500 })).error, [sol, ninera, nombre]);
+    const S = n => `86000000-0000-4000-8000-00000000000${n}`;
+    const nueva = (id, extra = {}) => ({ ...e.db.solicitudes.find(s => s.id === SOL_UNO), id, ...extra });
+    e.db.solicitudes.push(nueva(S(1)), nueva(S(2)), nueva(S(3), { tipo: 'traslado' }), nueva(S(4)), nueva(S(5), { fecha: '2026-10-03' }));
+    const dela = sol => e.db.solicitud_ninieras.find(x => x.solicitud_id === sol);
+    // Carla tiene app pero es real y la familia también: con solo_practica prendido, nada.
+    expect(await insertar(S(1), ID.nCarla, 'Carla Ejemplo')).toBeNull();
+    expect(dela(S(1)).seleccionada_en ?? null).toBeNull();
+    expect(e.db.avisos.filter(a => a.clave.includes(':seleccionada'))).toEqual([]);
+    soloPracticaApagado(e);
+    await insertar(S(2), ID.nCarla, 'Carla Ejemplo');
+    expect(avisosDe(e, `pedido:${dela(S(2)).id}:seleccionada`)).toHaveLength(1);
+    await insertar(S(3), ID.nCarla, 'Carla Ejemplo'); // traslado
+    await insertar(S(4), ID.nAna, 'Ana Ficticia'); // sin app
+    await insertar(S(5), ID.nCarla, 'Carla Ejemplo'); // pedido pasado
+    expect(e.db.avisos.filter(a => a.clave.includes(':seleccionada'))).toHaveLength(1);
+    expect(dela(S(4)).seleccionada_en ?? null).toBeNull();
+    verificarLimpio(e);
+  });
+
+  test('con solo_practica, una de práctica que dijo "Puedo" en un pedido de familia real queda cubierta sin aviso', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion() });
+    const sn = { id: '86000000-0000-4000-8000-000000000011', solicitud_id: SOL_UNO, ninera_id: ID.nCarla, ninera_nombre: 'Carla Ejemplo', estado: 'invitada', origen: 'app', respondido_en: '2026-10-04T13:00:00.000Z' };
+    const otra = { ...sn, id: '86000000-0000-4000-8000-000000000012', ninera_id: ID.nLola, ninera_nombre: 'Lola (práctica)', estado: 'acepto' };
+    e.db.solicitud_ninieras.push(sn, otra);
+    await page.evaluate(async id => { await sb.from('solicitud_ninieras').update({ estado: 'confirmada' }).eq('id', id); }, sn.id);
+    expect(otra.estado).toBe('cubierto');
+    expect(e.db.avisos.filter(a => a.clave.startsWith('pedido:'))).toEqual([]);
+    expect(sn.seleccionada_en ?? null).toBeNull();
+    verificarLimpio(e);
+  });
+
+  test('cancelar el pedido: las abiertas quedan canceladas y solo a las que dijeron "Puedo" les llega el aviso', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion() });
+    const r = await page.evaluate(async id => (await sb.from('solicitudes').update({ estado: 'cancelada' }).eq('id', id)).error, ID.sPendiente);
+    expect(r).toBeNull();
+    for (const id of [ID.snPendPractica, ID.snPendLola, ID.snPendMia]) expect(fila(e, id).estado).toBe('cancelado');
+    expect(e.db.avisos.filter(a => a.clave.endsWith(':cancelado')).map(a => a.clave).sort())
+      .toEqual([`pedido:${ID.snPendPractica}:cancelado`, `pedido:${ID.snPendLola}:cancelado`].sort());
+    expect(avisosDe(e, `pedido:${ID.snPendLola}:cancelado`)[0]).toMatchObject({
+      para_ninera_id: ID.nLola, tipo: 'pedido', titulo: 'Se canceló el pedido del mié 07/10', cuerpo: 'Gracias por responder.', url: '#inicio',
+      datos: { solicitud_ninera_id: ID.snPendLola },
+    });
+    // Cancelar otra vez (ya cancelada) no repite nada.
+    await page.evaluate(async id => { await sb.from('solicitudes').update({ estado: 'cancelada' }).eq('id', id); }, ID.sPendiente);
+    expect(e.db.avisos.filter(a => a.clave.endsWith(':cancelado'))).toHaveLength(2);
+    verificarLimpio(e);
+  });
+
+  test('la niñera ve la fila elegida una vez y ninera_marcar_pedido_visto la saca; la de otra no se puede marcar', async ({ page }) => {
+    const e = await abrirAppNinera(page, { datos: datosEleccion(), ninera: ID.nPractica });
+    const antes = await rpcNinera(page, 'ninera_mis_pedidos', {});
+    expect(antes.data.map(p => [p.id, p.estado])).toEqual([[ID.snPendPractica, 'acepto'], [ID.snPedPractica, 'acepto']]);
+    expect(antes.data[0]).toMatchObject({ horario_aproximado: false, solicitud_id: ID.sPendiente });
+    expect(antes.data[1]).toMatchObject({ horario_aproximado: true, solicitud_id: ID.sPedida });
+    asignarDesdeNode(e, ID.sPendiente, ID.snPendPractica);
+    const lista = (await rpcNinera(page, 'ninera_mis_pedidos', {})).data;
+    expect(lista.find(p => p.id === ID.snPendPractica)).toMatchObject({ estado: 'confirmada', solicitud_id: ID.sPendiente });
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendLola })).data).toBe(false);
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendPractica })).data).toBe(true);
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendPractica })).data).toBe(false);
+    expect(fila(e, ID.snPendPractica).visto_en).toBe('2026-10-04T15:00:00.000Z');
+    expect((await rpcNinera(page, 'ninera_mis_pedidos', {})).data.map(p => p.id)).toEqual([ID.snPedPractica]);
+    // Con "Puedo" todavía abierto, no se marca.
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPedPractica })).data).toBe(false);
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('cubierto: Lola lo ve una vez y Mía (no respondió) nunca', async ({ page }) => {
+    const e = await abrirAppNinera(page, { datos: datosEleccion(), ninera: ID.nLola });
+    asignarDesdeNode(e, ID.sPendiente, ID.snPendPractica);
+    expect((await rpcNinera(page, 'ninera_mis_pedidos', {})).data.map(p => [p.id, p.estado])).toEqual([[ID.snPendLola, 'cubierto']]);
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendLola })).data).toBe(true);
+    expect((await rpcNinera(page, 'ninera_mis_pedidos', {})).data).toEqual([]);
+    // Mía: su fila queda cubierta pero sin "Puedo": no se le muestra.
+    expect(fila(e, ID.snPendMia).estado).toBe('cubierto');
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('una admin no es niñera: ninera_marcar_pedido_visto da no_autorizada', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion() });
+    expect((await rpcPanel(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendLola })).error).toMatchObject({ message: 'no_autorizada' });
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('ninera_mis_sittings (etapa 6): indicaciones, marca, precio por hora y solicitud_id; las indicaciones solo si está confirmado; nunca notas internas', async ({ page }) => {
+    const datos = datosEleccion();
+    const reg = (id, estado, fecha) => ({ ...datos.sittings_traslados[0], id, tipo: 'sitting', ninera_id: ID.nPractica, ninera_nombre: 'Niñera (práctica)', familia_id: ID.fPractica, familia_nombre: 'Familia (práctica)',
+      fecha, hora_inicio: '18:00:00', hora_fin: '22:00:00', estado, solicitud_id: ID.sPendiente, notas: 'Nota interna que no se ve', cobro_familia: 2000, pago_ninera: 800 });
+    datos.sittings_traslados.push(reg('87000000-0000-4000-8000-000000000001', 'confirmado', '2026-10-07'), reg('87000000-0000-4000-8000-000000000002', 'previsto', '2026-10-08'));
+    const e = await abrirAppNinera(page, { datos, ninera: ID.nPractica });
+    asignarDesdeNode(e, ID.sPendiente, ID.snPendPractica);
+    const todos = (await rpcNinera(page, 'ninera_mis_sittings', {})).data;
+    const r = todos.filter(s => s.solicitud_id);
+    expect(r).toHaveLength(2);
+    expect(r.find(s => s.estado === 'confirmado')).toMatchObject({ notas_para_ninera: 'Hay un perro. Tocar el timbre 5.', horario_aproximado: false, precio_hora: 200, solicitud_id: ID.sPendiente });
+    expect(r.find(s => s.estado === 'previsto').notas_para_ninera).toBeNull();
+    expect(JSON.stringify(todos)).not.toContain('Nota interna');
+    // Un registro sin pedido: las columnas nuevas vacías.
+    for (const s of todos.filter(x => !x.solicitud_id)) expect(s).toMatchObject({ horario_aproximado: false, precio_hora: null, solicitud_id: null, notas_para_ninera: null });
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
+  test('base sin migrar (etapa6) en la niñera: marcar visto da 404, las dos lecturas vuelven a la forma de la etapa 5 y las columnas nuevas dan error', async ({ page }) => {
+    const datos = datosEleccion();
+    datos.sittings_traslados.push({ ...datos.sittings_traslados[0], id: '87000000-0000-4000-8000-000000000003', ninera_id: ID.nPractica, ninera_nombre: 'Niñera (práctica)', fecha: '2026-10-07', estado: 'confirmado' });
+    const e = await abrirAppNinera(page, { datos, ninera: ID.nPractica, baseSinMigrar: 'etapa6' });
+    expect((await rpcNinera(page, 'ninera_marcar_pedido_visto', { p_sn_id: ID.snPendPractica })).error).toMatchObject({ code: 'PGRST202' });
+    const lista = (await rpcNinera(page, 'ninera_mis_pedidos', {})).data;
+    expect(lista).toHaveLength(2);
+    for (const p of lista) { expect(p).not.toHaveProperty('horario_aproximado'); expect(p).not.toHaveProperty('solicitud_id'); }
+    const sit = await rpcNinera(page, 'ninera_mis_sittings', {});
+    expect(sit.error).toBeNull();
+    expect(sit.data.length).toBeGreaterThan(0);
+    for (const s of sit.data) for (const c of ['horario_aproximado', 'precio_hora', 'solicitud_id']) expect(s).not.toHaveProperty(c);
+    // Lo de la etapa 5 anda: un pedido que no es suyo no existe, pero la RPC responde.
+    expect((await rpcNinera(page, 'responder_pedido', { p_sn_id: ID.snPedMia, p_respuesta: 'acepto' })).error).toMatchObject({ message: 'no_existe' });
+    const r = await page.evaluate(async () => ({
+      colSol: (await sbn.from('solicitudes').select('id, horario_aproximado')).error?.code,
+      colSn: (await sbn.from('solicitud_ninieras').select('id, visto_en')).error?.code,
+      colSit: (await sbn.from('sittings_traslados').select('id, solicitud_id')).error?.code,
+      etapa5: (await sbn.from('solicitudes').select('id, responder_hasta')).error?.code ?? null,
+    }));
+    expect(r).toEqual({ colSol: '42703', colSn: '42703', colSit: '42703', etapa5: null });
+    await page.close();
+    expect(e.noSimulados).toEqual([]);
+  });
+
+  test('base sin migrar (etapa6) en el panel: asignar y cancelar no disparan nada y escribir una columna nueva da PGRST204', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosEleccion(), baseSinMigrar: 'etapa6' });
+    expect(await asignar(page, ID.sPendiente, ID.snPendPractica)).toEqual([null, null]);
+    expect(fila(e, ID.snPendLola).estado).toBe('acepto');
+    expect(e.db.avisos.filter(a => a.clave.startsWith('pedido:'))).toEqual([]);
+    const r = await page.evaluate(async () => ({
+      a: (await sb.from('solicitudes').update({ horario_aproximado: true }).eq('id', 'x')).error?.code,
+      b: (await sb.from('sittings_traslados').insert({ solicitud_id: 'x' })).error?.code,
+      etapa5: (await sb.from('solicitudes').select('id, responder_hasta')).error?.code ?? null,
+    }));
+    expect(r).toEqual({ a: 'PGRST204', b: 'PGRST204', etapa5: null });
     verificarLimpio(e, { ignorar: [RUIDO_4XX, /status of 4\d\d|Failed to load resource/] });
   });
 });
