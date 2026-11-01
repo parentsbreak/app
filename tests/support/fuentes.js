@@ -10,9 +10,9 @@ const leer = rel => fs.readFileSync(path.join(RAIZ, rel), 'utf8');
 // Dos puertas desde la fase 1 (26/10/2026): el panel de admins (index.html) y la app de
 // niñeras (ninera/index.html). Las dos cargan primero js/comun.js, con los helpers compartidos.
 const ORDEN_SCRIPTS = [
-  'js/comun.js', 'js/core.js', 'js/auth.js', 'js/app-shell.js', 'js/finanzas.js', 'js/juguetes.js', 'js/agenda.js', 'js/pedidos.js',
+  'js/comun.js', 'js/core.js', 'js/auth.js', 'js/app-shell.js', 'js/finanzas.js', 'js/juguetes.js', 'js/agenda.js',
   'js/contratos.js', 'js/marketing.js', 'js/postulantes.js', 'js/ninieras.js', 'js/familias.js',
-  'js/sittings.js', 'js/intermediaciones.js', 'js/bootstrap.js',
+  'js/sittings.js', 'js/intermediaciones.js', 'js/pedidos.js', 'js/bootstrap.js',
 ];
 // Crece con cada etapa de la fase 1; arranque.js siempre al final.
 const ORDEN_SCRIPTS_NINERA = [

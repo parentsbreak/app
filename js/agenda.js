@@ -925,13 +925,13 @@ async function abrirModalAsignar(solicitudId){
   const html = `
     <h2>Asignar niñera${s.tipo==='traslado'?' al traslado':''}</h2>
     <div class="helper">${escaparHtml(s.familia_nombre)} · ${s.tipo==='traslado'?'Traslado':'Sitting'} · ${s.hora_inicio.slice(0,5)}${s.hora_fin?'–'+s.hora_fin.slice(0,5):''}${s.zona?escaparHtml(' · '+s.zona):''}${s.cobro_familia?` · Cobro a familia $${Number(s.cobro_familia).toLocaleString('es-UY')}`:''}</div>
-    ${tier1.length ? `<div class="agenda-tier-label">Ya trabajaron con esta familia</div>${tier1.map(n=>filaSel(n.ninera, n.motivo)).join('')}` : ''}
-    ${tier2.length ? `<div class="agenda-tier-label">Cubren ${escaparHtml(s.zona||'esta zona')}</div>${tier2.map(n=>filaSel(n.ninera, n.motivo)).join('')}` : ''}
+    ${tier1.length ? `<div class="agenda-tier-label">Ya trabajaron con esta familia</div>${tier1.map(n=>filaSel(n.ninera, n.porque)).join('')}` : ''}
+    ${tier2.length ? `<div class="agenda-tier-label">Cubren ${escaparHtml(s.zona||'esta zona')}</div>${tier2.map(n=>filaSel(n.ninera, n.porque)).join('')}` : ''}
     ${!tier1.length && !tier2.length ? '<div class="helper">Nadie con historial o zona coincidente todavía — mostrando el resto del equipo.</div>' : ''}
     <button type="button" class="smallbtn" style="margin:6px 0;" onclick="document.getElementById('agenda-tier3').style.display='block';this.style.display='none';">+ Niñeras</button>
     <div id="agenda-tier3" style="display:${(!tier1.length && !tier2.length) ? 'block' : 'none'};">
       <div class="agenda-tier-label">Resto del equipo</div>
-      ${tier3.map(n=>filaSel(n.ninera, n.motivo)).join('')}
+      ${tier3.map(n=>filaSel(n.ninera, n.porque)).join('')}
       ${inactivas.length ? `<div class="agenda-tier-label">Inactivas</div>${inactivas.map(n=>filaSel(n.ninera, 'Está inactiva.')).join('')}` : ''}
     </div>
     <div id="agenda-asignar-pago-wrap" style="display:none;margin-top:10px;" ${preciosNoLeidos(preciosFam) ? 'data-precios-no-leidos="1"' : ''}>
