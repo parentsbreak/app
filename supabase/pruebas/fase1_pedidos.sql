@@ -27,6 +27,16 @@ begin
 exception when others then
   return sqlerrm;
 end $$;
+-- "código|hint" del error.
+create function pg_temp.error_hint_de(sentencia text) returns text language plpgsql as $$
+declare v_hint text;
+begin
+  execute sentencia;
+  return null;
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint;
+  return sqlerrm || '|' || coalesce(v_hint, '');
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Está todo (también después de aplicar → deshacer → aplicar)
@@ -145,6 +155,9 @@ select pg_temp.verificar('pedido cancelado', pg_temp.error_de($$select public.en
 select pg_temp.verificar('traslado', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000004', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'solo_sittings');
 select pg_temp.verificar('día que ya pasó', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000007', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'pasado');
 select pg_temp.verificar('familia sin chicos cargados (el texto libre viejo no alcanza)', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000003', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'sin_chicos');
+select pg_temp.verificar('niñera que ya no está en la base: el id en el hint',
+  pg_temp.error_hint_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000001', '[{"ninera_id": "d2000000-0000-4000-8000-0000000000ff", "precio_hora": 300}]')$$)
+    = 'ninera_no_existe|d2000000-0000-4000-8000-0000000000ff');
 select pg_temp.verificar('niñera sin app', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000001', '[{"ninera_id": "d2000000-0000-4000-8000-000000000004", "precio_hora": 300}]')$$) = 'ninera_sin_app');
 select pg_temp.verificar('niñera dada de baja', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000001', '[{"ninera_id": "d2000000-0000-4000-8000-000000000005", "precio_hora": 300}]')$$) = 'ninera_inactiva');
 select pg_temp.verificar('niñera que solo hace traslados', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000001', '[{"ninera_id": "d2000000-0000-4000-8000-000000000003", "precio_hora": 300}]')$$) = 'ninera_solo_traslados');
@@ -316,6 +329,40 @@ set local request.jwt.claims = '{"sub": "d1000000-0000-4000-8000-000000000001", 
 select pg_temp.verificar('una niñera no saca nada de sugeridas_datos',
   (select d->'historial' = '[]'::jsonb and d->'por_ninera' = '[]'::jsonb
      from (select public.sugeridas_datos('d3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', public.hoy_mvd() + 1) as d) x));
+reset role;
+
+-- "No puedo" seguidos después de un "Puedo" que terminó asignado (revisión final, 02/11/2026): "Asignar"
+-- pasa el "Puedo" a 'confirmada' y eso no tiene que borrarlo. Pía: tres "No puedo", después "Puedo" y
+-- la asignan; Eva: un "No puedo" y después la asignan sin que haya respondido (no es un "Puedo").
+insert into solicitud_ninieras (solicitud_id, ninera_id, ninera_nombre, estado, origen, precio_hora, enviado_en, respondido_en, motivo_no) values
+  ('d4000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000006', 'Pía (practica)', 'no_puedo', 'app', 300, now() - interval '6 days', now() - interval '5 days', 'lejos'),
+  ('d4000000-0000-4000-8000-000000000002', 'd2000000-0000-4000-8000-000000000006', 'Pía (practica)', 'no_puedo', 'app', 300, now() - interval '5 days', now() - interval '4 days', 'lejos'),
+  ('d4000000-0000-4000-8000-000000000003', 'd2000000-0000-4000-8000-000000000006', 'Pía (practica)', 'no_puedo', 'app', 300, now() - interval '4 days', now() - interval '3 days', 'tarde'),
+  ('d4000000-0000-4000-8000-000000000004', 'd2000000-0000-4000-8000-000000000006', 'Pía (practica)', 'confirmada', 'app', 300, now() - interval '3 days', now() - interval '2 days', null),
+  ('d4000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000005', 'Eva Debaja', 'no_puedo', 'app', 300, now() - interval '4 days', now() - interval '3 days', 'lejos'),
+  ('d4000000-0000-4000-8000-000000000002', 'd2000000-0000-4000-8000-000000000005', 'Eva Debaja', 'confirmada', 'app', 300, now() - interval '2 days', null, null);
+-- Traslados (revisión final, 02/11/2026): Bruno tiene uno con Familia Prueba Uno (arriba); suma uno con
+-- otra familia, uno cancelado y uno previsto (los dos últimos no cuentan).
+insert into sittings_traslados (tipo, familia_id, familia_nombre, ninera_id, ninera_nombre, fecha, hora_inicio, hora_fin, cobro_familia, pago_ninera, estado, cancelado) values
+  ('traslado', 'd3000000-0000-4000-8000-000000000002', 'Familia Sin Chicos', 'd2000000-0000-4000-8000-000000000002', 'Bruno Ejemplo', public.hoy_mvd() - 3, '10:00', null, 1000, 500, 'confirmado', false),
+  ('traslado', 'd3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'd2000000-0000-4000-8000-000000000002', 'Bruno Ejemplo', public.hoy_mvd() - 4, '10:00', null, 1000, 500, 'confirmado', true),
+  ('traslado', 'd3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'd2000000-0000-4000-8000-000000000002', 'Bruno Ejemplo', public.hoy_mvd() + 3, '10:00', null, 1000, 500, 'previsto', false);
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "d1000000-0000-4000-8000-0000000000a1", "email": "admin.prueba@ejemplo.invalid"}';
+create temp table sd2 as select public.sugeridas_datos('d3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', public.hoy_mvd() + 1) as d;
+select pg_temp.verificar('Pía: los "No puedo" de antes de un "Puedo" que terminó asignado no cuentan',
+  (select (p->>'no_puedo_seguidos')::int = 0
+     from sd2, jsonb_array_elements(d->'por_ninera') p where p->>'ninera_id' = 'd2000000-0000-4000-8000-000000000006'));
+select pg_temp.verificar('Eva: asignada sin responder no es un "Puedo": su "No puedo" sigue contando',
+  (select (p->>'no_puedo_seguidos')::int = 1
+     from sd2, jsonb_array_elements(d->'por_ninera') p where p->>'ninera_id' = 'd2000000-0000-4000-8000-000000000005'));
+select pg_temp.verificar('Bruno: 1 traslado con la familia y 2 en total (sin cancelados ni previstos), y 0 sittings',
+  (select (h->>'veces_familia_traslado')::int = 1 and (h->>'total_traslado')::int = 2
+          and (h->>'veces_familia')::int = 0 and (h->>'total')::int = 0
+     from sd2, jsonb_array_elements(d->'historial') h where h->>'ninera_id' = 'd2000000-0000-4000-8000-000000000002'));
+select pg_temp.verificar('Ana: sus sittings no suman traslados',
+  (select (h->>'veces_familia_traslado')::int = 0 and (h->>'total_traslado')::int = 0 and (h->>'total')::int = 2
+     from sd2, jsonb_array_elements(d->'historial') h where h->>'ninera_id' = 'd2000000-0000-4000-8000-000000000001'));
 reset role;
 
 -- ---------------------------------------------------------------------------

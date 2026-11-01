@@ -240,7 +240,7 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
         if ((id !== null && !(typeof id === 'string' && UUID.test(id))) || (precio !== null && !Number.isFinite(precio))) throw errorRpc('envio_invalido');
         const n = (db.ninieras || []).find(x => x.id === id);
         if (precio === null || precio <= 0 || precio >= 100000) throw errorRpc('precio_invalido', { hint: n ? n.nombre : '' });
-        if (!n) throw errorRpc('ninera_no_existe');
+        if (!n) throw errorRpc('ninera_no_existe', { hint: id ?? '' });
         if (!n.activa) throw errorRpc('ninera_inactiva', { hint: n.nombre });
         if (n.user_id == null) throw errorRpc('ninera_sin_app', { hint: n.nombre });
         if (n.tipo === 'Traslados') throw errorRpc('ninera_solo_traslados', { hint: n.nombre });
@@ -292,12 +292,15 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
       const grupos = new Map();
       for (const r of regs) {
         const k = `${r.ninera_id}|${r.ninera_clave}`;
-        if (!grupos.has(k)) grupos.set(k, { ninera_id: r.ninera_id ?? null, ninera_clave: r.ninera_clave, veces_familia: 0, total: 0, semana: 0, edades: new Set(), max_chicos: null });
+        if (!grupos.has(k)) grupos.set(k, { ninera_id: r.ninera_id ?? null, ninera_clave: r.ninera_clave, veces_familia: 0, total: 0, veces_familia_traslado: 0, total_traslado: 0, semana: 0, edades: new Set(), max_chicos: null });
         const g = grupos.get(k);
         const sitting = r.tipo === 'sitting';
         const real = sitting && r.estado !== 'previsto';
         if (real && r.con_familia) g.veces_familia++;
         if (real) g.total++;
+        const trasladoReal = r.tipo === 'traslado' && r.estado !== 'previsto';
+        if (trasladoReal && r.con_familia) g.veces_familia_traslado++;
+        if (trasladoReal) g.total_traslado++;
         if (sitting && r.fecha >= lunes && r.fecha <= domingo) g.semana++;
         if (real) {
           const n = r.familia_id ? hijosDe(r.familia_id).length : 0;
@@ -307,7 +310,9 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
       }
       const historial = [...grupos.values()].map(g => ({ ...g, edades: [...g.edades].sort((a, b) => a - b) }));
       const sns = (db.solicitud_ninieras || []).filter(x => (x.origen ?? 'panel') === 'app' && x.ninera_id != null);
-      const ultimoAcepto = id => Math.max(-Infinity, ...sns.filter(x => x.ninera_id === id && x.estado === 'acepto').map(x => Date.parse(x.respondido_en)));
+      // El último "Puedo": 'acepto' o, ya asignada, 'confirmada' con respondido_en (max() de la SQL ignora los nulos).
+      const ultimoAcepto = id => Math.max(-Infinity, ...sns.filter(x => x.ninera_id === id && ['acepto', 'confirmada'].includes(x.estado) && x.respondido_en != null)
+        .map(x => Date.parse(x.respondido_en)));
       const mismo = (nombre, fam) => clave(nombre) === clave(fam);
       const por_ninera = (db.ninieras || []).map(n => ({
         ninera_id: n.id,

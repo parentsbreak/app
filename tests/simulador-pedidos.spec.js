@@ -48,7 +48,7 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     expect(await err(SOL_UNO, [{ ninera_id: 'no-es-uuid', precio_hora: 300 }])).toMatchObject({ message: 'envio_invalido' });
     expect(await err(SOL_UNO, [envio(ID.nCarla, 0)])).toMatchObject({ message: 'precio_invalido', hint: 'Carla Ejemplo' });
     expect(await err(SOL_UNO, [envio(ID.nCarla, 100000)])).toMatchObject({ message: 'precio_invalido' });
-    expect(await err(SOL_UNO, [envio('30000000-0000-4000-8000-0000000000ff')])).toMatchObject({ message: 'ninera_no_existe' });
+    expect(await err(SOL_UNO, [envio('30000000-0000-4000-8000-0000000000ff')])).toMatchObject({ message: 'ninera_no_existe', hint: '30000000-0000-4000-8000-0000000000ff' });
     expect(await err(SOL_UNO, [envio(ID.nAna)])).toMatchObject({ message: 'ninera_sin_app', hint: 'Ana Ficticia' });
     e.db.ninieras.find(n => n.id === ID.nBruno).user_id = ID.uCarla;
     expect(await err(SOL_UNO, [envio(ID.nBruno)])).toMatchObject({ message: 'ninera_solo_traslados', hint: 'Bruno Inventado' });
@@ -241,11 +241,11 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     const r = await rpcPanel(page, 'sugeridas_datos', { p_familia_id: ID.fUno, p_familia_nombre: 'Familia Prueba Uno', p_fecha: '2026-10-06' });
     expect(r.error).toBeNull();
     const h = r.data.historial;
-    expect(h.find(x => x.ninera_id === ID.nAna)).toEqual({ ninera_id: ID.nAna, ninera_clave: null, veces_familia: 5, total: 5, semana: 1, edades: [3, 5], max_chicos: 2 });
+    expect(h.find(x => x.ninera_id === ID.nAna)).toEqual({ ninera_id: ID.nAna, ninera_clave: null, veces_familia: 5, total: 5, veces_familia_traslado: 0, total_traslado: 0, semana: 1, edades: [3, 5], max_chicos: 2 });
     // Sin id: se agrupa por el nombre normalizado y es de la familia por el nombre.
-    expect(h.find(x => x.ninera_id === null)).toEqual({ ninera_id: null, ninera_clave: 'ana ficticia', veces_familia: 1, total: 1, semana: 0, edades: [3, 5], max_chicos: 2 });
-    // Solo un traslado: aparece con ceros, sin edades ni chicos.
-    expect(h.find(x => x.ninera_id === ID.nBruno)).toEqual({ ninera_id: ID.nBruno, ninera_clave: null, veces_familia: 0, total: 0, semana: 0, edades: [], max_chicos: null });
+    expect(h.find(x => x.ninera_id === null)).toEqual({ ninera_id: null, ninera_clave: 'ana ficticia', veces_familia: 1, total: 1, veces_familia_traslado: 0, total_traslado: 0, semana: 0, edades: [3, 5], max_chicos: 2 });
+    // Solo un traslado (con otra familia): ceros de sittings, sin edades ni chicos, y el traslado aparte.
+    expect(h.find(x => x.ninera_id === ID.nBruno)).toEqual({ ninera_id: ID.nBruno, ninera_clave: null, veces_familia: 0, total: 0, veces_familia_traslado: 0, total_traslado: 1, semana: 0, edades: [], max_chicos: null });
     expect(h).toHaveLength(3);
     const p = Object.fromEntries(r.data.por_ninera.map(x => [x.ninera_id, x]));
     expect(p[ID.nCarla]).toEqual({ ninera_id: ID.nCarla, no_puedo_seguidos: 2, incidente_familia: true, no_disponible: false });
@@ -253,6 +253,37 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     // Las respuestas del panel no cuentan; el día marcado sí.
     expect(p[ID.nBruno]).toEqual({ ninera_id: ID.nBruno, no_puedo_seguidos: 0, incidente_familia: false, no_disponible: true });
     expect(r.data.por_ninera).toHaveLength(e.db.ninieras.length);
+    verificarLimpio(e);
+  });
+
+  // Revisión final (02/11/2026): "Asignar" pasa el "Puedo" a 'confirmada' (conserva respondido_en) y eso no
+  // borra que dijo que sí; una asignada sin responder (sin respondido_en) no es un "Puedo". Los traslados,
+  // aparte: con la familia y en total, sin cancelados ni previstos.
+  test('sugeridas_datos: un "Puedo" que terminó asignado corta los "No puedo"; los traslados van aparte', async ({ page }) => {
+    const datos = datosPedidos();
+    const tr = (id, extra) => ({ ...datos.sittings_traslados.find(r => r.tipo === 'traslado'), id, ...extra });
+    datos.sittings_traslados.push(
+      tr('70000000-0000-4000-8000-0000000000b1', { familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', fecha: '2026-09-20' }),
+      tr('70000000-0000-4000-8000-0000000000b2', { familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', fecha: '2026-09-21', cancelado: true }),
+      tr('70000000-0000-4000-8000-0000000000b3', { familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', fecha: '2026-10-07', estado: 'previsto' }),
+    );
+    const e = await abrirApp(page, { datos });
+    const t = (id, estado, quien, en) => ({ id, solicitud_id: SOL_UNO, ninera_id: quien, ninera_nombre: 'x', estado, origen: 'app', respondido_en: en });
+    e.db.solicitud_ninieras.push(
+      t('81000000-0000-4000-8000-000000000011', 'no_puedo', ID.nCarla, '2026-09-28T10:00:00Z'),
+      t('81000000-0000-4000-8000-000000000012', 'no_puedo', ID.nCarla, '2026-09-29T10:00:00Z'),
+      t('81000000-0000-4000-8000-000000000013', 'no_puedo', ID.nCarla, '2026-09-30T10:00:00Z'),
+      t('81000000-0000-4000-8000-000000000014', 'confirmada', ID.nCarla, '2026-10-01T10:00:00Z'),
+      t('81000000-0000-4000-8000-000000000015', 'no_puedo', ID.nAna, '2026-10-01T10:00:00Z'),
+      t('81000000-0000-4000-8000-000000000016', 'confirmada', ID.nAna, null),
+    );
+    const r = await rpcPanel(page, 'sugeridas_datos', { p_familia_id: ID.fUno, p_familia_nombre: 'Familia Prueba Uno', p_fecha: '2026-10-06' });
+    expect(r.error).toBeNull();
+    const p = Object.fromEntries(r.data.por_ninera.map(x => [x.ninera_id, x]));
+    expect(p[ID.nCarla].no_puedo_seguidos).toBe(0);
+    expect(p[ID.nAna].no_puedo_seguidos).toBe(1);
+    const bruno = r.data.historial.find(x => x.ninera_id === ID.nBruno);
+    expect(bruno).toMatchObject({ veces_familia: 0, total: 0, veces_familia_traslado: 1, total_traslado: 2 });
     verificarLimpio(e);
   });
 

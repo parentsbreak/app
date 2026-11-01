@@ -2550,7 +2550,8 @@ begin
       raise exception 'precio_invalido' using hint = coalesce((select nombre from public.ninieras where id = v_id), '');
     end if;
     select * into v_n from public.ninieras where id = v_id;
-    if not found then raise exception 'ninera_no_existe'; end if;
+    -- Ya no está en la base: no hay nombre, va su id y el panel lo busca en la lista que está mirando.
+    if not found then raise exception 'ninera_no_existe' using hint = coalesce(v_id::text, ''); end if;
     if not v_n.activa then raise exception 'ninera_inactiva' using hint = v_n.nombre; end if;
     if v_n.user_id is null then raise exception 'ninera_sin_app' using hint = v_n.nombre; end if;
     if v_n.tipo = 'Traslados' then raise exception 'ninera_solo_traslados' using hint = v_n.nombre; end if;
@@ -2720,9 +2721,12 @@ grant execute on function public.ninera_marcar_no_disponible(date[], boolean) to
 -- 204 de 641 registros no tienen ninera_id y 315 no tienen familia_id (31/10/2026): el historial
 -- se agrupa por id y, sin id, por el nombre normalizado (ninera_clave); el panel lo cruza con su
 -- lista. La familia del pedido se reconoce por id o, en los registros sin id, por el nombre.
--- Devuelve {"historial": [{ninera_id, ninera_clave, veces_familia, total, semana, edades, max_chicos}],
+-- Devuelve {"historial": [{ninera_id, ninera_clave, veces_familia, total, veces_familia_traslado,
+--                          total_traslado, semana, edades, max_chicos}],
 --           "por_ninera": [{ninera_id, no_puedo_seguidos, incidente_familia, no_disponible}]}.
---   veces_familia: sittings con esa familia; total: sittings en general; semana: los sittings que
+--   veces_familia: sittings con esa familia; total: sittings en general; veces_familia_traslado y
+--   total_traslado: lo mismo con los traslados ("Elegir niñeras" también se usa para un traslado, y
+--   ahí cuenta quién ya los hace; el panel elige según el tipo del pedido); semana: los sittings que
 --   tiene de lunes a domingo de la semana del pedido (previstos incluidos); edades:
 --   las edades (al día del sitting) de los chicos que cuidó; max_chicos: la familia con más chicos
 --   que cuidó. Sin cancelados; sin previstos salvo en semana.
@@ -2766,6 +2770,8 @@ as $function$
     select r.ninera_id, r.ninera_clave,
            count(*) filter (where r.tipo = 'sitting' and r.estado <> 'previsto' and r.con_familia)::int as veces_familia,
            count(*) filter (where r.tipo = 'sitting' and r.estado <> 'previsto')::int as total,
+           count(*) filter (where r.tipo = 'traslado' and r.estado <> 'previsto' and r.con_familia)::int as veces_familia_traslado,
+           count(*) filter (where r.tipo = 'traslado' and r.estado <> 'previsto')::int as total_traslado,
            count(*) filter (where r.tipo = 'sitting'
                               and r.fecha between date_trunc('week', p_fecha)::date and date_trunc('week', p_fecha)::date + 6)::int as semana,
            max(c.n) filter (where r.tipo = 'sitting' and r.estado <> 'previsto') as max_chicos
@@ -2775,14 +2781,16 @@ as $function$
     select e.ninera_id, e.ninera_clave, array_agg(distinct e.edad order by e.edad) filter (where e.edad between 0 and 18) as edades
       from edades e group by e.ninera_id, e.ninera_clave
   ), respuestas as (
-    -- "No puedo" seguidos: los que respondió después de su último "Puedo".
+    -- "No puedo" seguidos: los que respondió después de su último "Puedo". "Asignar" (y la etapa 6)
+    -- pasan el "Puedo" a 'confirmada' y conserva respondido_en: también cuenta. Una asignada sin
+    -- responder (confirmada sin respondido_en) no es un "Puedo".
     select sn.ninera_id,
            count(*) filter (where sn.estado = 'no_puedo'
              and sn.respondido_en > coalesce(ua.ultimo, '-infinity'::timestamptz))::int as no_puedo_seguidos
       from public.solicitud_ninieras sn
       left join (select x.ninera_id, max(x.respondido_en) as ultimo
                    from public.solicitud_ninieras x
-                  where x.origen = 'app' and x.estado = 'acepto'
+                  where x.origen = 'app' and x.estado in ('acepto', 'confirmada') and x.respondido_en is not null
                   group by x.ninera_id) ua on ua.ninera_id = sn.ninera_id
      where sn.origen = 'app' and sn.ninera_id is not null
      group by sn.ninera_id
@@ -2791,7 +2799,8 @@ as $function$
     'historial', coalesce((
       select jsonb_agg(jsonb_build_object(
                'ninera_id', h.ninera_id, 'ninera_clave', h.ninera_clave, 'veces_familia', h.veces_familia,
-               'total', h.total, 'semana', h.semana, 'edades', coalesce(to_jsonb(he.edades), '[]'::jsonb),
+               'total', h.total, 'veces_familia_traslado', h.veces_familia_traslado, 'total_traslado', h.total_traslado,
+               'semana', h.semana, 'edades', coalesce(to_jsonb(he.edades), '[]'::jsonb),
                'max_chicos', h.max_chicos))
         from historial h
         left join historial_edades he

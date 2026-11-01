@@ -2,8 +2,10 @@
 -- tabla ninera_no_disponible, la configuración 'pedidos_app' y las columnas nuevas.
 --
 -- Lo cargado no se pierde: antes de borrar, las filas de solicitud_ninieras mandadas por la app
--- (con su precio, respuesta y motivo), las columnas nuevas de solicitudes que tengan algo y los días
--- que marcaron las niñeras se copian a respaldo_pedidos_app_20261102_* (RLS sin políticas: solo se
+-- (con su precio, respuesta y motivo), las columnas nuevas de solicitudes que tengan algo, los días
+-- que marcaron las niñeras, las familias marcadas "No acepta nuevas" (familias.solo_conocidas, lo
+-- marcan las admins) y la niñera que pidió la madre en cada pedido de WhatsApp
+-- (pedidos_whatsapp.ninera_pedida) se copian a respaldo_pedidos_app_20261102_* (RLS sin políticas: solo se
 -- ven con la clave de servicio o desde el SQL Editor). Las filas de la app quedan en
 -- solicitud_ninieras como 'invitada' (un "Puedo" o "No puedo" vuelve a 'invitada' y se ve
 -- "Pendiente" en la Agenda, como antes), así el check viejo de estados se puede volver a poner. Los
@@ -28,6 +30,17 @@ begin
     create table public.respaldo_pedidos_app_20261102_dias as
       select d.*, now() as respaldado_en from public.ninera_no_disponible d;
     alter table public.respaldo_pedidos_app_20261102_dias enable row level security;
+  end if;
+  -- Solo lo que no es el valor por defecto (false / vacío).
+  if to_regclass('public.respaldo_pedidos_app_20261102_fam') is null then
+    create table public.respaldo_pedidos_app_20261102_fam as
+      select f.id, f.solo_conocidas, now() as respaldado_en from public.familias f where f.solo_conocidas;
+    alter table public.respaldo_pedidos_app_20261102_fam enable row level security;
+  end if;
+  if to_regclass('public.respaldo_pedidos_app_20261102_pw') is null then
+    create table public.respaldo_pedidos_app_20261102_pw as
+      select p.id, p.ninera_pedida, now() as respaldado_en from public.pedidos_whatsapp p where p.ninera_pedida is not null;
+    alter table public.respaldo_pedidos_app_20261102_pw enable row level security;
   end if;
 end $$;
 
