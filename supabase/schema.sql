@@ -640,6 +640,9 @@ create table public.sittings_traslados (
   -- Variantes de precio (23/10/2026): la base y cuáles se aplicaron, copiadas tal cual
   -- ({"base": {"cobro", "pago"}, "aplicadas": [...]}). Vacío = sin variantes.
   precio_variantes jsonb,
+  -- Etapa 6 (03/11/2026): el pedido de donde salió este registro (lo escribe "Asignar"). De ahí la
+  -- app de niñeras saca las indicaciones, el precio por hora y la marca de horario aproximado.
+  solicitud_id uuid,
   constraint sittings_traslados_precio_motivo_check CHECK ((precio_motivo = ANY (ARRAY['descuento'::text, 'extra'::text, 'sin_servicio'::text, 'otro'::text]))),
   constraint sittings_traslados_pkey PRIMARY KEY (id),
   constraint sittings_traslados_estado_check CHECK ((estado = ANY (ARRAY['previsto'::text, 'confirmado'::text]))),
@@ -819,8 +822,13 @@ create table public.solicitud_ninieras (
   respondido_en timestamp with time zone,
   motivo_no text,
   motivo_texto text,
+  -- Etapa 6 (03/11/2026; ver 20261103_eleccion_pedidos.sql): seleccionada_en = cuándo le llegó
+  -- "¡Quedaste seleccionada!"; visto_en = cuándo lo vio en la app (la tarjeta de arriba y los avisos
+  -- de una vez se van). 'cubierto' = se asignó a otra; 'cancelado' = se canceló el pedido.
+  seleccionada_en timestamp with time zone,
+  visto_en timestamp with time zone,
   constraint solicitud_ninieras_pkey PRIMARY KEY (id),
-  constraint solicitud_ninieras_estado_check CHECK ((estado = ANY (ARRAY['invitada'::text, 'confirmada'::text, 'rechazada'::text, 'acepto'::text, 'no_puedo'::text]))),
+  constraint solicitud_ninieras_estado_check CHECK ((estado = ANY (ARRAY['invitada'::text, 'confirmada'::text, 'rechazada'::text, 'acepto'::text, 'no_puedo'::text, 'cubierto'::text, 'cancelado'::text]))),
   constraint solicitud_ninieras_origen_check CHECK ((origen = ANY (ARRAY['panel'::text, 'app'::text]))),
   constraint solicitud_ninieras_precio_hora_check CHECK (((precio_hora IS NULL) OR ((precio_hora > (0)::numeric) AND (precio_hora < (100000)::numeric)))),
   constraint solicitud_ninieras_motivo_no_check CHECK (((motivo_no IS NULL) OR (motivo_no = ANY (ARRAY['otro_trabajo'::text, 'facultad'::text, 'lejos'::text, 'tarde'::text, 'otro'::text])))),
@@ -847,6 +855,9 @@ create table public.solicitudes (
   notas_para_ninera text,
   enviado_app_en timestamp with time zone,
   responder_hasta timestamp with time zone,
+  -- Etapa 6 (03/11/2026): la madre no dio una hora de fin cerrada; solo con la marca va
+  -- "(aproximada, se puede extender)" en el aviso del pedido y en la app de niñeras.
+  horario_aproximado boolean default false not null,
   constraint solicitudes_pkey PRIMARY KEY (id),
   constraint solicitudes_estado_check CHECK ((estado = ANY (ARRAY['sin_asignar'::text, 'pendiente_confirmar'::text, 'confirmada'::text, 'cancelada'::text]))),
   constraint solicitudes_tipo_check CHECK ((tipo = ANY (ARRAY['sitting'::text, 'traslado'::text]))),
@@ -935,6 +946,7 @@ alter table public.gastos_extra add constraint gastos_extra_ajuste_id_fkey FOREI
 alter table public.sittings_traslados add constraint sittings_traslados_asignacion_id_fkey FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL;
 alter table public.sittings_traslados add constraint sittings_traslados_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id) ON DELETE SET NULL;
 alter table public.sittings_traslados add constraint sittings_traslados_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
+alter table public.sittings_traslados add constraint sittings_traslados_solicitud_id_fkey FOREIGN KEY (solicitud_id) REFERENCES solicitudes(id) ON DELETE SET NULL;
 alter table public.solicitud_ninieras add constraint solicitud_ninieras_ninera_id_fkey FOREIGN KEY (ninera_id) REFERENCES ninieras(id) ON DELETE SET NULL;
 alter table public.solicitud_ninieras add constraint solicitud_ninieras_solicitud_id_fkey FOREIGN KEY (solicitud_id) REFERENCES solicitudes(id) ON DELETE CASCADE;
 alter table public.solicitudes add constraint solicitudes_familia_id_fkey FOREIGN KEY (familia_id) REFERENCES familias(id) ON DELETE SET NULL;
@@ -977,6 +989,7 @@ CREATE INDEX idx_variantes_precio_familia ON public.variantes_precio USING btree
 CREATE INDEX idx_precios_ninera_familia_ninera ON public.precios_ninera_familia USING btree (ninera_id);
 CREATE INDEX idx_variantes_precio_programadas ON public.variantes_precio USING btree (asignacion_id) WHERE (auto_desde IS NOT NULL);
 CREATE INDEX idx_ajustes_saldo_ninera ON public.ajustes_saldo USING btree (ninera_id) WHERE (ninera_id IS NOT NULL);
+CREATE INDEX sittings_traslados_solicitud ON public.sittings_traslados USING btree (solicitud_id) WHERE (solicitud_id IS NOT NULL);
 CREATE INDEX idx_gastos_extra_sitting ON public.gastos_extra USING btree (sitting_id);
 CREATE INDEX idx_gastos_extra_pendientes ON public.gastos_extra USING btree (pagado_por) WHERE ((NOT cobrado) OR (NOT reintegrado));
 CREATE UNIQUE INDEX sittings_fijo_dia_automatico ON public.sittings_traslados USING btree (asignacion_id, fecha) WHERE generado_automatico;
@@ -1935,12 +1948,13 @@ grant execute on function public.ninera_guardar_perfil(text, text[], text[], tex
 -- Los próximos sittings de la niñera de la sesión (de hoy a 60 días), sin cancelados. Nunca
 -- montos, cobrado / pagado, notas internas ni precios (docs/fase1, decisiones 5.3). La dirección
 -- (y el origen / destino de un traslado) solo cuando está confirmado: un previsto todavía puede
--- cambiar de niñera. notas_para_ninera queda vacía hasta la etapa 5 (la columna de solicitudes).
+-- cambiar de niñera. notas_para_ninera (solo confirmado), horario_aproximado y precio_hora (lo ofrecido, nunca
+-- un total) salen del pedido del que vino el registro (solicitud_id, etapa 6).
 create or replace function public.ninera_mis_sittings()
 returns table (id uuid, tipo text, fecha date, hora_inicio time without time zone,
                hora_fin time without time zone, termina_dia_siguiente boolean, estado text,
                zona text, madre text, direccion text, origen text, destino text, chicos text,
-               notas_para_ninera text)
+               notas_para_ninera text, horario_aproximado boolean, precio_hora numeric, solicitud_id uuid)
 language sql
 stable
 security definer
@@ -1953,9 +1967,15 @@ as $function$
          case when s.estado = 'confirmado' then s.origen end,
          case when s.estado = 'confirmado' then s.destino end,
          public.chicos_texto(f.id),
-         null::text
+         case when s.estado = 'confirmado' then nullif(btrim(sol.notas_para_ninera), '') end,
+         coalesce(sol.horario_aproximado, false),
+         (select sn.precio_hora from public.solicitud_ninieras sn
+           where sn.solicitud_id = s.solicitud_id and sn.ninera_id = s.ninera_id and sn.estado = 'confirmada'
+           order by sn.created_at desc limit 1),
+         s.solicitud_id
     from public.sittings_traslados s
     left join public.familias f on f.id = s.familia_id
+    left join public.solicitudes sol on sol.id = s.solicitud_id
    where s.ninera_id = (select public.ninera_actual())
      and not s.cancelado
      and s.estado in ('previsto', 'confirmado')
@@ -2286,7 +2306,6 @@ revoke execute on function public.programar_avisos_temporada(timestamp with time
 -- encolar_aviso (idempotente por clave, recalculada del estado actual: si el sitting se canceló o
 -- cambió de hora antes de que toque, no se manda) y devuelve cuántos encoló; acá se suman. Las
 -- etapas siguientes agregan las suyas, por ejemplo:
---   v_total := v_total + public.programar_avisos_pedidos();    -- etapa 6
 --   v_total := v_total + public.programar_avisos_el_dia();     -- etapa 7
 create or replace function public.programar_avisos()
 returns integer
@@ -2299,6 +2318,7 @@ declare
   v_total integer := 0;
 begin
   v_total := v_total + public.programar_avisos_temporada();  -- etapa 9
+  v_total := v_total + public.programar_avisos_pedidos();    -- etapa 6
   return v_total;
 end
 $function$;
@@ -2531,13 +2551,13 @@ begin
     raise exception 'solo_practica';
   end if;
   v_zona := coalesce(nullif(btrim(v_s.zona), ''), nullif(btrim(v_fam.zona), ''));
-  -- Textos 1: el fin siempre "aproximada, se puede extender"; sin fin, "sin hora de fin"; si
-  -- termina pasada la medianoche, "del día siguiente".
+  -- Textos 1: "(aproximada, se puede extender)" solo con la marca horario_aproximado (etapa 6); sin
+  -- fin, "sin hora de fin"; si termina pasada la medianoche, "del día siguiente".
   v_horario := to_char(v_s.hora_inicio, 'HH24:MI')
     || case when v_s.hora_fin is null then ', sin hora de fin'
             else ' – ' || to_char(v_s.hora_fin, 'HH24:MI')
                  || case when v_s.termina_dia_siguiente then ' del día siguiente' else '' end
-                 || ' (aproximada, se puede extender)' end;
+                 || case when v_s.horario_aproximado then ' (aproximada, se puede extender)' else '' end end;
 
   for v_e in select * from jsonb_array_elements(p_envios) loop
     begin
@@ -2589,15 +2609,125 @@ $function$;
 revoke execute on function public.enviar_pedido_app(uuid, jsonb) from public, anon;
 grant execute on function public.enviar_pedido_app(uuid, jsonb) to authenticated;
 
+-- ¿Se le puede mandar un aviso de pedidos a esta niñera por este pedido? Con solo_practica prendido,
+-- solo si la familia y la niñera son las dos de práctica ("(práctica)" con o sin tilde, la misma
+-- regla que enviar_pedido_app). Apagado, siempre.
+create or replace function public.pedido_puede_avisar(p_familia_id uuid, p_familia_nombre text, p_ninera_nombre text)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  select not coalesce((select (valor->>'solo_practica')::boolean from public.app_config where id = 'pedidos_app'), true)
+      or (position('(practica)' in public.normaliza_nombre(coalesce((select f.nombre from public.familias f where f.id = p_familia_id), p_familia_nombre))) > 0
+          and position('(practica)' in public.normaliza_nombre(p_ninera_nombre)) > 0)
+$function$;
+revoke execute on function public.pedido_puede_avisar(uuid, text, text) from public, anon, authenticated;
+
+-- Una admin confirma a una niñera: "¡Quedaste seleccionada!" y "Ya se cubrió" (etapa 6)
+-- Corre cuando una fila de solicitud_ninieras pasa a 'confirmada' (o se inserta así: "Asignar" a una
+-- que no recibió el pedido por la app, Diego 01/11/2026). Solo pedidos de sitting (los traslados no
+-- van por la app, decisiones 4.2).
+--   - Las demás filas de la app que seguían abiertas ('invitada' o 'acepto') pasan a 'cubierto'; a
+--     las que habían dicho "Puedo" (respondido_en) les llega "Gracias por responder" (4.19).
+--   - Si la elegida tiene app y el pedido es de hoy en adelante, "¡Quedaste seleccionada!" y
+--     seleccionada_en (la tarjeta de arriba en su inicio, hasta que la ve).
+-- Los avisos, solo si pedido_puede_avisar. Las claves son una por fila: no se repiten.
+create or replace function public.solicitud_ninieras_al_confirmar()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_s public.solicitudes;
+  v_n public.ninieras;
+  v_otra record;
+begin
+  if tg_op = 'UPDATE' and old.estado = 'confirmada' then return null; end if;
+  select * into v_s from public.solicitudes where id = new.solicitud_id;
+  if not found or v_s.tipo <> 'sitting' then return null; end if;
+
+  for v_otra in
+    update public.solicitud_ninieras x
+       set estado = 'cubierto'
+     where x.solicitud_id = new.solicitud_id and x.id <> new.id and x.origen = 'app'
+       and x.estado in ('invitada', 'acepto')
+    returning x.id, x.ninera_id, x.ninera_nombre, x.respondido_en
+  loop
+    if v_otra.respondido_en is not null and v_s.fecha >= public.hoy_mvd()
+       and public.pedido_puede_avisar(v_s.familia_id, v_s.familia_nombre, v_otra.ninera_nombre) then
+      perform public.encolar_aviso('pedido:' || v_otra.id || ':cubierto', v_otra.ninera_id, null, 'pedido',
+        'Gracias por responder', 'Este sitting ya quedó cubierto. ¡Te tendremos en cuenta para el próximo!',
+        '#inicio', jsonb_build_object('solicitud_ninera_id', v_otra.id));
+    end if;
+  end loop;
+
+  if new.ninera_id is null or new.seleccionada_en is not null or v_s.fecha < public.hoy_mvd() then return null; end if;
+  select * into v_n from public.ninieras where id = new.ninera_id;
+  if not found or v_n.user_id is null
+     or not public.pedido_puede_avisar(v_s.familia_id, v_s.familia_nombre, v_n.nombre) then
+    return null;
+  end if;
+  update public.solicitud_ninieras set seleccionada_en = now() where id = new.id;
+  perform public.encolar_aviso('pedido:' || new.id || ':seleccionada', v_n.id, null, 'pedido',
+    '¡Quedaste seleccionada!',
+    public.dia_corto_texto(v_s.fecha) || ' a las ' || to_char(v_s.hora_inicio, 'HH24:MI') || '. Ya tienes todos los datos en la app.',
+    '#pedido/' || new.id, jsonb_build_object('solicitud_ninera_id', new.id));
+  return null;
+end
+$function$;
+revoke execute on function public.solicitud_ninieras_al_confirmar() from public, anon, authenticated;
+-- Solo cuando cambia el estado: el update de seleccionada_en de adentro no lo vuelve a disparar.
+create trigger solicitud_ninieras_al_confirmar after insert or update of estado on public.solicitud_ninieras
+  for each row when (new.estado = 'confirmada')
+  execute function public.solicitud_ninieras_al_confirmar();
+
+-- Se cancela el pedido: "Se canceló el pedido del [día]" (etapa 6)
+-- Las filas de la app abiertas pasan a 'cancelado'; a las que dijeron "Puedo", el aviso (4.19).
+create or replace function public.solicitudes_al_cancelar()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_otra record;
+begin
+  for v_otra in
+    update public.solicitud_ninieras x
+       set estado = 'cancelado'
+     where x.solicitud_id = new.id and x.origen = 'app' and x.estado in ('invitada', 'acepto')
+    returning x.id, x.ninera_id, x.ninera_nombre, x.respondido_en
+  loop
+    if v_otra.respondido_en is not null and new.fecha >= public.hoy_mvd()
+       and public.pedido_puede_avisar(new.familia_id, new.familia_nombre, v_otra.ninera_nombre) then
+      perform public.encolar_aviso('pedido:' || v_otra.id || ':cancelado', v_otra.ninera_id, null, 'pedido',
+        'Se canceló el pedido del ' || public.dia_corto_texto(new.fecha), 'Gracias por responder.',
+        '#inicio', jsonb_build_object('solicitud_ninera_id', v_otra.id));
+    end if;
+  end loop;
+  return null;
+end
+$function$;
+revoke execute on function public.solicitudes_al_cancelar() from public, anon, authenticated;
+create trigger solicitudes_al_cancelar after update of estado on public.solicitudes
+  for each row when (new.estado = 'cancelada' and old.estado is distinct from 'cancelada')
+  execute function public.solicitudes_al_cancelar();
+
 -- Lo de la niñera
 -- Sus pedidos abiertos: los que todavía no respondió ('invitada', "Pedidos por responder") y los que
--- dijo que puede ('acepto', "Esperando confirmación"). Un pedido asignado, cancelado o de un día que
--- ya pasó no aparece. Nunca la familia, la dirección, el cobro ni las notas.
+-- dijo que puede ('acepto', "Esperando confirmación"). Un pedido de un día que ya pasó no aparece.
+-- Una sola vez (etapa 6): la elegida ('confirmada' con seleccionada_en) hasta que abre los datos, y
+-- 'cubierto' / 'cancelado' de las que dijeron "Puedo" hasta que lo ve en el inicio (visto_en).
+-- Nunca la familia, la dirección, el cobro ni las notas.
 create or replace function public.ninera_mis_pedidos()
 returns table (id uuid, estado text, fecha date, hora_inicio time without time zone,
                hora_fin time without time zone, termina_dia_siguiente boolean, zona text, chicos text,
                precio_hora numeric, responder_hasta timestamp with time zone,
-               enviado_en timestamp with time zone, respondido_en timestamp with time zone)
+               enviado_en timestamp with time zone, respondido_en timestamp with time zone,
+               horario_aproximado boolean, solicitud_id uuid)
 language sql
 stable
 security definer
@@ -2605,22 +2735,150 @@ set search_path to 'public'
 as $function$
   select sn.id, sn.estado, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente,
          coalesce(nullif(btrim(s.zona), ''), nullif(btrim(f.zona), '')),
-         -- Solo con los chicos cargados uno por uno (nunca el texto libre de familias.ninos).
          case when exists (select 1 from public.hijos_familia h where h.familia_id = s.familia_id)
               then public.chicos_texto(s.familia_id) end,
-         sn.precio_hora, s.responder_hasta, sn.enviado_en, sn.respondido_en
+         sn.precio_hora, s.responder_hasta, sn.enviado_en, sn.respondido_en,
+         s.horario_aproximado, s.id
     from public.solicitud_ninieras sn
     join public.solicitudes s on s.id = sn.solicitud_id
     left join public.familias f on f.id = s.familia_id
    where sn.ninera_id = (select public.ninera_actual())
-     and sn.origen = 'app'
-     and sn.estado in ('invitada', 'acepto')
-     and s.estado in ('sin_asignar', 'pendiente_confirmar')
      and s.fecha >= public.hoy_mvd()
+     and ((sn.origen = 'app' and sn.estado in ('invitada', 'acepto') and s.estado in ('sin_asignar', 'pendiente_confirmar'))
+          or (sn.estado = 'confirmada' and sn.seleccionada_en is not null and sn.visto_en is null and s.estado = 'confirmada')
+          or (sn.origen = 'app' and sn.estado in ('cubierto', 'cancelado') and sn.respondido_en is not null and sn.visto_en is null))
    order by s.fecha, s.hora_inicio
 $function$;
 revoke execute on function public.ninera_mis_pedidos() from public, anon;
 grant execute on function public.ninera_mis_pedidos() to authenticated;
+
+-- La niñera vio la tarjeta de "Seleccionada" (abrió los datos) o el aviso de "cubierto" / "cancelado"
+-- del inicio: no se le vuelve a mostrar. Solo sus filas. true si marcó algo.
+create or replace function public.ninera_marcar_pedido_visto(p_sn_id uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_yo uuid := (select public.ninera_actual());
+begin
+  if v_yo is null then raise exception 'no_autorizada'; end if;
+  update public.solicitud_ninieras
+     set visto_en = now()
+   where id = p_sn_id and ninera_id = v_yo and visto_en is null
+     and estado in ('confirmada', 'cubierto', 'cancelado');
+  return found;
+end
+$function$;
+revoke execute on function public.ninera_marcar_pedido_visto(uuid) from public, anon;
+grant execute on function public.ninera_marcar_pedido_visto(uuid) to authenticated;
+
+-- Avisos de tiempo de los pedidos (decisiones 7, etapa 6)
+-- Corre cada minuto dentro de programar_avisos (cron enviar-avisos). p_ahora es para las pruebas.
+-- Cada aviso tiene su clave (no se repite) y una ventana: si el cron estuvo parado, no salen avisos
+-- viejos de golpe (2 horas para los de las admins; el recordatorio, solo antes de responder_hasta).
+--   - pedido:<sn>:recordatorio: a la que sigue sin responder, recordatorio_min_antes (10) antes de
+--     responder_hasta.
+--   - admin:pedido:<sol>:perfiles: hay al menos una que puede y nadie elegida, 15 min (pedido para el
+--     mismo día del envío) o 30 min (otro día) después del primer envío.
+--   - admin:pedido:<sol>:nadie: nadie respondió nada, min_nadie (30) después del primer envío.
+--   - admin:pedido:<sol>:3h: pedido de hoy sin niñera (mandado por la app o no), aviso_sin_ninera_horas
+--     (3) antes del inicio. Mientras solo_practica esté prendido, solo de familias de práctica (Diego,
+--     01/11/2026: se prende con todo lo demás antes de la prueba con niñeras reales).
+create or replace function public.programar_avisos_pedidos(p_ahora timestamp with time zone default now())
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_cfg jsonb := coalesce((select valor from public.app_config where id = 'pedidos_app'), '{}'::jsonb);
+  v_hoy date := (p_ahora at time zone 'America/Montevideo')::date;
+  v_rec integer := coalesce((v_cfg->>'recordatorio_min_antes')::int, 10);
+  v_nadie integer := coalesce((v_cfg->>'min_nadie')::int, 30);
+  v_horas integer := coalesce((v_cfg->>'aviso_sin_ninera_horas')::int, 3);
+  v_solo_practica boolean := coalesce((v_cfg->>'solo_practica')::boolean, true);
+  v_total integer := 0;
+  v_min integer;
+  v_inicio timestamp with time zone;
+  r record;
+begin
+  -- Recordatorio a la niñera.
+  for r in
+    select sn.id, sn.ninera_id, s.fecha
+      from public.solicitud_ninieras sn
+      join public.solicitudes s on s.id = sn.solicitud_id
+     where sn.origen = 'app' and sn.estado = 'invitada'
+       and s.estado in ('sin_asignar', 'pendiente_confirmar') and s.fecha >= v_hoy
+       and s.responder_hasta is not null
+       and p_ahora >= s.responder_hasta - make_interval(mins => v_rec) and p_ahora < s.responder_hasta
+  loop
+    if public.encolar_aviso('pedido:' || r.id || ':recordatorio', r.ninera_id, null, 'pedido',
+         'Sitting ' || to_char(r.fecha, 'DD/MM'), '¡Hola! Avísame por favor si estarías disponible.',
+         '#pedido/' || r.id, jsonb_build_object('solicitud_ninera_id', r.id)) then
+      v_total := v_total + 1;
+    end if;
+  end loop;
+
+  -- Perfiles para la madre y nadie respondió.
+  for r in
+    select s.id, s.familia_nombre, s.fecha, s.enviado_app_en,
+           (select count(*) from public.solicitud_ninieras x
+             where x.solicitud_id = s.id and x.origen = 'app' and x.estado = 'acepto')::int as pueden,
+           (select count(*) from public.solicitud_ninieras x
+             where x.solicitud_id = s.id and x.origen = 'app' and x.respondido_en is not null)::int as respondieron
+      from public.solicitudes s
+     where s.estado = 'pendiente_confirmar' and s.enviado_app_en is not null and s.fecha >= v_hoy
+       and p_ahora < s.enviado_app_en + interval '3 hours'
+  loop
+    v_min := case when r.fecha = (r.enviado_app_en at time zone 'America/Montevideo')::date
+                  then coalesce((v_cfg->>'min_mismo_dia')::int, 15)
+                  else coalesce((v_cfg->>'min_otro_dia')::int, 30) end;
+    if r.pueden > 0
+       and p_ahora >= r.enviado_app_en + make_interval(mins => v_min)
+       and p_ahora < r.enviado_app_en + make_interval(mins => v_min) + interval '2 hours'
+       and public.encolar_aviso('admin:pedido:' || r.id || ':perfiles', null, 'todas', 'pedidos',
+             case when r.pueden = 1 then 'Puede 1 niñera para el pedido de ' else 'Pueden ' || r.pueden || ' niñeras para el pedido de ' end
+               || r.familia_nombre,
+             'Mandale los perfiles a la madre.', '?ir=agenda&solicitud=' || r.id, jsonb_build_object('solicitud_id', r.id)) then
+      v_total := v_total + 1;
+    end if;
+    if r.respondieron = 0
+       and p_ahora >= r.enviado_app_en + make_interval(mins => v_nadie)
+       and p_ahora < r.enviado_app_en + make_interval(mins => v_nadie) + interval '2 hours'
+       and public.encolar_aviso('admin:pedido:' || r.id || ':nadie', null, 'todas', 'pedidos',
+             'Nadie respondió el pedido de ' || r.familia_nombre, 'Preguntale a más niñeras.',
+             '?ir=agenda&solicitud=' || r.id, jsonb_build_object('solicitud_id', r.id)) then
+      v_total := v_total + 1;
+    end if;
+  end loop;
+
+  -- Pedido de hoy sin niñera, 3 horas antes.
+  for r in
+    select s.id, s.familia_nombre, s.hora_inicio, s.estado, s.fecha
+      from public.solicitudes s
+      left join public.familias f on f.id = s.familia_id
+     where s.estado in ('sin_asignar', 'pendiente_confirmar') and s.fecha = v_hoy
+       and (not v_solo_practica
+            or position('(practica)' in public.normaliza_nombre(coalesce(f.nombre, s.familia_nombre))) > 0)
+  loop
+    v_inicio := (r.fecha + r.hora_inicio) at time zone 'America/Montevideo';
+    if p_ahora >= v_inicio - make_interval(hours => v_horas) and p_ahora < v_inicio
+       and public.encolar_aviso('admin:pedido:' || r.id || ':3h', null, 'todas', 'pedidos',
+             r.familia_nombre || ' hoy a las ' || to_char(r.hora_inicio, 'HH24:MI') || ' sigue sin niñera',
+             case when r.estado = 'pendiente_confirmar' then 'Mirá las respuestas.' else 'Elegí a quién mandárselo.' end,
+             '?ir=agenda&solicitud=' || r.id, jsonb_build_object('solicitud_id', r.id)) then
+      v_total := v_total + 1;
+    end if;
+  end loop;
+  return v_total;
+end
+$function$;
+revoke execute on function public.programar_avisos_pedidos(timestamp with time zone) from public, anon, authenticated;
+grant execute on function public.programar_avisos_pedidos(timestamp with time zone) to service_role;
 
 -- Responde un pedido suyo: 'acepto' ("Puedo") o 'no_puedo' con el motivo (textos 4; el texto libre
 -- solo con 'otro'). Una sola respuesta: el update lleva la condición del estado anterior, así dos
