@@ -960,8 +960,12 @@ async function asignarNineraAlPedido({ s, ninera, familia, pago, snIdApp = null 
   const campoDireccion = document.getElementById('agenda-asignar-direccion');
   const direccion = campoDireccion ? campoDireccion.value.trim() : null;
   if(campoDireccion && !direccion){ aviso('<div class="warnbox">Falta la dirección de la familia. Escribila para asignar: la niñera la ve cuando queda confirmada.</div>'); return false; }
-  const choque = chequearDobleReservaAgenda(ninera.nombre, s.fecha, s.hora_inicio, s.hora_fin, s.id);
-  if(!(await avisarSiDobleReserva(choque, ninera.nombre, 'Asignar igual'))) return false;
+  // La doble reserva se mira en la base, no en lo que tiene cargado la Agenda: "Asignar" también se abre desde
+  // Hoy (Pedidos en curso), donde la Agenda no está cargada y el chequeo pasaba sin mirar nada (revisión de la
+  // tarea 6.4, 03/11/2026). Además ve los registros y los fijos de ese día, no solo los pedidos confirmados.
+  // Este pedido no choca consigo mismo: todavía no tiene ninguna fila 'confirmada' ni registro.
+  const choque = await chequearDobleReservaDB(ninera.nombre, s.fecha, s.hora_inicio, s.hora_fin, { familiaId: familia?.id || s.familia_id || null });
+  if(!(await avisarSiDobleReserva(choque && { ...choque, fecha: s.fecha }, ninera.nombre, 'Asignar igual'))) return false;
   if(familia && s.hora_inicio){
     const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, ninera.nombre, null);
     if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return false;

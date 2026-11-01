@@ -182,6 +182,31 @@ test.describe('"Asignar" desde "Pedidos en curso" (pantalla 4)', () => {
     verificarLimpio(e);
   });
 
+  test('doble reserva sin la Agenda cargada: la niñera ya confirmada en otro pedido a esa hora pide "Asignar igual"', async ({ page }) => {
+    const d = datosEleccion();
+    const OTRA = '80000000-0000-4000-8000-000000000099';
+    // Lola ya está confirmada el mismo miércoles 07/10 de 17:00 a 19:00 con otra familia (se pisa con 18 a 22).
+    d.solicitudes.push({ ...d.solicitudes.find(s => s.id === ID.sPendiente), id: OTRA, familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', hora_inicio: '17:00:00', hora_fin: '19:00:00', estado: 'confirmada' });
+    d.solicitud_ninieras.push({ ...d.solicitud_ninieras.find(x => x.id === ID.snPendLola), id: '85000000-0000-4000-8000-000000000099', solicitud_id: OTRA, estado: 'confirmada' });
+    const e = await abrirApp(page, { datos: d }); // en Hoy: la Agenda no se cargó
+    await abrirAsignar(page);
+    await botonAsignar(page).click();
+    const confirmar = page.locator('.confirmoverlay:not(#editmodal) .confirmbox'); // la pregunta, encima del modal
+    await expect(confirmar).toContainText('Lola (práctica) ya está comprometida con Familia Prueba Uno');
+    await expect(confirmar.locator('#confirm-si')).toHaveText('Asignar igual');
+    await confirmar.locator('#confirm-no').click();
+    await expect(confirmar).toHaveCount(0);
+    for (const t of ['familias', 'solicitudes', 'solicitud_ninieras', 'sittings_traslados']) expect(escrituras(e, t)).toEqual([]);
+    expect(e.db.solicitudes.find(s => s.id === ID.sPendiente).estado).toBe('pendiente_confirmar');
+    await expect(pantallaAsignar(page)).toBeVisible();
+    // "Asignar igual" sigue adelante.
+    await botonAsignar(page).click();
+    await confirmar.locator('#confirm-si').click();
+    await expect(mensaje(page)).toBeVisible();
+    expect(e.db.solicitudes.find(s => s.id === ID.sPendiente).estado).toBe('confirmada');
+    verificarLimpio(e);
+  });
+
   test('un pedido que ya no está abierto: lo dice y no ofrece asignar', async ({ page }) => {
     const d = datosEleccion();
     d.solicitudes.find(s => s.id === ID.sPendiente).estado = 'cancelada';
