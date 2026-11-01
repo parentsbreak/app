@@ -1406,8 +1406,9 @@ async function eliminarNinera(id){
    La app dibuja el CV igual al de la plantilla de Canva y lo sube a ninieras-fotos/cv/; antes había
    que pedírselo a Claude en un chat con un mensaje armado y pasar por Canva.
    Medidas (sobre 1080×1920, de la plantilla y del CV de referencia): fondo img/cv/fondo-cv.png; nombre
-   en League Spartan 800 a 88,2 px (un apellido de 8 letras mide 475 px, como en la plantilla de Canva), en mayúsculas, hasta dos
-   renglones con 108 px de base a base, desde x=108 y 495 px de ancho; foto en un círculo de 378 px
+   en League Spartan 800 a 97 px con las letras 6 px más juntas (así las mayúsculas miden 65 px de alto y
+   el ancho queda como en Canva, que usa otra fuente), en mayúsculas, hasta dos renglones con 108 px de
+   base a base, desde x=108 y 495 px de ancho; foto en un círculo de 378 px
    en (603, 64), recortada al centro; datos en Arimo Bold (mide igual que Arial) a 74,5 px, 117 px de
    base a base, viñeta de 21 px centrada en x=82 y texto desde x=122 hasta x=1053, primera base en
    y=506. Las fuentes están en vendor/fuentes/ (licencia OFL): sin CDN, los renglones cortan igual en
@@ -1425,7 +1426,8 @@ const CV_LINEAS = [
 ];
 const CV_MEDIDAS = {
   ancho: 1080, alto: 1920,
-  nombre: { x: 108, base: 244, renglon: 108, ancho: 495, tam: 88.2, tamMin: 50, color: '#757cbe' },
+  // espacio: lo que se juntan las letras a 97 px (se achica junto con la letra).
+  nombre: { x: 108, base: 244, renglon: 108, ancho: 495, tam: 97, espacio: -6, tamMin: 50, color: '#757cbe' },
   foto: { x: 603, y: 64, d: 378 },
   // arriba: borde de la caja de datos; abajo: hasta dónde puede bajar la letra sin pisar la nube.
   datos: { arriba: 436, base: 506, puntoX: 82, punto: 10.75, subePunto: 22.5, textoX: 122, derecha: 1053, abajo: 1700, tam: 74.5, renglon: 117, tamMin: 60, color: '#df8386' },
@@ -1499,6 +1501,11 @@ function partirEnRenglones(texto, anchoMax, medir){
   }
   if(actual) renglones.push(actual);
   return renglones;
+}
+// Ancho del nombre con las letras juntadas (N.espacio entre cada par, proporcional a la letra).
+function medirNombreCv(medir, texto, tam){
+  const n = [...texto].length;
+  return medir(texto, tam) + Math.max(0, n - 1) * CV_MEDIDAS.nombre.espacio * tam / CV_MEDIDAS.nombre.tam;
 }
 const bajarMedioPunto = tam => Math.round((tam - 0.5) * 10) / 10;
 // El nombre en mayúsculas, en uno o dos renglones sin cortar palabras; si no entra a 88,2 px, se achica.
@@ -1593,7 +1600,7 @@ async function dibujarCv(canvas, n, datos){
   if(fotoUrl){ try { foto = await cargarFotoCv(fotoUrl); } catch(e){ foto = null; } }
   const ctx = canvas.getContext('2d');
   const medirCon = familia => (t, tam) => { ctx.font = `${familia === CV_FUENTE_NOMBRE ? 800 : 700} ${tam}px "${familia}"`; return ctx.measureText(t).width; };
-  const nombre = armarNombreCv(n.nombre, medirCon(CV_FUENTE_NOMBRE));
+  const nombre = armarNombreCv(n.nombre, (t, tam) => medirNombreCv(medirCon(CV_FUENTE_NOMBRE), t, tam));
   const items = itemsCv(n, datos);
   const bloque = armarDatosCv(items, medirCon(CV_FUENTE_DATOS));
   const { ancho, alto, foto: F, nombre: N, datos: D } = CV_MEDIDAS;
@@ -1613,8 +1620,18 @@ async function dibujarCv(canvas, n, datos){
   ctx.textAlign = 'left';
   if(nombre.ok){
     ctx.fillStyle = N.color;
-    ctx.font = `800 ${nombre.tam}px "${CV_FUENTE_NOMBRE}"`;
-    nombre.renglones.forEach((t, i) => ctx.fillText(t, N.x, N.base + i * N.renglon * nombre.tam / N.tam));
+    const medir = medirCon(CV_FUENTE_NOMBRE), espacio = N.espacio * nombre.tam / N.tam;
+    nombre.renglones.forEach((t, i) => {
+      const base = N.base + i * N.renglon * nombre.tam / N.tam;
+      // Letra por letra (no ctx.letterSpacing, que no todos los Safari tienen): cada una va donde termina
+      // lo anterior medido entero, así se conserva el ajuste entre pares de letras, más el espacio.
+      const letras = [...t];
+      letras.forEach((letra, j) => {
+        const x = N.x + medir(letras.slice(0, j).join(''), nombre.tam) + j * espacio;
+        ctx.font = `800 ${nombre.tam}px "${CV_FUENTE_NOMBRE}"`;
+        ctx.fillText(letra, x, base);
+      });
+    });
   }
   if(bloque.ok){
     ctx.fillStyle = D.color;

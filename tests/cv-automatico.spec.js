@@ -92,9 +92,13 @@ test.describe('Pantalla "CV de [nombre]"', () => {
     await expect(campo(page, 'diferenciales')).toHaveValue('');
     const d = await dibujado(page);
     expect(d.imagenes).toEqual([expect.stringContaining('img/cv/fondo-cv.png'), FOTO]);
+    // El nombre va letra por letra (las letras juntadas), en uno o dos renglones.
     const nombre = d.textos.filter(t => t.font.includes('League Spartan'));
-    expect(nombre.map(t => t.t).join(' ')).toBe('ANA FICTICIA');
-    expect(nombre[0].font).toBe('800 88.2px "CV League Spartan"');
+    const renglones = [...new Set(nombre.map(t => t.y))].map(y => nombre.filter(t => t.y === y).map(t => t.t).join(''));
+    expect(renglones.join(' ')).toBe('ANA FICTICIA');
+    expect(nombre[0].font).toBe('800 97px "CV League Spartan"');
+    // Cada letra a la derecha de la anterior, un poco más junta que el ancho de la letra sola.
+    expect(nombre.slice(1, 3).every((t, i) => t.x > nombre[i].x)).toBe(true);
     expect(d.textos.filter(t => t.font.includes('Arimo')).map(t => t.t).join(' '))
       .toBe('21 años Estudiante de Psicología Dos años con mellizos Cambia pañales Inglés Curso de RCP');
     const visible = await modal(page).textContent();
@@ -163,6 +167,23 @@ test.describe('Pantalla "CV de [nombre]"', () => {
     await expect(toasts(page).last()).toContainText('No entra todo');
     expect(subidas(e)).toEqual([]);
     expect(parches(e)).toEqual([]);
+    verificarLimpio(e);
+  });
+
+  test('nombre largo: se achica desde 97 px hasta entrar en dos renglones; una palabra que no entra ni chica avisa', async ({ page }) => {
+    const d = datosCv();
+    d.ninieras.find(n => n.id === ID.nAna).nombre = 'Ana Ficticia Inventadísima';
+    await espiar(page);
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'ninieras');
+    await page.evaluate(id => abrirCvNinera(id), ID.nAna);
+    await expect(estadoCv(page)).toHaveText('Así va a quedar.');
+    const nombre = (await dibujado(page)).textos.filter(t => t.font.includes('League Spartan'));
+    expect(new Set(nombre.map(t => t.y)).size).toBe(2);
+    expect(Number(nombre[0].font.match(/([\d.]+)px/)[1])).toBeLessThan(97);
+    await page.evaluate(() => cerrarModal());
+    await page.evaluate(id => { nineraPorId(id).nombre = 'Anaanaanaanaanaanaanaana Ficticia'; abrirCvNinera(id); }, ID.nAna);
+    await expect(estadoCv(page)).toHaveText('El nombre no entra en dos renglones: acortalo desde Editar.');
     verificarLimpio(e);
   });
 
