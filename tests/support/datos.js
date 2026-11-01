@@ -32,6 +32,18 @@ const ID = {
   sUno: '80000000-0000-4000-8000-000000000002',
   sPracticaHoy: '80000000-0000-4000-8000-000000000003',
   sPractica: '80000000-0000-4000-8000-000000000004',
+  // Elección de la niñera (etapa 6, 01/11/2026): solo los carga datosEleccion().
+  nLola: '30000000-0000-4000-8000-000000000005',
+  nMia: '30000000-0000-4000-8000-000000000006',
+  uLola: '00000000-0000-4000-8000-000000000005',
+  uMia: '00000000-0000-4000-8000-000000000006',
+  sPendiente: '80000000-0000-4000-8000-000000000005',
+  sPedida: '80000000-0000-4000-8000-000000000006',
+  snPendPractica: '85000000-0000-4000-8000-000000000001',
+  snPendLola: '85000000-0000-4000-8000-000000000002',
+  snPendMia: '85000000-0000-4000-8000-000000000003',
+  snPedPractica: '85000000-0000-4000-8000-000000000004',
+  snPedMia: '85000000-0000-4000-8000-000000000005',
 };
 
 function sitting(id, fecha, extra = {}) {
@@ -185,4 +197,38 @@ function datosPedidos() {
   return d;
 }
 
-module.exports = { datosBase, datosPedidos, sitting, ID };
+// Lo de la etapa 6 (elegir la niñera), aparte de datosPedidos() para no mover los tests de la etapa 5 que
+// cuentan niñeras o filas de solicitud_ninieras: suma a "Lola (práctica)" y "Mía (práctica)" (con app) y dos
+// solicitudes de Familia (práctica) ya mandadas por la app y en 'pendiente_confirmar':
+//  - sPendiente (mié 07/10, 18:00 a 22:00, con indicaciones, horario exacto): "Niñera (práctica)" y Lola
+//    dijeron "Puedo" (acepto) y Mía no respondió (invitada);
+//  - sPedida (jue 08/10, horario aproximado, ninera_pedida_id = Niñera (práctica)): ella dijo "Puedo" y
+//    Mía no respondió.
+function datosEleccion() {
+  const d = datosPedidos();
+  const base = d.ninieras.find(n => n.id === ID.nPractica);
+  d.ninieras.push(
+    { ...base, id: ID.nLola, nombre: 'Lola (práctica)', telefono: '099000092', temporada_token: '60000000-0000-4000-8000-000000000005', user_id: ID.uLola },
+    { ...base, id: ID.nMia, nombre: 'Mía (práctica)', telefono: '099000093', temporada_token: '60000000-0000-4000-8000-000000000006', user_id: ID.uMia },
+  );
+  const sol = (id, fecha, extra) => ({ id, familia_id: ID.fPractica, familia_nombre: 'Familia (práctica)', tipo: 'sitting', zona: 'Pocitos', fecha, hora_inicio: '18:00:00', hora_fin: '22:00:00',
+    cobro_familia: null, estado: 'pendiente_confirmar', notas: null, created_at: '2026-10-01T00:00:00Z', termina_dia_siguiente: false, horario_aproximado: false,
+    notas_para_ninera: null, ninera_pedida_id: null, enviado_app_en: '2026-10-04T14:00:00.000Z', responder_hasta: '2026-10-04T14:30:00.000Z', ...extra });
+  d.solicitudes.push(
+    sol(ID.sPendiente, '2026-10-07', { notas_para_ninera: 'Hay un perro. Tocar el timbre 5.' }),
+    sol(ID.sPedida, '2026-10-08', { horario_aproximado: true, ninera_pedida_id: ID.nPractica }),
+  );
+  const fila = (id, solicitud, ninera, nombre, estado, precio) => ({ id, solicitud_id: solicitud, ninera_id: ninera, ninera_nombre: nombre, pago_ninera: null, estado,
+    created_at: '2026-10-04T14:00:00.000Z', origen: 'app', precio_hora: precio, enviado_en: '2026-10-04T14:00:00.000Z',
+    respondido_en: estado === 'acepto' ? '2026-10-04T14:05:00.000Z' : null, motivo_no: null, motivo_texto: null, seleccionada_en: null, visto_en: null });
+  d.solicitud_ninieras.push(
+    fila(ID.snPendPractica, ID.sPendiente, ID.nPractica, 'Niñera (práctica)', 'acepto', 200),
+    fila(ID.snPendLola, ID.sPendiente, ID.nLola, 'Lola (práctica)', 'acepto', 210),
+    fila(ID.snPendMia, ID.sPendiente, ID.nMia, 'Mía (práctica)', 'invitada', 220),
+    fila(ID.snPedPractica, ID.sPedida, ID.nPractica, 'Niñera (práctica)', 'acepto', 230),
+    fila(ID.snPedMia, ID.sPedida, ID.nMia, 'Mía (práctica)', 'invitada', 240),
+  );
+  return d;
+}
+
+module.exports = { datosBase, datosPedidos, datosEleccion, sitting, ID };

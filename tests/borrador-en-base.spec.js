@@ -50,8 +50,10 @@ test('desde otro dispositivo (sin nada guardado ahí): ofrece el borrador de la 
   await page.fill('#f-telefono', '099123456');
   await page.fill('#f-notas', 'Seguimos en el celular');
   await page.locator('#f-notas').blur();
-  await expect.poll(() => subidas(e).length).toBeGreaterThan(0);
-  const fila = { id: 'b2000000-0000-4000-8000-000000000001', ...subidas(e).at(-1).cuerpo };
+  // Se espera la copia que ya lleva las notas: la primera sale enseguida al escribir el teléfono, sin
+  // ellas, y con la máquina cargada la del blur puede tardar (01/11/2026, fallaba en el CI de la etapa 6).
+  await expect.poll(() => subidas(e).at(-1)?.cuerpo.datos.campos['f-notas']).toBe('Seguimos en el celular');
+  const fila ={ id: 'b2000000-0000-4000-8000-000000000001', ...subidas(e).at(-1).cuerpo };
   // El otro dispositivo: otro navegador, sin localStorage.
   const otro = await browser.newContext();
   const p2 = await otro.newPage();

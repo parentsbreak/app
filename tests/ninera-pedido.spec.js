@@ -26,7 +26,7 @@ function filaSn(extra = {}) {
 // Los datos con un pedido enviado a la niñera de práctica (como lo deja enviar_pedido_app).
 function datos({ sn = {}, solicitud = {}, extraSn = [] } = {}) {
   const d = datosPedidos();
-  Object.assign(d.solicitudes.find(s => s.id === SOL), { estado: 'pendiente_confirmar', responder_hasta: RESPONDER_HASTA, enviado_app_en: '2026-10-04T14:50:00.000Z', ...solicitud });
+  Object.assign(d.solicitudes.find(s => s.id === SOL), { estado: 'pendiente_confirmar', horario_aproximado: true, responder_hasta: RESPONDER_HASTA, enviado_app_en: '2026-10-04T14:50:00.000Z', ...solicitud });
   d.solicitud_ninieras.push(filaSn(sn), ...extraSn);
   d.ninieras.filter(n => n.id === ID.nPractica).forEach(n => Object.assign(n, { perfil_app_en: '2026-10-02T15:00:00+00:00', app_activada_en: '2026-10-02T14:00:00+00:00' }));
   return d;
@@ -81,6 +81,16 @@ test.describe('pedidos por responder', () => {
     const e = await abrir(page, { datos: datos({ solicitud: { responder_hasta: '2026-10-04T14:00:00.000Z' } }) });
     await expect(tarjeta(page).locator('.pedido-limite')).toHaveText('Responde lo antes posible');
     await expect(boton(page, 'Puedo')).toBeEnabled();
+    verificarLimpio(e);
+  });
+
+  test('sin la marca de horario aproximado, el horario va solo; con la marca, "(aproximada, se puede extender)"', async ({ page }) => {
+    const d = datos({ solicitud: { horario_aproximado: false } });
+    const e = await abrir(page, { datos: d });
+    await expect(tarjeta(page).locator('.pedido-datos p').first()).toHaveText('20:00 – 23:00');
+    Object.assign(e.db.solicitudes.find(s => s.id === SOL), { horario_aproximado: true });
+    await page.reload();
+    await expect(tarjeta(page).locator('.pedido-datos p').first()).toHaveText('20:00 – 23:00 (aproximada, se puede extender)');
     verificarLimpio(e);
   });
 
@@ -415,9 +425,10 @@ test.describe('abrir un pedido desde un push (#pedido/<id>)', () => {
     verificarLimpio(e);
   });
 
-  test('un pedido que ya no está abierto: va al inicio y avisa', async ({ page }) => {
+  test('un pedido que ya no se lee (push viejo): va al inicio y avisa sin decir que está cerrado', async ({ page }) => {
+    // Cambio deliberado (01/11/2026, revisión final): la base no distingue "cerrado" de "la eligieron y ya vio sus datos".
     const e = await abrir(page, { ruta: '/ninera/#pedido/81000000-0000-4000-8000-0000000000ff' });
-    await expect(page.locator('#pedidos-aviso')).toHaveText(CERRADO);
+    await expect(page.locator('#pedidos-aviso')).toHaveText('Si te eligieron, lo ves en Próximos sittings.');
     await expect(tarjeta(page)).toBeVisible();
     verificarLimpio(e);
   });

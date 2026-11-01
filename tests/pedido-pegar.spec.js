@@ -112,7 +112,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
     expect(orden[0].params).toMatchObject({ id: `eq.${pid}`, estado: 'eq.borrador' });
     expect(orden[1].cuerpo).toEqual({
       familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', tipo: 'sitting', zona: 'Pocitos', fecha: '2026-10-06',
-      hora_inicio: '20:00', hora_fin: '23:00', termina_dia_siguiente: false, cobro_familia: 1140, estado: 'sin_asignar',
+      hora_inicio: '20:00', hora_fin: '23:00', termina_dia_siguiente: false, horario_aproximado: false, cobro_familia: 1140, estado: 'sin_asignar',
       ninera_pedida_id: ID.nCarla, notas_para_ninera: 'Tomás es alérgico al maní.',
     });
     const sol = e.db.solicitudes.find(s => s.familia_nombre === 'Familia Prueba Uno' && s.notas_para_ninera);
@@ -329,18 +329,18 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
     verificarLimpio(e, { ignorar: [/status of 500/] });
   });
 
-  test('sin hora de fin: marca "aproximado", "Sin total hasta que se sepa la hora de fin" y la solicitud sin fin ni cobro', async ({ page }) => {
+  test('sin hora de fin: casilla "Horario aproximado" tildada, "Sin total hasta que se sepa la hora de fin" y la solicitud sin fin ni cobro', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     conTicket(e, { hora_fin: null, horario_aproximado: true, horario_nota: 'sin hora de fin, no antes de las 2', dudas: [] });
     await armar(page);
-    await expect(page.locator('#editmodal .pedido-aprox')).toHaveText('aproximado');
+    await expect(page.locator('#pedido-aprox')).toBeChecked();
     await expect(ticket(page)).toContainText('sin hora de fin, no antes de las 2');
     await expect(page.locator('#pedido-hf-hh')).toHaveValue('');
     await expect(page.locator('#pedido-precio')).toContainText('Sin total hasta que se sepa la hora de fin.');
     await esEsta(page);
     await boton(page, 'Revisar y elegir niñeras').click();
     await expect(modal(page).locator('.pedido-elegir')).toBeVisible();
-    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ hora_inicio: '20:00', hora_fin: null, termina_dia_siguiente: false, cobro_familia: null });
+    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ hora_inicio: '20:00', hora_fin: null, termina_dia_siguiente: false, horario_aproximado: true, cobro_familia: null });
     await expect(modal(page).locator('.pedido-resumen')).toContainText('20:00, sin hora de fin');
     verificarLimpio(e);
   });
@@ -562,6 +562,65 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
     await expect(toastCon(page, 'Falta actualizar la base', '.bad')).toBeVisible();
     expect(e.db.pedidos_whatsapp[0]).toMatchObject({ estado: 'confirmado' });
     await expect(page.locator('#editmodal .pedido-tilde')).toHaveCount(0);
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+});
+
+test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => {
+  test('el ticket con horario aproximado trae la casilla tildada y la solicitud la guarda', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    conTicket(e, { horario_aproximado: true, dudas: [] });
+    await armar(page);
+    await expect(page.locator('label.chk', { hasText: 'Horario aproximado (se puede extender)' })).toBeVisible();
+    await expect(page.locator('#pedido-aprox')).toBeChecked();
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(modal(page).locator('.pedido-elegir')).toBeVisible();
+    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo.horario_aproximado).toBe(true);
+    expect(e.db.solicitudes.find(s => s.familia_nombre === 'Familia Prueba Uno' && s.horario_aproximado === true)).toBeTruthy();
+    verificarLimpio(e);
+  });
+
+  test('el ticket sin la marca la trae destildada; si la admin la tilda o la destilda, se guarda lo que dejó', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    conTicket(e, { dudas: [] });
+    await armar(page);
+    await expect(page.locator('#pedido-aprox')).not.toBeChecked();
+    await page.locator('#pedido-aprox').check();
+    await page.locator('#pedido-aprox').uncheck();
+    await page.locator('#pedido-aprox').check();
+    await esEsta(page);
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(toastCon(page, 'Solicitud guardada en la Agenda.')).toBeVisible();
+    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo.horario_aproximado).toBe(true);
+    verificarLimpio(e);
+  });
+
+  test('la marca del modelo destildada por la admin se guarda en false', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    conTicket(e, { horario_aproximado: true, dudas: [] });
+    await armar(page);
+    await page.locator('#pedido-aprox').uncheck();
+    await esEsta(page);
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(toastCon(page, 'Solicitud guardada en la Agenda.')).toBeVisible();
+    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo.horario_aproximado).toBe(false);
+    verificarLimpio(e);
+  });
+
+  test('base sin la migración de la etapa 6: se guarda sin la marca y avisa qué faltó', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos(), baseSinMigrar: 'etapa6' });
+    conTicket(e, { horario_aproximado: true, dudas: [] });
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Guardar sin mandar').click();
+    await esperarQuieta(page);
+    const posts = escrituras(e, 'solicitudes', 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0].cuerpo).not.toHaveProperty('horario_aproximado');
+    expect(posts[0].cuerpo).toMatchObject({ hora_inicio: '20:00', hora_fin: '23:00', estado: 'sin_asignar' });
+    await expect(toastCon(page, 'la marca de horario aproximado', '.bad')).toBeVisible();
+    expect(e.db.pedidos_whatsapp[0]).toMatchObject({ estado: 'confirmado' });
     verificarLimpio(e, { ignorar: [RUIDO_4XX] });
   });
 });

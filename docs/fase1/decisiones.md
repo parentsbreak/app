@@ -487,32 +487,54 @@ Cambios del 31/10/2026 (Diego), ya construidos en la etapa 5 (02/11/2026; detall
    instantáneo a las admins. No puedo → motivo (lista de textos) → "¿Quieres marcar otros días en
    los que no puedes?" → `ninera_no_disponible`. Puede responder después de `responder_hasta`
    mientras el pedido siga abierto (4.11).
-7. Admin, Hoy → "Pedidos en curso" (una tarjeta por solicitud enviada y sin elegida): "[cantidad]
-   aceptaron. Mandado a [cantidad] a las [hora]. Faltan responder [cantidad]." con la lista de
-   quién aceptó / no puede (y motivo) / sin responder. Botones: "Mensaje con los perfiles para la
-   madre" (texto + un link por CV, `ninieras.cv_url`; si falta un CV, "Falta el CV de [niñera]"),
-   "Marcar la que eligió la madre", "Mandar a más niñeras" (vuelve a sugeridas sin las ya
-   enviadas), "Cancelar el pedido". Lo mismo desde el modal de la solicitud en la Agenda.
-8. "Marcar la que eligió la madre" → `elegir_ninera(sn_id)` (elegida `confirmada`, las demás
-   `cubierto`, solicitud `confirmada`, avisos "¡Quedaste seleccionada!" y "Gracias por
-   responder"), y el panel carga el registro en `sittings_traslados` como hoy
-   (`cargarNineraYRegistro`, con `pago_ninera` = `precio_hora` × horas, redondeado) y copia
-   `notas_para_ninera`. Después, "Confirmada: [niñera] quedó seleccionada. Ya le llegó el aviso."
-   con la plantilla para la madre (textos, sección 9) completa: "Copiar" y "Abrir WhatsApp". Si
-   falta un dato de la plantilla, "Falta [dato] para completar el mensaje".
-9. Niñera: "¡Quedaste seleccionada!" con día, horas, dirección, madre (nombre + inicial), chicos,
-   notas para la niñera, ficha de la familia si hay (etapa 8), precio por hora, "Cómo llegar"
-   (link a mapas con la dirección), "Agregar al calendario" (.ics), "Repasa la guía de [edad]
-   antes de ir" (un link por edad). Las otras: "Este pedido ya se cubrió. Gracias por
-   responder..."
+7. Admin, Hoy → "Pedidos en curso" (construido el 01/11/2026, etapa 6; una tarjeta por solicitud mandada por la app y
+   sin elegida, también en el modal de la solicitud): "Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las
+   14:05." y una fila por niñera (Puede / No puede: motivo / Sin responder) con "$250 por hora. Ya fue 5 veces." o
+   "Nueva para esta familia.". Sin separadores "·" en ningún texto nuevo (Diego, 01/11/2026). Dos caminos válidos:
+   "Asignar" en cada fila que dijo "Puede" (más el atajo "Asignar y confirmar a la madre" si la que pidió la madre
+   dijo "Puedo": va primera, "La pidió la madre y puede") o "Perfiles para la madre". Botones: "Preguntar a más
+   niñeras" (antes "Mandar a más niñeras"; es "Elegir niñeras"), "Todavía buscando", "No conseguimos" (solo arman
+   el mensaje) y "Cancelar el pedido" (condicionado al estado que tenía la pantalla).
+   - "Perfiles para la madre" (el CV es un PDF que se arma aparte en Canva; ninguna tiene `cv_url`): las que ya
+     fueron a esa casa van tildadas, solo con el nombre; una nueva entra cuando la admin tilda "Revisé su perfil",
+     con "(te paso su CV)", y abajo "Adjuntá en WhatsApp el CV de [niñera]." (o, si `cv_generado_en` está vacío,
+     "[niñera] todavía no tiene CV: generalo desde su ficha."). La admin adjunta el PDF a mano. "CV automático en el
+     sistema" es una tarea aparte, justo después de esta etapa.
+   - Nunca confirma sola ninguna niñera (las dueñas, 01/11/2026): elige la madre o una admin y la admin la marca.
+8. "Asignar" (decisión técnica 01/11/2026: no hay RPC `elegir_ninera` ni `cerrar_envios_pedido`; son triggers sobre
+   las escrituras de siempre, así avisa cualquier camino que asigne o cancele, en la misma transacción y sin cambiar
+   la regla de dos admins a la vez). `asignarNineraAlPedido` (agenda.js) es la única asignación: toma la solicitud con
+   la condición del estado, la dirección es obligatoria para un sitting (se guarda en `familias` antes), mira la doble
+   reserva en la base, escribe la fila de la niñera (la de la app conserva lo ofrecido; la del panel lleva
+   `precio_hora` = `redondearPago(pago / horas)`) y el registro con `sittings_traslados.solicitud_id`. El pago se
+   precarga con `precio_hora` × horas. Si falla la fila, la solicitud vuelve atrás y no sale ningún aviso; si falla
+   el registro, queda asignada y el aviso dice qué faltó. El trigger `solicitud_ninieras_al_confirmar` (fila a
+   `confirmada`): a la elegida con app "¡Quedaste seleccionada!" y `seleccionada_en`; las demás filas de la app
+   abiertas pasan a `cubierto` y a las que dijeron "Puedo", "Gracias por responder". `solicitudes_al_cancelar`: las
+   abiertas pasan a `cancelado` y a las que dijeron "Puedo", "Se canceló el pedido del [día]". Solo sittings; a las que
+   no respondieron no les llega nada. `pedido_puede_avisar`: con `solo_practica` prendido, ningún aviso de pedidos a
+   una niñera real, aunque se la asigne a mano (familia y niñera de práctica). Después, la confirmación para la
+   madre (plantilla `confirmacion`), con "Copiar" y "Abrir WhatsApp"; "Guardar como plantilla" muestra antes cómo
+   queda y deja el texto para las tres admins (`app_config 'plantilla_<clave>'`, `valor: {texto}`, el texto por
+   defecto vive en el código). Corchetes: `[madre]`, `[día]`, `[hora inicio]`, `[niñeras]`, `[niñera]`, `[cuándo]`.
+   Mandar sin abrir WhatsApp depende de la API de Meta: pendiente.
+9. Niñera: tarjeta "¡Quedaste seleccionada!" arriba del inicio hasta que toca "Ver los datos" (`seleccionada_en` sin
+   `visto_en`, `ninera_marcar_pedido_visto`); abre el detalle de siempre del sitting (también desde "Próximos
+   sittings", con título "Sitting"): día, horas, dirección, madre con inicial, chicos, "Indicaciones" (solo
+   `notas_para_ninera`, nunca las notas internas), "Precio por hora" y "(aproximada, se puede extender)" solo si
+   `solicitudes.horario_aproximado`. "Cómo llegar" deja elegir Google Maps, Waze o Mapas. Las otras: "Este pedido ya se
+   cubrió: [día]. Gracias por responder. ¡Te tendremos en cuenta para el próximo!" o "Se canceló el pedido del [día].
+   Gracias por responder." una sola vez (hasta `visto_en`). Toda niñera con app que queda asignada a un sitting recibe
+   "¡Quedaste seleccionada!", también si la asignaron con "Asignar" sin haber recibido el pedido por la app.
+   Pendientes: "Repasa la guía de [edad]" espera la etapa 4 y la ficha de la familia la etapa 8.
 Textos de las plantillas "Todavía buscando" y "No conseguimos": botones en la tarjeta de
 "Pedidos en curso".
 
-Mensaje con los perfiles (texto propuesto por Claude, lo validan las dueñas antes de la prueba):
+Mensaje con los perfiles (construido el 01/11/2026; los textos de las cuatro plantillas están en `textos-provisorios.md`):
 "¡Hola [madre]! Te paso las niñeras disponibles para el [día] a las [hora inicio]:
-- [niñera]: [link al CV]
-Avísame cuál preferís y te la confirmo." (sin emojis nuevos desde el código; el texto se guarda
-en `app_config 'plantillas'` y las dueñas lo editan desde ahí, con el emoji que quieran).
+[niñeras]
+Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_config 'plantilla_perfiles'`,
+`'plantilla_confirmacion'`, `'plantilla_buscando'` y `'plantilla_no_conseguimos'` (no en una sola fila `plantillas`).
 
 ### 6.4 El día (etapa 7)
 - Antes: "Estoy saliendo" (evento `saliendo`) / "Voy a llegar tarde" → 10 / 20 / 30 min o más
@@ -605,10 +627,10 @@ Niñera (todos con los textos de `textos.md`, sección 1; cuerpo en "tú"):
 | clave | cuándo | etapa |
 |---|---|---|
 | `pedido:<sn>:nuevo` | al enviar el pedido (inmediato) | 5 |
-| `pedido:<sn>:recordatorio` | 10 min antes de `responder_hasta`, si sigue `invitada` | 6 |
-| `pedido:<sn>:seleccionada` | al elegirla (inmediato) | 6 |
-| `pedido:<sn>:cubierto` | a las que aceptaron y no fueron elegidas, también si se asignó a mano (inmediato) | 6 |
-| `pedido:<sn>:cancelado` | a las que aceptaron, si el pedido se cancela antes de elegir (4.19) | 6 |
+| `pedido:<sn>:recordatorio` | 10 min antes de `responder_hasta`, si sigue `invitada` (`programar_avisos_pedidos`, cron) | 6 |
+| `pedido:<sn>:seleccionada` | al pasar su fila a `confirmada`, trigger `solicitud_ninieras_al_confirmar` (inmediato, url `#pedido/<sn>`) | 6 |
+| `pedido:<sn>:cubierto` | a las que dijeron "Puedo" y no fueron elegidas, también si se asignó a mano (mismo trigger, url `#inicio`) | 6 |
+| `pedido:<sn>:cancelado` | a las que dijeron "Puedo", si el pedido se cancela (trigger `solicitudes_al_cancelar`, url `#inicio`; 4.19) | 6 |
 | `sitting:<id>:24h` / `:1h` | puntuales con niñera con app (no fijos) | 7 |
 | `sitting:<id>:fin` | a la hora de fin prevista, sin cierre | 7 |
 | `sitting:<id>:fin30` | 30 min después, sin cierre | 7 |
@@ -629,7 +651,7 @@ Admins (`para_admin = 'todas'`, salvo "pedido nuevo", que va a las otras; textos
 | `admin:pedido:<sn>:acepto` | cada "Acepto" (inmediato) | 5 |
 | `admin:pedido:<sol>:perfiles` | 15 min (hoy) / 30 min (otro día) después de enviar, si hay al menos una que aceptó y no hay elegida | 6 |
 | `admin:pedido:<sol>:nadie` | 30 min después de enviar sin ninguna respuesta | 6 |
-| `admin:pedido:<sol>:3h` | pedido de hoy sin elegida, 3 h antes del inicio | 6 |
+| `admin:pedido:<sol>:3h` | pedido de hoy sin elegida (por la app o no, sitting o traslado), 3 h antes del inicio; con `solo_practica` prendido, solo familias de práctica (url `?ir=agenda&solicitud=<id>`) | 6 |
 | `admin:sitting:<id>:tarde` | "Voy a llegar tarde" (inmediato, con "Contactarla") | 7 |
 | `admin:sitting:<id>:no_llego` | 15 min después del inicio sin "Ya entré" (puntuales) | 7 |
 | `admin:sitting:<id>:problema` | no me abren / no encuentro (inmediato) | 7 |

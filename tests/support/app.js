@@ -14,7 +14,7 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
@@ -53,11 +53,30 @@ function comparar(a, b) {
   return String(a).localeCompare(String(b));
 }
 function separarLista(txt) {
-  // in.(a,b,"c, d")
+  // in.(a,b,"c, d","con \"comillas\""): dentro de las comillas, la barra escapa el carácter siguiente (PostgREST).
   const out = []; let actual = ''; let comillas = false;
-  for (const c of txt) {
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (comillas && c === '\\') { actual += txt[++i] ?? ''; continue; }
     if (c === '"') { comillas = !comillas; continue; }
     if (c === ',' && !comillas) { out.push(actual); actual = ''; continue; }
+    actual += c;
+  }
+  if (actual !== '') out.push(actual);
+  return out;
+}
+// or=(familia_id.in.(a,b),familia_nombre.in.("Familia (práctica)")): las condiciones se separan por las comas de
+// afuera de todo paréntesis y comillas, y cada una queda tal cual (con sus comillas) para cumple() (01/11/2026,
+// "Pedidos en curso" lee el historial de varias familias en una sola lectura).
+function separarCondiciones(txt) {
+  const out = []; let actual = ''; let comillas = false; let nivel = 0;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (comillas && c === '\\') { actual += c + (txt[++i] ?? ''); continue; }
+    if (c === '"') comillas = !comillas;
+    else if (!comillas && c === '(') nivel++;
+    else if (!comillas && c === ')') nivel--;
+    else if (c === ',' && !comillas && nivel === 0) { out.push(actual); actual = ''; continue; }
     actual += c;
   }
   if (actual !== '') out.push(actual);
@@ -94,7 +113,7 @@ function filtrar(filas, params) {
   for (const [k, v] of params) {
     if (PARAMS_NO_FILTRO.has(k)) continue;
     if (k === 'or') { // or=(estado.neq.previsto,fecha.lte.2026-10-04): alguna de las condiciones
-      const conds = separarLista(v.replace(/^\(|\)$/g, ''));
+      const conds = separarCondiciones(v.replace(/^\(|\)$/g, ''));
       out = out.filter(f => conds.some(c => { const i = c.indexOf('.'); return cumple(f, c.slice(0, i), c.slice(i + 1)); }));
       continue;
     }
@@ -179,13 +198,16 @@ async function abrirApp(page, opciones = {}) {
   const sinMigrarTodo = baseSinMigrar === true;
   // Los pedidos de la etapa 5: las RPC del panel y de la niñera (la admin las llama y recibe no_autorizada).
   Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true }));
-  Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora)).filter(([n]) => RPC_ETAPA_5.includes(n))));
+  // La etapa 6 es posterior a la 5: sin la 5 tampoco está la 6.
   const sinEtapa5 = sinMigrarTodo || baseSinMigrar === 'etapa5';
+  const sinEtapa6 = sinEtapa5 || baseSinMigrar === 'etapa6';
+  Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora, { sinEtapa6 })).filter(([n]) => RPC_ETAPA_5.includes(n) || RPC_ETAPA_6.includes(n))));
   if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+  if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinMigrarTodo) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
   if (sinMigrarTodo) sacarColumnasEtapa2(estado.db);
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, sinEtapa5, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -220,12 +242,15 @@ async function abrirAppNinera(page, opciones = {}) {
     const fila = (estado.db.ninieras || []).find(n => n.id === ninera);
     if (fila) fila.user_id = USUARIO_NINERA.id;
   }
-  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined));
+  // 'etapa5' (solo falta la de los pedidos), y también con true y 'etapa3' (la 5 es posterior a la 3).
+  // 'etapa6' (01/11/2026): solo falta la de elegir la niñera (la 6 es posterior a la 5).
+  const sinEtapa5 = baseSinMigrar === true || baseSinMigrar === 'etapa3' || baseSinMigrar === 'etapa5';
+  const sinEtapa6 = sinEtapa5 || baseSinMigrar === 'etapa6';
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6 }));
   // Una niñera no es admin: enviar_pedido_app y sugeridas_datos le dan no_autorizada / nada.
   Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false }));
-  // 'etapa5' (solo falta la de los pedidos), y también con true y 'etapa3' (la 5 es posterior a la 3).
-  const sinEtapa5 = baseSinMigrar === true || baseSinMigrar === 'etapa3' || baseSinMigrar === 'etapa5';
   if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+  if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (baseSinMigrar === true) {
     RPC_ETAPA_2.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     sacarColumnasEtapa2(estado.db);
@@ -240,7 +265,7 @@ async function abrirAppNinera(page, opciones = {}) {
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, sinEtapa5,
+    sesionNinera: ninera, sinEtapa5, sinEtapa6,
     tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : [])] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
@@ -300,7 +325,7 @@ function crearEstado(datos) {
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -455,8 +480,9 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     }
     // Etapa 5 (02/11/2026): sin la migración de los pedidos, las columnas nuevas no existen: leerlas da
     // 42703 (select) y escribirlas PGRST204, como Supabase.
-    const columnasNuevas = sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] : null;
-    if (columnasNuevas) {
+    // Etapa 6 (01/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
+    const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : [])];
+    if (columnasNuevas.length) {
       if (metodo === 'GET' || metodo === 'HEAD') {
         const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(url.searchParams.get('select') || ''));
         if (col) return route.fulfill({ status: 400, json: { code: '42703', message: `column ${tabla}.${col} does not exist` } });
@@ -537,6 +563,14 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     // vuelve a poner actualizado_en en cada cambio (01/11/2026: la ficha guarda con esa condición).
     const conFechas = tabla === 'precios_ninera_familia';
     const ahoraIso = () => new Date().toISOString();
+    // Triggers de la etapa 6 (solicitud_ninieras_al_confirmar y solicitudes_al_cancelar): corren cuando la fila
+    // pasa a 'confirmada' (insert o update de estado) o la solicitud pasa a 'cancelada'. Sin la migración, no existen.
+    const triggersEleccion = (tablaFila, fila, estadoAntes) => {
+      if (sinEtapa6 || fila.estado === estadoAntes) return;
+      const ahoraDb = new Date(ahora || Date.now()).toISOString();
+      if (tablaFila === 'solicitud_ninieras' && fila.estado === 'confirmada') alConfirmarFila(db, ahoraDb, fila);
+      if (tablaFila === 'solicitudes' && fila.estado === 'cancelada') alCancelarSolicitud(db, ahoraDb, fila);
+    };
     let afectadas = [];
     if (metodo === 'POST' && tabla === 'chat_mensajes') {
       // id, creado_en y lo leído los pone la base, y el trigger encola el aviso.
@@ -548,16 +582,25 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         if (prefer.includes('merge-duplicates') && conflicto) {
           const claves = conflicto.split(',');
           const existente = db[tabla].find(f => claves.every(c => String(f[c]) === String(fila[c])));
-          if (existente) { Object.assign(existente, fila, conFechas ? { actualizado_en: ahoraIso() } : {}); afectadas.push(existente); continue; }
+          if (existente) {
+            const antes = existente.estado;
+            Object.assign(existente, fila, conFechas ? { actualizado_en: ahoraIso() } : {});
+            afectadas.push(existente);
+            triggersEleccion(tabla, existente, antes);
+            continue;
+          }
         }
         const nueva = { id: nuevoId(), created_at: new Date().toISOString(), ...(conFechas ? { creado_en: ahoraIso(), actualizado_en: ahoraIso() } : {}), ...fila };
         db[tabla].push(nueva); afectadas.push(nueva);
+        triggersEleccion(tabla, nueva, undefined);
       }
     } else if (metodo === 'PATCH') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       afectadas.forEach(f => {
         const sinSolicitud = f.solicitud_id == null;
+        const antes = f.estado;
         Object.assign(f, cuerpo, conFechas ? { actualizado_en: ahoraIso() } : {});
+        triggersEleccion(tabla, f, antes);
         // Trigger pedidos_whatsapp_aviso_nuevo (etapa 5): solicitud_id pasa de null a un valor.
         if (tabla === 'pedidos_whatsapp' && !sinEtapa5 && sinSolicitud && f.solicitud_id != null) avisoPedidoNuevo(db, new Date(ahora || Date.now()).toISOString(), f);
       });

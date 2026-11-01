@@ -219,6 +219,12 @@ button.aviso-item:hover{border-color:var(--accent);}
 .pedidos{margin:0 0 22px;}
 .pedidos h2{font-size:21px;margin:0 0 8px;}
 .pedido-tarjeta{background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);padding:16px;margin:0 0 12px;overflow-wrap:anywhere;scroll-margin-top:16px;}
+.pedido-seleccionada{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft), var(--shadow-sm);}
+.pedido-dato-principal{margin:0 0 12px;font-size:16px;line-height:1.45;}
+.aviso-pedido{margin:0 0 12px;}
+.como-llegar{margin:0 0 10px;}
+.como-llegar[hidden]{display:none;}
+.como-llegar .btn.ancho + .btn.ancho{margin-top:10px;}
 .pedido-destacado{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft), var(--shadow-sm);}
 .pedido-limite{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--clay-text);}
 .pedido-dia{font-size:20px;margin:0 0 6px;}

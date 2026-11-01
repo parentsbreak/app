@@ -34,6 +34,7 @@ Aprobadas por las dueñas el 21/10/2026, con cambios del 23/10 y del 25/10/2026.
 6. Elige la madre: la app arma un mensaje con las que aceptaron para que la admin se lo mande por WhatsApp. Pedido para el mismo día: a los 15 minutos se manda lo que haya. Para otro día: a los 30 minutos.
    - CV solo de las nuevas (31/10/2026): si la niñera ya trabajó con esa familia, no se le vuelve a mandar su CV a la madre (va solo su nombre). Si es nueva para esa familia, su perfil entra al mensaje recién cuando una admin lo revisa y lo confirma.
    - Nunca sale un mensaje solo: la admin lo revisa, lo copia y lo manda ella.
+   - Sin confirmación automática (01/11/2026): la app nunca confirma sola a ninguna niñera, aunque varias digan "Puedo" y pase el tiempo. Siempre elige la madre o una admin, y la admin la marca.
 7. La admin marca la elegida → le llega "¡Quedaste seleccionada!"; a las otras que aceptaron, "ya se cubrió". Queda asignada en la Agenda.
 8. Las admins confirman a la madre con la plantilla.
 - Nada se le manda a una madre ni a una niñera sin confirmación de una admin.

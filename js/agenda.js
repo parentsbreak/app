@@ -316,6 +316,7 @@ function renderAgendaFilaMobile(s){
           ? (s.zona ? `<span class="badge accent" style="font-size:10px;padding:2px 7px;flex-shrink:0;">${escaparHtml(s.zona)}</span>` : '')
           : `<div style="font-size:11px;font-weight:700;color:${sinAsignar?'var(--warn)':'var(--good)'};flex-shrink:0;">${sinAsignar ? 'Sin asignar' : escaparHtml(ninTxt)}</div>`}
       ${previsto ? `<span class="agenda-previsto">Previsto</span>` : ''}
+      ${s.horario_aproximado && !s.cancelado && !esRegistro ? `<span class="badge warn" style="font-size:10px;padding:2px 7px;flex-shrink:0;">aproximado</span>` : ''}
     </div>
     ${esRegistro ? `<div style="display:flex;gap:14px;margin-top:4px;padding-left:46px;font-size:11px;color:var(--ink-soft);">
       <span>Cobro <b style="color:var(--ink);font-family:'IBM Plex Mono',monospace;">$${Number(s.cobro_familia||0).toLocaleString('es-UY')}</b></span>
@@ -331,7 +332,7 @@ function renderAgendaTarjetaDia(s){
   const previsto = !!(s._previsto || s._esPrevisto);
   return `<div style="background:var(--bg);border-radius:8px;padding:7px 8px;margin-bottom:6px;cursor:pointer;font-size:12px;" onclick="abrirModalSolicitud(${argJs(s.id)})">
     <div style="font-weight:700;color:var(--ink);margin-bottom:2px;">${escaparHtml(s.familia_nombre)}</div>
-    <div class="helper" style="margin:0 0 4px;">${horaTxt}${previsto ? ` · <span class="agenda-previsto">Previsto</span>` : ''}</div>
+    <div class="helper" style="margin:0 0 4px;">${horaTxt}${s.horario_aproximado && !s.cancelado && !esRegistro ? ', aproximado' : ''}${previsto ? ` · <span class="agenda-previsto">Previsto</span>` : ''}</div>
     ${s.cancelado
       ? `<span class="badge warn" style="font-size:10.5px;padding:3px 8px;">Cancelado</span>`
       : esRegistro
@@ -652,6 +653,7 @@ function abrirModalNuevaSolicitud(){
         <div class="field"><label>Pago a la niñera por viaje</label><div class="moneyfield"><input type="number" id="agenda-pago-traslado" oninput="marcarCampoEditadoManual('agenda-pago-traslado')"></div></div>
       </div>
       <label class="chk" style="margin:-4px 0 10px;"><input type="checkbox" id="agenda-cruza-medianoche" onchange="onAgendaCruzaChange()"> Termina al día siguiente</label>
+      <label class="chk" style="margin:-4px 0 10px;"><input type="checkbox" id="agenda-aproximado"> Horario aproximado (se puede extender)</label>
       <div class="helper" id="agenda-total-preview" style="min-height:16px;"></div>
       <div class="helper" id="agenda-pago-preview" style="min-height:16px;margin-top:2px;"></div>
     </div>
@@ -757,11 +759,18 @@ async function guardarSolicitudPuntual(){
     tipo, zona: zona || (fam ? fam.zona : null),
     fecha, hora_inicio: horaInicio, hora_fin: horaFin || null,
     termina_dia_siguiente: cruza,
+    horario_aproximado: !!document.getElementById('agenda-aproximado')?.checked,
     cobro_familia: cobroFinal,
     estado: ninera ? 'confirmada' : 'sin_asignar',
   };
+  const marcaAproximado = solicitud.horario_aproximado;
   const precioNinera = ninera && tipo==='sitting' ? precioNineraAGuardarAgenda() : null;
-  const { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  let { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  // Base sin la migración de la etapa 6: se guarda igual, sin la marca, y se avisa (como el ticket de WhatsApp).
+  if(esFaltaColumnaSolicitudApp(error)){
+    delete solicitud.horario_aproximado;
+    ({ data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single());
+  }
   if(error){ warn.innerHTML = errBox(error); return; }
   let resultado = null;
   if(ninera){
@@ -781,6 +790,7 @@ async function guardarSolicitudPuntual(){
   actualizarAgendaBadge();
   if(resultado) avisarResultadoAsignacion(resultado);
   else toast('Solicitud guardada.');
+  if(marcaAproximado && !('horario_aproximado' in solicitud)) toast('Falta actualizar la base: la solicitud se guardó sin la marca de horario aproximado. Avisale a Diego.', 'bad');
   // El precio de la niñera con esta familia, después de asignarla: si falla, lo asignado queda y se avisa.
   if(precioNinera){
     const aviso = avisoPrecioGuardado(await guardarPrecioNineraFamilia(precioNinera), precioNinera.nineraNombre, 'Quedó asignada, pero');
@@ -795,7 +805,10 @@ async function guardarSolicitudPuntual(){
    traslado no tiene hora de fin: lleva su cobro total.
    snIdApp (etapa 5, 02/11/2026): la fila de esa niñera que ya recibió el pedido por la app. Se confirma
    esa misma fila, con la condición del estado que tenía al abrir (si respondió otra cosa mientras se
-   elegía, no se pisa: respuestaCambio), en vez de insertar otra. */
+   elegía, no se pisa: respuestaCambio), en vez de insertar otra.
+   Etapa 6 (01/11/2026): la fila que nace en el panel lleva su precio por hora (lo ve la niñera en los
+   datos del sitting; la de la app conserva el que se le ofreció), y el registro, el pedido del que sale
+   (solicitud_id: de ahí la niñera lee las indicaciones). Con la base sin esas columnas se guarda sin ellas. */
 async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
   const filaApp = snIdApp ? (s.ninieras||[]).find(x=>x.id===snIdApp) : null;
   if(filaApp){
@@ -804,23 +817,46 @@ async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
     if(errorNinera) return { errorNinera };
     if(!tocadas || !tocadas.length) return { errorNinera: { message: 'La respuesta cambió mientras se elegía.' }, respuestaCambio: true };
   } else {
-    const { error: errorNinera } = await sb.from('solicitud_ninieras').insert({
-      solicitud_id: s.id, ninera_id: ninera.id, ninera_nombre: ninera.nombre,
-      estado: 'confirmada', pago_ninera: pago,
-    });
+    const fila = { solicitud_id: s.id, ninera_id: ninera.id, ninera_nombre: ninera.nombre, estado: 'confirmada', pago_ninera: pago };
+    const precioHora = precioHoraDelPago(s, pago);
+    if(precioHora!=null) fila.precio_hora = precioHora;
+    const { error: errorNinera } = await insertarSinColumnasFaltantes('solicitud_ninieras', fila, ['precio_hora']);
     if(errorNinera) return { errorNinera };
   }
   const faltaFin = s.tipo!=='traslado' && !s.hora_fin;
-  const { error: errorRegistro } = await sb.from('sittings_traslados').insert({
+  const { error: errorRegistro } = await insertarSinColumnasFaltantes('sittings_traslados', {
     tipo: s.tipo, registrado_por: registradoPorUsuario(),
     familia_id: familia?.id || s.familia_id || null, familia_nombre: s.familia_nombre,
     ninera_id: ninera.id, ninera_nombre: ninera.nombre,
     fecha: s.fecha, hora_inicio: s.hora_inicio, hora_fin: s.hora_fin || null,
     termina_dia_siguiente: !!s.termina_dia_siguiente,
     cobro_familia: faltaFin ? 0 : (Number(s.cobro_familia)||0), pago_ninera: pago,
-    cobrado: false, pagado: false, notas: 'Asignado desde Agenda',
-  });
+    cobrado: false, pagado: false, notas: 'Asignado desde Agenda', solicitud_id: s.id,
+  }, ['solicitud_id']);
   return { errorRegistro, faltaFin };
+}
+// El precio por hora de una niñera asignada sin pasar por la app: el pago por las horas reales (las que se
+// le pagan; el redondeo de los términos es solo del cobro). Solo sittings, y solo con hora de fin y pago.
+function precioHoraDelPago(s, pago){
+  if(s.tipo!=='sitting' || !(Number(pago) > 0)) return null;
+  const horas = horasSitting(s.hora_inicio, s.hora_fin, !!s.termina_dia_siguiente, null, s.fecha);
+  return horas && horas.real > 0 ? redondearPago(Number(pago) / horas.real) : null;
+}
+// Inserta y, si la base todavía no tiene alguna de las columnas `opcionales` (el panel se publica antes que la
+// migración: Supabase da PGRST204), la vuelve a mandar sin esa columna. Cualquier otro error vuelve tal cual.
+async function insertarSinColumnasFaltantes(tabla, fila, opcionales){
+  const cuerpo = { ...fila };
+  let res = await sb.from(tabla).insert(cuerpo);
+  for(let intento = 0; res.error && intento < opcionales.length; intento++){
+    const falta = opcionales.find(c => c in cuerpo && esFaltaColumnaLlamada(res.error, c));
+    if(!falta) break;
+    delete cuerpo[falta];
+    res = await sb.from(tabla).insert(cuerpo);
+  }
+  return res;
+}
+function esFaltaColumnaLlamada(error, columna){
+  return !!error && (error.code==='PGRST204' || error.code==='42703') && new RegExp(`\\b${columna}\\b`).test(error.message || '');
 }
 function avisarResultadoAsignacion({errorRegistro, faltaFin}){
   if(errorRegistro) toast('Quedó asignado, pero no se pudo cargar en Sittings & traslados: '+errorRegistro.message, 'bad');
@@ -903,45 +939,78 @@ async function guardarAsignacionDirecta(solicitudId){
   const warn = document.getElementById('agenda-asignar-warn');
   if(!sel){ warn.innerHTML = '<div class="warnbox">Elegí una niñera.</div>'; return; }
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
-  const choque = chequearDobleReservaAgenda(sel.dataset.nombre, s?.fecha, s?.hora_inicio, s?.hora_fin, solicitudId);
-  if(!(await avisarSiDobleReserva(choque, sel.dataset.nombre, 'Asignar igual'))) return;
-  const familia = familiaDeSolicitud(s);
-  if(familia && s?.hora_inicio){
-    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, sel.dataset.nombre, null);
-    if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return;
+  if(!s) return;
+  // Si ya le llegó por la app (etapa 5), se confirma SU fila en vez de crear otra.
+  await asignarNineraAlPedido({
+    s, ninera: { id: sel.value, nombre: sel.dataset.nombre }, familia: familiaDeSolicitud(s),
+    pago: redondearPago(document.getElementById('agenda-asignar-pago').value), snIdApp: sel.dataset.snApp || null,
+  });
+}
+/* La asignación de una niñera a un pedido (etapa 6, 01/11/2026): la comparten "Guardar asignación" de "Elegir
+   niñeras" y "Asignar" de "Pedidos en curso" (abrirAsignarPedido, pedidos.js), así la regla de dos admins a la
+   vez vive en un solo lugar. Las dos pantallas usan los mismos campos: #agenda-asignar-direccion (solo si a
+   la familia de un sitting le falta la dirección) y #agenda-asignar-warn.
+   s: la solicitud con sus filas (s.ninieras); snIdApp: la fila de la app de esa niñera, si la tiene.
+   Los avisos a las niñeras ("¡Quedaste seleccionada!", "Ya se cubrió") los manda la base con un trigger
+   cuando la fila pasa a 'confirmada': el panel no manda nada. Devuelve true si quedó asignada. */
+async function asignarNineraAlPedido({ s, ninera, familia, pago, snIdApp = null }){
+  const warn = document.getElementById('agenda-asignar-warn');
+  const aviso = html => { if(warn) warn.innerHTML = html; };
+  aviso('');
+  const campoDireccion = document.getElementById('agenda-asignar-direccion');
+  const direccion = campoDireccion ? campoDireccion.value.trim() : null;
+  if(campoDireccion && !direccion){ aviso('<div class="warnbox">Falta la dirección de la familia. Escribila para asignar: la niñera la ve cuando queda confirmada.</div>'); return false; }
+  // La doble reserva se mira en la base, no en lo que tiene cargado la Agenda: "Asignar" también se abre desde
+  // Hoy (Pedidos en curso), donde la Agenda no está cargada y el chequeo pasaba sin mirar nada (revisión de la
+  // tarea 6.4, 01/11/2026). Además ve los registros y los fijos de ese día, no solo los pedidos confirmados.
+  // Este pedido no choca consigo mismo: todavía no tiene ninguna fila 'confirmada' ni registro.
+  const choque = await chequearDobleReservaDB(ninera.nombre, s.fecha, s.hora_inicio, s.hora_fin, { familiaId: familia?.id || s.familia_id || null });
+  if(!(await avisarSiDobleReserva(choque && { ...choque, fecha: s.fecha }, ninera.nombre, 'Asignar igual'))) return false;
+  if(familia && s.hora_inicio){
+    const choqueFamilia = await chequearFamiliaYaCubierta(familia.id, s.fecha, s.hora_inicio, s.hora_fin, ninera.nombre, null);
+    if(!(await avisarSiFamiliaYaCubierta(choqueFamilia, s.familia_nombre, 'Sí, van dos'))) return false;
   }
-  const pago = redondearPago(document.getElementById('agenda-asignar-pago').value);
+  // La dirección va a la ficha de la familia antes de tomar el pedido: si no se pudo guardar, no se asigna
+  // (la niñera elegida la necesita para llegar).
+  if(campoDireccion){
+    const familiaId = familia?.id || s.familia_id;
+    const { error: eDir } = await sb.from('familias').update({ direccion }).eq('id', familiaId);
+    if(eDir){ aviso(errBox(eDir) + '<div class="warnbox">No se pudo guardar la dirección. No se asignó.</div>'); return false; }
+  }
   // Primero se toma el pedido, con la condición de que siga sin asignar: si otra admin lo asignó
   // (o lo canceló) mientras se elegía, no se carga una segunda niñera ni un segundo registro
   // (auditoría, 21/10/2026). Si las dos guardan a la vez, la base deja pasar a una sola.
-  const estadoAntes = s?.estado || 'sin_asignar';
+  const estadoAntes = s.estado || 'sin_asignar';
   const { data: tomada, error: e0 } = await sb.from('solicitudes').update({estado:'confirmada'})
-    .eq('id', solicitudId).in('estado', ['sin_asignar','pendiente_confirmar']).select('id');
-  if(e0){ warn.innerHTML = errBox(e0); return; }
+    .eq('id', s.id).in('estado', ['sin_asignar','pendiente_confirmar']).select('id');
+  if(e0){ aviso(errBox(e0)); return false; }
   if(!tomada || !tomada.length){
-    warn.innerHTML = '<div class="warnbox">No se cargó nada: mientras elegías, alguien más ya asignó este pedido (o lo canceló). Cerrá para ver cómo quedó.</div>';
-    return;
+    aviso('<div class="warnbox">No se cargó nada: mientras elegías, alguien más ya asignó este pedido (o lo canceló). Cerrá para ver cómo quedó.</div>');
+    return false;
   }
-  // Si ya le llegó por la app (etapa 5), se confirma SU fila en vez de crear otra.
-  const resultado = await cargarNineraYRegistro(s, { id: sel.value, nombre: sel.dataset.nombre }, pago, familia, sel.dataset.snApp || null);
+  const resultado = await cargarNineraYRegistro(s, ninera, pago, familia, snIdApp);
   if(resultado.errorNinera){
     // El pedido vuelve a como estaba, así se puede reintentar sin que quede "confirmado" sin niñera.
-    const { error: eVuelta } = await sb.from('solicitudes').update({estado: estadoAntes}).eq('id', solicitudId).eq('estado', 'confirmada');
+    const { error: eVuelta } = await sb.from('solicitudes').update({estado: estadoAntes}).eq('id', s.id).eq('estado', 'confirmada');
     const motivo = resultado.respuestaCambio
-      ? `<div class="warnbox">${escaparHtml(`La respuesta de ${sel.dataset.nombre} cambió mientras elegías: no se asignó. Cerrá y volvé a abrir el pedido.`)}</div>`
+      ? `<div class="warnbox">${escaparHtml(`La respuesta de ${ninera.nombre} cambió mientras elegías: no se asignó. Cerrá y volvé a abrir el pedido.`)}</div>`
       : errBox(resultado.errorNinera);
-    warn.innerHTML = motivo + (eVuelta ? '<div class="warnbox">Además, el pedido quedó como confirmado sin niñera: avisale a Diego.</div>' : '');
-    return;
+    aviso(motivo + (eVuelta ? '<div class="warnbox">Además, el pedido quedó como confirmado sin niñera: avisale a Diego.</div>' : ''));
+    return false;
   }
-  cerrarModal();
-  await cargarAgendaSolicitudes();
-  actualizarAgendaBadge();
   avisarResultadoAsignacion(resultado);
+  // Después, el mensaje para la madre (pantalla 5), con la Agenda al día atrás si está a la vista.
+  // Lo mismo con "Pedidos en curso" de Hoy, si se asignó desde ahí: el pedido sale de la tarjeta de atrás.
+  const recarga = document.getElementById('agenda-grid-wrap') ? cargarAgendaSolicitudes().then(actualizarAgendaBadge) : null;
+  const recargaHoy = document.getElementById('dash-pedidos') ? cargarPedidosEnCurso() : null;
+  await Promise.all([abrirConfirmacionMadre(s.id, ninera.nombre), recarga, recargaHoy]);
+  return true;
 }
 /* Respuestas de la app en el modal de la solicitud (fase 1, etapa 5, tarea 5.8, 02/11/2026). Las filas con
    origen 'app' son las que se mandaron por "Elegir niñeras": dicen "Puede", "No puede: [motivo]" o "Sin
    responder", con el precio por hora que se le ofreció, y no tienen "Confirmar": elegir a la que va se hace con
-   "Asignar" en "Elegir niñeras" (etapa 6 lo hará acá). Los textos del motivo son los mismos que ve la niñera
+   "Asignar" en "Elegir niñeras" y, desde la etapa 6, con "Asignar" en cada fila que puede (htmlPedidoEnCurso,
+   pedidos.js). Los textos del motivo son los mismos que ve la niñera
    (ninera/js/pedido.js); con "Otro" se muestra lo que ella escribió. */
 const MOTIVOS_NO_PUEDO_PANEL = { otro_trabajo:'Tengo otro trabajo o sitting', facultad:'Tengo examen o facultad', lejos:'Me queda lejos', tarde:'Es muy tarde para la vuelta', otro:'Otro motivo' };
 function textoMotivoNoPuede(n){
@@ -995,16 +1064,26 @@ function cuerpoModalSolicitud(s){
     ? `${s.hora_inicio.slice(0,5)} → día siguiente${s.hora_fin?' '+s.hora_fin.slice(0,5):''}`
     : (s.hora_fin ? `${s.hora_inicio.slice(0,5)}–${s.hora_fin.slice(0,5)}` : s.hora_inicio.slice(0,5));
   const fechaTxt = new Date(s.fecha+'T00:00:00').toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'});
-  const ninierasHtml = s.ninieras.map(n=>filaNineraSolicitud(s, n)).join('');
-  return `
+  const encabezado = `
     <h2>${escaparHtml(s.familia_nombre)}</h2>
-    <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.zona?escaparHtml(' · '+s.zona):''}</div>
-    ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}
+    <div class="helper">${s.tipo==='traslado'?'Traslado':'Sitting'} · ${fechaTxt} · ${horario}${s.horario_aproximado ? ' (aproximado)' : ''}${s.zona?escaparHtml(' · '+s.zona):''}</div>
+    ${s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>`:''}`;
+  // Mandado por la app y sin elegida (etapa 6, 01/11/2026): el mismo detalle que "Pedidos en curso" de Hoy, con
+  // "Asignar", los mensajes para la madre y "Cancelar el pedido". Las filas del panel (sin origen) van al final de
+  // la lista, como siempre (con "Confirmar"). El historial ("Ya fue N veces") llega después: lo pide abrirModalSolicitud.
+  if(s.estado==='pendiente_confirmar' && (s.ninieras||[]).some(esRespuestaApp)){
+    const historial = historialModalSolicitud && historialModalSolicitud.id===s.id ? historialModalSolicitud.historial : null;
+    const filasPanel = s.ninieras.filter(n=>!esRespuestaApp(n)).map(n=>filaNineraSolicitud(s, n)).join('');
+    return `${encabezado}
+    <div style="margin:10px 0 0;">${htmlPedidoEnCurso(s, historial, { enModal: true, filasExtra: filasPanel })}</div>`;
+  }
+  const ninierasHtml = s.ninieras.map(n=>filaNineraSolicitud(s, n)).join('');
+  return `${encabezado}
     ${encabezadoEnvioApp(s)}
     <div style="margin:14px 0;">${ninierasHtml || '<div class="empty">Todavía no hay niñeras asignadas.</div>'}</div>
     ${s.estado==='sin_asignar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirModalAsignar(${argJs(s.id)})">Asignar niñera</button>` : ''}
     ${s.estado==='pendiente_confirmar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirElegirNineras(${argJs(s.id)})">Elegir niñeras</button>` : ''}
-    ${s.estado!=='cancelada' ? `<button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>cancelarSolicitud(${argJs(s.id)}))">Cancelar solicitud</button>` : `<div class="warnbox">Esta solicitud fue cancelada.</div>`}
+    ${s.estado!=='cancelada' ? `<button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>cancelarSolicitud(${argJs(s.id)}, ${argJs(s.estado)}))">Cancelar solicitud</button>` : `<div class="warnbox">Esta solicitud fue cancelada.</div>`}
   `;
 }
 function abrirModalSolicitud(id){
@@ -1012,6 +1091,7 @@ function abrirModalSolicitud(id){
   if(!s) return;
   if(s._fuente==='asignacion'){ abrirModalAsignacionFija(s); return; }
   if(s._fuente==='registro'){ abrirModalRegistroDesdeAgenda(s); return; }
+  historialModalSolicitud = null;
   abrirModal(`<div id="sol-cuerpo">${cuerpoModalSolicitud(s)}</div>`);
   // Las respuestas de las niñeras llegan con el modal abierto: canal propio, como el chat de la ficha de
   // la niñera. Se abre con el modal y se suelta al cerrarlo (alCerrarModal); el de todo el módulo no
@@ -1023,7 +1103,17 @@ function abrirModalSolicitud(id){
     })
     .subscribe();
   alCerrarModal(cerrarCanalModalSolicitud);
+  // "Ya fue N veces" de un pedido en curso: una lectura aparte, sin frenar el modal; si falla, sin esa línea.
+  if(s.estado==='pendiente_confirmar' && (s.ninieras||[]).some(esRespuestaApp)){
+    historialPedidosEnCurso([s]).then(h=>{
+      if(apertura !== aperturaModalSolicitud || !h) return;
+      historialModalSolicitud = { id, historial: h[id] || null };
+      const actual = agendaSolicitudes.find(x=>x.id===id), cuerpo = document.getElementById('sol-cuerpo');
+      if(actual && cuerpo) cuerpo.innerHTML = cuerpoModalSolicitud(actual);
+    });
+  }
 }
+let historialModalSolicitud = null; // { id, historial } del pedido en curso abierto en el modal
 let aperturaModalSolicitud = 0;
 let canalModalSolicitud = null;
 function cerrarCanalModalSolicitud(){
@@ -2023,13 +2113,32 @@ async function confirmarNinera(solNineraId){
   }
   actualizarAgendaBadge();
 }
-async function cancelarSolicitud(id){
-  const ok = await confirmarAccion('¿Cancelar esta solicitud? Las niñeras invitadas quedarán sin efecto.', 'Cancelar solicitud');
+/* Cancelar un pedido, desde el modal de la Agenda y desde "Pedidos en curso" de Hoy (etapa 6). estadoAntes: el estado
+   que tenía en la pantalla. Se escribe con esa condición (regla de dos admins a la vez, 01/11/2026): si mientras se
+   confirmaba otra admin lo asignó (o lo canceló), no se pisa: antes quedaba cancelado con la niñera elegida, su
+   aviso y el registro en Sittings. Los avisos a las niñeras que dijeron "Puedo" los manda la base (trigger). */
+async function cancelarSolicitud(id, estadoAntes){
+  // Ya asignado (revisión final, 01/11/2026): no queda ninguna fila abierta, así que no sale ningún aviso y el registro
+  // de la elegida sigue en Sittings. El texto no puede prometer lo que no pasa.
+  let textoCancelar = '¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló.';
+  if(estadoAntes === 'confirmada'){
+    const sol = agendaSolicitudes.find(x=>x.id===id);
+    const elegida = sol && (sol.ninieras||[]).find(n=>n.estado==='confirmada' && n.ninera_nombre);
+    textoCancelar = `¿Cancelar el pedido? A ${elegida ? elegida.ninera_nombre : 'la niñera'} no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.`;
+  }
+  const ok = await confirmarAccion(textoCancelar, 'Cancelar el pedido');
   if(!ok) return;
-  if(!(await sbGuardar(sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id), 'la cancelación'))) return;
+  let filas = null;
+  const consulta = sb.from('solicitudes').update({estado:'cancelada'}).eq('id', id).eq('estado', estadoAntes).select('id')
+    .then(r=>{ filas = r.data; return r; });
+  if(!(await sbGuardar(consulta, 'la cancelación'))) return;
+  const cambio = !!(filas && filas.length);
   cerrarModal();
-  cargarAgendaSolicitudes();
+  // Se pone al día lo que esté a la vista (también si no se canceló: así se ve cómo quedó).
+  if(document.getElementById('agenda-grid-wrap')) cargarAgendaSolicitudes();
+  if(document.getElementById('dash-pedidos')) cargarPedidosEnCurso();
   actualizarAgendaBadge();
+  if(!cambio) toast('No se canceló: mientras tanto alguien más asignó o canceló este pedido. Fijate cómo quedó.', 'bad');
 }
 
 /* ---- Actualización en vivo (Supabase Realtime) ----

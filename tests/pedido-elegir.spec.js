@@ -565,8 +565,9 @@ test.describe('Elegir niñeras: "Asignar" como siempre', () => {
     await fila(page, ID.nAna).locator('input[name="agenda-asignar-ninera"]').check();
     await expect(page.locator('#agenda-asignar-pago')).toHaveValue('750'); // 3 h a $250, la tarifa
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
-    expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({ solicitud_id: SOL_UNO, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 750 });
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre (etapa 6)
+    // Etapa 6: la fila que nace en el panel lleva su precio por hora (750 en 3 h).
+    expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({ solicitud_id: SOL_UNO, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 750, precio_hora: 250 });
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nAna, pago_ninera: 750, fecha: '2026-10-06' });
     expect(e.db.solicitudes.find(s => s.id === SOL_UNO).estado).toBe('confirmada');
     verificarLimpio(e);
@@ -584,7 +585,7 @@ test.describe('Elegir niñeras: "Asignar" como siempre', () => {
     await fila(page, ID.nPractica).locator('input[name="agenda-asignar-ninera"]').check();
     await expect(page.locator('#agenda-asignar-pago')).toHaveValue('960'); // 3 h a los $320 que se le ofrecieron
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre (etapa 6)
     expect(escrituras(e, 'solicitud_ninieras', 'POST')).toEqual([]);
     const [w] = escrituras(e, 'solicitud_ninieras', 'PATCH');
     expect(w.cuerpo).toEqual({ estado: 'confirmada', pago_ninera: 960 });
@@ -636,7 +637,7 @@ test.describe('Elegir niñeras: base sin la migración de los pedidos', () => {
     await fila(page, ID.nCarla).locator('input[name="agenda-asignar-ninera"]').check();
     await expect(page.locator('#agenda-asignar-pago')).toHaveValue('750');
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre (etapa 6)
     expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, estado: 'confirmada', pago_ninera: 750 });
     expect(escrituras(e, 'sittings_traslados', 'POST')).toHaveLength(1);
     verificarLimpio(e, { ignorar: [RUIDO_4XX] });
@@ -662,7 +663,7 @@ test.describe('Elegir niñeras: datos tramposos', () => {
     await expect(warnEnvio(page)).toHaveText(`Carla Ejemplo${TRAMPA} ya no puede recibir pedidos por la app: destildala.`);
     await fila(page, ID.nCarla).locator('input[name="agenda-asignar-ninera"]').check();
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible(); // después, la confirmación para la madre (etapa 6)
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, ninera_nombre: 'Carla Ejemplo' + TRAMPA });
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
     verificarLimpio(e, { ignorar: [RUIDO_4XX] });

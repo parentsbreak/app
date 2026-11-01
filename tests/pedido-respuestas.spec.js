@@ -46,7 +46,8 @@ test.describe('modal de la solicitud: respuestas de la app', () => {
     const e = await abrirApp(page, { datos: datos() });
     await abrirModal(page);
     const modal = page.locator('#editmodal');
-    await expect(modal.locator('.sol-envio')).toHaveText('Mandado a 3 a las 10:00. Responder antes de las 13:30.');
+    // Etapa 6 (01/11/2026): el modal de un pedido en curso usa el detalle de "Pedidos en curso" de Hoy.
+    await expect(modal.locator('.sol-envio')).toHaveText('Puede 1, no puede 1, falta responder 1. Mandado a 3 a las 10:00. Responder antes de las 13:30.');
     await expect(fila(page, 'Carla Ejemplo')).toContainText('Puede');
     await expect(fila(page, 'Carla Ejemplo').locator('.badge')).toHaveClass(/good/);
     await expect(fila(page, 'Carla Ejemplo')).toContainText('$320 por hora');
@@ -55,7 +56,7 @@ test.describe('modal de la solicitud: respuestas de la app', () => {
     await expect(fila(page, 'Ana Ficticia')).toContainText('Sin responder');
     await expect(fila(page, 'Ana Ficticia').locator('.badge')).toHaveClass(/warn/);
     await expect(modal.locator('button', { hasText: 'Confirmar' })).toHaveCount(0);
-    await expect(modal.locator('button', { hasText: 'Elegir niñeras' })).toBeVisible();
+    await expect(modal.locator('button', { hasText: 'Preguntar a más niñeras' })).toBeVisible();
     await expect(modal.locator('button', { hasText: 'Agregar otra niñera' })).toHaveCount(0);
     await expect(fila(page, 'Carla Ejemplo').locator('a', { hasText: 'WhatsApp' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -92,10 +93,10 @@ test.describe('modal de la solicitud: respuestas de la app', () => {
     verificarLimpio(e);
   });
 
-  test('"Elegir niñeras" abre la pantalla de elegir y cierra el modal de la solicitud', async ({ page }) => {
+  test('"Preguntar a más niñeras" (antes "Elegir niñeras") abre la pantalla de elegir y cierra el modal de la solicitud', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
     await abrirModal(page);
-    await page.locator('#editmodal button', { hasText: 'Elegir niñeras' }).click();
+    await page.locator('#editmodal button', { hasText: 'Preguntar a más niñeras' }).click();
     await expect(page.locator('#editmodal .pedido-elegir')).toBeVisible();
     verificarLimpio(e, { ignorar: RUIDO });
   });
@@ -289,6 +290,29 @@ test.describe('ficha de la familia: "No acepta niñeras nuevas"', () => {
     const caja = await page.locator('#ed-fam-solo-conocidas').boundingBox();
     expect(Math.round(caja.width)).toBe(24);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    verificarLimpio(e);
+  });
+});
+
+test.describe('cancelar un pedido que ya está asignado (revisión final, 01/11/2026)', () => {
+  async function abrirYCancelar(page, filas) {
+    const d = datos({ filas });
+    Object.assign(d.solicitudes.find(x => x.id === SOL), { estado: 'confirmada' });
+    const e = await abrirApp(page, { datos: d });
+    await abrirModal(page);
+    await page.locator('#editmodal button', { hasText: 'Cancelar solicitud' }).click();
+    return e;
+  }
+
+  test('el texto dice la verdad: a la elegida no le llega aviso y hay que cancelar el registro', async ({ page }) => {
+    const e = await abrirYCancelar(page, [sn(SN_CARLA, ID.nCarla, 'Carla Ejemplo', 'confirmada', { respondido_en: '2026-10-04T13:05:00Z' })]);
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? A Carla Ejemplo no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.');
+    verificarLimpio(e);
+  });
+
+  test('sin el nombre de la elegida: "la niñera"', async ({ page }) => {
+    const e = await abrirYCancelar(page, [sn(SN_CARLA, null, '', 'confirmada')]);
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? A la niñera no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.');
     verificarLimpio(e);
   });
 });

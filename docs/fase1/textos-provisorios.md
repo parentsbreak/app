@@ -190,3 +190,86 @@ Panel de las admins (voseo):
 - Familia: casilla "No acepta niñeras nuevas"; "Se guardó lo demás. Falta actualizar la base y "No acepta niñeras nuevas" no se
   guardó. Avisale a Diego.".
 - Preferencia de avisos "Pedidos de la app": "Cuando una niñera dice que puede o entra un pedido de WhatsApp".
+
+## Etapa 6: elección, avisos y mensajes a la madre (01/11/2026, esperan a las dueñas)
+
+Ningún texto nuevo lleva "·" (Diego, 01/11/2026). Los corchetes se completan solos con los datos del pedido.
+
+App de niñeras ("tú"):
+- Tarjeta arriba del inicio: "¡Quedaste seleccionada!", con "[Día] [dd/mm], [horario]. Ya tienes todos los datos." y el botón
+  "Ver los datos". El detalle que abre lleva ese mismo título.
+- "(aproximada, se puede extender)" después del horario, solo si el horario del pedido es aproximado (tarjeta del pedido,
+  "¡Quedaste seleccionada!" y detalle).
+- Aviso a la que dijo "Puedo" y no fue elegida: "Este pedido ya se cubrió: [día]. Gracias por responder. ¡Te tendremos en cuenta
+  para el próximo!" (una sola vez).
+- Aviso si se cancela: "Se canceló el pedido del [día]. Gracias por responder." (una sola vez).
+- Detalle del sitting: "Indicaciones:" (solo lo que la admin escribió para la niñera), "Precio por hora:" (solo si lo hay),
+  "Cómo llegar" con las opciones "Google Maps", "Waze" y "Mapas".
+- Sin el registro del sitting cargado: "Los datos todavía no están completos: escríbenos." (PROVISORIO).
+
+Panel (voseo):
+- Hoy: "Pedidos en curso". Falla: "No se pudieron cargar los pedidos en curso. Revisá la conexión." con "Reintentar".
+- Tarjeta: "[Familia], [día dd/mm], de [hh:mm] a [hh:mm]", "Pueden 2, no puede 1, falta responder 1. Mandado a 4 a las 14:05."
+  (singular y plural; lo que está en cero no se dice), por niñera "$250 por hora. Ya fue 5 veces." / "Ya fue 1 vez." / "Nueva para
+  esta familia.", "La pidió la madre y puede".
+- Botones: "Asignar y confirmar a la madre", "Asignar", "Perfiles para la madre", "Preguntar a más niñeras", "Todavía buscando",
+  "No conseguimos", "Cancelar el pedido" (en el modal de la Agenda el botón sigue diciendo "Cancelar solicitud").
+- Cancelar: "¿Cancelar el pedido? A las niñeras que dijeron que pueden por la app les llega un aviso de que se canceló." y, si
+  otra admin se adelantó, "No se canceló: mientras tanto alguien más asignó o canceló este pedido. Fijate cómo quedó.".
+- "No se encontró ese pedido en la Agenda." (al tocar "Preguntar a más niñeras" desde Hoy).
+- "Asignar": "Pago a la niñera" con "[N] horas a $[monto] por hora, lo que se le ofreció." (o "Sin hora de fin: el pago se calcula
+  cuando la cargues en Sittings & traslados."), "[niñera] dijo que no puede. Si lo arreglaron por otro lado, la podés asignar
+  igual.", "[niñera] todavía no respondió.", "Dirección de la familia" con "Falta en su ficha y hace falta para asignar: la niñera
+  la ve recién cuando queda confirmada. Se guarda en la ficha.", "Falta la dirección de la familia. Escribila para asignar: la
+  niñera la ve cuando queda confirmada.", "No se pudo guardar la dirección. No se asignó.".
+- "Quién recibe qué": "A [niñera] le llega "¡Quedaste seleccionada!" con los datos del sitting.", "A [niñera] no le llega aviso por
+  la app: avisale por WhatsApp.", "[niñera] no tiene la app: avisale por WhatsApp.", "A [niñeras] le llega / les llega que ya se
+  cubrió.", "[niñera] dijo "Puedo" y no le llega aviso por la app: avisale por WhatsApp." (y la versión en plural), "A las que no
+  respondieron no les llega nada: el pedido se les va solo.", "Después sale el mensaje para la madre, para copiar o mandar por
+  WhatsApp.".
+- Errores al asignar: "No se cargó nada: mientras elegías, alguien más ya asignó este pedido (o lo canceló). Cerrá para ver cómo
+  quedó.", "Además, el pedido quedó como confirmado sin niñera: avisale a Diego.", "Este pedido ya no está abierto: alguien más lo
+  asignó o lo canceló. Cerrá para ver cómo quedó.".
+- Confirmación: "Confirmación para la madre", "[niñera] quedó seleccionada. Ya le llegó el aviso." (solo si la base mandó el aviso;
+  si no, "[niñera] quedó asignada.").
+- Mensaje para la madre (todas las plantillas): "Armando el mensaje…", "Copiar", "Abrir WhatsApp", "Mensaje copiado.", "Falta el
+  teléfono de la familia.", "No se pudo leer el teléfono de la familia: copiá el mensaje.", "Falta [dato] para completar el mensaje."
+  (con "Faltan las niñeras para completar el mensaje."), "Completá lo que falta antes de mandarlo.", "El mensaje está vacío.".
+- "Guardar como plantilla": "Escribí el mensaje antes de guardarlo como plantilla.", "La próxima vez va a salir así. Lo que está
+  entre corchetes se completa solo.", "Cambia el mensaje de las tres admins.", "Volver", "Guardar plantilla", "Plantilla guardada.
+  La próxima vez el mensaje sale así.", "No se pudo guardar la plantilla: [motivo]".
+- Perfiles para la madre: "Cargando las respuestas…", "Ya fue a esa casa: va solo el nombre.", "Nueva para esta familia.", "Ver
+  ficha", "Revisé su perfil", "Adjuntá en WhatsApp el CV de [niñeras].", "[niñera] todavía no tiene CV: generalo desde su ficha.",
+  "Todavía ninguna niñera dijo que puede. Cuando alguna responda, armás el mensaje desde acá.".
+- Horario aproximado: casilla "Horario aproximado (se puede extender)" (el pedido pegado y "+ Nueva solicitud"), "aproximado" en
+  la tarjeta de la Agenda y en el modal, y "Falta actualizar la base: la solicitud se guardó sin la marca de horario aproximado.
+  Avisale a Diego.".
+
+Avisos (push):
+- A la elegida: "¡Quedaste seleccionada!" con "[día] a las [hh:mm]. Ya tienes todos los datos en la app."
+- A las que dijeron "Puedo" y no fueron elegidas: "Gracias por responder" con "Este sitting ya quedó cubierto. ¡Te tendremos en
+  cuenta para el próximo!"
+- Si se cancela: "Se canceló el pedido del [día]" con "Gracias por responder."
+- Recordatorio a la que no respondió (10 min antes del límite): "Sitting [dd/mm]" con "¡Hola! Avísame por favor si estarías
+  disponible."
+- A las admins: "Puede 1 niñera para el pedido de [familia]" / "Pueden [N] niñeras para el pedido de [familia]" con "Mandale los
+  perfiles a la madre."; "Nadie respondió el pedido de [familia]" con "Preguntale a más niñeras."; "[familia] hoy a las [hh:mm]
+  sigue sin niñera" con "Mirá las respuestas." (si ya hay pedido mandado) o "Elegí a quién mandárselo.".
+
+Plantillas para la madre (editables, `[madre]` es la primera palabra del nombre de la familia):
+- Perfiles: "¡Hola [madre]! Te paso las niñeras disponibles para el [día] a las [hora inicio]:" y debajo, una por renglón, "- [niñera]"
+  o "- [niñera] (te paso su CV)", y "Avísame cuál preferís y te la confirmo."
+- Confirmación: "¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio]."
+- Todavía buscando: "¡Hola [madre]! Estamos viendo quién puede [cuándo]. Te avisamos a la brevedad." ([cuándo] es "hoy" o "el sábado
+  07/11").
+- No conseguimos: "¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?"
+
+Revisión final (01/11/2026, PROVISORIOS):
+- Niñera, push viejo de un pedido en el que la eligieron y ya vio sus datos (o que ya no se lee): "Si te eligieron, lo ves en
+  Próximos sittings." (antes decía "Este pedido ya no está abierto.", que asusta a la elegida; ese texto queda para cuando responde
+  y el pedido se cerró).
+- Panel, cancelar un pedido ya asignado (nadie recibe aviso): "¿Cancelar el pedido? A [niñera] no le llega ningún aviso: avisale por
+  WhatsApp y cancelá el registro en Sittings & traslados." (sin nombre: "A la niñera").
+- Panel, línea de respuestas de "Pedidos en curso": se vuelve a decir el plazo, "Pueden 2, no puede 1, falta responder 1. Mandado a 4
+  a las 14:05. Responder antes de las 14:35."
+- Nota para las dueñas: la plantilla "perfiles" mezcla "Avísame" (tú) y "preferís" (vos). Decidir con cuál queda, porque la madre lo lee igual.

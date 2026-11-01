@@ -68,8 +68,10 @@ select pg_temp.verificar('las cuatro de la niñera: authenticated sí, anon no',
   and not has_function_privilege('anon', 'public.ninera_zonas_disponibles()', 'execute')
   and not has_function_privilege('anon', 'public.ninera_guardar_perfil(text, text[], text[], text)', 'execute')
   and not has_function_privilege('anon', 'public.ninera_mis_sittings()', 'execute'));
-select pg_temp.verificar('ninera_mis_sittings no devuelve plata, notas internas ni precios',
-  (select r not like '%cobro%' and r not like '%pago%' and r not like '%precio%'
+-- Desde la etapa 6 (01/11/2026) devuelve precio_hora: su precio por hora en un sitting que salió de un
+-- pedido (reglas 3: lo único de plata que ve). Ningún otro precio, cobro ni pago.
+select pg_temp.verificar('ninera_mis_sittings no devuelve plata, notas internas ni precios (salvo su precio por hora)',
+  (select r not like '%cobro%' and r not like '%pago%' and replace(r, 'precio_hora numeric', '') not like '%precio%'
           and replace(r, 'notas_para_ninera', '') not like '%notas%'
      from (select pg_get_function_result('public.ninera_mis_sittings'::regproc) as r) x));
 

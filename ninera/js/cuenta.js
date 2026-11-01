@@ -227,6 +227,8 @@ async function cerrarSesionNinera(){
   sesionNinera = null;
   // Otra cuenta (o la misma) que entre después vuelve a ver la pantalla obligatoria de avisos.
   avisosSalteadosEstaVez = false;
+  // Los avisos de pedidos cerrados que quedaban a la vista son de esa cuenta (pedido.js).
+  avisosCierreNinera = new Map();
   cerrarModalNinera();
   pantallaLogin();
 }

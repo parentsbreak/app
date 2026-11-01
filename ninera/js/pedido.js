@@ -4,12 +4,21 @@
 // Un push abre #pedido/<id>. Lee y escribe solo por ninera_mis_pedidos(), responder_pedido() y
 // ninera_marcar_no_disponible(): la base nunca manda la familia, la dirección, el cobro ni las notas.
 // Textos en "tú" (docs/fase1/textos.md 4). Nada de montos fuera del precio por hora.
+// Etapa 6 (01/11/2026): lo que se cerró llega una sola vez por la misma lectura. La tarjeta "¡Quedaste
+// seleccionada!" va arriba hasta que abre los datos ("Ver los datos" la marca vista); "Ya se cubrió" y "Se
+// canceló" (de las que habían dicho "Puedo") se muestran y se marcan vistos. Si marcar falla, no se rompe nada:
+// vuelve a salir la próxima vez.
 
 const FALLA_CARGAR_PEDIDOS = 'No pudimos cargar tus pedidos. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_RESPONDER_PEDIDO = 'No pudimos enviar tu respuesta. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_GUARDAR_DIAS = 'No pudimos guardar tus días. Revisa tu conexión a internet y vuelve a intentar.';
 const FALLA_CARGAR_DIAS = 'No pudimos cargar tus días. Revisa tu conexión a internet y vuelve a intentar.';
 const PEDIDO_CERRADO = 'Este pedido ya no está abierto.';
+// Texto provisorio (01/11/2026): un push viejo cuyo pedido ya no se lee. No sabemos si se cerró o si la eligieron
+// y ya vio sus datos (entonces la base no lo devuelve más), así que no decimos que está cerrado.
+const PEDIDO_NO_ENCONTRADO = 'Si te eligieron, lo ves en Próximos sittings.';
+const MARCA_APROXIMADA_NINERA = '(aproximada, se puede extender)';
+const DATOS_INCOMPLETOS_NINERA = 'Los datos todavía no están completos: escríbenos.';
 const SIN_PEDIDOS_NINERA = 'No tienes pedidos por ahora.';
 // En el orden de textos.md 4.
 const MOTIVOS_NO_PUEDO_NINERA = [
@@ -27,6 +36,11 @@ let pedidosNineraSinMigrar = false;
 let avisoPedidosNinera = '';
 let pedidoDestacadoNinera = null;
 let lecturaPedidosNinera = 0;
+// Los avisos de "Ya se cubrió" / "Se canceló" que ya se mostraron (id → texto): la base los devuelve una sola vez
+// y se marcan vistos al mostrarse, así que se guardan en memoria hasta cerrar sesión o recargar la app (fix 01/11/2026:
+// si iba a otra pantalla y volvía al inicio antes de leerlo, se perdía para siempre). cerrarSesionNinera los vacía.
+let avisosCierreNinera = new Map();
+let marcandoVistoNinera = new Set();
 let cargaPedidosNinera = Promise.resolve();
 
 /* ---- Textos de una tarjeta ---- */
@@ -51,13 +65,13 @@ function horaMontevideoNinera(ts){
   return new Intl.DateTimeFormat('es-UY', { timeZone: 'America/Montevideo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
 }
 
-// El mismo texto que el push de la base: el fin siempre es aproximado; sin fin, "sin hora de fin"; si
-// pasa de la medianoche, se dice.
+// El mismo texto que el push de la base: "(aproximada, se puede extender)" solo si el pedido trae la marca
+// (horario_aproximado, etapa 6: antes iba siempre); sin fin, "sin hora de fin"; si pasa de la medianoche, se dice.
 function horarioPedidoNinera(p){
   if(!p.hora_inicio) return 'horario a confirmar';
   const inicio = horaCortaNinera(p.hora_inicio);
   if(!p.hora_fin) return `${inicio}, sin hora de fin`;
-  return `${inicio} – ${horaCortaNinera(p.hora_fin)}${p.termina_dia_siguiente ? ' del día siguiente' : ''} (aproximada, se puede extender)`;
+  return `${inicio} – ${horaCortaNinera(p.hora_fin)}${p.termina_dia_siguiente ? ' del día siguiente' : ''}${p.horario_aproximado ? ` ${MARCA_APROXIMADA_NINERA}` : ''}`;
 }
 
 function limitePedidoNinera(p, ahora){
@@ -91,17 +105,42 @@ function tarjetaPedidoNinera(p, ahora){
   </article>`;
 }
 
-// Las dos secciones, o lo de hoy si no hay ninguno. Vienen ordenados por fecha y hora desde la base.
+const TITULO_SELECCIONADA_NINERA = '¡Quedaste seleccionada!';
+
+// La tarjeta de la elegida: solo el día, el horario y a dónde tocar; los datos van en el detalle.
+function tarjetaSeleccionadaNinera(p){
+  return `<article class="pedido-tarjeta pedido-seleccionada" id="pedido-${escaparHtml(p.id)}">
+    <p class="pedido-dato-principal">${escaparHtml(`${diaLargoNinera(p.fecha)}, ${horarioPedidoNinera(p)}. Ya tienes todos los datos.`)}</p>
+    <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>verDatosSeleccionadaNinera(${argJs(p.id)}))">Ver los datos</button>
+  </article>`;
+}
+
+function textoCierreNinera(p){
+  const dia = diaLargoNinera(p.fecha);
+  return p.estado === 'cancelado'
+    ? `Se canceló el pedido del ${dia}. Gracias por responder.`
+    : `Este pedido ya se cubrió: ${dia}. Gracias por responder. ¡Te tendremos en cuenta para el próximo!`;
+}
+
+// Arriba la elegida, después los avisos de lo que se cerró, y las dos secciones de siempre. Sin nada de eso,
+// lo de hoy. Vienen ordenados por fecha y hora desde la base.
 function htmlPedidosNinera(filas, ahora = new Date()){
+  const seleccionadas = filas.filter(p => p.estado === 'confirmada');
   const porResponder = filas.filter(p => p.estado === 'invitada');
   const esperando = filas.filter(p => p.estado === 'acepto');
-  if(!porResponder.length && !esperando.length) return `<p class="vacio">${SIN_PEDIDOS_NINERA}</p>`;
+  const cierres = [...avisosCierreNinera.values()];
   const seccion = (id, titulo, lista) => lista.length ? `<section class="pedidos" id="${id}">
     <h2>${titulo}</h2>
     ${lista.map(p => tarjetaPedidoNinera(p, ahora)).join('')}
   </section>` : '';
-  return seccion('pedidos-por-responder', 'Pedidos por responder', porResponder)
+  const html = (seleccionadas.length ? `<section class="pedidos" id="pedidos-seleccionada">
+    <h2>${TITULO_SELECCIONADA_NINERA}</h2>
+    ${seleccionadas.map(tarjetaSeleccionadaNinera).join('')}
+  </section>` : '')
+    + cierres.map(t => `<p class="aviso-info aviso-pedido" role="status">${escaparHtml(t)}</p>`).join('')
+    + seccion('pedidos-por-responder', 'Pedidos por responder', porResponder)
     + seccion('pedidos-esperando', 'Esperando confirmación', esperando);
+  return seleccionadas.length || porResponder.length || esperando.length ? html : html + `<p class="vacio">${SIN_PEDIDOS_NINERA}</p>`;
 }
 
 // Lo que va en el inicio antes de que lleguen los pedidos. Con la base sin migrar (ya se supo), lo de hoy.
@@ -171,7 +210,32 @@ async function leerPedidosNinera(silencioso){
   // Otra lectura más nueva salió mientras esta volaba: manda esa.
   if(lectura !== lecturaPedidosNinera) return;
   pedidosNineraCargados = filas;
+  registrarCierresNinera(filas);
   pintarPedidosNinera();
+}
+
+// Lo que se cerró (cubierto / cancelado) se anota para mostrarlo y se marca visto: así sale una sola vez.
+function registrarCierresNinera(filas){
+  filas.filter(p => p.estado === 'cubierto' || p.estado === 'cancelado').forEach(p => {
+    avisosCierreNinera.set(p.id, textoCierreNinera(p));
+    marcarVistoPedidoNinera(p.id);
+  });
+}
+
+// Marca una fila como vista. Si falla (sin conexión, base sin migrar) se sigue: la fila vuelve en la próxima lectura.
+async function marcarVistoPedidoNinera(snId){
+  if(marcandoVistoNinera.has(snId)) return false;
+  marcandoVistoNinera.add(snId);
+  try{
+    const { error } = await sbn.rpc('ninera_marcar_pedido_visto', { p_sn_id: snId });
+    if(error) throw error;
+    return true;
+  }catch(e){
+    console.error('[marcar_pedido_visto]', e);
+    return false;
+  }finally{
+    marcandoVistoNinera.delete(snId);
+  }
 }
 
 // Al volver a la app con el inicio a la vista: en el iPhone lo que se mandó con la pantalla apagada no
@@ -181,7 +245,8 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // #pedido/<id>, de un push (o de un aviso): el inicio con ese pedido marcado y a la vista. Si ya no está
-// (se cubrió, lo cancelaron o ya lo respondió y salió de la lista), el aviso de siempre.
+// (se cubrió, lo cancelaron, ya lo respondió, o la eligieron y ya vio sus datos), un aviso neutro: la base no
+// distingue esos casos y decir "ya no está abierto" a la que fue elegida asusta.
 async function abrirPedidoNinera(id){
   if(document.getElementById('pedidos-lista')){
     marcarRuta('#inicio');
@@ -192,13 +257,51 @@ async function abrirPedidoNinera(id){
   }
   const buscado = pedidosNineraCargados.find(p => p.id === id);
   if(!buscado){
-    if(!pedidosNineraSinMigrar && document.getElementById('pedidos-lista')) avisarPedidosNinera(PEDIDO_CERRADO);
+    if(!pedidosNineraSinMigrar && document.getElementById('pedidos-lista')) avisarPedidosNinera(PEDIDO_NO_ENCONTRADO);
     return;
   }
+  // Ya la eligieron: sus datos. Lo que se cerró ya está a la vista como aviso.
+  if(buscado.estado === 'confirmada'){ await verDatosSeleccionadaNinera(id); return; }
+  if(buscado.estado === 'cubierto' || buscado.estado === 'cancelado') return;
   pedidoDestacadoNinera = id;
   pintarPedidosNinera();
   const t = document.getElementById(`pedido-${id}`);
   if(t) t.scrollIntoView({ block: 'center' });
+}
+
+/* ---- "¡Quedaste seleccionada!": los datos ---- */
+
+// El mismo detalle de "Próximos sittings" (se busca por solicitud_id), con otro título. Se vuelve a leer la
+// lista: la elección es de hace un momento y la que está cargada puede ser anterior. Si el registro no está
+// (falló al cargarse), se ve lo que trae el pedido y se avisa que falta completar.
+async function verDatosSeleccionadaNinera(snId){
+  const p = pedidosNineraCargados.find(x => x.id === snId);
+  if(!p) return;
+  try{
+    const { data, error } = await sbn.rpc('ninera_mis_sittings');
+    if(error) throw error;
+    if(Array.isArray(data)) sittingsNineraCargados = data;
+  }catch(e){
+    console.error('[ninera_mis_sittings]', e);
+  }
+  const s = p.solicitud_id ? sittingsNineraCargados.find(x => x.solicitud_id === p.solicitud_id) : null;
+  if(s) abrirDetalleSittingNinera(s.id, { titulo: TITULO_SELECCIONADA_NINERA });
+  else abrirDatosDelPedidoNinera(p);
+  await marcarVistoPedidoNinera(snId);
+  pedidosNineraCargados = pedidosNineraCargados.filter(x => x.id !== snId);
+  pintarPedidosNinera();
+}
+
+function abrirDatosDelPedidoNinera(p){
+  const linea = (etiqueta, valor) => valor ? `<p><span class="detalle-etiqueta">${etiqueta}:</span> ${escaparHtml(valor)}</p>` : '';
+  abrirModalNinera(`<h2 class="modal-titulo">${TITULO_SELECCIONADA_NINERA}</h2>
+    <div class="detalle-sitting">
+      <p class="detalle-cuando">${escaparHtml(`${diaLargoNinera(p.fecha)}, ${horarioPedidoNinera(p)}`)}</p>
+      ${linea('Zona', p.zona)}
+      ${linea('Chicos', p.chicos)}
+      ${linea('Precio por hora', pesosTextoNinera(p.precio_hora))}
+      <p class="helper">${DATOS_INCOMPLETOS_NINERA}</p>
+    </div>`);
 }
 
 /* ---- "Puedo" ---- */

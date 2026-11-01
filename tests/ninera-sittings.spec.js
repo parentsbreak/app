@@ -75,7 +75,9 @@ test.describe('próximos sittings en el inicio', () => {
     await expect(modal(page)).toContainText('Calle Falsa 123');
     await expect(modal(page)).toContainText('Madre: Familia U.');
     await expect(modal(page)).toContainText('Chicos: 2 chicos (3 y 5 años)');
-    const llegar = modal(page).getByRole('link', { name: 'Cómo llegar' });
+    // Etapa 6: "Cómo llegar" es un botón que deja elegir Google Maps, Waze o Mapas (ninera-seleccionada.spec.js).
+    await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
+    const llegar = modal(page).getByRole('link', { name: 'Google Maps', exact: true });
     await expect(llegar).toHaveAttribute('href', 'https://www.google.com/maps/search/?api=1&query=Calle%20Falsa%20123');
     await expect(llegar).toHaveAttribute('target', '_blank');
     await expect(llegar).toHaveAttribute('rel', 'noopener');
@@ -87,17 +89,18 @@ test.describe('próximos sittings en el inicio', () => {
     await expect(modal(page)).toContainText('Mañana');
     await expect(modal(page)).toContainText('22:00 a 02:00, termina al día siguiente');
     await expect(modal(page)).toContainText(SIN_DIRECCION);
-    await expect(modal(page).getByRole('link', { name: 'Cómo llegar' })).toHaveCount(0);
+    await expect(modal(page).getByRole('button', { name: 'Cómo llegar' })).toHaveCount(0);
     await expect(modal(page).getByRole('button', { name: 'Agregar al calendario' })).toBeVisible();
     verificarLimpio(e);
   });
 
-  test('en el iPhone "Cómo llegar" abre Apple Maps', async ({ browser }) => {
+  test('"Cómo llegar" ofrece también Mapas de Apple (el iPhone)', async ({ browser }) => {
     const contexto = await browser.newContext({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
     const page = await contexto.newPage();
     const e = await abrir(page);
     await tarjetas(page).nth(0).click();
-    await expect(modal(page).getByRole('link', { name: 'Cómo llegar' })).toHaveAttribute('href', 'https://maps.apple.com/?q=Calle%20Falsa%20123');
+    await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
+    await expect(modal(page).getByRole('link', { name: 'Mapas', exact: true })).toHaveAttribute('href', 'https://maps.apple.com/?q=Calle%20Falsa%20123');
     verificarLimpio(e);
     await contexto.close();
   });
@@ -252,7 +255,8 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     await traslado.click();
     await expect(modal(page)).toContainText('Desde: Casa, "la de siempre"');
     await expect(modal(page)).toContainText('Hasta: Colegio Ficticio; puerta 2');
-    await expect(modal(page).getByRole('link', { name: 'Cómo llegar' }))
+    await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
+    await expect(modal(page).getByRole('link', { name: 'Google Maps', exact: true }))
       .toHaveAttribute('href', 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Colegio Ficticio; puerta 2'));
     expect(await modal(page).innerHTML()).not.toMatch(PAGO);
     await modal(page).getByRole('button', { name: 'Cerrar' }).click();
@@ -260,7 +264,8 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     // Sitting confirmado con la dirección tramposa: se ve tal cual, nada se ejecuta.
     await tarjetas(page).nth(1).click();
     await expect(modal(page)).toContainText(DIR_RARA);
-    await expect(modal(page).getByRole('link', { name: 'Cómo llegar' }))
+    await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
+    await expect(modal(page).getByRole('link', { name: 'Google Maps', exact: true }))
       .toHaveAttribute('href', 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(DIR_RARA));
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
     verificarLimpio(e);
