@@ -318,3 +318,37 @@ Panel (voseo, PROVISORIOS):
   tiene hasta el [dd/mm] para repasarla y firmar de nuevo (...)." / "Firma vencida: no recibe pedidos hasta que la repase y firme de
   nuevo (...)." Con "leyó todo, le falta firmar" si ya terminó. Botón "Ver firma". Fila "RCP presencial": Sí (con "Ver certificado") /
   No / Sin cargar.
+
+## Etapa 7: el día y el cierre (02/11/2026, esperan a las dueñas)
+App de niñeras (tú, PROVISORIOS salvo los de textos.md 5, que van tal cual):
+- Tarjeta del inicio (desde 3 horas antes): "Sitting de hoy" / "Sitting de ayer", "[18:00] a [22:00], en [zona]", "Madre: [nombre e
+  inicial]". Lo marcado: "Saliste a las [hh:mm].", "Avisaste que llegas [20 min] tarde. Le avisamos al equipo.", "Avisaste que no te
+  abren. Le avisamos al equipo.", "Avisaste que no encuentras la casa. Le avisamos al equipo.", "Entraste a las [hh:mm]." Botones de
+  textos.md 5 y "Llegaron los padres". Falla al leer: "No pudimos cargar tu sitting de hoy. Revisa tu conexión a internet y vuelve a
+  intentar." con "Reintentar".
+- Errores: "Este sitting ya está cerrado.", "El equipo ya revisó este sitting. Si algo no está bien, escríbenos por el chat.", "Este
+  sitting ya no está en tu día. Si algo no está bien, escríbenos por el chat."
+- Cierre: "Sitting de hoy, desde las [hh:mm], en [zona].", "Hora en que te fuiste", la diferencia ("Igual a lo previsto ([22:00]).",
+  "[30 min] más de lo previsto ([22:00]).", "[15 min] menos de lo previsto ([22:00]).", "Terminó al día siguiente."), "Se extendió el
+  sitting" (pone la hora de ahora). Gasto: "Monto", "¿En qué?" (nuevo: va a Por cobrar), "Foto del comprobante". Ayudas: "Llegan al
+  instante al equipo." (comentarios). "Enviar" y "Volver".
+- Faltas del cierre: "Pon la hora en que te fuiste.", "Responde si hubo algún gasto extra.", "Pon el monto del gasto.", "Escribe en qué
+  fue el gasto.", "Saca una foto del comprobante.", "Revisa la hora: tiene que ser después de las [hh:mm].", "Esa hora todavía no llegó.
+  Pon la hora en que te fuiste.", "No pudimos subir la foto del comprobante. Revisa tu conexión a internet y vuelve a intentar."
+- Push (textos.md 1, tal cual): 24 h ("[Jueves 10/01] a las [16:00], en [zona]."), 1 h, fin y fin + 30 min.
+
+Panel (voseo, PROVISORIOS):
+- Avisos (textos.md 7, en voseo): "[niñera] va a llegar [20 min / 30 min o más] tarde" / "A lo de [familia].", "[niñera] está afuera y
+  no le abren" / "[familia].", "[niñera] no encuentra la casa", "[niñera] no marcó que llegó" / "El sitting con [familia] empezaba a
+  las [hh:mm].", "[niñera] terminó en [familia] a las [hh:mm]" / "Revisá el registro.", "[niñera] cargó un gasto de $[monto]" / "Con
+  comprobante. Elegí quién lo paga.", "[niñera] dejó un comentario del sitting con [familia]" / "Leelo ahora."
+- Cierre de los fijos: "[niñera] mandó el cierre: terminó a las [hh:mm] ([30 min] más que lo previsto).", "Gasto: [en qué], $[monto]."
+  con "Ver comprobante" y "¿Quién lo paga? La familia / Parents Break", "Comentarios:", "Con la familia: ★★★★ de 5. Volvería. /
+  Prefiere otros perfiles.", "Jugaron:", "Para el equipo:". Botón "Sí, terminó [hh:mm]". "Elegí quién paga el gasto antes de
+  confirmar.", "Otra admin ya revisó este cierre.", "Listo: quedó revisado y el gasto pasó a Por cobrar / Por pagar.", "Este día tiene un
+  precio a mano o variantes: revisá el monto antes de guardar."
+- "Sitting en curso" en Hoy: "[niñera] en [familia], [18:00] a [22:00]", "Va a llegar [20 min] tarde (avisó a las [hh:mm]).", "Está
+  afuera y no le abren ([hh:mm]).", "No encuentra la casa ([hh:mm]).", "No marcó que llegó.", "Contactarla" o "Sin celular cargado."
+- Ficha de la familia: "Lo que dijeron las niñeras" ("[niñera], [dd/mm]: ★★★★ de 5. Volvería.", "Jugaron:", "Comentarios:", "Para el
+  equipo:").
+- Preferencias: "El día del sitting" y "Cierres de niñeras".

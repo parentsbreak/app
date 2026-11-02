@@ -1691,6 +1691,16 @@ estilos.css`; test `tests/ninera-seleccionada.spec.js`.
 
 Rama `claude/fase1-el-dia`. Migración `AAAAMMDD_el_dia.sql`.
 
+**Cómo quedó (02/11/2026, PR #101).** Migración `20261106_el_dia` (aplicada y verificada por el orquestador). El gasto
+queda en el cierre y pasa a `gastos_extra` recién cuando la admin elige quién lo paga (sin `ninera_cargar_gasto`: va dentro de
+`ninera_cerrar_sitting`). La app de niñeras lee `ninera_mi_dia` (hoy y lo de ayer sin cerrar), aparte de `ninera_mis_sittings`.
+`ninera/js/dia.js`: la tarjeta del inicio desde 3 horas antes y el cierre en `#sitting/<id>/cierre`. Panel: la fila del cierre en
+"Cierre de los fijos" (app-shell.js: `leerCierresNinerasSinRevisar`, `htmlFilaCierreNinera`, `confirmarCierreNinera`,
+`revisarCierreNinera`, y `leerTarifaOtraHora` compartida con "Otra hora"), "Sitting en curso" en Hoy y "Lo que dijeron las niñeras"
+en la ficha de la familia (pedidos.js), `preferirOtros` en `mapasSugeridas` y los tipos `el_dia` / `cierres` en las preferencias.
+Los avisos con `?ir=hoy` (Hoy es `moduloActivo` null). Tests `tests/ninera-dia.spec.js`, `tests/cierre-ninera.spec.js` y
+`supabase/pruebas/fase1_el_dia.sql`; simulador `tests/support/rpc-dia.js` y `baseSinMigrar: 'etapa7'`.
+
 ### Tarea 7.1: `sitting_eventos`, `sitting_cierres`, RPC y reglas del día + pruebas
 - Tablas de `decisiones.md` 6.4; `ninera_marcar_evento(p_sitting_id, p_tipo, p_minutos, p_hora)`,
   `ninera_cerrar_sitting(p_sitting_id, p_hora_fin, p_dia_siguiente, p_comentarios, p_calificacion,

@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -362,6 +362,15 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   En la base: `supabase/pruebas/fase1_guia.sql` y el DESHACER con datos en `supabase/pruebas/deshacer/20261105_guia*.sql`.
   `tests/estatico.spec.js` controla `ninera/guia/contenido.json` (11 módulos, 48 lecciones, `b2` en Bebés, nada que se ejecute) y
   que las lecciones obligatorias de la base sean las del JSON.
+- `tests/ninera-dia.spec.js` (02/11/2026, etapa 7): la tarjeta del día en el inicio de la niñera (desde 3 horas antes, "Estoy saliendo",
+  "Voy a llegar tarde" con la demora, los problemas al llegar, "Ya entré", fijos con solo "Ya entré", el de ayer sin cerrar, fallas, doble
+  toque) y el cierre (`#sitting/<id>/cierre`: la hora precargada y la diferencia, "Se extendió el sitting", gasto con monto, "¿En qué?" y
+  foto, cuerpos exactos, medianoche, errores de la base, link del aviso, base sin migrar 'etapa7', escape, sin montos, 390 px).
+  `tests/cierre-ninera.spec.js`: el cierre de la niñera en "Cierre de los fijos" ("Sí, terminó [su hora]" con la tarifa, gasto con "¿Quién
+  lo paga?", "Ver comprobante", dos admins, cobrado mientras tanto, gasto que falla, precio a mano, "Otra hora", fijo, escape, sin migrar,
+  390 px), "Sitting en curso" en Hoy (tarde, no marcó que llegó, fijo, ya entró, `?ir=hoy&sitting=`), "Lo que dijeron las niñeras",
+  `preferirOtros` y las preferencias. El simulador: `tests/support/rpc-dia.js` (la misma regla que la base) y
+  `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa7' })` (sin las RPC ni las dos tablas; la 4 sin migrar también la saca).
 - `supabase/pruebas/fase1_el_dia.sql` (02/11/2026, etapa 7): `ninera_mi_dia` (hoy y lo de ayer sin cerrar, sin plata), `ninera_marcar_evento`
   (tipos, minutos, ajenos, el mismo toque, avisos de tarde y de los problemas), la foto del comprobante (una ruta por sitting abierto),
   `ninera_cerrar_sitting` (la hora y "al día siguiente", hora futura, gasto con foto, una sola vez, ya revisado; no toca el registro ni
@@ -737,6 +746,12 @@ reporte.
   (claves `guia:<id>:falta`, `:falta:mitad`, `:anual:<fecha de la firma>`). "Tienes hasta el" / "tiene hasta el" (app y ficha) dice el día anterior a `hasta`: vence ese día a la hora en que activó la app o
   firmó (orquestador, 02/11/2026); la base devuelve el día del vencimiento. Un aviso de error de la app de niñeras no se borra al
   empezar a guardar: la pantalla subía y un segundo toque caía en "Volver" (lo encontró el test del doble toque).
+- El día y el cierre (02/11/2026, etapa 7, decisiones 6.4): la niñera marca el día y cierra solo por RPC (`ninera_marcar_evento`,
+  `ninera_cerrar_sitting`) y lee `ninera_mi_dia`; solo sittings. El cierre va una vez; el gasto queda en `sitting_cierres` y pasa a
+  `gastos_extra` recién cuando la admin elige quién lo paga (`revisarCierreNinera`, app-shell.js: primero toma el cierre con
+  `.is('revisado_en', null)`, después el registro con la condición de cobrado / pagado, al final el gasto). El comprobante va a
+  `comprobantes/ninieras/<id>/<sitting>.jpg` (la ruta la arma la base). Los avisos de las admins abren `?ir=hoy` (Hoy es `moduloActivo`
+  null: nunca `moduloActivo = 'hoy'`). Avisos de tiempo en `programar_avisos_el_dia()`, con `solo_practica` como los de pedidos.
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -963,7 +978,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) en curso en la rama `claude/fase1-el-dia` (migración `20261106_el_dia`); etapas 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha en la rama `claude/fase1-el-dia` (PR #101, migración `20261106_el_dia` aplicada), pendiente el merge; etapas 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -988,6 +1003,11 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 4 (02/11/2026): "Ver firma" / "Ver certificado" abren el link después de
   pedirlo (`window.open` tras un `await`, como los tickets): probar en el iPhone que Safari no lo bloquee. La fila "Guía" de la ficha no
   se actualiza sola si la niñera firma con la ficha abierta (sin Realtime).
+- Etapa 7 (02/11/2026): "Sitting en curso" y los cierres de "Cierre de los fijos" se leen al abrir Hoy (sin Realtime: sitting_eventos y
+  sitting_cierres no están en la publicación; los avisos abren Hoy de nuevo). El cierre de la niñera no guarda borrador (si sale de la
+  pantalla, se pierde lo escrito). Si cargar el gasto falla al revisar, queda revisado y hay que cargarlo a mano (lo dice el aviso).
+  "Lo que dijeron las niñeras" mira los últimos 60 sittings de la familia. Los advisors marcan sin índice `sitting_cierres.gasto_id` y
+  `sitting_eventos.ninera_id` (tablas chicas, INFO). Probar en el iPhone real el campo de la hora y la foto del comprobante.
 - Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
   primera sigue en `confirmada` y no recibe ningún aviso de que ya no va.
 - Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y

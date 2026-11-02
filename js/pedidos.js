@@ -54,13 +54,14 @@ function sugeridaPorque(item, tipo){
    'sitting' o sin tipo, de veces_familia y total. La semana, las edades y los chicos son siempre de
    los sittings (revisión final, 02/11/2026).
    La guía (etapa 4, 02/11/2026): `guia` = { ninera_id: 'sin_guia' | 'firma_vencida' } con las que tienen app y
-   no pueden recibir pedidos (guia_puede false); sin la migración la RPC no trae esos campos y queda vacío. */
+   no pueden recibir pedidos (guia_puede false); sin la migración la RPC no trae esos campos y queda vacío.
+   "Prefiero otros perfiles" (etapa 7): `preferirOtros` = las que lo dijeron en su último cierre con esta familia. */
 function mapasSugeridas(respuesta, ninieras, tipo){
   const traslado = tipo === 'traslado';
   const porClave = {}, porId = {};
   (ninieras || []).forEach(n => { porId[n.id] = n; const k = sugeridaClave(n); if(k && !porClave[k]) porClave[k] = n; });
   const m = { historialFamilia: {}, historialTotal: {}, sittingsSemana: {}, edadesCuidadas: {}, maxChicos: {},
-    rechazosSeguidos: {}, incidentesFamilia: [], noDisponibles: [], guia: {} };
+    rechazosSeguidos: {}, incidentesFamilia: [], noDisponibles: [], guia: {}, preferirOtros: [] };
   const sumar = (mapa, id, n) => { n = sugeridaNumero(n); if(n) mapa[id] = (mapa[id] || 0) + n; };
   ((respuesta && respuesta.historial) || []).forEach(h => {
     const n = (h.ninera_id && porId[h.ninera_id]) || (h.ninera_clave && porClave[normaliza(String(h.ninera_clave).trim())]);
@@ -80,6 +81,8 @@ function mapasSugeridas(respuesta, ninieras, tipo){
     if(p.incidente_familia) m.incidentesFamilia.push(p.ninera_id);
     if(p.no_disponible) m.noDisponibles.push(p.ninera_id);
     if(p.guia_puede === false) m.guia[p.ninera_id] = p.guia_motivo || 'sin_guia';
+    // Etapa 7: su última calificación con esta familia dijo "Prefiero otros perfiles" (sin la migración no viene).
+    if(p.prefiere_otros) m.preferirOtros.push(p.ninera_id);
   });
   return m;
 }
@@ -1832,4 +1835,112 @@ function compartirCvsPerfiles(){
     return;
   }
   compartirArchivosCv(listos.map(a => a.archivo), 'CV');
+}
+
+/* ================= EL DÍA DEL SITTING (fase 1, etapa 7, 02/11/2026) =================
+   "Sitting en curso" en Hoy (decisiones.md 6.4): los sittings de hoy (y los de anoche que siguen) de niñeras con
+   app donde algo no está bien y la niñera todavía no entró: va a llegar tarde, está afuera y no le abren, no
+   encuentra la casa o, en un puntual, pasaron 15 minutos del inicio sin "Ya entré". "Contactarla" abre WhatsApp a
+   su celular. Los avisos de esos casos traen "?ir=hoy&sitting=<id>" y esa fila queda marcada. Una lectura de los
+   sittings y otra (en paralelo) de sus eventos, sus cierres y las niñeras. Sin la migración (las tablas no existen)
+   o si algo falla, no aparece: es un atajo y lo demás de Hoy sigue. Sin Realtime: se lee al abrir Hoy (los avisos
+   abren Hoy de nuevo). */
+let sittingDeLinkHoy = null; // el sitting de "?ir=hoy&sitting=<id>" (app-shell.js), para marcar su fila una vez
+const NO_LLEGO_MIN = 15; // como app_config 'el_dia'.no_llego_min (la base avisa con el mismo número)
+
+function problemasSittingEnCurso(s, eventos, ahora){
+  const de = tipo => eventos.find(e => e.tipo === tipo);
+  const hora = e => new Intl.DateTimeFormat('es-UY', { timeZone: 'America/Montevideo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(e.creado_en));
+  const lista = [];
+  const tarde = de('tarde');
+  if(tarde) lista.push(`Va a llegar ${tarde.minutos === 30 ? '30 min o más' : `${tarde.minutos} min`} tarde (avisó a las ${hora(tarde)}).`);
+  if(de('no_abren')) lista.push(`Está afuera y no le abren (${hora(de('no_abren'))}).`);
+  if(de('no_encuentro')) lista.push(`No encuentra la casa (${hora(de('no_encuentro'))}).`);
+  const inicio = s.hora_inicio ? Date.parse(`${s.fecha}T${String(s.hora_inicio).slice(0,5)}:00-03:00`) : null;
+  if(!s.asignacion_id && inicio != null && ahora >= inicio + NO_LLEGO_MIN * 60000) lista.push('No marcó que llegó.');
+  return lista;
+}
+
+async function cargarSittingsEnCurso(){
+  const box = document.getElementById('dash-en-curso');
+  if(!box) return;
+  const hoy = todayISO(), ayer = sumarDiasISO(hoy, -1);
+  const { data: sits, error } = await sb.from('sittings_traslados')
+    .select('id,fecha,hora_inicio,hora_fin,termina_dia_siguiente,asignacion_id,ninera_id,ninera_nombre,familia_nombre')
+    .eq('tipo', 'sitting').eq('cancelado', false).eq('estado', 'confirmado').in('fecha', [ayer, hoy]);
+  const conNinera = (sits || []).filter(s => s.ninera_id);
+  if(error || !conNinera.length){ if(document.getElementById('dash-en-curso')) box.innerHTML = ''; return; }
+  const ids = conNinera.map(s => s.id);
+  const [ev, ci, nin] = await Promise.all([
+    sb.from('sitting_eventos').select('sitting_id,tipo,minutos,creado_en').in('sitting_id', ids),
+    sb.from('sitting_cierres').select('sitting_id').in('sitting_id', ids),
+    sb.from('ninieras').select('id,telefono,user_id').in('id', [...new Set(conNinera.map(s => s.ninera_id))]),
+  ]);
+  if(!document.getElementById('dash-en-curso')) return;
+  if(ev.error || ci.error || nin.error){ box.innerHTML = ''; return; }
+  const cerrados = new Set((ci.data || []).map(c => c.sitting_id));
+  const ninieras = new Map((nin.data || []).map(n => [n.id, n]));
+  const ahora = Date.now();
+  const filas = conNinera.map(s => {
+    const n = ninieras.get(s.ninera_id);
+    const eventos = (ev.data || []).filter(e => e.sitting_id === s.id);
+    if(!n || !n.user_id || cerrados.has(s.id) || eventos.some(e => e.tipo === 'entre')) return null;
+    // Hasta el fin previsto (o 4 horas después del inicio, sin hora de fin): después ya no es "en curso".
+    const inicio = s.hora_inicio ? Date.parse(`${s.fecha}T${String(s.hora_inicio).slice(0,5)}:00-03:00`) : null;
+    const fin = s.hora_fin ? Date.parse(`${s.termina_dia_siguiente ? sumarDiasISO(s.fecha, 1) : s.fecha}T${String(s.hora_fin).slice(0,5)}:00-03:00`) : (inicio != null ? inicio + 4 * 3600000 : null);
+    if(fin == null || ahora >= fin) return null;
+    const problemas = problemasSittingEnCurso(s, eventos, ahora);
+    return problemas.length ? { s, n, problemas } : null;
+  }).filter(Boolean);
+  if(!filas.length){ box.innerHTML = ''; sittingDeLinkHoy = null; return; }
+  const marcado = sittingDeLinkHoy;
+  sittingDeLinkHoy = null;
+  const hhmm = h => escaparHtml(String(h || '').slice(0, 5));
+  pintarSiCambio(box, `<div class="card en-curso-card">
+    <h2 style="margin:0 0 6px;">Sitting en curso</h2>
+    ${filas.map(({ s, n, problemas }) => `<div class="en-curso-fila${s.id === marcado ? ' marcada' : ''}" data-sitting="${escaparHtml(s.id)}">
+      <div class="en-curso-txt">
+        <div><b>${escaparHtml(s.ninera_nombre)}</b> en ${escaparHtml(s.familia_nombre)}, ${hhmm(s.hora_inicio)}${s.hora_fin ? ' a ' + hhmm(s.hora_fin) : ''}</div>
+        ${problemas.map(p => `<div class="helper" style="margin:2px 0 0;">${escaparHtml(p)}</div>`).join('')}
+      </div>
+      ${String(n.telefono || '').replace(/\D/g, '')
+        ? `<a class="smallbtn" href="${urlSegura(waLink(n.telefono, ''))}" target="_blank" rel="noopener">Contactarla</a>`
+        : '<span class="helper" style="margin:0;">Sin celular cargado.</span>'}
+    </div>`).join('')}
+  </div>`);
+  if(marcado) box.querySelector(`.en-curso-fila[data-sitting="${CSS.escape(marcado)}"]`)?.scrollIntoView({ block: 'center' });
+}
+
+/* "Lo que dijeron las niñeras" en la ficha de la familia (etapa 7): sus últimos cierres con algo contado (cómo
+   les fue, si volverían, a qué jugaron, comentarios). Los sittings de la familia (los últimos 60) y, de esos, los
+   cierres. Sin la migración no aparece; si la lectura falla, lo dice. */
+async function pintarLoQueDijeronNinieras(familiaId){
+  const cont = document.getElementById('fam-dijeron');
+  if(!cont) return;
+  const { data: sits, error } = await sb.from('sittings_traslados').select('id,fecha,ninera_nombre')
+    .eq('familia_id', familiaId).eq('tipo', 'sitting').order('fecha', { ascending: false }).limit(60);
+  let cierres = [], fallo = !!error;
+  if(!error && (sits || []).length){
+    const r = await sb.from('sitting_cierres').select('sitting_id,calificacion,volveria,jugaron,comentarios,comentario_equipo,creado_en')
+      .in('sitting_id', sits.map(x => x.id)).order('creado_en', { ascending: false }).limit(20);
+    if(r.error && esFaltaTabla(r.error)) return;
+    fallo = !!r.error;
+    cierres = (r.data || []).filter(c => c.calificacion || c.volveria != null || c.jugaron || c.comentarios || c.comentario_equipo).slice(0, 5);
+  }
+  const actual = document.getElementById('fam-dijeron');
+  if(!actual || actual.dataset.familia !== familiaId) return;
+  const titulo = '<div class="card-section-title" style="margin:0 0 4px;">Lo que dijeron las niñeras</div>';
+  if(fallo){ actual.innerHTML = `${titulo}<div class="warnbox">No se pudo leer lo que dijeron las niñeras.</div>`; return; }
+  if(!cierres.length){ actual.innerHTML = ''; return; }
+  const porSitting = new Map(sits.map(x => [x.id, x]));
+  actual.innerHTML = titulo + cierres.map(c => {
+    const st = porSitting.get(c.sitting_id) || {};
+    const partes = [c.calificacion ? `${'★'.repeat(c.calificacion)} de 5.` : '', c.volveria === true ? 'Volvería.' : c.volveria === false ? 'Prefiere otros perfiles.' : ''].filter(Boolean).join(' ');
+    return `<div class="dijeron-fila" style="padding:6px 0;border-bottom:1px solid var(--line);">
+      <div><b>${escaparHtml(st.ninera_nombre || 'Niñera')}</b>, ${escaparHtml(st.fecha ? `${st.fecha.slice(8, 10)}/${st.fecha.slice(5, 7)}` : '')}${partes ? `: ${partes}` : ''}</div>
+      ${c.jugaron ? `<div class="helper" style="margin:2px 0 0;">Jugaron: ${escaparHtml(c.jugaron)}</div>` : ''}
+      ${c.comentarios ? `<div class="helper" style="margin:2px 0 0;">Comentarios: ${escaparHtml(c.comentarios)}</div>` : ''}
+      ${c.comentario_equipo ? `<div class="helper" style="margin:2px 0 0;">Para el equipo: ${escaparHtml(c.comentario_equipo)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
