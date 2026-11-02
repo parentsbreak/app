@@ -362,6 +362,13 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   En la base: `supabase/pruebas/fase1_guia.sql` y el DESHACER con datos en `supabase/pruebas/deshacer/20261105_guia*.sql`.
   `tests/estatico.spec.js` controla `ninera/guia/contenido.json` (11 módulos, 48 lecciones, `b2` en Bebés, nada que se ejecute) y
   que las lecciones obligatorias de la base sean las del JSON.
+- `supabase/pruebas/fase1_el_dia.sql` (02/11/2026, etapa 7): `ninera_mi_dia` (hoy y lo de ayer sin cerrar, sin plata), `ninera_marcar_evento`
+  (tipos, minutos, ajenos, el mismo toque, avisos de tarde y de los problemas), la foto del comprobante (una ruta por sitting abierto),
+  `ninera_cerrar_sitting` (la hora y "al día siguiente", hora futura, gasto con foto, una sola vez, ya revisado; no toca el registro ni
+  `gastos_extra`), lo que la admin cambia del cierre, `prefiere_otros` en `sugeridas_datos` y `programar_avisos_el_dia` (24 h, 1 h, no
+  llegó, fin y fin + 30 en fechas fijas, fijos, medianoche, `solo_practica`). El DESHACER con datos, en `supabase/pruebas/deshacer/`
+  (`20261106_el_dia*.sql`, a mano). Las funciones de la niñera usan la hora real: lo que depende de la hora del día se saltea cerca de la
+  medianoche.
 - `tests/temporada-app-panel.spec.js` (31/10/2026): el panel con la temporada de la app: niñera con app sin paso
   previo ni "Pedirle por WhatsApp", aviso anual, fuente, filtro con Fuera del país / Otro / La Paloma, temporada
   de otra temporada como "sin temporada cargada", ficha, correcciones que conservan o borran lugares, escape de
@@ -956,7 +963,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha en la rama `claude/fase1-guia` (PR #100, 02/11/2026), migración `20261105_guia` aplicada, pendiente el merge; etapas 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) en curso en la rama `claude/fase1-el-dia` (migración `20261106_el_dia`); etapas 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
