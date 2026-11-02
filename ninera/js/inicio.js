@@ -21,6 +21,7 @@ async function renderInicio(){
       <h1>${nombre ? `Hola, ${escaparHtml(nombre)}` : 'Hola'}</h1>
     </header>
     <div id="inicio-avisos"></div>
+    <div id="inicio-dia"></div>
     <div id="inicio-guia"></div>
     <div id="inicio-temporada"></div>
     ${htmlInicioPedidos()}
@@ -46,6 +47,8 @@ async function renderInicio(){
   cargarTarjetaTemporada();
   // La guía (guia.js, etapa 4): la tarjeta solo si le falta algo.
   cargarTarjetaGuia();
+  // El sitting de hoy (dia.js, etapa 7): arriba de todo, con lo que toca según la hora.
+  cargarTarjetaDia();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){

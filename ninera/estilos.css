@@ -23,7 +23,7 @@ h1{font-size:27px;font-weight:600;}
 /* Formularios */
 .helper{color:var(--ink-soft);font-size:13px;margin:4px 0 12px;line-height:1.5;}
 label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
-input[type=text],input[type=tel],input[type=date],input[type=number],input[type=email],input[type=password],select,textarea{
+input[type=text],input[type=tel],input[type=date],input[type=time],input[type=number],input[type=email],input[type=password],select,textarea{
   width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--ink);font-family:'Inter',sans-serif;
   transition:border-color var(--ease), box-shadow var(--ease);
 }
@@ -115,7 +115,7 @@ textarea{resize:vertical;min-height:54px;}
 .pantalla label.radio:has(input:checked),.pantalla label.chk:has(input:checked){border-color:var(--accent);background:var(--accent-soft);}
 .pantalla label.radio input,.pantalla label.chk input{width:24px;height:24px;margin:0;flex:none;accent-color:var(--accent);}
 .aviso-info{background:var(--accent-soft);border-radius:10px;padding:10px 13px;font-size:14.5px;line-height:1.45;color:var(--ink);margin:4px 0 0;}
-.aviso-info[hidden]{display:none;}
+.aviso-info[hidden],.aviso-info:empty{display:none;}
 .pantalla textarea{padding:13px 14px;min-height:96px;border-radius:10px;}
 .pantalla input[type=file]{display:block;width:100%;max-width:100%;font-size:16px;padding:10px 0;color:var(--ink);}
 .perfil-foto-previa{display:block;width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:8px 0 4px;}
@@ -249,6 +249,16 @@ button.aviso-item:hover{border-color:var(--accent);}
 .tarjeta-guia{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:18px;}
 .tarjeta-guia h2{font-size:20px;margin:0 0 4px;}
 .tarjeta-guia p{font-size:15px;margin:4px 0 12px;line-height:1.45;}
+/* El día del sitting (etapa 7): la tarjeta del inicio y el cierre. */
+.tarjeta-dia{background:var(--paper);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:18px;}
+.tarjeta-dia h2{font-size:20px;margin:0 0 4px;}
+.tarjeta-dia .dia-cuando{font-size:16px;font-weight:600;margin:0 0 2px;}
+.tarjeta-dia .dia-estado{font-size:15px;line-height:1.45;margin:6px 0;padding:8px 12px;border-radius:10px;background:var(--accent-soft);}
+.tarjeta-dia .dia-botones{margin-top:12px;}
+.tarjeta-dia .dia-error{margin:10px 0 0;}
+.pantalla-cierre .grupo{margin:18px 0;}
+.pantalla-cierre input[type=time],.pantalla-cierre input[type=number],.pantalla-cierre input[type=text]{padding:13px 14px;min-height:50px;border-radius:10px;}
+.pantalla-cierre .cierre-estrellas label.radio{font-size:18px;letter-spacing:2px;color:var(--accent);}
 .guia-estado{background:var(--accent-soft);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:15px;line-height:1.45;}
 .guia-estado p{margin:0;}
 .guia-grupo{margin:18px 0;}
