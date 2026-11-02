@@ -73,7 +73,13 @@ declare
     'ninera_marcar_leida(p_leccion_id text, p_version text)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su progreso
     'ninera_aprobar_repaso(p_modulo_id text, p_version text)', -- niñera: ídem
     'ninera_firmar_guia(p_nombre text, p_version text)', -- niñera: ídem; la ruta de la firma la arma la base
-    'ninera_guardar_rcp(p_presencial boolean, p_con_certificado boolean)' -- niñera: ídem; solo su ficha
+    'ninera_guardar_rcp(p_presencial boolean, p_con_certificado boolean)', -- niñera: ídem; solo su ficha
+    -- Etapa 7 (02/11/2026): el día y el cierre, por ninera_actual(). sitting_del_dia_ninera y
+    -- programar_avisos_el_dia NO van.
+    'ninera_mi_dia()',                           -- niñera: solo sus sittings de hoy y de ayer, sin plata; vacío si no es niñera
+    'ninera_marcar_evento(p_sitting_id uuid, p_tipo text, p_minutos integer)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus sittings
+    'ninera_cerrar_sitting(p_sitting_id uuid, p_hora_fin time without time zone, p_dia_siguiente boolean, p_comentarios text, p_calificacion integer, p_volveria boolean, p_jugaron text, p_comentario_equipo text, p_gasto_monto numeric, p_gasto_concepto text)', -- niñera: ídem; la ruta del comprobante la arma la base
+    'ninera_ruta_comprobante(p_nombre text)'     -- niñera: solo lee; true solo para su ruta de un sitting suyo abierto (la política del bucket)
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

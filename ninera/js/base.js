@@ -82,7 +82,7 @@ function pintarMensajeNinera(texto, acciones = ''){
   </main>`);
 }
 
-/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #guia, #pedido/<id>, #no-puedo, #inactiva, #error ----
+/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #guia, #pedido/<id>, #sitting/<id>/cierre, #no-puedo, #inactiva, #error ----
    La URL dice en qué pantalla está. Se cambia con replaceState, sin sumar pasos al historial:
    "Atrás" en el celular no tiene que volver a una pantalla vieja (el login después de entrar). */
 function marcarRuta(hash){
@@ -95,6 +95,8 @@ function irA(hash){
     '#chat': pantallaChatNinera, '#mis-avisos': pantallaAvisosNinera, '#temporada': pantallaTemporadaNinera, '#guia': pantallaGuiaNinera };
   // #pedido/<id>: el link de un push de pedido nuevo (pedido.js).
   if(typeof hash === 'string' && hash.startsWith('#pedido/')) return abrirPedidoNinera(hash.slice('#pedido/'.length));
+  // #sitting/<id>/cierre: el cierre del sitting (dia.js, etapa 7), el link de los avisos de fin.
+  if(typeof hash === 'string' && hash.startsWith('#sitting/')) return abrirRutaSittingNinera(hash);
   return pantallas[hash] ? pantallas[hash]() : undefined;
 }
 

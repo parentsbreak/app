@@ -78,9 +78,12 @@ function renderApp(){
   const nineraParam = irParam==='ninieras' ? params.get('ninera') : null;
   // El push de "Pedidos de la app" trae "?ir=agenda&solicitud=<id>": abre el modal de esa solicitud.
   const solicitudParam = irParam==='agenda' ? params.get('solicitud') : null;
+  // Los avisos del día y de los cierres (etapa 7) traen "?ir=hoy" (y "&sitting=<id>" los que van a "Sitting en
+  // curso"): Hoy es el módulo vacío (moduloActivo null); con 'hoy' no se pintaba nada.
+  sittingDeLinkHoy = irParam==='hoy' ? params.get('sitting') : null;
   if(irParam){
     window.history.replaceState({}, '', window.location.pathname);
-    moduloActivo = irParam;
+    moduloActivo = irParam==='hoy' ? null : irParam;
   }
   // Quedó una entrevista sin guardar hace poco (se recargó la página, se cerró la sesión): se
   // abre directo ahí, con el aviso para seguirla (21/10/2026).
@@ -238,6 +241,7 @@ async function renderDashboard(cont){
       </div>
       <div class="pendbanner-link">Ver</div>
     </button>
+    <div id="dash-en-curso"></div>
     <div id="dash-autoconf"></div>
     <div id="dash-pedidos"></div>
     <div id="dash-chat"></div>
@@ -251,6 +255,7 @@ async function renderDashboard(cont){
   // pantalla de entrada, y si su lectura falla, Hoy sigue.
   cargarMensajesNinerasHoy();
   cargarPedidosEnCurso();
+  cargarSittingsEnCurso();
   // Se devuelve la carga para que la pantalla de entrada y el indicador de sección sepan
   // cuándo Hoy ya tiene sus datos (15/10/2026).
   return loadDashboardData();
@@ -650,18 +655,28 @@ async function cargarMensajesNinerasHoy(){
 /* Confirmados automáticamente (fijos automáticos, 06/10/2026): los días de los fijos se
    confirman solos cuando llegan. Acá queda una lista corta de los que ya pasaron y nadie
    miró todavía (ayer, o los últimos días si no entraron), para revisarlos de un vistazo y
-   marcar "no fue", otra hora o el reemplazo si hace falta. "Sí" los saca de la lista. */
+   marcar "no fue", otra hora o el reemplazo si hace falta. "Sí" los saca de la lista.
+   Desde la etapa 7 (02/11/2026, decisiones.md 6.4) también los sittings que la niñera cerró desde la app y nadie
+   revisó, fijos o puntuales, apenas los cierra (también los de hoy): con la hora que mandó, el gasto ("¿Quién lo
+   paga?") y lo que contó. Cada fila con cierre lleva `_cierre`. */
 let dashAutoConfirmados = [];
 async function cargarConfirmadosAutomaticos(){
   const box = document.getElementById('dash-autoconf');
   await esperarConfigFijos();
-  if(!box || !fijosAutomaticosActivos){ if(box) box.innerHTML = ''; return; }
-  const { data, error } = await sb.from('sittings_traslados').select('*')
-    .eq('generado_automatico', true).is('revisado_at', null).eq('cancelado', false)
-    .gte('fecha', diasAtras(PENDIENTE_DIAS_ATRAS)).lt('fecha', todayISO()).order('fecha').order('hora_inicio');
+  if(!box) return;
+  const [auto, cierres] = await Promise.all([
+    fijosAutomaticosActivos
+      ? sb.from('sittings_traslados').select('*')
+        .eq('generado_automatico', true).is('revisado_at', null).eq('cancelado', false)
+        .gte('fecha', diasAtras(PENDIENTE_DIAS_ATRAS)).lt('fecha', todayISO()).order('fecha').order('hora_inicio')
+      : Promise.resolve({ data: [] }),
+    leerCierresNinerasSinRevisar(),
+  ]);
   if(!document.getElementById('dash-autoconf')) return;
-  if(error){ box.innerHTML = ''; return; }
-  dashAutoConfirmados = data || [];
+  const autos = auto.error ? [] : (auto.data || []);
+  const conCierre = new Map(cierres.map(r=>[r.id, r]));
+  dashAutoConfirmados = [...autos.map(r=>conCierre.get(r.id) || r), ...cierres.filter(r=>!autos.some(a=>a.id===r.id))]
+    .sort((a, b)=>(a.fecha+(a.hora_inicio||'')).localeCompare(b.fecha+(b.hora_inicio||'')));
   if(!dashAutoConfirmados.length){ box.innerHTML = ''; return; }
   const fmt = iso => new Date(iso+'T12:00:00').toLocaleDateString('es-UY',{weekday:'short',day:'2-digit',month:'2-digit'});
   const hhmm = h => escaparHtml(String(h||'').slice(0,5));
@@ -672,10 +687,10 @@ async function cargarConfirmadosAutomaticos(){
   box.innerHTML = `<div class="card autoconf-card">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">
       <h2 style="margin:0;">Cierre de los fijos</h2>
-      <button class="smallbtn" onclick="conGuardado(this, ()=>marcarAutoRevisados(dashAutoConfirmados.map(r=>r.id)))">Sí a todos</button>
+      ${dashAutoConfirmados.some(r=>!r._cierre) ? `<button class="smallbtn" onclick="conGuardado(this, ()=>marcarAutoRevisados(dashAutoConfirmados.filter(r=>!r._cierre).map(r=>r.id)))">Sí a todos</button>` : ''}
     </div>
-    <div class="helper" style="margin:4px 0 8px;">Se cargaron solos con el horario previsto. Confirmá cómo fue cada uno.</div>
-    ${dashAutoConfirmados.map(r=>`<div class="autoconf-fila" data-autoconf="${escaparHtml(r.id)}">
+    <div class="helper" style="margin:4px 0 8px;">${dashAutoConfirmados.some(r=>!r._cierre) ? 'Se cargaron solos con el horario previsto. Confirmá cómo fue cada uno.' : 'Lo que mandaron las niñeras al terminar. Confirmá cómo fue cada uno.'}</div>
+    ${dashAutoConfirmados.map(r=>r._cierre ? htmlFilaCierreNinera(r, { fmt, hhmm, plata }) : `<div class="autoconf-fila" data-autoconf="${escaparHtml(r.id)}">
       <div class="autoconf-txt">
         <div><b>${fmt(r.fecha)}</b> · ${escaparHtml(r.ninera_nombre)} en ${escaparHtml(r.familia_nombre)}</div>
         <div class="helper" style="margin:2px 0 0;">${r.tipo==='traslado'?'Traslado':'Sitting'} previsto ${hhmm(r.hora_inicio)}${r.hora_fin?'–'+hhmm(r.hora_fin):''} · cobro ${plata(r.cobro_familia)} · pago ${plata(r.pago_ninera)}.${r.hora_fin?` ¿Terminó a las ${hhmm(r.hora_fin)}?`:''}</div>
@@ -689,6 +704,133 @@ async function cargarConfirmadosAutomaticos(){
       </div>
     </div>`).join('')}
   </div>`;
+}
+/* ---- Los cierres de las niñeras (etapa 7, 02/11/2026) ----
+   Lo que manda la niñera al terminar (sitting_cierres) y nadie revisó: el cierre y su registro. Sin la migración
+   (la tabla no existe) o si la lectura falla, ninguno: el resto de la tarjeta sigue igual. */
+async function leerCierresNinerasSinRevisar(){
+  const { data: cierres, error } = await sb.from('sitting_cierres')
+    .select('sitting_id,ninera_id,hora_fin,termina_dia_siguiente,comentarios,calificacion,volveria,jugaron,comentario_equipo,gasto_monto,gasto_concepto,gasto_comprobante,creado_en')
+    .is('revisado_en', null).order('creado_en').limit(100);
+  if(error || !cierres || !cierres.length) return [];
+  const { data: sits, error: e2 } = await sb.from('sittings_traslados').select('*')
+    .in('id', cierres.map(c=>c.sitting_id)).eq('cancelado', false);
+  if(e2) return [];
+  const porId = new Map(cierres.map(c=>[c.sitting_id, c]));
+  return (sits || []).map(s=>({ ...s, _cierre: porId.get(s.id) }));
+}
+// Minutos desde el inicio del día del sitting hasta un fin (con "al día siguiente").
+function minutosFinCierre(hora, diaSiguiente){
+  const [h, m] = String(hora||'').split(':').map(Number);
+  return h*60 + m + (diaSiguiente ? 1440 : 0);
+}
+// La fila de un sitting con el cierre de la niñera: lo que mandó (hora, diferencia, gasto con "¿Quién lo paga?",
+// comentarios y cómo le fue) y "Sí, terminó [su hora]" / "Otra hora".
+function htmlFilaCierreNinera(r, { fmt, hhmm, plata }){
+  const c = r._cierre, id = escaparHtml(r.id);
+  const fin = hhmm(c.hora_fin);
+  let dif = '';
+  if(r.hora_fin){
+    const d = minutosFinCierre(c.hora_fin, c.termina_dia_siguiente) - minutosFinCierre(r.hora_fin, r.termina_dia_siguiente);
+    const dur = n => [Math.floor(n/60) ? `${Math.floor(n/60)} h` : '', n%60 ? `${n%60} min` : ''].filter(Boolean).join(' ');
+    if(d) dif = ` (${dur(Math.abs(d))} ${d > 0 ? 'más' : 'menos'} que lo previsto)`;
+  }
+  const lineas = [`<div><b>${escaparHtml(r.ninera_nombre)} mandó el cierre:</b> terminó a las ${fin}${c.termina_dia_siguiente ? ' del día siguiente' : ''}${dif}.</div>`];
+  if(c.gasto_monto != null) lineas.push(`<div>Gasto: ${escaparHtml(c.gasto_concepto)}, ${plata(c.gasto_monto)}.
+      <button type="button" class="smallbtn" style="min-height:30px;" onclick="verComprobanteGasto(${argJs(c.gasto_comprobante)})">Ver comprobante</button></div>
+    <div class="cierre-quien" role="radiogroup" aria-label="¿Quién lo paga?">¿Quién lo paga?
+      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="familia"> La familia</label>
+      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="pb"> Parents Break</label></div>`);
+  if(c.comentarios) lineas.push(`<div>Comentarios: ${escaparHtml(c.comentarios)}</div>`);
+  const familia = [c.calificacion ? `${'★'.repeat(c.calificacion)} de 5.` : '', c.volveria === true ? 'Volvería.' : c.volveria === false ? 'Prefiere otros perfiles.' : ''].filter(Boolean).join(' ');
+  if(familia) lineas.push(`<div>Con la familia: ${familia}</div>`);
+  if(c.jugaron) lineas.push(`<div>Jugaron: ${escaparHtml(c.jugaron)}</div>`);
+  if(c.comentario_equipo) lineas.push(`<div>Para el equipo: ${escaparHtml(c.comentario_equipo)}</div>`);
+  return `<div class="autoconf-fila autoconf-cierre" data-autoconf="${id}">
+    <div class="autoconf-txt">
+      <div><b>${fmt(r.fecha)}</b>, ${escaparHtml(r.ninera_nombre)} en ${escaparHtml(r.familia_nombre)}</div>
+      <div class="helper" style="margin:2px 0 0;">Sitting previsto de ${hhmm(r.hora_inicio)}${r.hora_fin ? ' a '+hhmm(r.hora_fin) : ''}, cobro ${plata(r.cobro_familia)} y pago ${plata(r.pago_ninera)}.</div>
+      <div class="cierre-ninera helper" style="margin:6px 0 0;">${lineas.join('')}</div>
+    </div>
+    <div class="autoconf-btns">
+      <button class="smallbtn" onclick="conGuardado(this, ()=>confirmarCierreNinera(${argJs(r.id)}))">Sí, terminó ${fin}</button>
+      <button class="smallbtn" onclick="abrirOtraHoraAuto(${argJs(r.id)})">Otra hora</button>
+      ${variantesPrecioDisponible && r.familia_id ? `<button class="smallbtn" onclick="abrirVariantesAuto(${argJs(r.id)})">Variantes</button>` : ''}
+    </div>
+  </div>`;
+}
+// null sin gasto, 'familia' o 'pb'; false (con el aviso) si hubo gasto y no se eligió quién lo paga.
+function quienPagaGastoCierre(r){
+  if(r._cierre.gasto_monto == null) return null;
+  const marcado = document.querySelector(`input[name="cierre-quien-${CSS.escape(r.id)}"]:checked`);
+  if(!marcado){ toast('Elegí quién paga el gasto antes de confirmar.', 'bad'); return false; }
+  return marcado.value;
+}
+// "Sí, terminó [su hora]": con la hora que mandó la niñera, recalcula cobro y pago con la tarifa, los términos y
+// el precio de esa niñera (como "Otra hora"). Si tiene precio a mano o variantes, abre "Otra hora" para que la
+// admin mire el monto antes de guardar.
+async function confirmarCierreNinera(id){
+  const r = dashAutoConfirmados.find(x=>x.id===id);
+  if(!r || !r._cierre) return;
+  const c = r._cierre;
+  if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
+  const quien = quienPagaGastoCierre(r);
+  if(quien === false) return;
+  const hf = String(c.hora_fin).slice(0,5), cruza = !!c.termina_dia_siguiente;
+  const misma = String(r.hora_fin||'').slice(0,5) === hf && !!r.termina_dia_siguiente === cruza;
+  let cambios = {};
+  if(!misma){
+    if(r.precio_motivo || r.precio_variantes){
+      return abrirOtraHoraAuto(id, { aviso: 'Este día tiene un precio a mano o variantes: revisá el monto antes de guardar.' });
+    }
+    const tarifa = await leerTarifaOtraHora(r);
+    if(tarifa.error){ toast(tarifa.error, 'bad'); return; }
+    cambios = { hora_fin: hf, termina_dia_siguiente: cruza };
+    const calc = tarifa.familia ? precioSegunHorario(tarifa.familia, String(r.hora_inicio||'').slice(0,5), hf, cruza, r.fecha) : {};
+    if(calc.cobro!=null) cambios.cobro_familia = calc.cobro;
+    if(calc.pago!=null) cambios.pago_ninera = calc.pago;
+  }
+  await revisarCierreNinera(r, cambios, quien);
+}
+// La revisión de un cierre, en este orden: (1) se toma el cierre con la condición de que nadie lo revisó (dos
+// admins no cargan dos veces el gasto); (2) el registro, solo si sigue sin cobrar ni pagar (si no, el cierre
+// vuelve a quedar sin revisar); (3) el gasto pasa recién ahora a gastos_extra, pagado por la niñera, con quién lo
+// paga (Diego, 02/11/2026: nada sin revisar llega al cobro de la madre). Devuelve true si quedó revisado.
+async function revisarCierreNinera(r, cambios, quien){
+  const c = r._cierre, ahora = new Date().toISOString(), admin = registradoPorUsuario() || null;
+  const { data: tomado, error: e1 } = await sb.from('sitting_cierres').update({ revisado_en: ahora, revisado_por: admin })
+    .eq('sitting_id', r.id).is('revisado_en', null).select('sitting_id');
+  if(e1){ toast('No se pudo guardar la revisión: ' + (e1.message || 'probá de nuevo.'), 'bad'); return false; }
+  if(!tomado || !tomado.length){
+    toast('Otra admin ya revisó este cierre.', 'bad');
+    await cargarConfirmadosAutomaticos();
+    return false;
+  }
+  const { data: act, error: e2 } = await sb.from('sittings_traslados')
+    .update({ ...cambios, generado_automatico: false, revisado_at: ahora })
+    .eq('id', r.id).eq('cobrado', false).eq('pagado', false).select('id');
+  if(e2 || !act || !act.length){
+    await sb.from('sitting_cierres').update({ revisado_en: null, revisado_por: null }).eq('sitting_id', r.id);
+    toast(e2 ? 'No se pudo guardar el registro: ' + (e2.message || 'probá de nuevo.')
+      : 'No se guardó: mientras tanto alguien lo marcó como cobrado o pagado. Corregilo desde Sittings & traslados.', 'bad');
+    return false;
+  }
+  if(c.gasto_monto != null){
+    const { data: g, error: e3 } = await sb.from('gastos_extra').insert({
+      sitting_id: r.id, concepto: c.gasto_concepto, monto: c.gasto_monto, pagado_por: 'ninera', comprobante: c.gasto_comprobante,
+      creado_por: admin, ...(quien === 'pb' ? { absorbe_pb: true } : {}),
+    }).select('id').single();
+    if(e3 || !g){
+      toast(`Quedó revisado, pero no se pudo cargar el gasto de ${r.ninera_nombre} (${c.gasto_concepto}): cargalo a mano en Sittings & traslados.`, 'bad');
+      await cargarConfirmadosAutomaticos();
+      return true;
+    }
+    // Si esto falla, el gasto ya está cargado: solo queda sin el vínculo con el cierre.
+    await sb.from('sitting_cierres').update({ gasto_id: g.id }).eq('sitting_id', r.id);
+  }
+  toast(c.gasto_monto != null ? 'Listo: quedó revisado y el gasto pasó a Por cobrar / Por pagar.' : 'Listo: quedó con la hora de la niñera.');
+  await cargarConfirmadosAutomaticos();
+  return true;
 }
 async function marcarAutoRevisados(ids){
   if(!ids.length) return;
@@ -715,24 +857,38 @@ async function marcarAutoNoFue(id){
    (01/11/2026) es el de un día de fijo: el precio propio del fijo si lo hizo su niñera, si no el de
    la niñera de ese día con esa familia, si no la tarifa (precioHoraNinera). */
 let dashOtraHoraFamilia = null;
-async function abrirOtraHoraAuto(id){
+// La tarifa con que se recalcula un día (la usan "Otra hora" y "Sí, terminó" del cierre de una niñera): la
+// familia, los precios de esa niñera y el del fijo, juntos. { familia } (null en un traslado o sin familia) o
+// { error }: sin la tarifa se guardaría la hora nueva con el precio viejo.
+async function leerTarifaOtraHora(r){
+  if(r.tipo==='traslado' || !r.familia_id) return { familia: null };
+  const [{ data, error }, precios, fijo] = await Promise.all([
+    leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
+    r.ninera_id ? leerPreciosNinera(r.familia_id, r.ninera_id) : [],
+    r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
+  ]);
+  if(error || fijo.error) return { error: 'No se pudo leer la tarifa de la familia. Probá de nuevo.' };
+  if(preciosNoLeidos(precios)) return { error: AVISO_PRECIOS_NO_LEIDOS };
+  const fam = (data||[])[0] || null;
+  return { familia: fam && { ...fam, pago_hora: precioHoraNinera(fam, r.ninera_id || null, precios, pagoFijoDeNinera(fijo.data, r.ninera_id || null, r.ninera_nombre)) } };
+}
+// Con el cierre de una niñera (etapa 7), "Otra hora" arranca con la hora que mandó y, si hubo gasto, lleva quién
+// lo paga (elegido en la fila antes de abrir).
+let dashOtraHoraQuien = null;
+async function abrirOtraHoraAuto(id, { aviso = '' } = {}){
   const r = dashAutoConfirmados.find(x=>x.id===id);
   if(!r) return;
   if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
-  dashOtraHoraFamilia = null;
-  if(r.tipo!=='traslado' && r.familia_id){
-    // Sin la tarifa se guardaría la hora nueva con el precio viejo: mejor no abrir. La familia, los
-    // precios de esa niñera y el del fijo, juntos.
-    const [{ data, error }, precios, fijo] = await Promise.all([
-      leerFamiliasConTerminos('id,nombre,cobro_hora,pago_hora', q=>q.eq('id', r.familia_id)),
-      r.ninera_id ? leerPreciosNinera(r.familia_id, r.ninera_id) : [],
-      r.asignacion_id ? sb.from('asignaciones').select('ninera_id,ninera_nombre,pago_hora').eq('id', r.asignacion_id).maybeSingle() : { data: null },
-    ]);
-    if(error || fijo.error){ toast('No se pudo leer la tarifa de la familia. Probá de nuevo.', 'bad'); return; }
-    if(preciosNoLeidos(precios)){ toast(AVISO_PRECIOS_NO_LEIDOS, 'bad'); return; }
-    const fam = (data||[])[0] || null;
-    dashOtraHoraFamilia = fam && { ...fam, pago_hora: precioHoraNinera(fam, r.ninera_id || null, precios, pagoFijoDeNinera(fijo.data, r.ninera_id || null, r.ninera_nombre)) };
+  dashOtraHoraQuien = null;
+  if(r._cierre){
+    const q = quienPagaGastoCierre(r);
+    if(q === false) return;
+    dashOtraHoraQuien = q;
   }
+  dashOtraHoraFamilia = null;
+  const tarifa = await leerTarifaOtraHora(r);
+  if(tarifa.error){ toast(tarifa.error, 'bad'); return; }
+  dashOtraHoraFamilia = tarifa.familia;
   const esSitting = r.tipo!=='traslado';
   abrirModal(`
     <h2 style="margin:0 0 4px;padding-right:32px;">¿A qué hora fue?</h2>
@@ -743,13 +899,14 @@ async function abrirOtraHoraAuto(id){
     </div>
     ${esSitting ? `<label class="chk" style="margin:0 0 8px;"><input type="checkbox" id="autoconf-cruza" ${r.termina_dia_siguiente?'checked':''}> Termina al día siguiente</label>` : ''}
     <div id="autoconf-precio" class="helper" style="margin:4px 0 0;"></div>
-    <div id="autoconf-warn"></div>
+    <div id="autoconf-warn">${aviso ? `<div class="warnbox">${escaparHtml(aviso)}</div>` : ''}</div>
     <div class="confirmbtns">
       <button class="btn ghost" onclick="cerrarModal()">Cancelar</button>
       <button class="btn primary" onclick="conGuardado(this, ()=>guardarOtraHoraAuto(${argJs(id)}))">Guardar</button>
     </div>`);
   setHoraSelect('autoconf-hi', r.hora_inicio||'');
-  if(esSitting) setHoraSelect('autoconf-hf', r.hora_fin||'');
+  if(esSitting) setHoraSelect('autoconf-hf', (r._cierre ? r._cierre.hora_fin : r.hora_fin)||'');
+  if(esSitting && r._cierre) document.getElementById('autoconf-cruza').checked = !!r._cierre.termina_dia_siguiente;
   const box = document.querySelector('#editmodal .confirmbox');
   box?.addEventListener('change', ()=>pintarPrecioOtraHoraAuto(r));
   pintarPrecioOtraHoraAuto(r);
@@ -787,6 +944,11 @@ async function guardarOtraHoraAuto(id){
   if(!r) return;
   const { cambios, error: problema } = otraHoraAutoElegida(r);
   if(problema){ warn.innerHTML = `<div class="warnbox">${escaparHtml(problema)}</div>`; return; }
+  // Con el cierre de una niñera: el cierre queda revisado y el gasto pasa a Por cobrar / Por pagar.
+  if(r._cierre){
+    if(await revisarCierreNinera(r, cambios, dashOtraHoraQuien)) cerrarModal();
+    return;
+  }
   // Solo si sigue sin cobrar ni pagar (si otra admin lo marcó mientras tanto, no se toca).
   const { data, error } = await sb.from('sittings_traslados')
     .update({ ...cambios, generado_automatico: false, revisado_at: new Date().toISOString() })
@@ -992,6 +1154,9 @@ const TIPOS_NOTIF = [
   {tipo:'temporada', label:'Pedir la temporada de Punta', sub:'Cada 1 de octubre, con el mensaje listo para mandar', icono:'ninieras', defaultPush:true},
   {tipo:'chat', label:'Mensajes de niñeras', sub:'Cuando una niñera escribe por el chat de la app', icono:'ninieras', defaultPush:true},
   {tipo:'pedidos', label:'Pedidos de la app', sub:'Cuando una niñera dice que puede o entra un pedido de WhatsApp', icono:'agenda', defaultPush:true},
+  // Etapa 7 (02/11/2026): lo que marca la niñera el día del sitting y su cierre.
+  {tipo:'el_dia', label:'El día del sitting', sub:'Una niñera llega tarde, no le abren, no encuentra la casa o no marcó que llegó', icono:'agenda', defaultPush:true},
+  {tipo:'cierres', label:'Cierres de niñeras', sub:'Cuando una niñera termina un sitting, carga un gasto o deja un comentario', icono:'sittings', defaultPush:true},
 ];
 
 async function cargarNotificaciones(){
@@ -1119,19 +1284,21 @@ async function itemsAvisosAdmin({ data, error }){
     if(!e2) (ms||[]).forEach(m=>{ if(m.leido_admin_en) leidos.add(m.id); });
   }
   return data.filter(a=>!(a.tipo==='chat' && leidos.has(a.datos?.mensaje_id))).map(a=>{
-    const { destino, ninera, solicitud } = destinoDeUrlAviso(a.url);
-    return { id: 'aviso:'+a.id, tipo: a.tipo, titulo: a.titulo || 'Aviso', mensaje: a.cuerpo || '', destino, abrirChat: ninera, abrirSolicitud: solicitud };
+    const { destino, ninera, solicitud, sitting } = destinoDeUrlAviso(a.url);
+    return { id: 'aviso:'+a.id, tipo: a.tipo, titulo: a.titulo || 'Aviso', mensaje: a.cuerpo || '', destino, abrirChat: ninera, abrirSolicitud: solicitud, abrirSitting: sitting };
   });
 }
 // "?ir=<módulo>&ninera=<id>" (lo mismo que abre el push): a qué módulo va y qué ficha abre en el chat.
 function destinoDeUrlAviso(url){
   const q = String(url||'');
   const i = q.indexOf('?');
-  if(i < 0) return { destino: null, ninera: null, solicitud: null };
+  if(i < 0) return { destino: null, ninera: null, solicitud: null, sitting: null };
   const p = new URLSearchParams(q.slice(i+1));
   const ir = p.get('ir');
   const valido = !!ir && (ir==='pend-hoy' || MODULOS.some(m=>m.key===ir));
-  return { destino: valido ? ir : null, ninera: valido && ir==='ninieras' ? p.get('ninera') : null, solicitud: valido && ir==='agenda' ? p.get('solicitud') : null };
+  // "?ir=hoy" (etapa 7) va a Hoy (destino null) y, con "&sitting=<id>", marca esa fila de "Sitting en curso".
+  return { destino: valido ? ir : null, ninera: valido && ir==='ninieras' ? p.get('ninera') : null, solicitud: valido && ir==='agenda' ? p.get('solicitud') : null,
+    sitting: ir==='hoy' ? p.get('sitting') : null };
 }
 
 async function cargarNotifLeidas(){
@@ -1197,6 +1364,7 @@ async function irANotificacion(id){
   await marcarNotifLeida(id);
   toggleNotifPanel(false);
   if(!item) return;
+  if(item.abrirSitting) sittingDeLinkHoy = item.abrirSitting;
   await setModulo(item.destino);
   if(item.abrirId && item.destino==='ninieras' && typeof verNinera==='function'){
     verNinera(item.abrirId);

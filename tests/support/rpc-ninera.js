@@ -270,7 +270,9 @@ function alCancelarSolicitud(db, ahoraISO, s) {
 // (solo_practica = true si falta) es el de la migración.
 // guia (etapa 4, 02/11/2026): (ninera_id) => el estado de su guía (guiaEstado de rpc-guia.js); null con la
 // base sin la migración de la guía: ni freno ni campos guia_* en sugeridas_datos.
-function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true, guia = null } = {}) {
+// prefiere: (nineraId, familiaId, familiaNombre, mismoNombre) => boolean, la regla de la etapa 7 (rpc-dia.js); sin
+// la migración del día, null (sugeridas_datos no trae prefiere_otros).
+function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true, guia = null, prefiere = null } = {}) {
   const hoy = fechaMontevideo(ahora);
   const ahoraISO = new Date(ahora).toISOString();
   return {
@@ -393,6 +395,8 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true, g
         no_disponible: (db.ninera_no_disponible || []).some(d => d.ninera_id === n.id && d.fecha === p_fecha),
         // Etapa 4: la guía, solo de las que tienen app (null las demás).
         ...(guia ? (() => { const g = n.user_id ? guia(n.id) : null; return { guia_puede: g ? g.puede : null, guia_motivo: g ? g.motivo : null, guia_hasta: g ? g.hasta : null }; })() : {}),
+        // Etapa 7: "Prefiero otros perfiles" con esta familia.
+        ...(prefiere ? { prefiere_otros: prefiere(n.id, p_familia_id, p_familia_nombre, mismo) } : {}),
       }));
       return { historial, por_ninera };
     },
@@ -667,4 +671,4 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 =
   };
 }
 
-module.exports = { rpcNinera, errorRpc, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, pedidoPuedeAvisar, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };
+module.exports = { rpcNinera, errorRpc, encolarAviso, madreNombreInicial, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, pedidoPuedeAvisar, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };

@@ -358,6 +358,7 @@ function verFamilia(id){
     ${historialHtml}
     <div id="fam-saldo" style="margin-top:14px;"></div>
     <div id="fam-variantes" style="margin-top:14px;"></div>
+    <div id="fam-dijeron" data-familia="${escaparHtml(f.id)}" style="margin-top:14px;"></div>
     <div id="fam-incidentes" style="margin-top:14px;"></div>
     <div class="card-section-title">Niñeras asignadas</div>
     <div class="tablewrap"><table class="asigtable"><thead><tr><th>Niñera asignada</th><th>Días y horario</th><th></th></tr></thead>
@@ -392,6 +393,7 @@ function verFamilia(id){
   pintarSaldoEnFicha('fam-saldo', 'familia', f.id, f.nombre);
   pintarVariantesEnFicha(f.id);
   pintarPreciosNineraEnFicha(f.id);
+  pintarLoQueDijeronNinieras(f.id); // etapa 7 (pedidos.js)
 }
 /* Términos y condiciones (20/10/2026): la admin marca que la familia los aceptó y desde qué
    fecha. Desde ese día, el fin de cada sitting se le cobra redondeado (horasSitting, core.js).

@@ -125,9 +125,10 @@ con el mensaje armado (el que ya existe en la Agenda) y la admin las asigna a ma
 4.14 **Inicio de la niñera.** Arriba los pedidos por responder; abajo "Próximos sittings" (hoy y lo
 que viene, fijos incluidos, sin plata). Sin sittings pasados en la fase 1.
 
-4.15 **La prueba** con 3 a 5 niñeras arranca después de la etapa 7 (pedido, elección, el día y
-cierre de punta a punta). La etapa 8 puede entrar durante la prueba. En las etapas 5 y 6 se
-prueba con pedidos de práctica inventados entre Diego y las admins.
+4.15 **La prueba** con 3 a 5 niñeras ~~arranca después de la etapa 7~~. Cambió (orquestador, 02/11/2026):
+primero se terminan todas las etapas (8, 10 y 11) y la sesión final del iPhone; recién ahí, con el OK de
+Diego, se apaga `solo_practica` y arranca la prueba con niñeras reales. Hasta entonces se prueba con
+pedidos de práctica inventados entre Diego y las admins.
 
 4.17 **Datos de práctica en producción.** Para probar las etapas 5 a 7 con pedidos inventados, una
 admin carga filas reales con "(práctica)" en el nombre: una niñera con el celular de Diego y una
@@ -172,8 +173,10 @@ SQL `mail_sintetico_ninera`).
 - "Agregar al calendario" baja un archivo `.ics`.
 - Lo que la niñera manda al cerrar (hora real, gasto, comentarios) cae en Hoy, en "Cierre de los
   fijos", que ya existe, y la admin lo confirma con un toque; vale para puntuales y fijos.
-- El gasto que carga la niñera entra como gasto extra pagado por ella; la admin elige quién lo
-  paga (familia o Parents Break), como hoy.
+- El gasto que carga la niñera ~~entra como gasto extra pagado por ella~~. Cambió (Diego, 02/11/2026,
+  etapa 7): queda guardado en el cierre (`sitting_cierres`) y recién pasa a `gastos_extra` (y a Por
+  cobrar / Por pagar) cuando la admin elige quién lo paga (familia o Parents Break). Motivo: nada sin
+  revisar llega al cobro de la madre.
 - Una niñera invitada que no activó los avisos recibe igual los pedidos en la app; en Niñeras se
   ve la marca "sin avisos".
 
@@ -281,7 +284,7 @@ si `ninera_actual()` es null):
   suyo y está confirmado.
 Funciones de escritura (`volatile`, mismas restricciones; validan que lo tocado sea suyo y
 devuelven el error en texto claro): `ninera_guardar_perfil`, `responder_pedido`,
-`ninera_marcar_evento`, `ninera_cerrar_sitting`, `ninera_cargar_gasto`,
+`ninera_marcar_evento`, `ninera_cerrar_sitting` (con el gasto adentro; sin `ninera_cargar_gasto`, 02/11/2026),
 `ninera_guardar_ficha_familia`, `ninera_guardar_temporada`, `ninera_guardar_carsitting`,
 `ninera_marcar_no_disponible`.
 
@@ -307,8 +310,10 @@ Storage:
   subir archivos sin límite a cualquier carpeta con su id); las etapas 4 y 10 amplían la política
   para sus rutas y deciden ahí si la niñera puede borrar. Admins leen y borran; nadie lista
   público. Se ven con `createSignedUrl`.
-- Bucket `comprobantes` (existe): la niñera puede subir bajo `ninieras/<ninera_id>/...` para el
-  ticket de un gasto; no puede listar ni leer.
+- Bucket `comprobantes` (existe): la niñera sube el ticket de un gasto a una sola ruta por sitting,
+  `ninieras/<ninera_id>/<sitting_id>.jpg`, solo mientras el sitting es suyo, de hoy o de ayer, y no lo
+  cerró. Para poder reemplazar una foto mal sacada, esa única ruta la puede leer y pisar hasta cerrar;
+  el resto del bucket no lo ve ni lo lista (20261106_el_dia, 02/11/2026).
 - `push_subscriptions`: columna nueva `user_id uuid`; política para que una cuenta autenticada
   lea, escriba y borre solo sus filas (`user_id = auth.uid()`); la admin sigue con `usuario`
   (mail) y su política actual. La Edge Function de envío manda a una niñera por `user_id`.
@@ -385,6 +390,11 @@ leido_en timestamptz, creado_en timestamptz default now()
 - Etapa 7: `sitting_eventos`, `sitting_cierres`, políticas de `comprobantes` para la niñera,
   funciones `ninera_marcar_evento`, `ninera_cerrar_sitting`, `ninera_cargar_gasto`, reglas del
   día en `programar_avisos()`.
+  Cómo quedó (02/11/2026, migración `20261106_el_dia`): sin `ninera_cargar_gasto` (el gasto va dentro de
+  `ninera_cerrar_sitting` y queda en el cierre hasta que la admin elige quién lo paga); suma `ninera_mi_dia`
+  (lo del día, aparte de `ninera_mis_sittings`, que no cambia), `ninera_ruta_comprobante` (la política del
+  bucket), `programar_avisos_el_dia`, `app_config 'el_dia'` y `prefiere_otros` en `sugeridas_datos`. Solo
+  sittings: los traslados, en la etapa 10.
 - Etapa 8: `fichas_familia`, `ninera_guardar_ficha_familia`, `ninera_ficha_familia`, avisos de
   cambio de horario y cancelación (trigger sobre `sittings_traslados` y `solicitudes`),
   `ninera_responder_cambio`.
@@ -548,8 +558,8 @@ Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_con
   falta cerrar el sitting" con "Se extendió el sitting" (abre el cierre con la hora actual).
 - Cierre (`ninera_cerrar_sitting`): "¿Hasta qué hora estuviste?" (hora real, con la diferencia
   con lo previsto, sin montos; si pasa de medianoche, marca "al día siguiente"), "¿Hubo algún
-  gasto extra?" (monto + foto del comprobante → `ninera_cargar_gasto`: sube al bucket
-  `comprobantes` bajo su carpeta e inserta `gastos_extra` con `pagado_por 'ninera'`; "Te lo
+  gasto extra?" (monto, en qué y foto del comprobante; va dentro de `ninera_cerrar_sitting` y queda
+  en el cierre hasta que la admin elige quién lo paga, Diego 02/11/2026; "Te lo
   reintegramos junto al pago" es el único texto permitido sobre reintegro), comentarios extras
   (campo libre → aviso instantáneo a admins), calificación de la familia (1 a 5, ¿volverías?
   Sí / Prefiero otros perfiles, ¿a qué jugaron?, comentarios para el equipo). "¡Gracias,
@@ -560,6 +570,17 @@ Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_con
   y los comentarios; "Sí, terminó" confirma con la hora de la niñera (recalcula cobro y pago con
   la tarifa, los términos y las variantes, como hoy) y marca `revisado_en`; "Otra hora" deja
   corregir. El registro final sigue viviendo en `sittings_traslados`.
+- Respuestas de Diego (02/11/2026) al detallar la etapa 7: "Contactarla" vive en una tarjeta nueva de Hoy,
+  "Sitting en curso" (llega tarde, no le abren, no encuentra la casa, no marcó que llegó), que abre WhatsApp
+  al celular de la niñera; el aviso abre esa tarjeta (`?ir=hoy&sitting=<id>`: en el iPhone los avisos de la
+  web no llevan botones). Solo sittings; los traslados, en la etapa 10. La calificación y "¿a qué jugaron?" se
+  ven en el cierre y en la ficha de la familia ("Lo que dijeron las niñeras", las últimas). El cierre se manda
+  una vez (si se equivocó, avisa por el chat y la admin corrige con "Otra hora"); "Ya entré" no es
+  obligatorio para cerrar; con `solo_practica` prendido, los avisos de tiempo del día van solo a la de
+  práctica (los que dispara la niñera con un toque llegan siempre a las admins). Los avisos de "no me abren" y
+  "no encuentro la casa" tienen una clave cada uno (`admin:sitting:<id>:no_abren` / `:no_encuentro`) y el de
+  tarde lleva los minutos (`:tarde:<min>`: si los cambia, avisa de nuevo). Tipos de aviso para las
+  preferencias de las admins: `el_dia` y `cierres`.
 
 ### 6.5 Ficha de la familia, cambios y cancelaciones (etapa 8)
 - Ficha: los 18 campos y las 6 casillas de la guía original, en `fichas_familia (id, familia_id,

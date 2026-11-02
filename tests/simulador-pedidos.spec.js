@@ -269,7 +269,8 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     expect(h).toHaveLength(3);
     const p = Object.fromEntries(r.data.por_ninera.map(x => [x.ninera_id, x]));
     // Etapa 4: la guía de las que tienen app (Carla, con la firma de los datos); null las que no tienen.
-    const conGuia = { guia_puede: true, guia_motivo: null, guia_hasta: null }, sinApp = { guia_puede: null, guia_motivo: null, guia_hasta: null };
+    // Etapa 7: prefiere_otros (ninguna dijo "Prefiero otros perfiles" con esta familia).
+    const conGuia = { guia_puede: true, guia_motivo: null, guia_hasta: null, prefiere_otros: false }, sinApp = { guia_puede: null, guia_motivo: null, guia_hasta: null, prefiere_otros: false };
     expect(p[ID.nCarla]).toEqual({ ninera_id: ID.nCarla, no_puedo_seguidos: 2, incidente_familia: true, no_disponible: false, ...conGuia });
     expect(p[ID.nAna]).toEqual({ ninera_id: ID.nAna, no_puedo_seguidos: 1, incidente_familia: true, no_disponible: false, ...sinApp });
     // Las respuestas del panel no cuentan; el día marcado sí.
