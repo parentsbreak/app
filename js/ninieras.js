@@ -81,6 +81,7 @@ async function cargarNinierasUnaVez(){
   if(error){ const g = document.getElementById('ninierasgrid'); if(g) g.innerHTML = errBox(error); return; }
   ninierasItems = data;
   const fechasEntrevista = cargarFechasEntrevistaNinieras(); // en paralelo: para el orden de la lista
+  const guia = cargarGuiaNinieras(); // en paralelo: la marca "Sin guía" (etapa 4)
   renderCumpleaneras();
   renderZonasNuevasPanel();
   renderTemporadasPanel();
@@ -88,8 +89,19 @@ async function cargarNinierasUnaVez(){
   await cargarConteoIncidentesNinieras();
   const wZonas = document.getElementById('filt-zonas-wrap');
   if(wZonas) wZonas.innerHTML = htmlFiltroZonas(ninFiltroZonas, 'toggleFiltroZonaNin');
-  await fechasEntrevista;
+  await Promise.all([fechasEntrevista, guia]);
   filtrarNinieras();
+}
+/* La guía de las niñeras con app (fase 1, etapa 4, 02/11/2026): una lectura para toda la lista
+   (guia_estado_ninieras). Sin la migración o si falla, no hay marcas: no frena la lista. */
+let ninGuia = {}; // id de la niñera -> { puede, motivo, hasta, ultima_firma, version_firma, completa }
+async function cargarGuiaNinieras(){
+  ninGuia = {};
+  try {
+    const { data, error } = await sb.rpc('guia_estado_ninieras');
+    if(error) return;
+    (data || []).forEach(g => { ninGuia[g.ninera_id] = g; });
+  } catch(e){ /* sin marcas */ }
 }
 /* Orden de la lista (21/10/2026, pedido de Paulina y Delfina): por la fecha de la entrevista, de la
    más nueva a la más vieja; las de antes de la app, sin entrevista, al final. La fecha es la de la
@@ -338,6 +350,7 @@ function filtrarNinieras(){
         ${badgeTemporada(n)}
         ${hayZonaAfuera && !filtraPeriodo && dijoQueNoVa(n, zonas) ? `<span class="badge warn ninera-no-va" style="font-size:10px;padding:2px 8px;">Dijo que no va</span>` : ''}
         ${n.telefono_pendiente ? `<span class="badge warn" style="font-size:10px;padding:2px 8px;">Celular nuevo por confirmar</span>` : ''}
+        ${n.user_id && ninGuia[n.id]?.puede === false ? `<span class="badge warn ninera-sin-guia" style="font-size:10px;padding:2px 8px;">Sin guía</span>` : ''}
       </div>
       <div class="rowbtns">
         <button class="smallbtn" onclick="verNinera(${argJs(n.id)})">Ver ficha</button>
@@ -420,7 +433,7 @@ async function verNinera(id){
     </div>
     ${htmlCambioTelefono(n)}
     ${motivoCv ? `<div class="warnbox cv-viejo" style="margin-bottom:10px;">${escaparHtml(`El CV quedó viejo (${motivoCv}): generalo de nuevo.`)}</div>` : ''}
-    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div><div><b>CV</b><button type="button" class="smallbtn" onclick="abrirCvNinera(${argJs(n.id)})">${n.cv_url ? 'Ver el CV' : 'Generar el CV'}</button></div><div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
+    <div class="fichadl">${edadRow}${rows||(edadRow?'':'<div>Sin más datos.</div>')}<div><b>Zona</b>${escaparHtml(textoZonasConBarrios(n.zona, n.barrios)||'—')}</div><div><b>Teléfono</b><span id="vn-telefono">${escaparHtml(n.telefono||'—')}</span></div><div><b>App</b><span id="vn-app" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>Tipo</b>${escaparHtml(n.tipo||'Niñera')}</div>${n.user_id ? `<div><b>Guía</b><span id="vn-guia" data-ninera="${escaparHtml(n.id)}">Cargando…</span></div><div><b>RCP presencial</b><span id="vn-rcp">${htmlRcpFicha(n)}</span></div>` : ''}<div><b>CV</b><button type="button" class="smallbtn" onclick="abrirCvNinera(${argJs(n.id)})">${n.cv_url ? 'Ver el CV' : 'Generar el CV'}</button></div><div><b>Cuenta bancaria</b>${escaparHtml(textoCuentasBancarias(n.cuenta_bancaria))}</div><div><b>Notas</b>${escaparHtml(n.notas||'—')}</div></div>
     ${htmlFichaTemporada(n)}
     <div id="vn-chat" data-ninera="${escaparHtml(n.id)}" style="margin-top:18px;"></div>
     <div id="vn-carsitting"></div>
@@ -440,6 +453,7 @@ async function verNinera(id){
       <div id="vn-historial"><div class="empty"><span class="spinner dark"></span> Cargando…</div></div>
     </div>`);
   cargarEstadoAppNinera(n.id);
+  if(n.user_id) cargarGuiaFicha(n.id);
   pintarChatFicha(n);
   if(n.foto_propuesta_ruta) cargarFotoPropuesta(n.id, n.foto_propuesta_ruta);
   cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
@@ -586,6 +600,59 @@ function textoPerfilApp(n){
     texto += `, editado el ${fechaCortaApp(n.perfil_actualizado_en)}`;
   }
   return texto;
+}
+/* "Guía" en la ficha (etapa 4, decisiones 8): completa y firmada, o qué le falta y hasta cuándo, con la firma a
+   la vista (link firmado de ninieras-privado). Se lee al abrir la ficha, aparte de la lista. Sin la migración
+   o si falla una lectura, lo dice en esa línea y la ficha sigue. */
+async function cargarGuiaFicha(id){
+  const [puede, firmas, progreso, repasos, cfg] = await Promise.all([
+    sb.rpc('ninera_puede_recibir_pedidos', { p_ninera_id: id }),
+    sb.from('guia_firmas').select('firmado_en,version,firma_ruta').eq('ninera_id', id).order('firmado_en', { ascending:false }).limit(1),
+    sb.from('guia_progreso').select('leccion_id,leido_en').eq('ninera_id', id),
+    sb.from('guia_repasos').select('modulo_id,aprobado_en').eq('ninera_id', id),
+    sb.from('app_config').select('valor').eq('id', 'guia').maybeSingle(),
+  ]);
+  const cont = document.getElementById('vn-guia');
+  if(!cont || cont.dataset.ninera !== id) return;
+  const error = puede.error || firmas.error || progreso.error || repasos.error || cfg.error;
+  if(error){ cont.textContent = esFaltaFuncion(puede.error) ? 'Falta actualizar la base para ver la guía.' : 'No se pudo leer la guía.'; return; }
+  const e = (Array.isArray(puede.data) ? puede.data[0] : puede.data) || {};
+  const firma = (firmas.data || [])[0] || null;
+  cont.innerHTML = htmlGuiaFicha(e, firma, progreso.data || [], repasos.data || [], cfg.data?.valor || {});
+}
+function fechaLargaGuia(ts){ return ts ? fmtFechaCv(fechaNegocioISO(new Date(ts))) : ''; }
+function fechaDiaGuia(iso){ return iso ? fmtFechaCv(iso) : ''; }
+// Pura (para probarla): el texto de la fila "Guía" con el estado (ninera_puede_recibir_pedidos), su última firma
+// y lo que leyó y aprobó después de esa firma, contra las obligatorias de app_config 'guia'.
+function htmlGuiaFicha(e, firma, progreso, repasos, cfg){
+  const desde = firma ? Date.parse(firma.firmado_en) : -Infinity;
+  const lecciones = cfg.lecciones_obligatorias || [], modulos = cfg.modulos_obligatorios || [];
+  const leidas = new Set(progreso.filter(p => Date.parse(p.leido_en) > desde).map(p => p.leccion_id));
+  const aprobados = new Set(repasos.filter(r => Date.parse(r.aprobado_en) > desde).map(r => r.modulo_id));
+  const nLeidas = lecciones.filter(l => leidas.has(l)).length, nAprob = modulos.filter(m => aprobados.has(m)).length;
+  const completa = lecciones.length > 0 && nLeidas === lecciones.length && nAprob === modulos.length;
+  const avance = completa ? 'leyó todo, le falta firmar' : `leyó ${nLeidas} de ${lecciones.length} lecciones y aprobó ${nAprob} de ${modulos.length} repasos`;
+  const verFirma = firma ? ` <button type="button" class="smallbtn" onclick="verArchivoPrivadoNinera(${argJs(firma.firma_ruta)}, 'la firma')">Ver firma</button>` : '';
+  let texto;
+  if(e.puede && !e.motivo) texto = `Completa, firmada el ${fechaLargaGuia(firma?.firmado_en)}${firma?.version ? ` (v${firma.version})` : ''}.`;
+  else if(e.motivo === 'gracia') texto = `Pasó el año de la firma: tiene hasta el ${fechaDiaGuia(e.hasta)} para repasarla y firmar de nuevo (${avance}).`;
+  else if(e.motivo === 'firma_vencida') texto = `Firma vencida: no recibe pedidos hasta que la repase y firme de nuevo (${avance}).`;
+  else if(e.motivo === 'plazo') texto = `Le falta la guía: tiene hasta el ${fechaDiaGuia(e.hasta)} (${avance}).`;
+  else texto = `Le falta la guía: no recibe pedidos hasta terminarla (${avance}).`;
+  return `${escaparHtml(texto)}${verFirma}`;
+}
+function htmlRcpFicha(n){
+  if(n.rcp_presencial === undefined) return '—'; // base sin la migración de la guía
+  if(n.rcp_presencial === true) return `Sí${n.rcp_certificado_ruta ? ` <button type="button" class="smallbtn" onclick="verArchivoPrivadoNinera(${argJs(n.rcp_certificado_ruta)}, 'el certificado')">Ver certificado</button>` : ''}`;
+  if(n.rcp_presencial === false) return 'No';
+  return 'Sin cargar';
+}
+// La firma y el certificado viven en el bucket privado: se abren con un link firmado de 10 minutos.
+async function verArchivoPrivadoNinera(ruta, que){
+  let r;
+  try { r = await sb.storage.from('ninieras-privado').createSignedUrl(ruta, 600); } catch(e){ r = { error: e }; }
+  if(r.error || !r.data?.signedUrl){ toast(`No se pudo abrir ${que}. Probá de nuevo.`, 'bad'); return; }
+  window.open(r.data.signedUrl, '_blank', 'noopener');
 }
 async function cargarEstadoAppNinera(id){
   const n = nineraPorId(id);

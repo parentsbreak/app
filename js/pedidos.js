@@ -7,6 +7,9 @@
 
 // Mismo criterio que la base (`normaliza_nombre(btrim(...))`): el histórico viejo no tiene ids y
 // se cruza por nombre, y un espacio de más no tiene que separar a la misma persona en dos.
+// La marca de la que no puede recibir pedidos por la guía (etapa 4): en "Elegir niñeras" y en el error al mandar.
+const MOTIVO_GUIA_PANEL = { sin_guia: 'Le falta la guía', firma_vencida: 'Firma vencida' };
+
 function sugeridaClave(ninera){ return normaliza(String(ninera.nombre || ninera.id || '').trim()); }
 
 // Una niñera de práctica lleva "(práctica)" en el nombre, con o sin tilde. La base usa la misma
@@ -49,13 +52,15 @@ function sugeridaPorque(item, tipo){
    `tipo` es el del pedido: con 'traslado', historialFamilia e historialTotal salen de
    veces_familia_traslado y total_traslado (quién ya hace los traslados de esa familia); con
    'sitting' o sin tipo, de veces_familia y total. La semana, las edades y los chicos son siempre de
-   los sittings (revisión final, 02/11/2026). */
+   los sittings (revisión final, 02/11/2026).
+   La guía (etapa 4, 02/11/2026): `guia` = { ninera_id: 'sin_guia' | 'firma_vencida' } con las que tienen app y
+   no pueden recibir pedidos (guia_puede false); sin la migración la RPC no trae esos campos y queda vacío. */
 function mapasSugeridas(respuesta, ninieras, tipo){
   const traslado = tipo === 'traslado';
   const porClave = {}, porId = {};
   (ninieras || []).forEach(n => { porId[n.id] = n; const k = sugeridaClave(n); if(k && !porClave[k]) porClave[k] = n; });
   const m = { historialFamilia: {}, historialTotal: {}, sittingsSemana: {}, edadesCuidadas: {}, maxChicos: {},
-    rechazosSeguidos: {}, incidentesFamilia: [], noDisponibles: [] };
+    rechazosSeguidos: {}, incidentesFamilia: [], noDisponibles: [], guia: {} };
   const sumar = (mapa, id, n) => { n = sugeridaNumero(n); if(n) mapa[id] = (mapa[id] || 0) + n; };
   ((respuesta && respuesta.historial) || []).forEach(h => {
     const n = (h.ninera_id && porId[h.ninera_id]) || (h.ninera_clave && porClave[normaliza(String(h.ninera_clave).trim())]);
@@ -74,6 +79,7 @@ function mapasSugeridas(respuesta, ninieras, tipo){
     sumar(m.rechazosSeguidos, p.ninera_id, p.no_puedo_seguidos);
     if(p.incidente_familia) m.incidentesFamilia.push(p.ninera_id);
     if(p.no_disponible) m.noDisponibles.push(p.ninera_id);
+    if(p.guia_puede === false) m.guia[p.ninera_id] = p.guia_motivo || 'sin_guia';
   });
   return m;
 }
@@ -86,11 +92,13 @@ function mapasSugeridas(respuesta, ninieras, tipo){
    del pedido. Bloque 3: nunca fue, de otra zona. 2 y 3: más sittings, más edades del pedido y, con
    3 o más chicos, las que cuidaron a varios. Con familia "solo conocidas" los bloques 2 y 3 van a
    `ocultas` hasta que la admin pida las nuevas (`mostrar_nuevas`).
-   Las ya mandadas por la app conservan su lugar con su estado y no se vuelven a enviar. */
+   Las ya mandadas por la app conservan su lugar con su estado y no se vuelven a enviar.
+   La que no puede recibir pedidos por la guía (`guia`, etapa 4) se queda en su bloque, con la marca ("Le falta
+   la guía" / "Firma vencida") y sin casilla: "Asignar" a mano sigue (decisión de una admin). */
 function ordenarSugeridas(pedido, datos = {}){
   const ninieras = datos.ninieras || [];
   const conjunto = l => new Set(l || []);
-  const excluirIds = conjunto(datos.excluirIds), ocupadas = conjunto(datos.ocupadas), sinGuia = conjunto(datos.sinGuia);
+  const excluirIds = conjunto(datos.excluirIds), ocupadas = conjunto(datos.ocupadas), guia = datos.guia || {};
   const noDisponibles = conjunto(datos.noDisponibles), incidentesFamilia = conjunto(datos.incidentesFamilia);
   const preferirOtros = conjunto(datos.preferirOtros), sinTemporada = conjunto(datos.sinTemporada);
   const fueraTemporada = datos.fueraTemporada || {}, enviadas = datos.enviadas || {};
@@ -113,9 +121,6 @@ function ordenarSugeridas(pedido, datos = {}){
     if(motivoTemporada){
       descartadas.push({ ninera, motivo: String(motivoTemporada) }); return;
     }
-    if(sugeridaEnLista(sinGuia, ninera, key)){
-      descartadas.push({ ninera, motivo: 'Todavía no puede recibir pedidos en la app.' }); return;
-    }
     const vecesFamilia = sugeridaValor(datos.historialFamilia, ninera, key);
     const pedida = ninera.id === pedidaId;
     const cuidadas = (datos.edadesCuidadas && (datos.edadesCuidadas[ninera.id] || datos.edadesCuidadas[key])) || [];
@@ -133,6 +138,8 @@ function ordenarSugeridas(pedido, datos = {}){
     if(!ninera.user_id) marcas.push('sin app');
     // Sin temporada cargada no sabemos si está: se queda en su bloque, solo se avisa.
     if(sugeridaEnLista(sinTemporada, ninera, key)) marcas.push('sin temporada cargada');
+    const motivoGuia = ninera.user_id ? guia[ninera.id] : null;
+    if(motivoGuia) marcas.push(MOTIVO_GUIA_PANEL[motivoGuia] || MOTIVO_GUIA_PANEL.sin_guia);
     marcas.push(...bajas);
     const activa = ninera.activa !== false;
     const item = {
@@ -144,7 +151,7 @@ function ordenarSugeridas(pedido, datos = {}){
       conApp: !!ninera.user_id,
       // Solo un sitting, a una niñera activa con app, que no lo recibió ya, y práctica con práctica.
       enviable: activa && pedido.tipo === 'sitting' && !!ninera.user_id && !estadoEnvio
-        && nineraEsPractica(ninera) === !!pedido.practica && !(datos.soloPractica && !pedido.practica),
+        && nineraEsPractica(ninera) === !!pedido.practica && !(datos.soloPractica && !pedido.practica) && !motivoGuia,
     };
     const mismaZona = !!(pedido.zona && mismoGrupoZona(ninera.zona, pedido.zona));
     item.bloque = (vecesFamilia > 0 || pedida) ? 1 : (mismaZona ? 2 : 3);
@@ -418,6 +425,7 @@ function pintarElegirNineras(){
           <div class="helper" id="agenda-asignar-quien" style="margin:0 0 6px;"></div>
           <div class="field"><label>Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" oninput="marcarCampoEditadoManual('agenda-asignar-pago')"></div></div>
           <div id="agenda-asignar-precio-aviso"></div>
+          <div id="agenda-asignar-guia-aviso"></div>
           ${st.pideDireccion ? campoDireccionAsignar() : ''}
           <div id="agenda-asignar-warn"></div>
           <button class="btn primary" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignacionDirecta(${argJs(s.id)}))">Guardar asignación</button>
@@ -634,6 +642,9 @@ function textoErrorEnvio(error){
     case 'demasiadas_ninieras': return `Hasta ${MAX_TILDADAS_PEDIDO} por vez.`;
     case 'ninera_sin_app': case 'ninera_inactiva': case 'ninera_solo_traslados':
       return `${quien} ya no puede recibir pedidos por la app: destildala.`;
+    // La guía (etapa 4): el motivo viene en details ('sin_guia' / 'firma_vencida').
+    case 'ninera_sin_guia':
+      return `${quien} no puede recibir pedidos por la app (${(MOTIVO_GUIA_PANEL[error?.details] || MOTIVO_GUIA_PANEL.sin_guia).toLowerCase()}): destildala.`;
     case 'sin_chicos': return 'Faltan los chicos de la familia: cargalos en su ficha.';
     case 'practica_mezclada': return 'Hay niñeras reales tildadas junto con una de práctica.';
     case 'solo_practica': return 'Por ahora, por la app solo se mandan pedidos de práctica. Para este, usá "Asignar" o WhatsApp.';
@@ -1418,6 +1429,30 @@ async function abrirConfirmacionMadre(solicitudId, nineraNombre){
   await abrirMensajeMadre({ clave: 'confirmacion', solicitud: sol.data, extra: { nineraNombre: nombre, arriba: ok } });
 }
 
+// "Asignar" a mano no se frena por la guía (decisión de una admin, 02/11/2026): avisa y deja asignar igual.
+// motivo: 'sin_guia' / 'firma_vencida' (o vacío: no hay aviso).
+function htmlAvisoGuiaAsignar(nombre, motivo){
+  if(!motivo) return '';
+  const que = (MOTIVO_GUIA_PANEL[motivo] || MOTIVO_GUIA_PANEL.sin_guia).toLowerCase();
+  return `<div class="warnbox aviso-guia-asignar">${escaparHtml(`${nombre} no recibe pedidos por la app: ${que}. La podés asignar igual.`)}</div>`;
+}
+// Lo que dice "Elegir niñeras" de la elegida con el radio de "Asignar" (lo llama onAgendaNineraSel, agenda.js).
+function avisoGuiaElegida(sel){
+  const caja = document.getElementById('agenda-asignar-guia-aviso');
+  if(!caja) return;
+  caja.innerHTML = sel ? htmlAvisoGuiaAsignar(sel.dataset.nombre, pedidoElegir?.datos?.guia?.[sel.value]) : '';
+}
+// En "Asignar" (Pedidos en curso) se pregunta aparte, sin frenar la pantalla: si falla o la base no tiene la
+// guía, no hay aviso.
+async function avisoGuiaAsignarPedido(nineraId, nombre, token){
+  let r;
+  try { r = await sb.rpc('ninera_puede_recibir_pedidos', { p_ninera_id: nineraId }); } catch(e){ return; }
+  const fila = !r?.error && (Array.isArray(r.data) ? r.data[0] : r.data);
+  const caja = document.getElementById('asignar-guia-aviso');
+  if(token !== modalToken || !caja || !fila || fila.puede !== false) return;
+  caja.innerHTML = htmlAvisoGuiaAsignar(nombre, fila.motivo || 'sin_guia');
+}
+
 /* Pantalla 4: "Asignar" a una niñera que respondió el pedido por la app (snId: su fila de solicitud_ninieras).
    Lo usan "Pedidos en curso" y el atajo "Asignar y confirmar a la madre" (tarea 6.5). El pago se precarga con
    lo que se le ofreció por las horas; la dirección se pide si a la familia de un sitting le falta; abajo, quién
@@ -1460,11 +1495,13 @@ async function abrirAsignarPedido(solicitudId, snId){
       <div class="field"><label for="agenda-asignar-pago">Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" value="${escaparHtml(String(pago))}"></div>
         ${ayudaPago ? `<div class="helper">${escaparHtml(ayudaPago)}</div>` : ''}</div>
       ${pideDireccion ? campoDireccionAsignar() : ''}
+      <div id="asignar-guia-aviso"></div>
       <div class="asignar-quien"><div class="agenda-tier-label">Quién recibe qué</div><ul>${quienRecibeQue(s, sn, nombre, familia, cfg).map(t => `<li>${escaparHtml(t)}</li>`).join('')}</ul></div>
       <div id="agenda-asignar-warn"></div>
       <button class="btn primary" id="pedido-asignar-btn" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignarPedido())">Asignar</button>`
     : '<div class="warnbox">Este pedido ya no está abierto: alguien más lo asignó o lo canceló. Cerrá para ver cómo quedó.</div>'}
   </div>`);
+  if(abierto && sn.ninera_id && sn.ninieras?.user_id) avisoGuiaAsignarPedido(sn.ninera_id, nombre, modalToken);
 }
 // La dirección de la familia, cuando falta y el pedido es un sitting (la usan "Asignar" y "Elegir niñeras").
 function campoDireccionAsignar(){

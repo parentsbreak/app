@@ -99,6 +99,47 @@ test.describe('estático', () => {
     });
   });
 
+  test('la guía (ninera/guia/contenido.json): 11 módulos, 48 lecciones, b2 en Bebés y nada que se ejecute', () => {
+    // Etapa 4 (02/11/2026): sale de docs/fase1/guia-original.html con scripts/guia-desde-html.mjs (14 módulos
+    // menos inicio, ficha y recibidas; b2 se mueve de Protocolos a Bebés, no se borra; sin los juegos).
+    const guia = JSON.parse(leer('ninera/guia/contenido.json'));
+    expect(guia.version).toBe('2026.10');
+    expect(guia.modulos.map(m => m.id)).toEqual(['protocolos', 'auxilios', 'recien', 'bebes', 'toddlers', 'preescolares',
+      'escolar', 'preteens', 'autismo', 'tdah', 'discapacidad']);
+    expect(guia.modulos.filter(m => m.obligatorio).map(m => m.id)).toEqual(['protocolos', 'auxilios']);
+    const lecciones = guia.modulos.flatMap(m => m.lecciones);
+    expect(lecciones).toHaveLength(48);
+    expect(new Set(lecciones.map(l => l.id)).size).toBe(48);
+    expect(guia.modulos.find(m => m.id === 'bebes').lecciones[1].id).toBe('b2');
+    expect(guia.modulos.find(m => m.id === 'protocolos').lecciones.map(l => l.id)).not.toContain('b2');
+    for (const m of guia.modulos) {
+      expect(m.nombre && m.grupo && m.edad, m.id).toBeTruthy();
+      expect(m.repaso.length, m.id).toBeGreaterThan(0);
+      for (const r of m.repaso) {
+        expect(r.q && r.e && r.o.length >= 2, m.id).toBeTruthy();
+        expect(Number.isInteger(r.a) && r.a >= 0 && r.a < r.o.length, `${m.id}: ${r.q}`).toBe(true);
+      }
+    }
+    for (const l of lecciones) {
+      expect(l.titulo && l.html, l.id).toBeTruthy();
+      expect(l.html, l.id).not.toMatch(/<script|<iframe|<form|<input|<button|\son[a-z]+\s*=|javascript:|style=|class="kit"|Para jugar acá/);
+      expect(l.html, l.id).not.toMatch(/<script|<iframe|\son[a-z]+\s*=|javascript:/i);
+      for (const [, href] of l.html.matchAll(/href="([^"]*)"/g)) expect(href, l.id).toMatch(/^https:\/\//);
+      expect((l.html.match(/<a /g) || []).length, l.id).toBe((l.html.match(/target="_blank" rel="noopener"/g) || []).length);
+    }
+  });
+
+  test('las lecciones obligatorias de la base son las de Protocolos y RCP del JSON', () => {
+    // La base no lee el JSON: app_config 'guia'.lecciones_obligatorias (schema.sql y la migración) tiene que coincidir.
+    const guia = JSON.parse(leer('ninera/guia/contenido.json'));
+    const delJson = guia.modulos.filter(m => m.obligatorio).flatMap(m => m.lecciones.map(l => l.id)).sort();
+    for (const archivo of ['supabase/schema.sql', 'supabase/migraciones/20261105_guia.sql']) {
+      const lista = /'lecciones_obligatorias', jsonb_build_array\(([^)]*)\)/.exec(leer(archivo));
+      expect(lista, archivo).not.toBeNull();
+      expect([...lista[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort(), archivo).toEqual(delJson);
+    }
+  });
+
   test('ninguna fecha se saca con toISOString().slice(0,10) (es UTC: de noche da mañana)', () => {
     // 05/10/2026: todayISO() hacía eso y a partir de las 21:00 proponía la fecha de mañana.
     // Única excepción: el id de la notificación del extracto, que no se muestra (cambiarlo

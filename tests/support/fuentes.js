@@ -17,7 +17,7 @@ const ORDEN_SCRIPTS = [
 // Crece con cada etapa de la fase 1; arranque.js siempre al final.
 const ORDEN_SCRIPTS_NINERA = [
   'js/comun.js', 'ninera/js/base.js', 'ninera/js/cuenta.js', 'ninera/js/perfil.js', 'ninera/js/inicio.js', 'ninera/js/chat.js',
-  'ninera/js/temporada.js', 'ninera/js/pedido.js', 'ninera/js/arranque.js',
+  'ninera/js/temporada.js', 'ninera/js/pedido.js', 'ninera/js/guia.js', 'ninera/js/arranque.js',
 ];
 // Todos los archivos de las dos puertas, sin repetir (comun.js una sola vez).
 const TODOS_LOS_SCRIPTS = [...new Set([...ORDEN_SCRIPTS, ...ORDEN_SCRIPTS_NINERA])];
@@ -116,7 +116,7 @@ const RE_EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}
 const PERMITIDOS = new Set(['✕', '✓', '★']); // ✕ ✓ ★
 function emojisPorArchivo() {
   const archivos = [...TODOS_LOS_SCRIPTS, 'index.html', 'sw.js', 'manifest.json', 'temporada.html',
-    'ninera/index.html', 'ninera/sw.js', 'ninera/manifest.json'];
+    'ninera/index.html', 'ninera/sw.js', 'ninera/manifest.json', 'ninera/guia/contenido.json'];
   const out = {};
   for (const a of archivos) {
     const lista = (leer(a).match(RE_EMOJI) || []).filter(c => !PERMITIDOS.has(c) && c !== '️');

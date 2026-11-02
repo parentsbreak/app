@@ -21,6 +21,7 @@ async function renderInicio(){
       <h1>${nombre ? `Hola, ${escaparHtml(nombre)}` : 'Hola'}</h1>
     </header>
     <div id="inicio-avisos"></div>
+    <div id="inicio-guia"></div>
     <div id="inicio-temporada"></div>
     ${htmlInicioPedidos()}
     ${perfilNineraSinMigrar ? '' : `<section id="proximos-sittings" class="proximos" aria-live="polite">
@@ -30,6 +31,7 @@ async function renderInicio(){
     ${htmlAccesosInicio()}
     <footer class="pie">
       ${perfilNineraSinMigrar ? '' : '<button type="button" class="link-boton" onclick="conGuardado(this, ()=>abrirMiPerfil())">Mi perfil</button>'}
+      ${guiaNineraSinMigrar ? '' : '<button type="button" class="link-boton" id="inicio-boton-guia" onclick="pantallaGuiaNinera()">La guía</button>'}
       <button type="button" class="link-boton" onclick="abrirMiCuentaNinera()">Mi cuenta</button>
     </footer>
   </main>`);
@@ -42,6 +44,8 @@ async function renderInicio(){
   cargarContadoresInicio();
   // Y la tarjeta de la temporada (temporada.js): de setiembre a marzo, sin frenar nada de lo de arriba.
   cargarTarjetaTemporada();
+  // La guía (guia.js, etapa 4): la tarjeta solo si le falta algo.
+  cargarTarjetaGuia();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){

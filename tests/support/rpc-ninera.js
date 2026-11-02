@@ -12,9 +12,10 @@ const { randomUUID } = require('crypto');
 // código P0001 y el texto de la excepción en message. Una simulación lo tira con
 // `throw errorRpc('sin_zonas')` y app.js responde ese error, como Supabase.
 // hint: el `using hint = ...` del raise (02/11/2026: enviar_pedido_app pone el nombre de la niñera).
-function errorRpc(message, { status = 400, code = 'P0001', hint = null } = {}) {
+// details: el `detail = ...` (etapa 4: el motivo de 'ninera_sin_guia').
+function errorRpc(message, { status = 400, code = 'P0001', hint = null, details = null } = {}) {
   const e = new Error(message);
-  e.rpc = { status, code, message, hint };
+  e.rpc = { status, code, message, hint, details };
   return e;
 }
 
@@ -267,7 +268,9 @@ function alCancelarSolicitud(db, ahoraISO, s) {
 // enviar_pedido_app y sugeridas_datos. admin: false simula la sesión de una niñera (la guarda
 // es_usuaria_autorizada() da false: no_autorizada). El valor por defecto de app_config 'pedidos_app'
 // (solo_practica = true si falta) es el de la migración.
-function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } = {}) {
+// guia (etapa 4, 02/11/2026): (ninera_id) => el estado de su guía (guiaEstado de rpc-guia.js); null con la
+// base sin la migración de la guía: ni freno ni campos guia_* en sugeridas_datos.
+function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true, guia = null } = {}) {
   const hoy = fechaMontevideo(ahora);
   const ahoraISO = new Date(ahora).toISOString();
   return {
@@ -309,6 +312,10 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
         if (n.user_id == null) throw errorRpc('ninera_sin_app', { hint: n.nombre });
         if (n.tipo === 'Traslados') throw errorRpc('ninera_solo_traslados', { hint: n.nombre });
         if (esPractica(n.nombre) !== practica) throw errorRpc('practica_mezclada', { hint: n.nombre });
+        if (guia) {
+          const g = guia(n.id);
+          if (!g || !g.puede) throw errorRpc('ninera_sin_guia', { hint: n.nombre, details: g?.motivo ?? '' });
+        }
         if (yaEnviada(n.id)) continue;
         nuevas.push({ id: randomUUID(), solicitud_id: s.id, ninera_id: n.id, ninera_nombre: n.nombre, pago_ninera: null, estado: 'invitada',
           created_at: ahoraISO, origen: 'app', precio_hora: precio, enviado_en: ahoraISO, respondido_en: null, motivo_no: null, motivo_texto: null, seleccionada_en: null, visto_en: null });
@@ -384,6 +391,8 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
         incidente_familia: (db.incidentes || []).some(i => (i.ninera_id === n.id || (i.ninera_id == null && mismo(i.ninera_nombre, n.nombre)))
           && (i.familia_id === p_familia_id || (i.familia_id == null && mismo(i.familia_nombre, p_familia_nombre)))),
         no_disponible: (db.ninera_no_disponible || []).some(d => d.ninera_id === n.id && d.fecha === p_fecha),
+        // Etapa 4: la guía, solo de las que tienen app (null las demás).
+        ...(guia ? (() => { const g = n.user_id ? guia(n.id) : null; return { guia_puede: g ? g.puede : null, guia_motivo: g ? g.motivo : null, guia_hasta: g ? g.hasta : null }; })() : {}),
       }));
       return { historial, por_ninera };
     },
@@ -393,7 +402,8 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true } 
 // ahora: el reloj fijo del test (ISO con zona), para "hoy" y para el now() de los guardados.
 // sinEtapa6: la base sin la migración 20261103 (01/11/2026): ninera_marcar_pedido_visto no existe (lo pone app.js) y
 // ninera_mis_pedidos / ninera_mis_sittings devuelven lo de antes, sin las columnas nuevas.
-function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false } = {}) {
+// sinEtapa4: sin 20261105_guia, ninera_mi_perfil no devuelve el RCP.
+function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false, sinEtapa4 = sinEtapa6 } = {}) {
   const hoy = fechaMontevideo(ahora);
   const ahoraISO = new Date(ahora).toISOString();
   const miFila = () => (db.ninieras || []).find(n => n.id === nineraId);
@@ -413,7 +423,9 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 =
       if (!n) return [];
       const columnas = ['id', 'nombre', 'telefono', 'tipo', 'zona', 'barrios', 'cuenta_bancaria', 'foto', 'foto_propuesta_ruta',
         'foto_propuesta_en', 'perfil_app_en', 'perfil_actualizado_en', 'app_activada_en'];
-      return [Object.fromEntries(columnas.map(c => [c, n[c] ?? null]))];
+      const fila = Object.fromEntries(columnas.map(c => [c, n[c] ?? null]));
+      if (!sinEtapa4) Object.assign(fila, { rcp_presencial: n.rcp_presencial ?? null, rcp_certificado: !!n.rcp_certificado_ruta });
+      return [fila];
     },
     ninera_zonas_disponibles: () => nineraId ? (db.zona_grupos || []).slice()
       .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.nombre).localeCompare(String(b.nombre)))
