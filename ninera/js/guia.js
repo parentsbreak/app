@@ -45,6 +45,9 @@ async function cargarEstadoGuia(){
 
 // dd/mm de un 'AAAA-MM-DD' (la fecha ya es de Montevideo: la arma la base).
 function fechaGuiaNinera(iso){ return iso ? `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}` : ''; }
+// "Tienes hasta el" dice el día anterior a `hasta`: el plazo vence ese día a la hora en que activó la app, así que
+// ese día ya no lo tiene completo (orquestador, 02/11/2026). La base sigue devolviendo el día del vencimiento.
+function ultimoDiaGuiaNinera(hasta){ return hasta ? fechaGuiaNinera(sumarDiasISO(String(hasta).slice(0, 10), -1)) : ''; }
 
 // Lo leído que cuenta: en los obligatorios, sin la firma vigente, solo lo del ciclo nuevo (después de la última
 // firma: hay que releer para firmar de nuevo); en el resto, lo leído alguna vez.
@@ -70,7 +73,7 @@ function avisoGuiaNinera(e){
       : 'Hace un año que hiciste Protocolos y RCP. Hasta que los repases y firmes de nuevo no te llegarán pedidos.';
     return { titulo: 'Repasa la guía', texto, boton: 'Repasar', accion: 'pantallaGuiaNinera()' };
   }
-  const hasta = e.motivo === 'plazo' ? `Tienes hasta el ${fechaGuiaNinera(e.hasta)} para completarla.` : 'Hasta que lo termines no te llegarán pedidos.';
+  const hasta = e.motivo === 'plazo' ? `Tienes hasta el ${ultimoDiaGuiaNinera(e.hasta)} para completarla.` : 'Hasta que lo termines no te llegarán pedidos.';
   const empezo = (e.lecciones_ciclo || []).length > 0 || (e.repasos_ciclo || []).length > 0;
   return { titulo: 'Guía obligatoria', texto: `${TEXTO_GUIA_OBLIGATORIA} ${hasta}`, boton: empezo ? 'Seguir' : 'Empezar', accion: 'pantallaGuiaNinera()' };
 }

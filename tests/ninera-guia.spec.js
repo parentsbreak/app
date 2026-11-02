@@ -59,9 +59,17 @@ test.describe('la tarjeta del inicio', () => {
     verificarLimpio(e);
   });
 
-  test('ya trabajaba (sittings antes de activar la app): tiene 7 días, con la fecha', async ({ page }) => {
+  test('ya trabajaba (sittings antes de activar la app): tiene 7 días, con el último día completo', async ({ page }) => {
+    // Activó el 01/10 a las 10:00: el plazo vence el 08/10 a las 10:00, así que el último día completo es el 07/10.
     const e = await abrir(page, { activada: '2026-10-01T13:00:00+00:00' });
-    await expect(tarjeta(page).locator('p')).toHaveText('Antes de tu primer sitting. Lee Protocolos, RCP y primeros auxilios y responde el repaso. Tienes hasta el 08/10 para completarla.');
+    await expect(tarjeta(page).locator('p')).toHaveText('Antes de tu primer sitting. Lee Protocolos, RCP y primeros auxilios y responde el repaso. Tienes hasta el 07/10 para completarla.');
+    verificarLimpio(e);
+  });
+
+  test('activó la app de noche: la fecha es la de Montevideo, un día antes del vencimiento', async ({ page }) => {
+    // 02/10 a las 01:30 UTC es el 01/10 a las 22:30 en Montevideo: vence el 08/10 a las 22:30.
+    const e = await abrir(page, { activada: '2026-10-02T01:30:00+00:00' });
+    await expect(tarjeta(page).locator('p')).toContainText('Tienes hasta el 07/10 para completarla.');
     verificarLimpio(e);
   });
 

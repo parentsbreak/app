@@ -621,7 +621,9 @@ async function cargarGuiaFicha(id){
   cont.innerHTML = htmlGuiaFicha(e, firma, progreso.data || [], repasos.data || [], cfg.data?.valor || {});
 }
 function fechaLargaGuia(ts){ return ts ? fmtFechaCv(fechaNegocioISO(new Date(ts))) : ''; }
-function fechaDiaGuia(iso){ return iso ? fmtFechaCv(iso) : ''; }
+// "tiene hasta el" dice el día anterior a `hasta` (el plazo y la gracia vencen ese día a la hora en que activó la
+// app o firmó: ese día ya no lo tiene completo; orquestador, 02/11/2026), como la app de niñeras.
+function fechaDiaGuia(hasta){ return hasta ? fmtFechaCv(sumarDiasISO(String(hasta).slice(0, 10), -1)) : ''; }
 // Pura (para probarla): el texto de la fila "Guía" con el estado (ninera_puede_recibir_pedidos), su última firma
 // y lo que leyó y aprobó después de esa firma, contra las obligatorias de app_config 'guia'.
 function htmlGuiaFicha(e, firma, progreso, repasos, cfg){

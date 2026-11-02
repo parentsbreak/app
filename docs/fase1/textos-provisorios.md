@@ -282,7 +282,7 @@ Pregunta para las dueñas: la guía está en voseo (igual a la publicada: "Tocá
 App de niñeras (tú, PROVISORIOS salvo los de textos.md 6):
 - Tarjeta del inicio, nueva o sin plazo: "Guía obligatoria" / "Antes de tu primer sitting. Lee Protocolos, RCP y primeros auxilios y
   responde el repaso. Hasta que lo termines no te llegarán pedidos." Botón "Empezar" (o "Seguir" si ya leyó algo). (textos.md 6)
-- Con plazo (ya trabajaba): "... Tienes hasta el [dd/mm] para completarla." (textos.md 6)
+- Con plazo (ya trabajaba): "... Tienes hasta el [dd/mm] para completarla." (textos.md 6; la fecha es el último día completo, el anterior al vencimiento)
 - Todo leído y aprobado, sin firmar: "Ya leíste todo" / "Solo te falta firmar." Botón "Firmar".
 - Pasó el año de la firma, en los 7 días de gracia: "Repasa la guía" / "Hace un año que hiciste Protocolos y RCP. Repásalos y firma de
   nuevo antes del [dd/mm] para seguir recibiendo pedidos." Botón "Repasar".

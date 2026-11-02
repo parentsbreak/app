@@ -147,6 +147,25 @@ test.describe('Niñeras: la lista y la ficha', () => {
     verificarLimpio(e);
   });
 
+  test('la ficha con plazo y en la gracia: "tiene hasta el" dice el último día completo', async ({ page }) => {
+    // El plazo y la gracia vencen el día de `hasta` a la hora en que activó la app o firmó: la ficha dice el día anterior.
+    const d = datos();
+    // Lola trabajaba antes de la app (un sitting el 14/09) y la activó el 01/10 a las 10:00: el plazo vence el 08/10.
+    Object.assign(d.ninieras.find(n => n.id === ID.nLola), { app_activada_en: '2026-10-01T13:00:00.000Z' });
+    d.sittings_traslados.push({ ...d.sittings_traslados.find(s => s.fecha === '2026-09-14'), id: '70000000-0000-4000-8000-000000000990',
+      ninera_id: ID.nLola, ninera_nombre: 'Lola (práctica)' });
+    // Mía firmó el 30/09/2025 a las 12:00: la gracia vence el 07/10/2026.
+    d.guia_firmas = d.guia_firmas.filter(f => f.ninera_id !== ID.nMia).concat(firma(ID.nMia, '2025-09-30T15:00:00.000Z'));
+    const e = await abrirApp(page, { datos: d });
+    await irAModulo(page, 'ninieras');
+    await abrirFicha(page, ID.nLola);
+    await expect(page.locator('#vn-guia')).toHaveText('Le falta la guía: tiene hasta el 07/10/2026 (leyó 0 de 20 lecciones y aprobó 0 de 2 repasos).');
+    await page.evaluate(() => cerrarModal());
+    await abrirFicha(page, ID.nMia);
+    await expect(page.locator('#vn-guia')).toHaveText('Pasó el año de la firma: tiene hasta el 06/10/2026 para repasarla y firmar de nuevo (leyó 0 de 20 lecciones y aprobó 0 de 2 repasos). Ver firma');
+    verificarLimpio(e);
+  });
+
   test('la ficha de una niñera sin app no tiene la fila "Guía"', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
     await irAModulo(page, 'ninieras');

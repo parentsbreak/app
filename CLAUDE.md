@@ -727,7 +727,8 @@ reporte.
   esté) y el certificado a `rcp/<id>/certificado.jpg`. `enviar_pedido_app` rechaza con `ninera_sin_guia` (hint = nombre, detail =
   motivo), también a la de práctica; "Elegir niñeras" la deja en su bloque con la marca y sin casilla (`datos.guia` de
   `ordenarSugeridas`); "Asignar" a mano no se frena pero avisa (`htmlAvisoGuiaAsignar`). Avisos: `programar_avisos_guia()` en el cron
-  (claves `guia:<id>:falta`, `:falta:mitad`, `:anual:<fecha de la firma>`). Un aviso de error de la app de niñeras no se borra al
+  (claves `guia:<id>:falta`, `:falta:mitad`, `:anual:<fecha de la firma>`). "Tienes hasta el" / "tiene hasta el" (app y ficha) dice el día anterior a `hasta`: vence ese día a la hora en que activó la app o
+  firmó (orquestador, 02/11/2026); la base devuelve el día del vencimiento. Un aviso de error de la app de niñeras no se borra al
   empezar a guardar: la pantalla subía y un segundo toque caía en "Volver" (lo encontró el test del doble toque).
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
@@ -977,8 +978,7 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
   `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
-- Etapa 4 (02/11/2026): "Tienes hasta el [fecha]" es el día en que vence el plazo, pero vence a la hora en que activó la app (a la
-  mañana de ese día ya puede quedar frenada); decidir si decir el día anterior. "Ver firma" / "Ver certificado" abren el link después de
+- Etapa 4 (02/11/2026): "Ver firma" / "Ver certificado" abren el link después de
   pedirlo (`window.open` tras un `await`, como los tickets): probar en el iPhone que Safari no lo bloquee. La fila "Guía" de la ficha no
   se actualiza sola si la niñera firma con la ficha abierta (sin Realtime).
 - Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
