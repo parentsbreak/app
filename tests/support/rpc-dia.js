@@ -36,14 +36,14 @@ function rutaComprobantePermitida(db, nineraId, ruta, ahora) {
   return !!sittingDelDia(db, nineraId, m[1], hoy) && !cierreDe(db, m[1]);
 }
 
-function rpcDiaNinera(db, nineraId, ahora = new Date().toISOString()) {
-  const ahoraMs = Date.parse(ahora);
-  const ahoraISO = new Date(ahoraMs).toISOString();
-  const hoy = fechaMvd(ahoraMs);
+// ahora: el reloj fijo del test; sin reloj (null), la hora real de cada llamada, como now() en la base.
+function rpcDiaNinera(db, nineraId, ahora = null) {
+  const reloj = () => { const ahoraMs = ahora ? Date.parse(ahora) : Date.now(); return { ahoraMs, ahoraISO: new Date(ahoraMs).toISOString(), hoy: fechaMvd(ahoraMs) }; };
   const nombreNinera = () => (db.ninieras || []).find(n => n.id === nineraId)?.nombre || '';
   return {
     ninera_mi_dia: () => {
       if (!nineraId) return [];
+      const { hoy } = reloj();
       return (db.sittings_traslados || [])
         .filter(s => s.ninera_id === nineraId && (s.tipo || 'sitting') === 'sitting' && !s.cancelado && (s.estado ?? 'confirmado') === 'confirmado')
         .filter(s => s.fecha === hoy || (s.fecha === sumarDias(hoy, -1) && !cierreDe(db, s.id) && !s.revisado_at))
@@ -65,6 +65,7 @@ function rpcDiaNinera(db, nineraId, ahora = new Date().toISOString()) {
 
     ninera_marcar_evento: ({ p_sitting_id, p_tipo, p_minutos = null } = {}) => {
       if (!nineraId) throw errorRpc('no_autorizada');
+      const { ahoraISO, hoy } = reloj();
       if (!TIPOS_EVENTO.includes(p_tipo)) throw errorRpc('evento_invalido');
       if (p_tipo === 'tarde' && ![10, 20, 30].includes(p_minutos)) throw errorRpc('minutos_invalidos');
       const minutos = p_tipo === 'tarde' ? p_minutos : null;
@@ -89,6 +90,7 @@ function rpcDiaNinera(db, nineraId, ahora = new Date().toISOString()) {
 
     ninera_cerrar_sitting: (c = {}) => {
       if (!nineraId) throw errorRpc('no_autorizada');
+      const { ahoraMs, ahoraISO, hoy } = reloj();
       const s = sittingDelDia(db, nineraId, c.p_sitting_id, hoy);
       if (!s) throw errorRpc('no_existe');
       const ya = cierreDe(db, s.id);
