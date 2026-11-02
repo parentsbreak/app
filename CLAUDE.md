@@ -378,6 +378,12 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   llegó, fin y fin + 30 en fechas fijas, fijos, medianoche, `solo_practica`). El DESHACER con datos, en `supabase/pruebas/deshacer/`
   (`20261106_el_dia*.sql`, a mano). Las funciones de la niñera usan la hora real: lo que depende de la hora del día se saltea cerca de la
   medianoche.
+- `supabase/pruebas/fase1_ficha_cambios.sql` (02/11/2026, etapa 8): los avisos por día del trigger de `sittings_traslados` (nuevo,
+  horario, día, niñera, cancelado, reactivado, borrado; nada de un sitting que empezó, de un traslado, a una niñera sin app ni con
+  `solo_practica`), el pedido asignado que se cancela (la elegida y su registro en $0), el resumen de los fijos en
+  `generar_previstos_fijos` (fijo nuevo, horario desde una fecha, la ventana que crece cada noche, pausa, cambio de niñera, termina,
+  días), `ninera_responder_cambio` y la ficha (`ninera_guardar_ficha_familia`, `ninera_ficha_familia`: quién la ve y hasta cuándo).
+  El DESHACER con datos, en `supabase/pruebas/deshacer/20261107_ficha_cambios*.sql`. Los avisos por día usan fechas de 2030.
 - `tests/temporada-app-panel.spec.js` (31/10/2026): el panel con la temporada de la app: niñera con app sin paso
   previo ni "Pedirle por WhatsApp", aviso anual, fuente, filtro con Fuera del país / Otro / La Paloma, temporada
   de otra temporada como "sin temporada cargada", ficha, correcciones que conservan o borran lugares, escape de
@@ -978,7 +984,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha en la rama `claude/fase1-el-dia` (PR #101, migración `20261106_el_dia` aplicada), pendiente el merge; etapas 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) en
+curso en la rama `claude/fase1-ficha-cambios` (migración `20261107_ficha_cambios`); etapas 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1026,8 +1033,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   terminar" en "Pegar WhatsApp".
 - Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
   nuevo igual" en esa pantalla.
-- Etapa 8 (01/11/2026): cancelar un pedido ya asignado (`confirmada`) no le manda aviso a la elegida ni cancela su registro
-  (`sitting:<id>:cancelado`); hoy el texto de "Cancelar" solo le pide a la admin que avise por WhatsApp y cancele en Sittings.
 - `confirmarNinera` (01/11/2026): confirma una fila sin tomar la solicitud; con filas viejas del panel en `invitada` sobre una solicitud
   `pendiente_confirmar`, el trigger cierra las de la app y la solicitud sigue `pendiente_confirmar` (solo datos viejos).
 - "+ Nueva solicitud" con niñera (01/11/2026) se salta la dirección obligatoria y la confirmación para la madre, pero igual le manda

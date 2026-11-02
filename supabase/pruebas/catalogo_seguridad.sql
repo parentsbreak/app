@@ -79,7 +79,13 @@ declare
     'ninera_mi_dia()',                           -- niñera: solo sus sittings de hoy y de ayer, sin plata; vacío si no es niñera
     'ninera_marcar_evento(p_sitting_id uuid, p_tipo text, p_minutos integer)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus sittings
     'ninera_cerrar_sitting(p_sitting_id uuid, p_hora_fin time without time zone, p_dia_siguiente boolean, p_comentarios text, p_calificacion integer, p_volveria boolean, p_jugaron text, p_comentario_equipo text, p_gasto_monto numeric, p_gasto_concepto text)', -- niñera: ídem; la ruta del comprobante la arma la base
-    'ninera_ruta_comprobante(p_nombre text)'     -- niñera: solo lee; true solo para su ruta de un sitting suyo abierto (la política del bucket)
+    'ninera_ruta_comprobante(p_nombre text)',    -- niñera: solo lee; true solo para su ruta de un sitting suyo abierto (la política del bucket)
+    -- Etapa 8 (02/11/2026): la ficha y los cambios de horario, por ninera_actual(). Los avisos (sittings_avisos_cambios,
+    -- aviso_sitting_ninera, avisar_cambios_previstos, sitting_puede_avisar) y ficha_familia_campos NO van.
+    'ninera_guardar_ficha_familia(p_sitting_id uuid, p_datos jsonb)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su sitting del día
+    'ninera_ficha_familia(p_sitting_id uuid)',   -- niñera: solo de su sitting, hasta que termina; sin datos de la niñera que la cargó
+    'ninera_mis_cambios()',                      -- niñera: solo los suyos; vacío si no es niñera
+    'ninera_responder_cambio(p_cambio_id uuid, p_ok boolean)' -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo los suyos
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

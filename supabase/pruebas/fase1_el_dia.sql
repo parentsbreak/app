@@ -350,6 +350,8 @@ insert into sittings_traslados (id, tipo, familia_id, familia_nombre, ninera_id,
   ('e5700000-0000-4000-8000-000000000108', 'sitting', 'e3700000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'e2700000-0000-4000-8000-000000000001', 'Ana Ficticia', '2030-01-10', '16:00', '19:00', false, null, 'confirmado', '2030-01-10 12:00-03');
 insert into sitting_eventos (sitting_id, ninera_id, tipo) values ('e5700000-0000-4000-8000-000000000103', 'e2700000-0000-4000-8000-000000000001', 'entre');
 insert into sitting_cierres (sitting_id, ninera_id, hora_fin) values ('e5700000-0000-4000-8000-000000000104', 'e2700000-0000-4000-8000-000000000001', '19:00');
+-- Desde la etapa 8, cargar estos sittings le avisa a Ana "Tienes un sitting": acá se miran solo los del cron.
+delete from avisos;
 
 select pg_temp.verificar('miércoles 16:30, 23 h 30 antes: "Mañana tienes un sitting" a los puntuales, no al fijo (corre)', public.programar_avisos_el_dia('2030-01-09 16:30-03') >= 1);
 select pg_temp.verificar('miércoles 16:30, 23 h 30 antes: "Mañana tienes un sitting" a los puntuales, no al fijo',

@@ -352,3 +352,22 @@ Panel (voseo, PROVISORIOS):
 - Ficha de la familia: "Lo que dijeron las niñeras" ("[niñera], [dd/mm]: ★★★★ de 5. Volvería.", "Jugaron:", "Comentarios:", "Para el
   equipo:").
 - Preferencias: "El día del sitting" y "Cierres de niñeras".
+
+## Etapa 8: ficha de la familia, cambios y cancelaciones (02/11/2026, esperan a las dueñas)
+Avisos a la niñera (tú; los de textos.md 1 tal cual, los demás PROVISORIOS):
+- Cancelación (textos.md 1): "Se canceló tu sitting del [día]" / "Con [madre: nombre e inicial]. Si tienes dudas, escríbenos."
+- Cambio de horario de un día (textos.md 1): "Cambió el horario de tu sitting del [día]" / "Ahora es de [hi] a [hf]. Mira los
+  detalles." Si cambió el día: "Ahora es el [día nuevo], de [hi] a [hf]. Mira los detalles."
+- Deja de ir (Diego, 02/11/2026): "Ya no vas al sitting del [día]" / "El equipo hizo un cambio. Si tienes dudas, escríbenos."
+- Nueva fuera de un pedido (Diego, 02/11/2026): "Tienes un sitting el [día]" / "[hora], en [zona]. Mira los datos en la app."
+- Fijos, un aviso por fijo (PROVISORIOS): "Cambió el horario de tu fijo con [madre]" / "Desde el [día], de [hi] a [hf]. Mira los
+  detalles."; "Ya no vas al fijo con [madre] desde el [día]" / "El equipo hizo un cambio. Si tienes dudas, escríbenos."; "Tienes un
+  fijo nuevo con [madre]" / "Desde el [día], a las [hi], en [zona]. Mira los datos en la app."; "Tu fijo con [madre] se pausa" /
+  "Del [día] al [día]. Si tienes dudas, escríbenos."; "Tu fijo con [madre] termina el [día]" / "Si tienes dudas, escríbenos.";
+  "Cambiaron los días de tu fijo con [madre]" / "Mira tus próximos sittings en la app."
+
+Avisos a las admins (voseo, PROVISORIOS):
+- "A esa hora no puedo" de un día: "[niñera] no puede el [día] de [hi] a [hf]" / "Buscá a otra."
+- De un fijo: "[niñera] no puede el nuevo horario de su fijo con [familia]" / "Desde el [día], de [hi] a [hf]. Buscá a otra."
+
+Las pantallas (la ficha en la app, la tarjeta del cambio, "Cambiar de niñera" y las fichas en el panel) se suman con la app.
