@@ -1008,8 +1008,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Push de una elegida que ya vio sus datos (01/11/2026): no puede mostrarlos (`ninera_mis_pedidos` ya no devuelve su fila; hoy sale el
   texto neutro "Si te eligieron, lo ves en Próximos sittings."). Para mostrarlos, que la lectura la siga devolviendo hasta la fecha o
   llevar el id de la solicitud en la URL (migración).
-- `tests/precio-ninera-familia.spec.js` (31/10/2026): 12 tests de Sittings fallan en local, también sobre `main` (el CI de #91 pasó).
-  Investigar, probablemente dependen de la fecha.
+- `tests/precio-ninera-familia.spec.js` (31/10/2026): los tests de Sittings fallan de a varios, distintos en cada corrida, en local
+  y también sobre `main` limpio (02/11/2026: 8 de 61 en main, 9 en la rama de la etapa 4) y desde el 02/11 también en el CI (4 en
+  el PR #100). No es la fecha: es intermitencia (la casilla "Guardar como precio" todavía oculta al mirarla). Revisar las esperas.
 - Tests intermitentes en el CI (01/11/2026): el alta de niñera con escrituras demoradas (`guardados.spec.js:136` y `:168`,
   `celular-ninera.spec.js:62`) falla a veces, también en una rama de solo docs; en local, `ninera-temporada.spec.js:122`
   con la suite completa. Pasan solos. Revisar las esperas fijas (`waitForTimeout`) de esos tests.
