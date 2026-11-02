@@ -71,6 +71,10 @@ insert into ninieras (id, nombre, telefono, user_id, activa, zona, tipo) values
   ('e2000000-0000-4000-8000-000000000006', 'Pía (practica)', '099100006', 'e1000000-0000-4000-8000-000000000006', true, 'Pocitos', 'Niñera'),
   ('e2000000-0000-4000-8000-000000000007', 'Lola (práctica)', '099100007', 'e1000000-0000-4000-8000-000000000007', true, 'Pocitos', 'Niñera'),
   ('e2000000-0000-4000-8000-000000000008', 'Mía (práctica)', '099100008', 'e1000000-0000-4000-8000-000000000008', true, 'Pocitos', 'Niñera');
+-- Etapa 4 (02/11/2026): todas con la guía firmada; si no, enviar_pedido_app las frena con 'ninera_sin_guia'
+-- (lo prueba fase1_guia.sql).
+insert into guia_firmas (ninera_id, version, nombre, firma_ruta)
+select id, '2026.10', nombre, 'firmas/' || id || '/2026-10-01.png' from ninieras where user_id is not null;
 insert into familias (id, nombre, zona, cobro_hora, pago_hora, direccion) values
   ('e3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'Pocitos', 500, 250, 'Calle Inventada 123'),
   ('e3000000-0000-4000-8000-000000000003', 'Familia (práctica)', 'Pocitos', 500, 250, 'Calle Ficticia 456');
