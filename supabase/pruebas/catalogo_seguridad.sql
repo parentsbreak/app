@@ -65,7 +65,15 @@ declare
     'ninera_mis_pedidos()',                      -- niñera: solo los suyos, sin familia ni plata salvo su precio por hora; vacío si no es niñera
     'responder_pedido(p_sn_id uuid, p_respuesta text, p_motivo text, p_motivo_texto text)', -- niñera: raise 'no_autorizada' / 'no_existe' si no es suyo
     -- Etapa 6 (01/11/2026): elegir y avisar. Los triggers, pedido_puede_avisar y programar_avisos_pedidos NO van.
-    'ninera_marcar_pedido_visto(p_sn_id uuid)'   -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus filas
+    'ninera_marcar_pedido_visto(p_sn_id uuid)',  -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus filas
+    -- Etapa 4 (02/11/2026): la guía. guia_estado (interna) y programar_avisos_guia NO van.
+    'guia_estado_ninieras()',                    -- admin: raise 'no_autorizada' si no es_usuaria_autorizada()
+    'ninera_puede_recibir_pedidos(p_ninera_id uuid)', -- admin, o la niñera solo sobre sí misma: raise 'no_autorizada'
+    'ninera_estado_guia()',                      -- niñera: solo lo suyo; vacío si no es niñera
+    'ninera_marcar_leida(p_leccion_id text, p_version text)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su progreso
+    'ninera_aprobar_repaso(p_modulo_id text, p_version text)', -- niñera: ídem
+    'ninera_firmar_guia(p_nombre text, p_version text)', -- niñera: ídem; la ruta de la firma la arma la base
+    'ninera_guardar_rcp(p_presencial boolean, p_con_certificado boolean)' -- niñera: ídem; solo su ficha
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

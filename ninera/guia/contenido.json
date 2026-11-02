@@ -1,0 +1,735 @@
+{
+  "version": "2026.10",
+  "modulos": [
+    {
+      "id": "protocolos",
+      "nombre": "Protocolos",
+      "grupo": "Antes de ir",
+      "edad": "qué hacer si pasa algo",
+      "obligatorio": true,
+      "intro": "Qué hacer frente a cada situación que no es médica. Leelos antes de tu primer sitting y repasalos cada tanto.",
+      "lecciones": [
+        {
+          "id": "pr1",
+          "titulo": "Antes de salir de tu casa",
+          "subtitulo": "Lista para revisar cada vez",
+          "html": "<ul>\n      <li>Confirmá dirección, horario de entrada y de salida con Parents' Break.</li>\n      <li>Revisá los datos del chico: edad, alergias, medicación, si tiene alguna necesidad especial.</li>\n      <li>Celular cargado y con datos. Si podés, un cargador.</li>\n      <li>Guardá en el celular el número de la familia y el de Parents' Break.</li>\n      <li>Ropa cómoda para jugar en el piso y salir a la plaza.</li>\n      <li>Si estás enferma (fiebre, vómitos, diarrea, conjuntivitis), avisá a Parents' Break y no vayas.</li>\n      <li>Nunca vayas habiendo tomado alcohol o algo que te afecte.</li>\n      <li>Llegá 5 minutos antes para que la familia te explique todo con tiempo (lección \"Al llegar a la casa\").</li>\n    </ul>"
+        },
+        {
+          "id": "pr2",
+          "titulo": "Durante el sitting",
+          "subtitulo": "Las reglas que valen siempre",
+          "html": "<ul>\n      <li>Los ojos en los chicos. El celular, solo para comunicarte con la familia o con Parents' Break.</li>\n      <li>No abras la puerta a nadie que la familia no te haya avisado.</li>\n      <li>No invites a nadie a la casa.</li>\n      <li>No saques fotos ni videos de los chicos, ni los subas a redes, salvo que la familia lo pida.</li>\n      <li>No des remedios ni comida distinta a la que te indicó la familia.</li>\n      <li>No salgas de la casa con los chicos sin avisar a la familia a dónde van.</li>\n      <li>En la calle, de la mano y del lado de adentro de la vereda. En el auto, siempre con su silla o alzador, bien abrochado.</li>\n      <li>Si algo pasó, aunque sea chico y aunque haya sido un descuido tuyo, se cuenta. Siempre.</li>\n    </ul>"
+        },
+        {
+          "id": "pr3",
+          "titulo": "Si un chico se pierde",
+          "subtitulo": "En la plaza, un shopping o la calle",
+          "html": "<p class=\"key\"><b>Prevenir:</b> al salir, sacale una foto mental de la ropa que tiene. Acordá con él un lugar de encuentro y enseñale que si se pierde, se queda quieto y le pide ayuda a una mamá con chicos o a un empleado.</p>\n    <ol>\n      <li>Gritá su nombre y mirá alrededor durante un minuto, sin alejarte del lugar donde lo viste por última vez.</li>\n      <li>Si no aparece, pedí ayuda a la gente que está cerca y a seguridad del lugar. Describilo: edad, ropa, pelo.</li>\n      <li>Si no aparece en pocos minutos, llamá al 911.</li>\n      <li>Avisá a la familia y a Parents' Break.</li>\n      <li>Si estás con otros chicos, que no se separen de vos.</li>\n    </ol>"
+        },
+        {
+          "id": "pr4",
+          "titulo": "Quién puede retirar al chico",
+          "subtitulo": "Y qué hacer si nadie vuelve",
+          "html": "<ul>\n      <li>El chico se entrega solo a sus padres o a quien ellos te hayan avisado antes, con nombre.</li>\n      <li>Si viene otra persona que no estaba avisada, aunque diga que es familiar, no lo entregues. Llamá a los padres y esperá a que te confirmen ellos.</li>\n      <li>Si un adulto llega en un estado en que no puede cuidarlo (por ejemplo, alcoholizado), no te vayas. Llamá a Parents' Break enseguida.</li>\n      <li>Si pasó el horario y la familia no vuelve ni contesta, quedate con el chico. Escribí y llamá a la familia y avisá a Parents' Break. Nunca dejes al chico solo para irte.</li>\n    </ul>"
+        },
+        {
+          "id": "pr5",
+          "titulo": "Incendio, olor a gas o corte de luz",
+          "subtitulo": "Primero salir, después llamar",
+          "html": "<p><b>Incendio o mucho humo:</b> sacá a los chicos de la casa sin volver a buscar nada. Si hay humo, agachados. Cerrá las puertas detrás tuyo. Afuera, llamá al 911 y avisá a la familia.</p>\n    <p><b>Olor a gas:</b> no prendas ni apagues luces ni nada eléctrico, ni enciendas fósforos. Abrí ventanas si es rápido, salí con los chicos y llamá desde afuera.</p>\n    <p><b>Corte de luz:</b> tené ubicada una linterna al llegar. Mantené a los chicos con vos, lejos de velas encendidas y de la cocina. Avisá a la familia.</p>"
+        },
+        {
+          "id": "pr6",
+          "titulo": "Si algo te preocupa del chico",
+          "subtitulo": "Lo que ves, lo que te cuenta",
+          "html": "<p>A veces una niñera ve o escucha algo que la deja preocupada: marcas o golpes que no se explican, un chico que te cuenta algo que le pasa, cambios muy fuertes en cómo está.</p>\n    <ul>\n      <li>Escuchalo con calma, creele y decile que hizo bien en contarte.</li>\n      <li>No le hagas muchas preguntas ni lo presiones.</li>\n      <li>No le prometas guardar el secreto.</li>\n      <li>Anotá lo que viste o te dijo, con sus palabras, la fecha y la hora.</li>\n      <li>Contáselo a Parents' Break ese mismo día. No lo hables con la familia por tu cuenta.</li>\n    </ul>\n    <p class=\"alarm\"><b>Si el chico está en peligro en ese momento,</b> llamá al 911. Parents' Break te acompaña en los pasos siguientes, incluida la Línea Azul del INAU (0800 5050) si corresponde.</p>"
+        },
+        {
+          "id": "pr7",
+          "titulo": "Al terminar",
+          "subtitulo": "Cómo dejar la casa y contar el sitting",
+          "html": "<ul>\n      <li>Dejá la casa como la encontraste: juguetes guardados, cocina limpia si la usaste.</li>\n      <li>Contale a la familia cómo fue: qué comió, si durmió, qué hicieron, si pasó algo.</li>\n      <li>Cualquier golpe, fiebre o situación rara se cuenta aunque ya esté todo bien.</li>\n      <li>Avisá a Parents' Break a qué hora terminaste.</li>\n    </ul>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Llega el tío del chico a buscarlo y la familia no te avisó.",
+          "o": [
+            "Se lo entregás, es familia",
+            "Llamás a los padres y esperás que te confirmen",
+            "Le pedís el documento y se lo das"
+          ],
+          "a": 1,
+          "e": "Solo se entrega a quien la familia avisó antes. Ante la duda, llamás a los padres."
+        },
+        {
+          "q": "En la plaza no ves al chico que cuidás.",
+          "o": [
+            "Lo buscás un minuto sin alejarte, pedís ayuda y si no aparece llamás al 911",
+            "Te vas a buscarlo a la casa",
+            "Esperás media hora a que vuelva"
+          ],
+          "a": 0,
+          "e": "Buscar cerca, pedir ayuda a la gente y a seguridad, y si no aparece en pocos minutos, 911."
+        },
+        {
+          "q": "Sentís olor a gas en la cocina.",
+          "o": [
+            "Prendés la luz para ver de dónde viene",
+            "Salís con los chicos sin tocar nada eléctrico y llamás desde afuera",
+            "Abrís el horno para revisar"
+          ],
+          "a": 1,
+          "e": "Nada eléctrico ni fuego. Afuera, y después llamar."
+        }
+      ]
+    },
+    {
+      "id": "auxilios",
+      "nombre": "RCP y primeros auxilios",
+      "grupo": "Antes de ir",
+      "edad": "emergencias médicas",
+      "obligatorio": true,
+      "intro": "Leer no alcanza para hacer RCP bien: hay que practicarlo con un muñeco en un curso presencial. Esto te sirve para repasar.",
+      "lecciones": [
+        {
+          "id": "x3",
+          "titulo": "A quién avisar y en qué orden",
+          "subtitulo": "Lo primero que tenés que saber",
+          "html": "<ol>\n      <li><b>Peligro de vida</b> (no respira, no responde, convulsiona, sangra mucho, le cuesta respirar): 911 primero.</li>\n      <li><b>La familia</b>, enseguida después.</li>\n      <li><b>Parents' Break</b>, en cuanto puedas.</li>\n    </ol>\n    <p>Para cosas que no son urgentes (un golpe chico, que no quiso comer, un berrinche fuerte), se lo contás a la familia al volver y lo dejás en tu reporte del sitting. Anotá la hora y qué hiciste: ayuda mucho a la familia y al médico.</p>\n    <p class=\"key\"><b>Al llamar al 911,</b> decí la dirección exacta primero, después qué pasó y la edad del chico. Poné el celular en altavoz para tener las manos libres.</p>"
+        },
+        {
+          "id": "x4",
+          "titulo": "RCP en bebés (menos de 1 año)",
+          "subtitulo": "Paso a paso",
+          "html": "<ol>\n      <li><b>¿Responde?</b> Tocale la planta del pie y llamalo fuerte por su nombre.</li>\n      <li><b>Si no responde,</b> gritá pidiendo ayuda. Si hay alguien, que llame al 911 y busque un desfibrilador (DEA).</li>\n      <li><b>¿Respira?</b> Mirá si el pecho sube y baja, no más de 10 segundos. Boquear de a ratos no es respirar.</li>\n      <li><b>Si no respira, 30 compresiones.</b> Acostado boca arriba sobre algo firme. En el centro del pecho, justo debajo de la línea de los pezones, con los dos pulgares rodeándole el pecho con las manos, o con el talón de una mano. Hundí más o menos un tercio del pecho (unos 4 cm), rápido: 100 a 120 por minuto. Dejá que el pecho vuelva entre cada una.</li>\n      <li><b>2 respiraciones.</b> Cabeza derecha, sin tirarla para atrás. Cubrí con tu boca su boca y su nariz y soplá suave, apenas para que el pecho se levante, un segundo cada una.</li>\n      <li><b>Seguí 30 y 2</b> sin parar. Si estás sola y nadie llamó, después de 2 minutos llamá al 911 en altavoz y seguí.</li>\n      <li><b>Hasta cuándo:</b> hasta que llegue la ayuda, el bebé empiece a respirar o se mueva, o no puedas más.</li>\n    </ol>\n    <p class=\"key\"><b>Desde 2025 las guías ya no recomiendan hacer las compresiones con dos dedos</b>, porque no alcanzan la profundidad necesaria. Se usan los dos pulgares o el talón de una mano.</p>\n    <p class=\"src\">Fuentes: guías 2025 de la American Heart Association y la AAP, resumidas en <a href=\"https://www.contemporarypediatrics.com/view/aap-aha-update-pediatric-cardiopulmonary-resuscitation-emergency-cardiovascular-care-guidelines\" target=\"_blank\" rel=\"noopener\">Contemporary Pediatrics</a> y <a href=\"https://journalfeed.org/article-a-day/2025/new-aha-2025-pediatric-bls-big-changes-for-little-patients/\" target=\"_blank\" rel=\"noopener\">JournalFeed</a></p>"
+        },
+        {
+          "id": "x5",
+          "titulo": "RCP en niños (1 año en adelante)",
+          "subtitulo": "Paso a paso y uso del desfibrilador",
+          "html": "<ol>\n      <li><b>¿Responde?</b> Tocale los hombros y llamalo fuerte.</li>\n      <li><b>Si no responde,</b> gritá pidiendo ayuda: que alguien llame al 911 y traiga un DEA.</li>\n      <li><b>¿Respira?</b> No más de 10 segundos.</li>\n      <li><b>Si no respira, 30 compresiones</b> en el centro del pecho, con el talón de una mano (o las dos si es grande). Unos 5 cm de profundidad, 100 a 120 por minuto.</li>\n      <li><b>2 respiraciones:</b> inclinale la cabeza hacia atrás y levantale el mentón, tapale la nariz y soplá en su boca hasta que el pecho se levante.</li>\n      <li><b>Seguí 30 y 2.</b> Si estás sola y nadie llamó, a los 2 minutos llamá al 911 en altavoz y seguí.</li>\n      <li><b>DEA:</b> apenas llegue, prendelo y seguí lo que dice. Usá parches de niño si tiene; si no, los de adulto.</li>\n    </ol>\n    <p>Si no te animás a dar respiraciones, hacé solo compresiones: es mucho mejor que no hacer nada.</p>\n    <p class=\"key\"><b>Si aprendiste otra secuencia en tu curso</b> (por ejemplo, empezar con 5 respiraciones, como enseña el Consejo Europeo de Resucitación), está bien: hacé la que practicaste.</p>\n    <p class=\"src\">Fuentes: guías 2025 de la American Heart Association, resumidas en <a href=\"https://blog.protrainings.com/whats-new-in-cpr-and-first-aid-understanding-the-2025-guideline-updates/\" target=\"_blank\" rel=\"noopener\">ProTrainings</a></p>"
+        },
+        {
+          "id": "x1",
+          "titulo": "Atragantamiento en menores de 1 año",
+          "subtitulo": "Golpes en la espalda y compresiones en el pecho",
+          "html": "<p><b>Si tose, llora o hace ruido, le pasa aire:</b> no le pegues ni le metas los dedos. Dejalo toser y no te despegues.</p>\n    <p><b>Si no puede toser, llorar ni respirar:</b></p>\n    <ol>\n      <li>Pedí que alguien llame al 911. Si estás sola, primero empezás las maniobras.</li>\n      <li>Ponelo boca abajo sobre tu antebrazo, con la cabeza más baja que el cuerpo, sosteniéndole la mandíbula.</li>\n      <li>Dale 5 golpes firmes con el talón de la mano entre los omóplatos.</li>\n      <li>Dalo vuelta boca arriba sobre tu otro brazo, cabeza más baja, y hacé 5 compresiones en el centro del pecho con el talón de la mano.</li>\n      <li>Mirale la boca: si ves el objeto, sacalo. Si no lo ves, no metas los dedos a ciegas.</li>\n      <li>Repetí 5 y 5 hasta que salga o llegue la ayuda. Si deja de responder, empezá RCP.</li>\n    </ol>\n    <p class=\"alarm\"><b>En menores de 1 año no se hacen compresiones en la panza</b> (maniobra de Heimlich): puede lastimarle los órganos.</p>\n    <p>Aunque salga el objeto y quede bien, lo tiene que ver un médico ese día.</p>\n    <p class=\"src\">Fuentes: <a href=\"https://www.msdmanuals.com/es/hogar/traumatismos-y-envenenamientos/primeros-auxilios/atragantamiento\" target=\"_blank\" rel=\"noopener\">Manual MSD</a> y guías 2025 de la American Heart Association</p>"
+        },
+        {
+          "id": "x2",
+          "titulo": "Atragantamiento de 1 año en adelante",
+          "subtitulo": "Espalda y panza",
+          "html": "<ol>\n      <li>Si tose con fuerza, dejalo toser.</li>\n      <li>Si no puede toser ni hablar, dale 5 golpes en la espalda entre los omóplatos, con el chico inclinado hacia adelante.</li>\n      <li>Después ponete detrás, arrodillada si es chico, puño entre el ombligo y el esternón, la otra mano encima, y 5 compresiones hacia adentro y hacia arriba, con menos fuerza que en un adulto.</li>\n      <li>Alterná 5 y 5 hasta que salga o llegue el 911. Si pierde el conocimiento, RCP.</li>\n    </ol>\n    <p class=\"src\">Fuentes: <a href=\"https://www.msdmanuals.com/es/hogar/traumatismos-y-envenenamientos/primeros-auxilios/atragantamiento\" target=\"_blank\" rel=\"noopener\">Manual MSD</a> y guías 2025 de la American Heart Association</p>"
+        },
+        {
+          "id": "x6",
+          "titulo": "Golpes en la cabeza y caídas",
+          "subtitulo": "Qué vigilar después",
+          "html": "<p>La mayoría de los golpes son leves. Poné frío envuelto en un trapo (nunca hielo directo) unos 15 a 20 minutos, consolalo y quedate mirándolo las horas siguientes. Avisá a la familia siempre.</p>\n    <p class=\"alarm\"><b>Llamá al 911 y a la familia si:</b> perdió el conocimiento aunque sea un momento, vomita más de una vez, está muy dormido o confundido, convulsiona, le sale sangre o líquido por la nariz o los oídos, llora sin consuelo, no mueve bien un brazo o una pierna, o es un bebé de menos de 1 año con un chichón grande.</p>\n    <p><b>Si cayó de altura y le duele el cuello o la espalda,</b> no lo muevas. Llamá al 911.</p>\n    <p><b>Si creés que se quebró algo</b> (dolor fuerte, hinchazón, forma rara), no lo muevas de esa parte, poné frío envuelto y avisá a la familia para que lo lleven a consultar.</p>"
+        },
+        {
+          "id": "x7",
+          "titulo": "Cortes, sangrado y nariz",
+          "subtitulo": "Presión firme",
+          "html": "<ul>\n      <li><b>Cortes:</b> lavate las manos, apretá firme con una gasa o un trapo limpio durante 10 minutos sin levantar para mirar. Si se puede, levantá la parte lastimada. Después lavá con agua y tapá.</li>\n      <li><b>Corte profundo, que no para de sangrar o en la cara:</b> seguí apretando y avisá a la familia para que lo vea un médico. Si sangra mucho, 911.</li>\n      <li><b>Algo clavado:</b> no lo saques. Apretá alrededor y llamá.</li>\n      <li><b>Sangrado de nariz:</b> sentado e inclinado hacia adelante (no para atrás), apretale la parte blanda de la nariz 10 minutos seguidos. Si no para en 20 minutos, consulta.</li>\n    </ul>"
+        },
+        {
+          "id": "x8",
+          "titulo": "Quemaduras",
+          "subtitulo": "Agua fresca, nada más",
+          "html": "<ol>\n      <li>Poné la zona bajo agua fresca de la canilla, al menos 5 minutos y mejor hasta 20.</li>\n      <li>Sacale la ropa o pulseras de la zona si no están pegadas a la piel.</li>\n      <li>Tapá con una gasa o un paño limpio que no se pegue.</li>\n    </ol>\n    <p><b>Nunca:</b> hielo, manteca, pasta de dientes ni cremas caseras. No revientes las ampollas.</p>\n    <p class=\"alarm\"><b>Consulta urgente si:</b> es más grande que la palma de su mano, está en la cara, manos, pies, genitales o una articulación, es por electricidad, o la piel se ve blanca, dura o negra.</p>\n    <p class=\"src\">Fuente: <a href=\"https://www.healthychildren.org/spanish/safety-prevention/all-around/paginas/First-Aid-For-Burns.aspx\" target=\"_blank\" rel=\"noopener\">HealthyChildren.org (AAP), primeros auxilios para quemaduras</a></p>"
+        },
+        {
+          "id": "x9",
+          "titulo": "Convulsiones",
+          "subtitulo": "Proteger y mirar el reloj",
+          "html": "<p>Algunos chicos chicos tienen convulsiones con la fiebre alta. Asustan mucho, pero en general duran poco.</p>\n    <ol>\n      <li>Mantené la calma. Ponelo en el piso y sacá lo que tenga cerca para que no se golpee.</li>\n      <li>Acostalo de costado.</li>\n      <li>Aflojale la ropa del cuello.</li>\n      <li>Mirá la hora: cuánto dura es un dato clave.</li>\n      <li>No le metas nada en la boca ni lo sujetes fuerte.</li>\n    </ol>\n    <p class=\"alarm\"><b>Llamá al 911 si:</b> dura más de 5 minutos, es la primera vez, le cuesta respirar o se pone azul, no vuelve a responder normal después, o se mueve solo una parte del cuerpo. Avisá a la familia siempre: lo tiene que ver un médico.</p>\n    <p class=\"src\">Fuente: <a href=\"https://www.childrensmn.org/educationmaterials/parents/article/19302/primeros-auxilios-convulsiones-febriles/\" target=\"_blank\" rel=\"noopener\">Children's Minnesota, primeros auxilios en convulsiones febriles</a></p>"
+        },
+        {
+          "id": "x10",
+          "titulo": "Alergia grave",
+          "subtitulo": "Cuándo es una emergencia",
+          "html": "<p>Si la familia te dice que el chico tiene una alergia, preguntá a qué, cómo se ve una reacción y qué hacer. Si tiene un autoinyector de adrenalina, pedí que te muestren cómo se usa y dónde está.</p>\n    <p class=\"alarm\"><b>Llamá al 911 si, después de comer algo o una picadura,</b> se le hinchan la cara, los labios o la lengua, le cuesta respirar o tragar, tose o silba al respirar, se pone pálido y flojito, o tiene ronchas en todo el cuerpo con vómitos. Si tiene autoinyector, usalo enseguida y después llamá.</p>\n    <p>Acostalo; si le cuesta respirar, dejalo sentado. No lo hagas caminar ni pararse.</p>"
+        },
+        {
+          "id": "x11",
+          "titulo": "Se tragó algo que no debía",
+          "subtitulo": "Remedios, productos, pilas",
+          "html": "<ul>\n      <li>Sacale de la boca lo que quede y guardá el envase.</li>\n      <li>No lo hagas vomitar ni le des leche ni nada sin que te indiquen.</li>\n      <li>Llamá al CIAT (1722): te dicen qué hacer según el producto. Si le cuesta respirar, convulsiona o no responde, 911.</li>\n      <li><b>Pilas de botón e imanes</b> son una urgencia aunque el chico se vea bien: consulta ya mismo.</li>\n    </ul>"
+        },
+        {
+          "id": "x12",
+          "titulo": "Agua y piletas",
+          "subtitulo": "Prevenir y actuar",
+          "html": "<p class=\"key\"><b>Un chico se puede ahogar en silencio y en segundos,</b> en una pileta, una bañera o un balde. Cerca del agua tu mirada no se despega, sin celular, aunque haya otros adultos.</p>\n    <ol>\n      <li>Sacalo del agua sin ponerte en peligro.</li>\n      <li>Si no responde o no respira, gritá para que llamen al 911 y empezá RCP con respiraciones.</li>\n      <li>Aunque se recupere enseguida, lo tiene que ver un médico.</li>\n    </ol>"
+        },
+        {
+          "id": "x13",
+          "titulo": "Picaduras, mordeduras y dientes",
+          "subtitulo": "Lo más común en la plaza",
+          "html": "<ul>\n      <li><b>Abeja:</b> sacá el aguijón raspando con una tarjeta, sin apretar. Frío envuelto. Mirá las señales de alergia grave.</li>\n      <li><b>Mordedura de perro o gato:</b> lavá bien con agua y jabón, apretá si sangra, tapá y avisá a la familia: siempre la tiene que ver un médico.</li>\n      <li><b>Se le salió un diente de leche:</b> apretá con una gasa si sangra. No se vuelve a poner.</li>\n      <li><b>Se le salió un diente definitivo</b> (chicos de 6 años en adelante): agarralo de la parte blanca, sin tocar la raíz ni frotarlo, guardalo en leche y consulta urgente con la familia.</li>\n    </ul>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Un bebé de 6 meses no responde y no respira. ¿Cómo hacés las compresiones?",
+          "o": [
+            "Con dos dedos",
+            "Con los dos pulgares rodeando el pecho o el talón de una mano",
+            "Con las dos manos como en un adulto"
+          ],
+          "a": 1,
+          "e": "Desde 2025 ya no se recomienda usar dos dedos: no alcanzan la profundidad."
+        },
+        {
+          "q": "¿A qué ritmo se hacen las compresiones?",
+          "o": [
+            "40 a 60 por minuto",
+            "100 a 120 por minuto",
+            "Lo más rápido posible"
+          ],
+          "a": 1,
+          "e": "100 a 120 por minuto, dejando que el pecho vuelva entre cada una."
+        },
+        {
+          "q": "Un chico se quemó la mano con agua caliente.",
+          "o": [
+            "Hielo directo",
+            "Agua fresca de la canilla al menos 5 minutos",
+            "Manteca"
+          ],
+          "a": 1,
+          "e": "Agua fresca corriendo y tapar con algo limpio. Nunca hielo ni remedios caseros."
+        },
+        {
+          "q": "Un chico convulsiona con fiebre. ¿Qué no hacés?",
+          "o": [
+            "Ponerlo de costado",
+            "Mirar cuánto dura",
+            "Meterle algo en la boca"
+          ],
+          "a": 2,
+          "e": "Nunca nada en la boca. De costado, proteger y mirar el reloj."
+        },
+        {
+          "q": "Un bebé de 8 meses se atraganta, no llora ni tose.",
+          "o": [
+            "Maniobra de Heimlich en la panza",
+            "5 golpes en la espalda y 5 compresiones en el pecho",
+            "Le das agua"
+          ],
+          "a": 1,
+          "e": "En menores de 1 año: espalda y pecho. Nunca compresiones en la panza."
+        },
+        {
+          "q": "Un chico se tragó un producto de limpieza y está consciente.",
+          "o": [
+            "Lo hacés vomitar",
+            "Llamás al CIAT, 1722, y a la familia",
+            "Esperás a ver qué pasa"
+          ],
+          "a": 1,
+          "e": "No provoques el vómito. El CIAT te dice qué hacer según el producto."
+        }
+      ]
+    },
+    {
+      "id": "recien",
+      "nombre": "Recién nacidos",
+      "grupo": "Por edad",
+      "edad": "0 a 3 meses",
+      "obligatorio": false,
+      "intro": "La Academia Americana de Pediatría actualizó sus recomendaciones en 2022. Valen para todos los bebés hasta el año, en cada siesta y cada noche.",
+      "lecciones": [
+        {
+          "id": "r1",
+          "titulo": "Sueño seguro",
+          "subtitulo": "La lección más importante del curso",
+          "html": "<p>La Academia Americana de Pediatría actualizó sus recomendaciones en 2022. Valen para todos los bebés hasta el año, en cada siesta y cada noche.</p>\n    <ul>\n      <li><b>Boca arriba, siempre.</b> Aunque la familia diga que de costado duerme mejor, vos lo acostás boca arriba.</li>\n      <li><b>Superficie firme y plana:</b> cuna, moisés o practicuna con una sábana ajustada.</li>\n      <li><b>Cuna vacía:</b> sin almohada, peluches, chichoneras, mantas sueltas ni posicionadores.</li>\n      <li><b>No dormir en superficies inclinadas.</b> Si se duerme en la silla del auto, el cochecito, la hamaca o el sillón, lo pasás a la cuna.</li>\n      <li><b>Nunca te duermas con el bebé encima</b>, ni en la cama ni en el sillón.</li>\n      <li><b>Sin calor de más:</b> una capa más de ropa que la que tenés vos, y la cabeza descubierta para dormir.</li>\n    </ul>\n    <p class=\"key\"><b>Si la familia te pide algo distinto</b> (dormir boca abajo, con almohada), hacelo con calma: \"Prefiero acostarlo boca arriba, es lo que nos piden en Parents' Break\". Y lo comentás con las chicas.</p>\n    <p class=\"src\">Fuente: <a href=\"https://www.healthychildren.org/Spanish/ages-stages/baby/sleep/Paginas/A-Parents-Guide-to-Safe-Sleep.aspx\" target=\"_blank\" rel=\"noopener\">HealthyChildren.org (AAP)</a></p>"
+        },
+        {
+          "id": "r2",
+          "titulo": "El llanto y qué hacer",
+          "subtitulo": "Por qué llora, cómo calmarlo, cómo calmarte vos",
+          "html": "<p>Entre las 2 semanas y los 3 a 5 meses muchos bebés lloran mucho, aunque estén sanos. El programa \"Period of PURPLE Crying\" lo resume así:</p>\n    <ul>\n      <li>El llanto va subiendo y tiene su pico alrededor del segundo mes.</li>\n      <li>Aparece y se va sin motivo claro.</li>\n      <li>A veces no se calma con nada de lo que pruebes.</li>\n      <li>Puede poner cara de dolor aunque no le duela nada.</li>\n      <li>Puede durar varias horas por día, y suele ser peor a la tarde y a la noche.</li>\n    </ul>\n    <p><b>Orden para revisar:</b> ¿hambre? ¿pañal? ¿frío o calor? ¿gases (probá ponerlo a provechar)? ¿sueño? Después, upa, balanceo suave, caminar, un ruido de fondo parejo, cantarle bajito.</p>\n    <p class=\"alarm\"><b>Nunca sacudas a un bebé.</b> Si sentís que te desbordás, acostalo boca arriba en la cuna, salí del cuarto un par de minutos, respirá y escribile a Parents' Break. Un bebé llorando en su cuna está seguro.</p>\n    <p class=\"src\">Fuente: <a href=\"https://www.dontshake.org/purple-crying\" target=\"_blank\" rel=\"noopener\">National Center on Shaken Baby Syndrome</a></p>"
+        },
+        {
+          "id": "r3",
+          "titulo": "Mamaderas: leche materna y fórmula",
+          "subtitulo": "Preparar, conservar, dar",
+          "html": "<p><b>Leche materna extraída.</b> Usá la que la familia te deja, primero la más vieja. Tiempos que da el CDC para un bebé sano:</p>\n    <div class=\"table\"><table>\n      <thead><tr><th>Dónde está</th><th>Recién extraída</th><th>Descongelada</th></tr></thead>\n      <tbody>\n        <tr><td>Afuera, ambiente (hasta 25 °C)</td><td class=\"n\">hasta 4 h</td><td class=\"n\">1 a 2 h</td></tr>\n        <tr><td>Heladera</td><td class=\"n\">hasta 4 días</td><td class=\"n\">hasta 24 h</td></tr>\n        <tr><td>Freezer</td><td class=\"n\">6 a 12 meses</td><td class=\"n\">no recongelar</td></tr>\n      </tbody>\n    </table></div>\n    <p><b>Fórmula en polvo</b> (según la OMS):</p>\n    <ol>\n      <li>Lavate las manos y usá una mamadera limpia.</li>\n      <li>Hervís el agua y la dejás enfriar menos de 30 minutos, que siga caliente (unos 70 °C).</li>\n      <li>Primero el agua, después las medidas exactas que dice la lata o la familia. Ni más ni menos.</li>\n      <li>Enfriala bajo la canilla y probá unas gotas en la cara interna de la muñeca: tibia, no caliente.</li>\n      <li>Nunca la calientes en el microondas: hace zonas que queman.</li>\n      <li>Lo que sobra de una toma se tira a las 2 horas.</li>\n    </ol>\n    <p>Dale la mamadera con el bebé semi sentado en tus brazos, nunca acostado ni con la mamadera apoyada sola.</p>\n    <p class=\"src\">Fuentes: <a href=\"https://www.who.int/publications/i/item/9789241595414\" target=\"_blank\" rel=\"noopener\">OMS</a> y <a href=\"https://www.cdc.gov/breastfeeding/media/pdfs/preparacion-de-la-leche-materna-508.pdf\" target=\"_blank\" rel=\"noopener\">CDC</a></p>"
+        },
+        {
+          "id": "r5",
+          "titulo": "Fiebre y señales de alarma",
+          "subtitulo": "Cuándo avisar ya mismo",
+          "html": "<p class=\"alarm\"><b>Bebé menor de 3 meses con 38 °C o más:</b> llamás a la familia de inmediato, aunque el bebé se vea bien. A esta edad siempre lo tiene que ver un médico.</p>\n    <p>Llamás a la familia también si el bebé, a cualquier edad:</p>\n    <ul>\n      <li>Respira con esfuerzo, se le hunden las costillas o se pone azulado.</li>\n      <li>Está muy dormido, flojito o no reacciona como siempre.</li>\n      <li>No quiere comer en varias tomas o moja muchos menos pañales.</li>\n      <li>Vomita con fuerza una y otra vez, o tiene diarrea con sangre.</li>\n      <li>Llora de una forma que no se parece a su llanto de siempre y no hay forma de calmarlo.</li>\n    </ul>\n    <p>Si no respira o no responde, llamás al 911 primero y a la familia después.</p>\n    <p class=\"src\">Fuente: <a href=\"https://www.healthychildren.org/Spanish/health-issues/conditions/fever/Paginas/When-to-Call-the-Pediatrician.aspx\" target=\"_blank\" rel=\"noopener\">HealthyChildren.org (AAP)</a></p>"
+        },
+        {
+          "id": "r4",
+          "titulo": "Actividades y juego",
+          "subtitulo": "Qué proponer a un recién nacido",
+          "html": "<h3>Por qué importa el juego</h3>\n    <p>El juego ayuda al desarrollo cognitivo del recién nacido: su capacidad de pensar, entender, comunicarse, recordar, imaginar y anticipar lo que va a pasar.</p>\n    <p>A esta edad jugar es interactuar con el bebé y responder a sus señales. Cada vez que le contestás, su cerebro arma millones de conexiones nuevas.</p>\n    <p>En esos intercambios también aprende cómo es el mundo: si es un lugar seguro, si lo quieren y quiénes lo quieren. Un bebé que se siente seguro y querido se anima a seguir explorando, y eso le hace bien a su cerebro.</p>\n    <p>El vínculo cálido con las personas que lo cuidan es la base de todo lo que va a aprender. Mientras estás con él, vos sos parte de ese vínculo.</p>\n    <h3>Qué esperar a esta edad</h3>\n    <ul>\n      <li>Aprende muchísimo y muy rápido.</li>\n      <li>Desde que nace empieza a reconocer voces y a reaccionar a ellas.</li>\n      <li>Le fascinan las caras: te mira fijo, sobre todo cuando le hablás. Así aprende a recordar cómo son y cómo suenan las personas.</li>\n      <li>Puede quedarse mucho rato mirando un móvil de colores arriba de la cuna. Parece simple, pero está aprendiendo qué es el movimiento y qué son los colores.</li>\n      <li>Quiere conocer el mundo, pero de a poco. Mucha gente, mucho ruido o muchas actividades juntas lo agotan, y a veces queda tan cansado que no se puede dormir. Estate atenta a las señales de cansancio: bostezos, frotarse los ojos, dar vuelta la cara, ponerse molesto.</li>\n    </ul>\n    <h3>Ideas de juego</h3>\n    <p>Conviene probar actividades variadas: cada una le da una forma distinta de aprender sobre el mundo.</p>\n    <ul>\n      <li>Hablale seguido, tenelo en brazos y miralo a los ojos.</li>\n      <li>Leele, decile versitos o cantale. Repetir la misma canción, rima o cuento está muy bien: la repetición es una de las formas en que aprenden los bebés.</li>\n      <li>Hacé caras. Se juega desde que nace: si sacás la lengua o hacés una \"O\" con la boca, algunos bebés te imitan.</li>\n      <li>Mostrale cosas para mirar a unos 20 a 30 cm de su cara, por ejemplo libros o un gimnasio de bebé con colores y formas distintas.</li>\n      <li>Cuando ya tiene unas semanas, ofrecele un peluche blandito o un sonajero para que intente alcanzarlo y tocarlo.</li>\n      <li>Hamacalo suave, acaricialo o hacele masajitos. Podés tocarle los dedos de las manos y los pies y jugar a nombrarlos.</li>\n      <li>Escuchen juntos sonidos distintos: campanitas de viento, pájaros, distintos tipos de música.</li>\n      <li>Salgan a explorar: una vuelta o una plaza con el bebé en el cochecito.</li>\n    </ul>\n    <h3>Dejá que el bebé guíe</h3>\n    <p>Seguí lo que a él le interesa. Si está fascinado tocando un osito de peluche, sumate: \"Sí, el osito es suave\". Si no le interesa lo que le proponés o está muy cansado para jugar, cambiá de actividad.</p>\n    <p class=\"key\"><b>Cada bebé tiene su temperamento.</b> Con algunos hay que presentar las cosas nuevas despacio y con suavidad, para que no se abrumen.</p>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/newborns/play-learning/play-ideas/thinking-play-newborns\" target=\"_blank\" rel=\"noopener\">Raising Children Network, juego y desarrollo en recién nacidos</a></p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Un bebé de 2 meses se durmió en la hamaca. ¿Qué hacés?",
+          "o": [
+            "Lo dejás, está tranquilo",
+            "Lo pasás a la cuna, boca arriba",
+            "Le ponés una almohada al costado"
+          ],
+          "a": 1,
+          "e": "Las superficies inclinadas no son seguras para dormir: va a la cuna, boca arriba y sin nada alrededor."
+        },
+        {
+          "q": "Un bebé de 6 semanas tiene 38,2 °C y se ve bien. ¿Qué hacés?",
+          "o": [
+            "Esperás a ver si baja",
+            "Le das un antifebril",
+            "Llamás a la familia ya mismo"
+          ],
+          "a": 2,
+          "e": "En menores de 3 meses, 38 °C o más siempre requiere avisar enseguida para que lo vea un médico."
+        },
+        {
+          "q": "Llevás una hora con un bebé que llora y nada lo calma. Estás desbordada.",
+          "o": [
+            "Lo acostás seguro en la cuna, salís un momento y escribís a PB",
+            "Lo movés más fuerte para que pare",
+            "Le das de comer otra vez"
+          ],
+          "a": 0,
+          "e": "Un bebé llorando en su cuna está seguro. Nunca se sacude a un bebé."
+        },
+        {
+          "q": "Estás jugando con un recién nacido y empieza a dar vuelta la cara y bostezar.",
+          "o": [
+            "Le mostrás un juguete nuevo para animarlo",
+            "Bajás el ritmo: ya tuvo suficiente estímulo",
+            "Prendés música más fuerte"
+          ],
+          "a": 1,
+          "e": "Son señales de cansancio. Demasiado estímulo lo agota y le cuesta dormirse."
+        },
+        {
+          "q": "¿A qué distancia de su cara conviene mostrarle cosas a un recién nacido?",
+          "o": [
+            "A unos 20 a 30 cm",
+            "A más de un metro",
+            "Pegadas a la cara"
+          ],
+          "a": 0,
+          "e": "A esa distancia es donde mejor ve colores y formas."
+        }
+      ]
+    },
+    {
+      "id": "bebes",
+      "nombre": "Bebés",
+      "grupo": "Por edad",
+      "edad": "3 a 12 meses",
+      "obligatorio": false,
+      "intro": "<b>De 8 a 12 meses experimenta:</b> tira cosas para ver cómo caen, empuja todo fuera de la mesa y prueba todo lo que alcanza, incluidas tazas, platos y mascotas. Así aprende causa y efecto. Necesita lugares seguros para explorar y que vos lo mires todo el tiempo.",
+      "lecciones": [
+        {
+          "id": "e1",
+          "titulo": "Qué hace un bebé en cada etapa",
+          "subtitulo": "Para saber qué esperar",
+          "html": "<div class=\"table\"><table>\n      <thead><tr><th>Edad</th><th>Lo que suele hacer</th></tr></thead>\n      <tbody>\n        <tr><td class=\"n\">3 a 6 m</td><td>Hace ruiditos y te responde cuando le hablás, le sonríe a su reflejo en el espejo, agarra cosas y se las lleva a la boca.</td></tr>\n        <tr><td class=\"n\">6 a 9 m</td><td>Dice \"mamá\" o \"papá\" sin saber a quién, imita sonidos como \"ma\", \"ba\" y \"da\", reacciona a su nombre, sostiene la mamadera o come con la mano. Desde los 8 meses mira lo que le nombrás.</td></tr>\n        <tr><td class=\"n\">9 a 12 m</td><td>Dice \"mamá\" y \"papá\" a la persona correcta, entiende pedidos simples (\"dame el auto\"), hace caras o ruidos para hacerte reír, le encantan los juegos y cuentos que se repiten.</td></tr>\n      </tbody>\n    </table></div>\n    <p><b>De 8 a 12 meses experimenta:</b> tira cosas para ver cómo caen, empuja todo fuera de la mesa y prueba todo lo que alcanza, incluidas tazas, platos y mascotas. Así aprende causa y efecto. Necesita lugares seguros para explorar y que vos lo mires todo el tiempo.</p>\n    <p class=\"key\"><b>Vos no evaluás ni diagnosticás.</b> Cada bebé tiene su ritmo. Si algo te llama la atención, se lo contás a Parents' Break, no a la familia directamente.</p>\n    <p class=\"src\">Fuentes: <a href=\"https://raisingchildren.net.au/babies/play-learning/play-baby-development/thinking-play-babies\" target=\"_blank\" rel=\"noopener\">Raising Children Network</a> y <a href=\"https://www.cdc.gov/ncbddd/actearly/milestones/\" target=\"_blank\" rel=\"noopener\">CDC</a></p>"
+        },
+        {
+          "id": "b2",
+          "titulo": "Higiene y cambio de pañales",
+          "subtitulo": "Manos, cambiador, cola sana",
+          "html": "<ul>\n      <li>Lavate las manos con agua y jabón al llegar, antes de preparar comida o mamaderas y después de cada pañal.</li>\n      <li>Tené todo a mano antes de acostarlo en el cambiador: pañal, toallitas o algodón con agua, crema si la usan. Una mano siempre sobre el bebé.</li>\n      <li>A las nenas se las limpia de adelante hacia atrás.</li>\n      <li>En recién nacidos, el ombligo se mantiene limpio y seco y el pañal se dobla por debajo para no taparlo.</li>\n      <li>Si ves la cola muy roja, con granitos o lastimada, contale a la familia al volver.</li>\n    </ul>"
+        },
+        {
+          "id": "e2",
+          "titulo": "La casa cuando empieza a moverse",
+          "subtitulo": "Gatear, pararse, llevarse todo a la boca",
+          "html": "<ul>\n      <li>Un bebé que se da vuelta puede caerse de la cama o el cambiador en un segundo: lo cambiás en el piso si tenés que soltarlo.</li>\n      <li>Antes de dejarlo en el piso, mirá a su altura: monedas, botones, pilas, imanes, bolsitas, cables, enchufes.</li>\n      <li>Las pilas de botón y los imanes son especialmente peligrosos si se tragan. Si creés que tragó uno, avisás en el momento.</li>\n      <li>Puertas de escaleras cerradas. Bebidas calientes lejos y nunca con el bebé en brazos.</li>\n      <li>Cuidado con las mascotas: a esta edad las agarra y las prueba como a todo lo demás.</li>\n      <li>En el agua: nunca solo, ni en la bañera ni en un balde. Alcanza con pocos centímetros.</li>\n    </ul>"
+        },
+        {
+          "id": "e3",
+          "titulo": "Las primeras comidas",
+          "subtitulo": "Cómo dar de comer sin riesgos",
+          "html": "<p>Las comidas empiezan alrededor de los 6 meses y cada familia sigue lo que indica su pediatra. Vos seguís sus instrucciones.</p>\n    <ul>\n      <li>Siempre sentado y derecho, en la silla alta con el arnés puesto, y vos al lado mirándolo.</li>\n      <li>Nada de comer caminando, acostado ni en el auto.</li>\n      <li>Uvas, tomates cherry y salchichas, siempre cortados a lo largo en cuartos.</li>\n      <li>Ni maníes, ni frutos secos enteros, ni caramelos duros, ni pochoclo en menores de 4 o 5 años.</li>\n      <li>Toser y hacer arcadas es normal mientras aprende. Si tose, dejalo toser. Si no puede toser ni llorar, ver la lección de atragantamiento.</li>\n    </ul>"
+        },
+        {
+          "id": "e4",
+          "titulo": "Actividades y juego",
+          "subtitulo": "Ideas de 3 a 12 meses",
+          "html": "<p>El juego de ida y vuelta le enseña cómo funciona el mundo. Jugar a \"¿dónde está? ¡acá está!\" le muestra que alguien que desaparece vuelve. Jugar con él también le dice que es importante, y eso le da confianza para seguir explorando.</p>\n    <h3>De 3 a 6 meses</h3>\n    <ul>\n      <li>Libros, canciones y versitos. Los libros de tela con texturas, solapas o títeres son ideales.</li>\n      <li>Pelotas de distintos tipos para agarrar, soltar y hacer rodar.</li>\n      <li>Sonajeros, campanitas y juguetes que hacen ruido.</li>\n      <li>Juguetes alrededor suyo para que se estire y se mueva a buscarlos.</li>\n    </ul>\n    <h3>De 6 a 12 meses</h3>\n    <ul>\n      <li>En el baño: juguetes para hundir, llenar, flotar y vaciar. Sirven envases de plástico limpios.</li>\n      <li>Juguetes con botones para apretar, cosas para sacudir y golpear.</li>\n      <li>Bloques para apilar y juguetes para empujar o hacer rodar por el piso.</li>\n      <li>Al leer, poné voces distintas a los personajes o hacé ruidos de animales.</li>\n    </ul>\n    <h3>Cómo acompañar</h3>\n    <ul>\n      <li>Ofrecé pocas opciones a la vez: muchas lo abruman.</li>\n      <li>Dejá que elija qué jugar y cómo. Seguilo.</li>\n      <li>A veces correte un poco para que lo resuelva solo.</li>\n      <li>Contale lo que pasa: \"¡Qué fuerte suena la olla!\".</li>\n      <li>Festejá cada descubrimiento, por chico que sea.</li>\n    </ul>\n    <h3>Para calmar</h3>\n    <ul><li>Canciones de cuna, mecerlo en brazos, luz baja y un ruido de fondo parejo.</li><li>El mismo cuento corto de siempre antes de la siesta.</li></ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/babies/play-learning/play-baby-development/thinking-play-babies\" target=\"_blank\" rel=\"noopener\">Raising Children Network, juego y aprendizaje en bebés</a></p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Tenés que buscar algo y el bebé de 7 meses está en el cambiador.",
+          "o": [
+            "Te alejás un segundo",
+            "Lo bajás al piso o lo llevás con vos",
+            "Le ponés un almohadón al costado"
+          ],
+          "a": 1,
+          "e": "Un bebé que se da vuelta se cae en un segundo. Nunca solo en alturas."
+        },
+        {
+          "q": "Un bebé de 10 meses tira la cuchara al piso una y otra vez.",
+          "o": [
+            "Lo retás para que aprenda",
+            "Es normal: está aprendiendo causa y efecto",
+            "Le sacás todos los juguetes"
+          ],
+          "a": 1,
+          "e": "Entre los 8 y 12 meses experimenta tirando cosas para ver qué pasa."
+        },
+        {
+          "q": "¿Cuántos juguetes conviene ofrecerle a la vez a un bebé?",
+          "o": [
+            "Todos los que haya",
+            "Pocos, para que no se abrume",
+            "Ninguno, mejor la tele"
+          ],
+          "a": 1,
+          "e": "Muchas opciones juntas lo abruman. Pocas, y que elija él."
+        }
+      ]
+    },
+    {
+      "id": "toddlers",
+      "nombre": "Toddlers",
+      "grupo": "Por edad",
+      "edad": "1 a 3 años",
+      "obligatorio": false,
+      "intro": "Entre el año y los 4 años casi todos los chicos tienen berrinches. Sienten emociones grandes y todavía no tienen palabras para decirlas ni la forma de calmarse solos. A medida que hablan más, bajan.",
+      "lecciones": [
+        {
+          "id": "t1",
+          "titulo": "Cómo es un chico de 2 a 3 años",
+          "subtitulo": "Emociones, lenguaje, movimiento",
+          "html": "<ul>\n      <li><b>Emociones:</b> siente todo muy fuerte y todavía no tiene palabras para la frustración, el enojo o la vergüenza. Los berrinches son comunes. Está aprendiendo que lo que hace afecta a otros y necesita mucha cercanía, sobre todo cuando está cansado o con miedo.</li>\n      <li><b>Juego:</b> le gusta jugar con otros chicos, disfrazarse, jugar a tomar el té, pintar y juegos de correr y luchar. Cada vez espera mejor su turno.</li>\n      <li><b>Lenguaje:</b> a los 2 años arma frases de 2 o 3 palabras y usa \"yo\", \"vos\" y \"mí\". A los 3 dice frases de 3 a 5 palabras, puede tener una charla corta e inventar cuentos simples. Entiende muchas más palabras de las que dice.</li>\n      <li><b>Pensamiento:</b> entiende la idea de tiempo y de opuestos, clasifica cosas, junta formas y colores, nombra objetos y resuelve problemas probando.</li>\n      <li><b>Movimiento:</b> corre más firme, sube escaleras agarrado de la baranda, patea la pelota, se para un ratito en un pie, salta en el lugar y quiere andar en triciclo.</li>\n      <li><b>Cuidado diario:</b> quiere hacer todo solo (lavarse las manos, comer, vestirse) aunque todavía necesita ayuda. Muchos están listos para dejar el pañal.</li>\n    </ul>\n    <h3>Qué le hace bien</h3>\n    <ul>\n      <li>Jugar con otros chicos con un adulto cerca que lo ayude a compartir y resolver peleas.</li>\n      <li>Jugar afuera, cuidando el sol, el agua y las mascotas.</li>\n      <li>Hablarle de lo que están haciendo y agregarle palabras a lo que dice: si dice \"auto\", vos decís \"auto rojo\".</li>\n      <li>Cuentos, canciones y rimas todos los días.</li>\n      <li>Practicar cosas de todos los días: usar la cuchara, ponerse los zapatos.</li>\n      <li>Cocinar juntos algo simple, como mezclar una ensalada.</li>\n      <li>Felicitarlo cuando logra algo nuevo.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/toddlers/development/development-tracker-1-3-years/2-3-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network, desarrollo de 2 a 3 años</a></p>"
+        },
+        {
+          "id": "n1",
+          "titulo": "Berrinches",
+          "subtitulo": "Son normales y se pueden acompañar",
+          "html": "<p>Entre el año y los 4 años casi todos los chicos tienen berrinches. Sienten emociones grandes y todavía no tienen palabras para decirlas ni la forma de calmarse solos. A medida que hablan más, bajan.</p>\n    <p><b>Para que pasen menos:</b> respetá horarios de comida y siesta, avisá antes de cada cambio (\"en cinco minutos guardamos\"), dale opciones chicas (\"¿la remera roja o la azul?\"). Enseñarle palabras como \"enojado\" o \"hambre\", o señalarlas en dibujos, lo ayuda hasta que las pueda decir.</p>\n    <p><b>Cuando pasa:</b></p>\n    <ul>\n      <li>Vos tranquila: sos el ejemplo de cómo se maneja el enojo.</li>\n      <li>Que esté seguro, sin cosas cerca con las que se pueda golpear.</li>\n      <li>Ponele nombre a lo que siente: \"Estás enojado porque querías seguir en la plaza\".</li>\n      <li>Quedate cerca, sin sermones. Cuando se calme, un abrazo y seguir.</li>\n      <li>No cambies la regla para que pare: si aprende que gritando consigue, va a gritar más.</li>\n      <li>Elogiá lo que hace bien, en concreto: \"Qué bien que esperaste tu turno\".</li>\n    </ul>\n    <p class=\"key\"><b>En Parents' Break no se castiga, no se grita y no se amenaza.</b> Si un chico te cuesta mucho, lo hablás con nosotras.</p>\n    <p class=\"src\">Fuentes: <a href=\"https://raisingchildren.net.au/toddlers/behaviour/crying-tantrums/tantrums\" target=\"_blank\" rel=\"noopener\">Raising Children Network</a> y <a href=\"https://www.nhs.uk/baby/babys-development/behaviour/temper-tantrums/\" target=\"_blank\" rel=\"noopener\">NHS</a></p>"
+        },
+        {
+          "id": "t2",
+          "titulo": "Dejar el pañal",
+          "subtitulo": "Cómo acompañar si la familia ya empezó",
+          "html": "<p>La decisión de empezar es de la familia. Vos seguís lo que ellos hacen en casa: qué palabras usan, si usan pelela o inodoro, si tienen una tabla de premios.</p>\n    <p><b>Señales de que está listo</b> (suelen aparecer desde los 2 años): camina y se sienta un rato, está más independiente, mira cómo otros van al baño, se mantiene seco 2 horas o más, avisa cuando hace pis o caca, le molesta el pañal sucio, se puede subir y bajar el pantalón y sigue instrucciones simples.</p>\n    <h3>Cómo ayudar</h3>\n    <ul>\n      <li>Llevalo al baño en momentos fijos, por ejemplo unos 30 minutos después de comer, y cuando veas señales de que tiene ganas.</li>\n      <li>Si en 3 a 5 minutos no pasa nada, que se levante.</li>\n      <li>Felicitalo por intentarlo, no solo cuando sale.</li>\n      <li>Ropa fácil de sacar.</li>\n      <li>Limpiar de adelante hacia atrás y lavarse las manos después, siempre.</li>\n      <li>Recordale ir si pasó un rato largo: jugando se olvidan.</li>\n    </ul>\n    <h3>Los accidentes son parte</h3>\n    <p>Van a pasar. Decile que no importa, limpiá con calma y sin comentarios, y llevalo enseguida cuando te dice que tiene ganas. Mojar la cama de noche es común hasta en chicos de edad escolar.</p>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/preschoolers/health-daily-care/toileting/toilet-training-guide\" target=\"_blank\" rel=\"noopener\">Raising Children Network, guía para dejar el pañal</a></p>"
+        },
+        {
+          "id": "act-t",
+          "titulo": "Actividades para 1 a 3 años",
+          "subtitulo": "Ideas para la casa, la plaza y para calmar",
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>¿Dónde está? ¡Acá está!</b> Te tapás la cara y aparecés.</li>\n      <li><b>Adiviná el animal:</b> imitás un animal con el cuerpo y el ruido.</li>\n      <li><b>Bailar y frenar</b> cuando para la música.</li>\n      <li><b>Canciones con gestos</b>, como las de las manitos.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Meter y sacar cosas de una caja o un balde.</li>\n      <li>Torres de bloques o vasos de plástico para tirar.</li>\n      <li>Cuentos con dibujos grandes: señalá y nombrá lo que ven.</li>\n      <li>Cocinita o comidita de juguete.</li>\n      <li>Crayones gruesos en una hoja grande pegada a la mesa.</li>\n      <li>Una caja de cartón que se convierte en auto o casa.</li>\n      <li>Bolos con botellas de plástico vacías.</li>\n      <li>Masa casera (2 tazas de harina, 1 de sal, 1 de agua, un chorrito de aceite), si la familia está de acuerdo.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Burbujas, mirar hormigas y bichos bolita, juntar hojas y piedras.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Cuento con la luz baja, una canción suave, upa tranquila.</li></ul>\n    <p class=\"key\"><b>Seguridad:</b> nada de piezas chicas, botones ni cuentas con menores de 3 años, y la cocina siempre con vos al lado.</p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Un chico de 3 años se tira al piso porque no quiere irse de la plaza.",
+          "o": [
+            "Le comprás algo para que pare",
+            "Te quedás cerca, tranquila, y nombrás lo que siente",
+            "Lo dejás solo hasta que se le pase"
+          ],
+          "a": 1,
+          "e": "Acompañar con calma y ponerle nombre a la emoción, sin ceder la regla."
+        },
+        {
+          "q": "Un chico que está dejando el pañal se hace pis jugando.",
+          "o": [
+            "Le decís que ya es grande para eso",
+            "Limpiás con calma y le decís que no importa",
+            "Le volvés a poner pañal"
+          ],
+          "a": 1,
+          "e": "Los accidentes son parte del aprendizaje. Calma y sin comentarios."
+        },
+        {
+          "q": "Un toddler dice \"perro\". ¿Qué le contestás para ayudarlo a hablar?",
+          "o": [
+            "\"Sí, perro grande\"",
+            "Nada",
+            "\"No se dice así\""
+          ],
+          "a": 0,
+          "e": "Repetir lo que dice y agregar una palabra le amplía el lenguaje."
+        }
+      ]
+    },
+    {
+      "id": "preescolares",
+      "nombre": "Preescolares",
+      "grupo": "Por edad",
+      "edad": "3 a 5 años",
+      "obligatorio": false,
+      "intro": "",
+      "lecciones": [
+        {
+          "id": "p1",
+          "titulo": "Cómo es un chico de 3 a 4 años",
+          "subtitulo": "Preguntas, amigos, juego de roles",
+          "html": "<ul>\n      <li><b>Emociones:</b> distingue cuando está contento, triste, asustado o enojado. Puede tenerle miedo a cosas imaginarias. Empieza a mostrar cariño y a preocuparse por cómo se sienten los demás.</li>\n      <li><b>Lenguaje y pensamiento:</b> pregunta todo. Sabe su edad, algunos colores y formas, y opuestos como grande y chico. Cuenta hasta unas 4 cosas y repite canciones. A los 4 arma frases de 5 o 6 palabras y sigue instrucciones de 2 o 3 pasos.</li>\n      <li><b>Juego y amigos:</b> le interesa más jugar con otros y hacer amigos. Entiende \"mío\" y \"tuyo\", así que compartir se vuelve más fácil, y empieza a seguir reglas. Juega mucho a \"hacer de cuenta\" y puede tener amigos imaginarios. A los 4 le encanta hacer bromas y engañar, y le preocupa que lo engañen a él.</li>\n      <li><b>Movimiento:</b> sube escaleras, anda en triciclo, tira, ataja y patea la pelota, salta en un pie. Dibuja círculos y cuadrados, arma torres altas y usa tijera de punta redonda.</li>\n      <li><b>Cuidado diario:</b> come solo, se viste y se desviste, y en general ya va al baño solo, aunque puede mojar la cama de noche. Todavía necesita ayuda para lavarse los dientes.</li>\n    </ul>\n    <h3>Qué le hace bien</h3>\n    <ul>\n      <li>Juego de roles, aventuras al aire libre, actividades creativas y juegos de turnos.</li>\n      <li>Pantallas en equilibrio con juego, movimiento y cuentos.</li>\n      <li>Leer, contar cuentos, cantar.</li>\n      <li>Ayudar con tareas simples de la casa y cocinar juntos.</li>\n      <li>Felicitarlo por cada cosa nueva que aprende.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/preschoolers/development/development-tracker/3-4-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network, desarrollo de 3 a 4 años</a></p>"
+        },
+        {
+          "id": "act-p",
+          "titulo": "Actividades para 3 a 5 años",
+          "subtitulo": "Ideas y juegos para usar desde el celular",
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>Simón dice:</b> solo se hace lo que empieza con \"Simón dice\".</li>\n      <li><b>Estatuas:</b> bailan con música y cuando para, todos quietos.</li>\n      <li><b>Veo veo</b> con colores, desde los 4 años.</li>\n      <li><b>Adiviná el animal.</b></li>\n      <li><b>El cuento encadenado:</b> cada uno agrega una frase.</li>\n    </ul>\n    <h3>Día de lluvia</h3>\n    <ul>\n      <li>Cueva con sillas, sábanas y almohadones, y cuentos con linterna adentro.</li>\n      <li>Circuito de obstáculos: almohadones para saltar, una mesa para pasar por abajo, una cinta en el piso.</li>\n      <li>Títeres con medias viejas o dibujos en palitos.</li>\n      <li>Disfraces y juego de roles: el médico, el almacén, la maestra.</li>\n      <li>Rompecabezas simples y recortar con tijera de punta redonda.</li>\n      <li>Cocinar algo simple: ensalada de frutas o decorar galletitas.</li>\n    </ul>\n    <h3>En la plaza</h3>\n    <ul><li>Bingo de la plaza, colección de tesoros, la mancha con límites claros, tiza en la vereda si la familia deja, burbujas.</li></ul>\n    <h3>Para calmar y antes de dormir</h3>\n    <ul>\n      <li><b>Respirar como globo:</b> inflar la panza despacio y desinflarla, juntos.</li>\n      <li><b>Oler la flor y soplar la vela</b> con los dedos.</li>\n      <li>El cuento de siempre, con la luz baja. Una hora antes de dormir, sin pantallas.</li>\n    </ul>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Una nena de 4 años tiene miedo de que haya un monstruo en el placard.",
+          "o": [
+            "Te reís, los monstruos no existen",
+            "Le das importancia a lo que siente y la tranquilizás",
+            "La dejás sola para que se acostumbre"
+          ],
+          "a": 1,
+          "e": "A esta edad es común tenerle miedo a cosas imaginarias. Lo que siente es real para ella."
+        }
+      ]
+    },
+    {
+      "id": "escolar",
+      "nombre": "Edad escolar",
+      "grupo": "Por edad",
+      "edad": "5 a 8 años",
+      "obligatorio": false,
+      "intro": "Aunque en la escuela ya aprende de forma más formal, el juego sigue armando su capacidad de resolver problemas, entender, recordar, imaginar y anticipar. Jugar con un adulto también le hace practicar lo de la escuela, por ejemplo sumando puntos en un juego de mesa. Y como el pensamiento y la autoestima van juntos, el miedo a equivocarse le puede trabar el aprendizaje: en el juego se equivoca sin presión.",
+      "lecciones": [
+        {
+          "id": "s1",
+          "titulo": "Por qué el juego sigue siendo clave",
+          "subtitulo": "Aunque ya vayan a la escuela",
+          "html": "<p>Aunque en la escuela ya aprende de forma más formal, el juego sigue armando su capacidad de resolver problemas, entender, recordar, imaginar y anticipar. Jugar con un adulto también le hace practicar lo de la escuela, por ejemplo sumando puntos en un juego de mesa. Y como el pensamiento y la autoestima van juntos, el miedo a equivocarse le puede trabar el aprendizaje: en el juego se equivoca sin presión.</p>\n    <h3>Ideas</h3>\n    <ul>\n      <li>Juegos de mesa, cartas (la mosca, memoria, veo veo), sopas de letras y crucigramas simples.</li>\n      <li>Rompecabezas que pueda armar solo.</li>\n      <li>Leer juntos, cantar, adivinanzas, chistes, inventar palabras y rimas.</li>\n      <li>Construir con bloques o con cajas de cartón.</li>\n      <li>Cocinar juntos midiendo y pesando ingredientes.</li>\n      <li>Hacer la lista de compras o planear algo juntos.</li>\n      <li>Pelota afuera, arenero, juegos con barro o con pintura.</li>\n      <li>Seguir lo que le gusta: si le encantan los dinosaurios, hablen, dibujen o lean de dinosaurios. Que guíe el juego.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/school-age/play-media-technology/play-school-age-development/thinking-play-school-age\" target=\"_blank\" rel=\"noopener\">Raising Children Network, juego en edad escolar</a></p>"
+        },
+        {
+          "id": "s2",
+          "titulo": "Pantallas durante el sitting",
+          "subtitulo": "Seguir las reglas de la casa y ofrecer otra cosa",
+          "html": "<p>Cada familia tiene sus reglas de pantallas: cuánto tiempo, dónde y qué ven. Preguntalas al llegar y respetalas aunque el chico insista.</p>\n    <ul>\n      <li>Ratos cortos, con pausas. Un temporizador o un corte natural (terminar el capítulo, pasar el nivel) ayudan a apagar sin pelea.</li>\n      <li>Después de la pantalla, algo de movimiento: salir afuera, bailar, la pelota.</li>\n      <li>Proponé juego cara a cara: es lo que le arma las habilidades para hacer amigos.</li>\n      <li>Nada de pantallas en la hora antes de dormir: le cuesta más dormirse. A esta edad necesitan entre 9 y 11 horas de sueño.</li>\n      <li>Fijate que lo que mira sea para su edad.</li>\n      <li>Vos también: el celular guardado mientras cuidás. El chico copia lo que ve.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/school-age/media-technology/screen-time-healthy-screen-use/healthy-screen-time-6-11-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network, pantallas de 6 a 11 años</a></p>"
+        },
+        {
+          "id": "act-s",
+          "titulo": "Actividades para 5 a 8 años",
+          "subtitulo": "Ideas y juegos para usar desde el celular",
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li>Simón dice, veo veo, el cuento encadenado, adivinanzas y chistes.</li>\n      <li><b>20 preguntas</b>, desde los 7: pensás en algo y adivina con preguntas de sí o no.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Juegos de mesa y cartas (la mosca, memoria), rompecabezas.</li>\n      <li>Construir con bloques o con cajas de cartón.</li>\n      <li>Cocinar juntos midiendo y pesando ingredientes.</li>\n      <li>Hacer la lista de compras o planear algo juntos.</li>\n      <li>Circuito de obstáculos o una cueva de almohadones.</li>\n      <li>Seguir lo que le gusta: si le encantan los dinosaurios, dibujen, lean o inventen un cuento de dinosaurios.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Pelota, la mancha, arenero, juegos con barro o pintura, bingo de la plaza.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Respirar como globo, dibujar con colores tranquilos, leer juntos.</li></ul>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Faltan 40 minutos para que el chico de 7 años se duerma y quiere jugar a la tablet.",
+          "o": [
+            "Le dejás, total es un ratito",
+            "Le proponés un cuento o un juego tranquilo",
+            "Le das la tablet en la cama"
+          ],
+          "a": 1,
+          "e": "Sin pantallas la hora antes de dormir: le cuesta más dormirse."
+        },
+        {
+          "q": "¿Cuál es la mejor forma de cortar la pantalla sin pelea?",
+          "o": [
+            "Sacársela de golpe",
+            "Avisar y usar un corte natural, como el final del capítulo",
+            "Amenazar con contarle a los padres"
+          ],
+          "a": 1,
+          "e": "Un temporizador o un corte natural ayudan a apagar con menos conflicto."
+        }
+      ]
+    },
+    {
+      "id": "preteens",
+      "nombre": "Preadolescentes",
+      "grupo": "Por edad",
+      "edad": "9 a 12 años",
+      "obligatorio": false,
+      "intro": "A esta edad no quieren \"una niñera\". Te va mejor si te ven como una persona grande de confianza que los respeta.",
+      "lecciones": [
+        {
+          "id": "y1",
+          "titulo": "Qué les está pasando",
+          "subtitulo": "Cambios sociales y emocionales",
+          "html": "<ul>\n      <li><b>Identidad:</b> prueban quiénes son a través de la ropa, la música, lo que les gusta y su grupo de amigos.</li>\n      <li><b>Independencia:</b> quieren decidir más: con quién están, cómo usan el tiempo, cómo se mueven.</li>\n      <li><b>Cosas nuevas:</b> buscan experiencias nuevas, a veces riesgosas. Su cerebro todavía está aprendiendo a medir consecuencias.</li>\n      <li><b>Amigos:</b> los amigos pesan mucho en cómo se ven y cómo se sienten, aunque los adultos siguen influyendo en sus valores.</li>\n      <li><b>Humor:</b> emociones fuertes y a veces impredecibles. Pueden malinterpretar caras o gestos de los demás y preocuparse mucho por cómo se ven.</li>\n      <li><b>Pantallas:</b> se comunican y aprenden mucho por internet, con cosas buenas y riesgos.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/pre-teens/development/social-emotional-development/social-emotional-changes-9-15-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network, cambios de 9 a 15 años</a></p>"
+        },
+        {
+          "id": "y2",
+          "titulo": "Cómo llevarte bien con un preadolescente",
+          "subtitulo": "Respeto, escucha y límites claros",
+          "html": "<p>A esta edad no quieren \"una niñera\". Te va mejor si te ven como una persona grande de confianza que los respeta.</p>\n    <ul>\n      <li><b>Escuchá de verdad:</b> dejá lo que estás haciendo, respetá lo que siente y opina aunque no estés de acuerdo.</li>\n      <li><b>Sé el ejemplo:</b> trato respetuoso, calma en las discusiones, nombrar lo que te pasa (\"ahora estoy cansada, hablemos en un rato\").</li>\n      <li><b>Mirá lo bueno:</b> en los momentos tensos, valorá lo que hace bien: que es buen amigo, que se esfuerza, lo que le gusta.</li>\n      <li><b>Ayudalo con las peleas:</b> con hermanos o amigos, enseñale a calmarse primero y después a resolver.</li>\n      <li><b>Reglas de la familia, claras:</b> horarios, celular, salidas, quién puede venir. Si duda, \"le pregunto a tus papás\".</li>\n    </ul>\n    <p class=\"alarm\"><b>Si te cuenta algo que te preocupa</b> (que alguien lo molesta, algo que vio o le escribieron en internet, que se siente muy mal), escuchalo con calma, no prometas guardar el secreto y contáselo a Parents' Break ese mismo día. Nosotras vemos con la familia cómo seguir.</p>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/pre-teens/development/social-emotional-development/social-emotional-changes-9-15-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network</a></p>"
+        },
+        {
+          "id": "act-y",
+          "titulo": "Actividades para 9 a 12 años",
+          "subtitulo": "Proponer, no imponer",
+          "html": "<p>A esta edad funciona mejor proponer dos o tres opciones y que elijan. Si los dejás decidir, se enganchan.</p>\n    <ul>\n      <li>Juegos de cartas y de mesa, o que te enseñen uno que les guste.</li>\n      <li>Cocinar una receta entera ellos, con vos al lado para el horno y los cuchillos.</li>\n      <li>Manualidades: pulseras, origami, un cómic dibujado entre los dos.</li>\n      <li>Deporte en la plaza: fútbol, básquet, patines con casco.</li>\n      <li>20 preguntas, el cuento encadenado, adivinanzas.</li>\n      <li>Si hay deberes, acompañalos sin hacérselos.</li>\n    </ul>\n    <p>Las pantallas, según las reglas de la casa.</p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Una nena de 11 te cuenta que alguien le manda mensajes que la hacen sentir mal, y te pide que no le digas a nadie.",
+          "o": [
+            "Le prometés guardar el secreto",
+            "La escuchás con calma, no prometés el secreto y avisás a PB ese día",
+            "Le decís que no le dé importancia"
+          ],
+          "a": 1,
+          "e": "Escuchar sin juzgar y avisar a Parents' Break, que ve con la familia cómo seguir."
+        }
+      ]
+    },
+    {
+      "id": "autismo",
+      "nombre": "Autismo",
+      "grupo": "Necesidades especiales",
+      "edad": "todas las edades",
+      "obligatorio": false,
+      "intro": "Cada chico autista es distinto. La mejor guía siempre es su familia: preguntá cómo se comunica, qué lo calma y qué lo altera antes de quedarte sola.",
+      "lecciones": [
+        {
+          "id": "a1",
+          "titulo": "Cómo se comunican",
+          "subtitulo": "Entender lo que te quiere decir",
+          "html": "<p>Los chicos autistas tienen capacidades de comunicación muy distintas. Algunos hablan muy bien, a otros les cuesta más y algunos no hablan.</p>\n    <h3>Lo que podés ver</h3>\n    <ul>\n      <li>Repetir palabras o frases que escuchó en otro lado, a veces sin entenderlas (se llama ecolalia). Puede ser una forma de pedir: si repite \"¿querés un caramelo?\", quizás quiere un caramelo.</li>\n      <li>Usar palabras inventadas o repetir la misma palabra muchas veces.</li>\n      <li>Hablar de forma muy directa o con un tono más formal.</li>\n      <li>Quedarse sin poder hablar cuando está desbordado.</li>\n      <li>Llevarte de la mano hacia lo que quiere, señalar, o darte un objeto para que lo ayudes.</li>\n      <li>Mirarte menos a los ojos o hacer movimientos repetidos, como aletear las manos, cuando está contento o nervioso.</li>\n    </ul>\n    <p class=\"key\"><b>La conducta también comunica.</b> Negarse, tener un berrinche o pegar puede querer decir que necesita algo, que está incómodo, confundido o con miedo. Preguntate qué te está queriendo decir.</p>\n    <h3>Cómo comunicarte vos</h3>\n    <ul>\n      <li>Prestá atención y respondé a cualquier intento de comunicarse: palabras, gestos o conducta.</li>\n      <li>Frases cortas, remarcando la palabra importante.</li>\n      <li>Dale tiempo para entender y contestar.</li>\n      <li>Ofrecé dos opciones mostrándolas: \"¿manzana o banana?\" con una en cada mano.</li>\n      <li>Mostrá el objeto mientras decís el nombre.</li>\n      <li>Cambiá preguntas por comentarios: \"¡Es una cuchara!\" en vez de \"¿Qué es esto?\".</li>\n      <li>Repetí lo que dice y agregá una palabra: si dice \"zapato\", vos \"zapato grande\".</li>\n      <li>Hablá de lo que a él le interesa.</li>\n      <li>Si la familia usa señas, pictogramas o una tablet para comunicarse, pediles que te enseñen lo básico.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/autism/communicating-relationships/communicating/communication-asd\" target=\"_blank\" rel=\"noopener\">Raising Children Network, comunicación en chicos autistas</a></p>"
+        },
+        {
+          "id": "a2",
+          "titulo": "Rutinas, sentidos y conducta",
+          "subtitulo": "Cómo hacer que el sitting sea tranquilo",
+          "html": "<ul>\n      <li><b>Rutinas:</b> lo predecible calma. Seguí la rutina de la familia al pie de la letra y sumá sus intereses especiales al día.</li>\n      <li><b>Avisá los cambios:</b> con anticipación y, si la familia los usa, con dibujos o pictogramas (\"primero baño, después cuento\").</li>\n      <li><b>Apoyos visuales:</b> una imagen de lavarse las manos ayuda más que la frase sola.</li>\n      <li><b>Sentidos:</b> muchos chicos se saturan con ruido, luz o mucha gente. Un lugar tranquilo, luz más baja, auriculares o un juguete para apretar los ayudan a calmarse.</li>\n      <li><b>Stimming:</b> aletear, balancearse o repetir sonidos los ayuda a regularse. No lo frenes si no es peligroso.</li>\n      <li><b>Pedidos:</b> una sola instrucción por vez, y esperá unos 10 segundos para que la procese. Decí lo que tiene que hacer (\"caminamos\") en vez de lo que no (\"no corras\").</li>\n      <li><b>Elogios concretos:</b> nombrá exactamente lo que hizo bien. Si habla poco, sirven un choque de manos o un pulgar arriba.</li>\n    </ul>\n    <p class=\"key\"><b>No lo presiones para que actúe \"como los demás\".</b> Pedirle que mire a los ojos o que deje de moverse para encajar lo cansa y lo estresa.</p>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/autism/behaviour/understanding-behaviour/positive-behaviour-autistic-children-teenagers\" target=\"_blank\" rel=\"noopener\">Raising Children Network, conducta positiva en chicos autistas</a></p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Un chico autista repite \"¿querés agua?\" varias veces.",
+          "o": [
+            "Lo ignorás, está repitiendo",
+            "Le ofrecés agua: puede ser su forma de pedirla",
+            "Le pedís que hable bien"
+          ],
+          "a": 1,
+          "e": "La ecolalia muchas veces es una forma de comunicarse."
+        },
+        {
+          "q": "Le pedís algo a un chico autista y no responde enseguida.",
+          "o": [
+            "Repetís la orden más fuerte",
+            "Le das unos 10 segundos para procesar",
+            "Le das otra orden distinta"
+          ],
+          "a": 1,
+          "e": "Una instrucción por vez y tiempo para procesarla."
+        },
+        {
+          "q": "El chico aletea las manos cuando está contento.",
+          "o": [
+            "Le agarrás las manos para que pare",
+            "Lo dejás: lo ayuda a regularse",
+            "Le decís que los demás lo van a mirar raro"
+          ],
+          "a": 1,
+          "e": "El stimming lo ayuda. No hay que frenarlo si no es peligroso."
+        }
+      ]
+    },
+    {
+      "id": "tdah",
+      "nombre": "TDAH",
+      "grupo": "Necesidades especiales",
+      "edad": "todas las edades",
+      "obligatorio": false,
+      "intro": "El trastorno por déficit de atención con hiperactividad hace que al chico le cueste concentrarse, quedarse quieto, esperar o manejar sus emociones. No es falta de ganas ni mala conducta.",
+      "lecciones": [
+        {
+          "id": "h1",
+          "titulo": "Cómo ayudar a un chico con TDAH",
+          "subtitulo": "Instrucciones, rutinas y energía",
+          "html": "<ul>\n      <li><b>Apoyate en lo que le sale bien.</b> Los chicos con TDAH tienen fortalezas: energía, creatividad, entusiasmo. Usalas.</li>\n      <li><b>Instrucciones cortas y claras,</b> de a una. Si le cuesta, mostrale cómo se hace o dibujalo.</li>\n      <li><b>Rutina previsible,</b> sobre todo en los momentos movidos (baño, cena, ir a dormir). Si la familia tiene un cronograma con dibujos, usalo.</li>\n      <li><b>Más tiempo para cada cosa:</b> se distrae fácil, así que todo le lleva más.</li>\n      <li><b>Pausas con movimiento</b> entre actividades quietas, como los deberes o la lectura.</li>\n      <li><b>Un temporizador visible:</b> \"jugamos 10 minutos y después guardamos\".</li>\n      <li><b>Tiempo para descargar energía</b> y después algo tranquilo.</li>\n      <li><b>Sin pantallas la hora antes de dormir</b> y horarios de sueño regulares.</li>\n    </ul>\n    <p class=\"alarm\"><b>Medicación:</b> muchos chicos con TDAH toman medicación indicada por su médico. Si te toca darla, seguí exactamente lo que dice la familia (hora y dosis), por escrito.</p>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/adhd/social-emotional-wellbeing/adhd-wellbeing/managing-adhd-5-11-years\" target=\"_blank\" rel=\"noopener\">Raising Children Network, cómo ayudar a un chico con TDAH</a></p>"
+        },
+        {
+          "id": "h2",
+          "titulo": "Ayudarlo a regularse",
+          "subtitulo": "Concentración, impulsos y emociones",
+          "html": "<ul>\n      <li><b>Nombrá lo que siente:</b> preguntale cómo se siente en el cuerpo y en el ánimo, y contale lo que te pasa a vos en voz alta, así aprende.</li>\n      <li><b>Lo difícil primero,</b> cuando está más fresco. Terminarlo lo motiva.</li>\n      <li><b>Temporizador de a poco:</b> empezá con 2 a 5 minutos de tarea, quedate cerca y alargalo de a poco.</li>\n      <li><b>Pausas cortas,</b> de unos 5 minutos, moviéndose.</li>\n      <li><b>Menos distracciones:</b> tele apagada, hermanos jugando en otro lado.</li>\n      <li><b>Dejalo moverse:</b> balancear las piernas o apretar algo en la mano muchas veces lo ayuda a concentrarse.</li>\n      <li><b>Frenar antes de actuar:</b> enseñale cuatro pasos: parar, pensar qué va a hacer, hacerlo y ver cómo salió.</li>\n      <li><b>Para calmarse:</b> una caminata, una pausa o respirar juntos. Descubran qué le funciona a él.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/adhd/social-emotional-wellbeing/adhd-emotions/self-regulation-child-with-adhd\" target=\"_blank\" rel=\"noopener\">Raising Children Network, autorregulación y TDAH</a></p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Un chico con TDAH tiene que hacer los deberes y no se concentra.",
+          "o": [
+            "Lo sentás 1 hora sin moverse",
+            "Tareas cortas con temporizador y pausas con movimiento",
+            "Lo dejás para que lo hagan los padres"
+          ],
+          "a": 1,
+          "e": "Ratos cortos con un temporizador, pausas para moverse y menos distracciones."
+        },
+        {
+          "q": "¿Cómo le das instrucciones a un chico con TDAH?",
+          "o": [
+            "Todas juntas para que no se olvide",
+            "Cortas, claras y de a una",
+            "Por escrito, una lista larga"
+          ],
+          "a": 1,
+          "e": "Una instrucción corta por vez, y si hace falta mostrándole cómo."
+        }
+      ]
+    },
+    {
+      "id": "discapacidad",
+      "nombre": "Discapacidad",
+      "grupo": "Necesidades especiales",
+      "edad": "todas las edades",
+      "obligatorio": false,
+      "intro": "Cada discapacidad es distinta: física, intelectual, sensorial o varias juntas. Antes del sitting pedile a la familia que te explique cuidados específicos (cómo moverlo, cómo come, qué aparatos usa) y que te muestre cómo hacerlo.",
+      "lecciones": [
+        {
+          "id": "d1",
+          "titulo": "Jugar con un chico con discapacidad",
+          "subtitulo": "Que disfrute y se sienta capaz",
+          "html": "<ul>\n      <li><b>Elegí actividades que le salen bien,</b> así se siente seguro. Pintar, bloques, instrumentos, disfraces o jugar afuera permiten jugar solo, al lado de otro o juntos.</li>\n      <li><b>Prepará el espacio con él:</b> un lugar sin mucha gente ni ruido, con algunas opciones a mano.</li>\n      <li><b>Arrancá el juego vos:</b> proponé una idea o empezá la actividad para que se sume.</li>\n      <li><b>Juegos de turnos:</b> los juegos de mesa enseñan a esperar y compartir. Podés usar una seña para \"esperá\", como levantar la mano.</li>\n      <li><b>Mostrá cómo se juega con otros:</b> escuchar, compartir, ceder. \"Sí, hagámoslo así\".</li>\n      <li><b>Ponele palabras:</b> \"Parece que estás enojado\", y frases para pedir: \"Yo también quiero jugar con eso\".</li>\n      <li><b>Elogios concretos</b> de lo que hizo bien.</li>\n      <li><b>Sin presión:</b> jugar cansa mucho. Después, un rato tranquilo.</li>\n      <li><b>Si con otros chicos lo dejan de lado o lo molestan,</b> intervení y contáselo a la familia y a Parents' Break.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/disability/school-play-work/play-friends/play-friendship-disability\" target=\"_blank\" rel=\"noopener\">Raising Children Network, juego y discapacidad</a></p>"
+        },
+        {
+          "id": "d2",
+          "titulo": "Ayudarlo a hacer cosas solo",
+          "subtitulo": "Paso a paso, con apoyo que se va retirando",
+          "html": "<p>Sirve para chicos con discapacidad y con TDAH. Preguntale a la familia qué está aprendiendo ahora (vestirse, lavarse las manos, guardar los juguetes) para practicar lo mismo.</p>\n    <ul>\n      <li><b>Una cosa por vez.</b> A veces ya está usando mucha energía en algo como mantenerse sentado.</li>\n      <li><b>Dividí la tarea en pasos chicos</b> y practicá uno por vez. Un truco: empezar por el último paso, para que sienta la satisfacción de terminar.</li>\n      <li><b>Mostrá primero:</b> que te mire, hacelo despacio y contá lo que hacés en voz alta. Si le cuesta mirarte de frente, que se siente a tu lado.</li>\n      <li><b>Instrucciones claras y cortas,</b> en tono tranquilo, y dale hasta un minuto para responder.</li>\n      <li><b>Ayudas que se van retirando:</b> primero guiarle las manos, después un gesto, después una pista.</li>\n      <li><b>Dibujos o canciones</b> para recordar los pasos.</li>\n      <li><b>Felicitalo</b> cada vez que lo logra, diciendo qué hizo bien.</li>\n      <li><b>Si se cansa o pierde interés,</b> dejalo para otro momento.</li>\n    </ul>\n    <p class=\"src\">Fuente: <a href=\"https://raisingchildren.net.au/disability/school-play-work/learning-behaviour/teaching-skills-to-children-with-disability\" target=\"_blank\" rel=\"noopener\">Raising Children Network, enseñar habilidades a chicos con discapacidad o TDAH</a></p>"
+        }
+      ],
+      "repaso": [
+        {
+          "q": "Estás ayudando a un chico con discapacidad a ponerse las medias.",
+          "o": [
+            "Se las ponés vos, es más rápido",
+            "Dividís en pasos chicos y lo ayudás menos de a poco",
+            "Le explicás todo de una vez"
+          ],
+          "a": 1,
+          "e": "Pasos chicos, ayuda que se va retirando y felicitarlo cuando lo logra."
+        },
+        {
+          "q": "En la plaza, otros chicos dejan de lado al chico que cuidás.",
+          "o": [
+            "No te metés, que aprenda solo",
+            "Intervenís y lo contás a la familia y a PB",
+            "Te lo llevás a casa sin decir nada"
+          ],
+          "a": 1,
+          "e": "Hay que intervenir y avisar."
+        }
+      ]
+    }
+  ]
+}

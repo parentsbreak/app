@@ -1,3 +1,4 @@
+const { CONFIG_GUIA } = require('./rpc-guia');
 // Datos FICTICIOS para los tests. Nada de acá sale de la base real: nombres, teléfonos y
 // cuentas son inventados. Cada test recibe una copia nueva (abrirApp hace structuredClone)
 // y puede pisar cualquier tabla con sus propios datos.
@@ -142,6 +143,8 @@ function datosBase() {
     app_config: [
       { id: 'ninieras_app', valor: { vigencia_dias: 7 }, actualizado_at: '2026-10-01T00:00:00Z' },
       { id: 'pedidos_app', valor: { min_mismo_dia: 15, min_otro_dia: 30, recordatorio_min_antes: 10, aviso_sin_ninera_horas: 3, solo_practica: true }, actualizado_at: '2026-10-01T00:00:00Z' },
+      // La guía (etapa 4, 20261105_guia): plazo, gracia, versión y lo obligatorio, como la migración.
+      { id: 'guia', valor: structuredClone(CONFIG_GUIA), actualizado_at: '2026-11-02T00:00:00Z' },
     ],
     notificaciones_leidas: [],
     notif_push_preferencias: [],

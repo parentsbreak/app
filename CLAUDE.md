@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -350,6 +350,18 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   el cuerpo exacto de la RPC, falla, sin conexión, doble toque, `#temporada` desde un push, sin montos, 390 y
   1280 px). `abrirAppNinera(..., { baseSinMigrar: 'etapa9' })` simula la base sin la migración de la etapa 9
   (solo faltan sus dos RPC; lo de las etapas 2 y 3 anda).
+- `tests/ninera-guia.spec.js` (02/11/2026, etapa 4): la guía en la app de niñeras: tarjeta del inicio (nueva, con plazo, "Seguir",
+  "Ya leíste todo", gracia y vencida, al día), el índice por grupo, "Ya lo leí" (cuerpo exacto, la siguiente, falla, doble toque),
+  las 48 lecciones pintadas sin nada que se ejecute, el repaso (mal, bien, falla), la firma con el dedo (faltas, subida y RPC exactas,
+  falla al subir o al firmar, doble toque, "Borrar"), `#guia` desde un push, base sin migrar 'etapa4', RCP en "Mi perfil" y 390 px.
+  `tests/guia-panel.spec.js`: "Elegir niñeras" (marca sin casilla, `ninera_sin_guia` al mandar, aviso en "Asignar"), "Asignar" de
+  "Pedidos en curso", la marca "Sin guía" de la lista y las filas "Guía" y "RCP presencial" de la ficha (links firmados, escape,
+  base sin migrar, 390 px). El simulador (`tests/support/rpc-guia.js`) tiene la misma regla que `guia_estado`; sin `guia_firmas` en
+  los datos, toda niñera con app tiene la guía firmada (así los tests de antes no cambian): un test de la guía pasa `guia_firmas: []`.
+  `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa4' })`: sin la migración de la guía (la 6 sin migrar también la saca).
+  En la base: `supabase/pruebas/fase1_guia.sql` y el DESHACER con datos en `supabase/pruebas/deshacer/20261105_guia*.sql`.
+  `tests/estatico.spec.js` controla `ninera/guia/contenido.json` (11 módulos, 48 lecciones, `b2` en Bebés, nada que se ejecute) y
+  que las lecciones obligatorias de la base sean las del JSON.
 - `tests/temporada-app-panel.spec.js` (31/10/2026): el panel con la temporada de la app: niñera con app sin paso
   previo ni "Pedirle por WhatsApp", aviso anual, fuente, filtro con Fuera del país / Otro / La Paloma, temporada
   de otra temporada como "sin temporada cargada", ficha, correcciones que conservan o borran lugares, escape de
@@ -705,6 +717,19 @@ reporte.
   "Completa esto una sola vez" sale a todas la primera vez que entran (`perfil_app_en` vacío, Diego
   29/10/2026), aunque ya tengan zona. Al aprobar, la foto anterior del CV se borra de `ninieras-fotos`
   si es de ese bucket y ninguna otra ficha la usa (`borrarFotoAnteriorCv`).
+- Guía obligatoria y firma anual (02/11/2026, etapa 4, decisiones 8): el contenido es `ninera/guia/contenido.json`, armado desde
+  `docs/fase1/guia-original.html` con `node scripts/guia-desde-html.mjs` (si cambia la fuente o la versión, también
+  `app_config 'guia'` por migración: la base tiene la lista de las 20 lecciones obligatorias). El texto de la guía queda en voseo,
+  como el publicado; la app alrededor, en tú. La regla vive en `guia_estado()` (interna): puede recibir pedidos con la firma
+  vigente (menos de 365 días), en la gracia (7 días después), o en el plazo de 7 días desde que activó la app si tenía sittings antes
+  (por id o por nombre); "completa" es lo leído y aprobado después de la última firma (lo que hace falta para firmar). La niñera
+  escribe solo por RPC; la firma va a `ninieras-privado/firmas/<id>/<hoy>.png` (la ruta la arma la base y verifica que la imagen
+  esté) y el certificado a `rcp/<id>/certificado.jpg`. `enviar_pedido_app` rechaza con `ninera_sin_guia` (hint = nombre, detail =
+  motivo), también a la de práctica; "Elegir niñeras" la deja en su bloque con la marca y sin casilla (`datos.guia` de
+  `ordenarSugeridas`); "Asignar" a mano no se frena pero avisa (`htmlAvisoGuiaAsignar`). Avisos: `programar_avisos_guia()` en el cron
+  (claves `guia:<id>:falta`, `:falta:mitad`, `:anual:<fecha de la firma>`). "Tienes hasta el" / "tiene hasta el" (app y ficha) dice el día anterior a `hasta`: vence ese día a la hora en que activó la app o
+  firmó (orquestador, 02/11/2026); la base devuelve el día del vencimiento. Un aviso de error de la app de niñeras no se borra al
+  empezar a guardar: la pantalla subía y un segundo toque caía en "Volver" (lo encontró el test del doble toque).
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -931,7 +956,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha en la rama `claude/fase1-etapa6` (01/11/2026), pendientes su merge y la migración `20261103_eleccion_pedidos` (OK de Diego); etapas 4, 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha en la rama `claude/fase1-guia` (PR #100, 02/11/2026), migración `20261105_guia` aplicada, pendiente el merge; etapas 7, 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -953,6 +978,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 5 (02/11/2026): con la app de niñeras abierta, un pedido nuevo aparece solo al tocar el push o volver a la app (el
   `sw.js` no avisa a la ventana por `postMessage`); sumarlo si hace falta.
 - Etapa 5 (02/11/2026): "Sin avisos" (niñera sin push) no se marca en "Elegir niñeras" todavía.
+- Etapa 4 (02/11/2026): "Ver firma" / "Ver certificado" abren el link después de
+  pedirlo (`window.open` tras un `await`, como los tickets): probar en el iPhone que Safari no lo bloquee. La fila "Guía" de la ficha no
+  se actualiza sola si la niñera firma con la ficha abierta (sin Realtime).
 - Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
   primera sigue en `confirmada` y no recibe ningún aviso de que ya no va.
 - Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y
@@ -980,8 +1008,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Push de una elegida que ya vio sus datos (01/11/2026): no puede mostrarlos (`ninera_mis_pedidos` ya no devuelve su fila; hoy sale el
   texto neutro "Si te eligieron, lo ves en Próximos sittings."). Para mostrarlos, que la lectura la siga devolviendo hasta la fecha o
   llevar el id de la solicitud en la URL (migración).
-- `tests/precio-ninera-familia.spec.js` (31/10/2026): 12 tests de Sittings fallan en local, también sobre `main` (el CI de #91 pasó).
-  Investigar, probablemente dependen de la fecha.
+- `tests/precio-ninera-familia.spec.js` (31/10/2026): los tests de Sittings fallan de a varios, distintos en cada corrida, en local
+  y también sobre `main` limpio (02/11/2026: 8 de 61 en main, 9 en la rama de la etapa 4) y desde el 02/11 también en el CI (4 en
+  el PR #100). No es la fecha: es intermitencia (la casilla "Guardar como precio" todavía oculta al mirarla). Revisar las esperas.
 - Tests intermitentes en el CI (01/11/2026): el alta de niñera con escrituras demoradas (`guardados.spec.js:136` y `:168`,
   `celular-ninera.spec.js:62`) falla a veces, también en una rama de solo docs; en local, `ninera-temporada.spec.js:122`
   con la suite completa. Pasan solos. Revisar las esperas fijas (`waitForTimeout`) de esos tests.

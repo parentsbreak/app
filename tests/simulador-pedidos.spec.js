@@ -112,6 +112,8 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     // Otra práctica para ver el conteo.
     const otra = { ...e.db.ninieras.find(n => n.id === ID.nPractica), id: '30000000-0000-4000-8000-000000000099', nombre: 'Otra Niñera (práctica)' };
     e.db.ninieras.push(otra);
+    // Con la guía firmada (etapa 4), como las de los datos.
+    e.db.guia_firmas.push({ ...e.db.guia_firmas.find(f => f.ninera_id === ID.nPractica), id: 'f9000000-0000-4000-8000-000000000099', ninera_id: otra.id });
     const enviar = (sol, envios) => rpcPanel(page, 'enviar_pedido_app', { p_solicitud_id: sol, p_envios: envios });
     expect(await enviar(SOL_PRACTICA, [envio(ID.nPractica, 1250)])).toEqual({ data: 1, error: null });
     // Mismo pedido, la misma niñera y una nueva: manda solo a la nueva, sin error.
@@ -266,10 +268,12 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     expect(h.find(x => x.ninera_id === ID.nBruno)).toEqual({ ninera_id: ID.nBruno, ninera_clave: null, veces_familia: 0, total: 0, veces_familia_traslado: 0, total_traslado: 1, semana: 0, edades: [], max_chicos: null });
     expect(h).toHaveLength(3);
     const p = Object.fromEntries(r.data.por_ninera.map(x => [x.ninera_id, x]));
-    expect(p[ID.nCarla]).toEqual({ ninera_id: ID.nCarla, no_puedo_seguidos: 2, incidente_familia: true, no_disponible: false });
-    expect(p[ID.nAna]).toEqual({ ninera_id: ID.nAna, no_puedo_seguidos: 1, incidente_familia: true, no_disponible: false });
+    // Etapa 4: la guía de las que tienen app (Carla, con la firma de los datos); null las que no tienen.
+    const conGuia = { guia_puede: true, guia_motivo: null, guia_hasta: null }, sinApp = { guia_puede: null, guia_motivo: null, guia_hasta: null };
+    expect(p[ID.nCarla]).toEqual({ ninera_id: ID.nCarla, no_puedo_seguidos: 2, incidente_familia: true, no_disponible: false, ...conGuia });
+    expect(p[ID.nAna]).toEqual({ ninera_id: ID.nAna, no_puedo_seguidos: 1, incidente_familia: true, no_disponible: false, ...sinApp });
     // Las respuestas del panel no cuentan; el día marcado sí.
-    expect(p[ID.nBruno]).toEqual({ ninera_id: ID.nBruno, no_puedo_seguidos: 0, incidente_familia: false, no_disponible: true });
+    expect(p[ID.nBruno]).toEqual({ ninera_id: ID.nBruno, no_puedo_seguidos: 0, incidente_familia: false, no_disponible: true, ...sinApp });
     expect(r.data.por_ninera).toHaveLength(e.db.ninieras.length);
     verificarLimpio(e);
   });

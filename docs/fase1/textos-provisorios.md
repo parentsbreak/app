@@ -273,3 +273,48 @@ Revisión final (01/11/2026, PROVISORIOS):
 - Panel, línea de respuestas de "Pedidos en curso": se vuelve a decir el plazo, "Pueden 2, no puede 1, falta responder 1. Mandado a 4
   a las 14:05. Responder antes de las 14:35."
 - Nota para las dueñas: la plantilla "perfiles" mezcla "Avísame" (tú) y "preferís" (vos). Decidir con cuál queda, porque la madre lo lee igual.
+
+## Etapa 4: guía obligatoria y firma anual (02/11/2026, esperan a las dueñas)
+
+Pregunta para las dueñas: la guía está en voseo (igual a la publicada: "Tocá", "Llegá") y el resto de la app en tú.
+¿La pasamos a tú? Hoy queda tal cual (Diego y el orquestador, 02/11/2026).
+
+App de niñeras (tú, PROVISORIOS salvo los de textos.md 6):
+- Tarjeta del inicio, nueva o sin plazo: "Guía obligatoria" / "Antes de tu primer sitting. Lee Protocolos, RCP y primeros auxilios y
+  responde el repaso. Hasta que lo termines no te llegarán pedidos." Botón "Empezar" (o "Seguir" si ya leyó algo). (textos.md 6)
+- Con plazo (ya trabajaba): "... Tienes hasta el [dd/mm] para completarla." (textos.md 6; la fecha es el último día completo, el anterior al vencimiento)
+- Todo leído y aprobado, sin firmar: "Ya leíste todo" / "Solo te falta firmar." Botón "Firmar".
+- Pasó el año de la firma, en los 7 días de gracia: "Repasa la guía" / "Hace un año que hiciste Protocolos y RCP. Repásalos y firma de
+  nuevo antes del [dd/mm] para seguir recibiendo pedidos." Botón "Repasar".
+- Vencida la gracia: "Repasa la guía" / "Hace un año que hiciste Protocolos y RCP. Hasta que los repases y firmes de nuevo no te
+  llegarán pedidos."
+- Pie del inicio: "La guía". Índice: "Guía", "Tu guía está al día.", "Obligatorio", "[n] de [m] leídas", "✓ Terminado", "Firmar la
+  guía", "Volver".
+- Módulo: "Hacer el repaso" / "✓ Repaso aprobado (hacerlo de nuevo)", "Volver a la guía". Lección: "Ya lo leí", "Volver a [módulo]".
+- Repaso: "Repaso: [módulo]", "Elige una respuesta en cada pregunta. Para aprobar, todas tienen que estar bien.", "Bien. [explicación]",
+  "No es esa. [explicación]", "Terminar el repaso", "¡Repaso aprobado!".
+- Firma: "Firma de la guía", "Una vez por año confirmas que leíste Protocolos y RCP.", la declaración "Leí y entendí la guía de
+  Protocolos y RCP y primeros auxilios de Parents' Break." (decisiones 4.7), "Tu nombre completo", "Firma con el dedo", "Borrar la
+  firma", "Firmar". Faltas: "Marca la casilla para confirmar que leíste la guía.", "Escribe tu nombre completo.", "Firma con el dedo en
+  el recuadro.", "Te falta terminar Protocolos y RCP antes de firmar."
+- Al firmar: "¡Listo! Ya puedes recibir pedidos." / "Esta guía no reemplaza un curso presencial de RCP: si hiciste uno, cárgalo en tu
+  perfil." Botones "Ir a Mi perfil" y "Volver al inicio". (textos.md 6)
+- Fallas: "No pudimos abrir la guía. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos guardarlo. Revisa tu conexión a
+  internet y vuelve a intentar.", "No pudimos subir tu firma. Revisa tu conexión a internet y vuelve a intentar."
+- Mi perfil: "¿Hiciste un curso presencial de RCP?" Sí / No, "Foto del certificado (opcional)", "Lo ve solo el equipo de Parents'
+  Break." o "Ya cargaste tu certificado. Si eliges otra foto, reemplaza la anterior." Fallas: "Guardamos tu perfil. Lo del curso de RCP no
+  se guardó: revisa tu conexión a internet y vuelve a intentar." y "Guardamos tu perfil. La foto del certificado no se subió: revisa tu
+  conexión a internet y vuelve a intentar."
+- Push (textos.md 1): "Te falta la guía para empezar" / "Lee Protocolos y RCP antes de tu primer sitting." (también a mitad del plazo de
+  las que ya trabajaban) y "Repasa la guía" / "Hace un año que hiciste Protocolos y RCP. Repásalos para seguir recibiendo pedidos."
+
+Panel (voseo, PROVISORIOS):
+- "Elegir niñeras": marca "Le falta la guía" / "Firma vencida", sin casilla. Al mandar: "[niñera] no puede recibir pedidos por la app
+  (le falta la guía): destildala."
+- "Asignar": "[niñera] no recibe pedidos por la app: le falta la guía. La podés asignar igual."
+- Lista de Niñeras: marca "Sin guía".
+- Ficha, fila "Guía": "Completa, firmada el [dd/mm/aaaa] (v2026.10)." / "Le falta la guía: tiene hasta el [dd/mm] (leyó [n] de 20
+  lecciones y aprobó [n] de 2 repasos)." / "Le falta la guía: no recibe pedidos hasta terminarla (...)." / "Pasó el año de la firma:
+  tiene hasta el [dd/mm] para repasarla y firmar de nuevo (...)." / "Firma vencida: no recibe pedidos hasta que la repase y firme de
+  nuevo (...)." Con "leyó todo, le falta firmar" si ya terminó. Botón "Ver firma". Fila "RCP presencial": Sí (con "Ver certificado") /
+  No / Sin cargar.

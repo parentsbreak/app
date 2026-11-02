@@ -933,6 +933,8 @@ function onAgendaNineraSel(pagoSugerido){
   const quien = document.getElementById('agenda-asignar-quien');
   if(quien) quien.textContent = sel ? `Asignar a ${sel.dataset.nombre}` : '';
   if(aviso) aviso.innerHTML = wrap.dataset.preciosNoLeidos && sel ? `<div class="warnbox">${escaparHtml(avisoPreciosNoLeidosTarifa(sel.dataset.nombre))}</div>` : '';
+  // "Elegir niñeras" (pedidos.js): si a la elegida le falta la guía, lo dice (etapa 4).
+  avisoGuiaElegida(sel);
 }
 async function guardarAsignacionDirecta(solicitudId){
   const sel = document.querySelector('input[name="agenda-asignar-ninera"]:checked');

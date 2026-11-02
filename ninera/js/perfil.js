@@ -9,6 +9,8 @@
 let perfilNineraActual = null;
 let fotoPerfilElegida = null;
 let fotoPerfilPrevia = null;
+// La foto del certificado de RCP elegida (etapa 4): se sube recién al guardar, como la foto.
+let certificadoRcpElegido = null;
 // Base sin la migración de la etapa 2 (las RPC dan 404 PGRST202): el inicio no muestra "Mi perfil".
 let perfilNineraSinMigrar = false;
 
@@ -20,6 +22,8 @@ const FOTO_TIPO_INVALIDO = 'La foto tiene que ser JPG o PNG.';
 // La base rechaza más de 10 cuentas (demasiadas_cuentas, 27/10/2026): no es un problema de conexión.
 const DEMASIADAS_CUENTAS = 'Puedes cargar hasta 10 cuentas.';
 const FALLA_ABRIR_PERFIL = 'No pudimos abrir tu perfil. Revisa tu conexión a internet y vuelve a intentar.';
+const FALLA_RCP_PERFIL = 'Guardamos tu perfil. Lo del curso de RCP no se guardó: revisa tu conexión a internet y vuelve a intentar.';
+const FALLA_SUBIR_CERTIFICADO = 'Guardamos tu perfil. La foto del certificado no se subió: revisa tu conexión a internet y vuelve a intentar.';
 
 // { perfil, sinMigrar }. Sin la migración, la app sigue como en la etapa 1; cualquier otro error
 // (sin conexión) lo decide quien llama.
@@ -69,6 +73,7 @@ async function pantallaPerfil(modo, perfil){
   }
   perfilNineraActual = perfil;
   limpiarFotoPerfil();
+  certificadoRcpElegido = null;
   marcarRuta('#perfil');
   // Sin tildes ni mayúsculas: una zona cargada a mano en el panel ("pocitos") igual sale marcada.
   const marcadas = new Set(String(perfil.zona || '').split('/').map(z => normaliza(z.trim())).filter(Boolean));
@@ -103,11 +108,65 @@ async function pantallaPerfil(modo, perfil){
       <p class="helper">La ve el equipo y, si la aprueban, pasa a tu perfil.</p>
       ${enviada}
     </div>
+    ${modo === 'editar' && 'rcp_presencial' in perfil ? htmlRcpPerfil(perfil) : ''}
     <p class="error-form" id="perfil-error" role="alert"></p>
     <button class="btn primary ancho" id="perfil-guardar" onclick="conGuardado(this, ()=>guardarPerfilNinera(${argJs(modo)}))">Guardar</button>
     ${modo === 'editar' ? '<button type="button" class="link-boton" onclick="renderInicio()">Volver</button>' : ''}
   </main>`);
   mostrarAvisoAutoPerfil();
+}
+
+// RCP presencial (etapa 4, decisiones 8): Sí / No y, si lo hizo, la foto del certificado (opcional). Solo en
+// "Mi perfil" (la primera vez no: "Completa esto una sola vez" queda igual) y con la base ya migrada (el perfil
+// trae rcp_presencial).
+function htmlRcpPerfil(perfil){
+  const marca = v => perfil.rcp_presencial === v ? ' checked' : '';
+  return `<fieldset class="grupo" id="perfil-rcp">
+      <legend>¿Hiciste un curso presencial de RCP?</legend>
+      <label class="radio"><input type="radio" name="perfil-rcp" value="si"${marca(true)} onchange="mostrarCertificadoRcp()"> Sí</label>
+      <label class="radio"><input type="radio" name="perfil-rcp" value="no"${marca(false)} onchange="mostrarCertificadoRcp()"> No</label>
+      <div class="field" id="perfil-rcp-certificado"${perfil.rcp_presencial === true ? '' : ' hidden'}>
+        <label for="perfil-certificado">Foto del certificado (opcional)</label>
+        <input type="file" id="perfil-certificado" accept="image/*" onchange="elegirCertificadoRcp(this)">
+        <p class="helper">${perfil.rcp_certificado ? 'Ya cargaste tu certificado. Si eliges otra foto, reemplaza la anterior.' : 'Lo ve solo el equipo de Parents\' Break.'}</p>
+      </div>
+    </fieldset>`;
+}
+function mostrarCertificadoRcp(){
+  const si = document.querySelector('input[name="perfil-rcp"]:checked')?.value === 'si';
+  const caja = document.getElementById('perfil-rcp-certificado');
+  if(caja) caja.hidden = !si;
+}
+function elegirCertificadoRcp(input){
+  certificadoRcpElegido = (input.files && input.files[0]) || null;
+}
+// Después del perfil: sube el certificado (si eligió uno) y guarda el RCP. Devuelve el aviso si algo falló.
+async function guardarRcpPerfil(perfil){
+  const marcado = document.querySelector('input[name="perfil-rcp"]:checked');
+  if(!marcado) return null; // no contestó: no se toca
+  const presencial = marcado.value === 'si';
+  let conCertificado = presencial && !!perfil.rcp_certificado;
+  if(presencial && certificadoRcpElegido){
+    const archivo = await achicarFoto(certificadoRcpElegido, 1600, 0.8);
+    if(!/^image\/(jpeg|png|webp)$/.test(archivo.type || '')) return FOTO_TIPO_INVALIDO;
+    try{
+      const { error } = await sbn.storage.from('ninieras-privado').upload(`rcp/${perfil.id}/certificado.jpg`, archivo, { upsert: true, contentType: archivo.type });
+      if(error) throw error;
+    }catch(e){
+      console.error('[perfil] al subir el certificado', e);
+      return FALLA_SUBIR_CERTIFICADO;
+    }
+    conCertificado = true;
+  }
+  try{
+    const { error } = await sbn.rpc('ninera_guardar_rcp', { p_presencial: presencial, p_con_certificado: conCertificado });
+    if(error) throw error;
+  }catch(e){
+    console.error('[perfil] al guardar el RCP', e);
+    return FALLA_RCP_PERFIL;
+  }
+  certificadoRcpElegido = null;
+  return null;
 }
 
 // Carsittings o Ambos: los datos del auto llegan en la etapa 10 (hoy no se cargan acá).
@@ -181,6 +240,11 @@ async function guardarPerfilNinera(modo){
     return;
   }
   limpiarFotoPerfil();
+  // El RCP (solo en "Mi perfil"): si falla, el perfil ya quedó; se avisa y se queda para reintentar.
+  if(modo === 'editar' && document.getElementById('perfil-rcp')){
+    const fallo = await guardarRcpPerfil(perfil);
+    if(fallo){ aviso.textContent = fallo; return; }
+  }
   toast('¡Listo! Tu perfil quedó guardado.');
   if(modo === 'primera') await abrirPrimeraPantallaNinera();
   else await renderInicio();

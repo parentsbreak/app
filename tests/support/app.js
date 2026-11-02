@@ -15,10 +15,12 @@ const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
 const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
+const { RPC_ETAPA_4, RPC_ETAPA_4_ADMIN, TABLAS_ETAPA_4, COLUMNAS_NINIERAS_ETAPA_4, completarFirmasPorDefecto, completarColumnasGuia, guiaEstado, rpcGuiaNinera, rpcGuiaAdmin } = require('./rpc-guia');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
 const COLUMNAS_CV = { ninieras: ['cv_datos', 'cv_generado_con'] };
+const RPC_LECTURA_GUIA = ['guia_estado_ninieras', 'ninera_puede_recibir_pedidos', 'ninera_estado_guia'];
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const USUARIO = {
@@ -199,11 +201,19 @@ async function abrirApp(page, opciones = {}) {
   const { datos = {}, sesion = true, ahora = '2026-10-04T12:00:00-03:00', ruta = '/', baseSinMigrar = false } = opciones;
   const estado = crearEstado(datos);
   const sinMigrarTodo = baseSinMigrar === true;
-  // Los pedidos de la etapa 5: las RPC del panel y de la niñera (la admin las llama y recibe no_autorizada).
-  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true }));
-  // La etapa 6 es posterior a la 5: sin la 5 tampoco está la 6.
+  // La etapa 6 es posterior a la 5: sin la 5 tampoco está la 6. La guía (etapa 4, 20261105) es posterior
+  // a las dos: sin la 6 tampoco está la guía; 'etapa4' es solo sin la guía.
   const sinEtapa5 = sinMigrarTodo || baseSinMigrar === 'etapa5';
   const sinEtapa6 = sinEtapa5 || baseSinMigrar === 'etapa6';
+  const sinEtapa4 = sinEtapa6 || baseSinMigrar === 'etapa4';
+  completarFirmasPorDefecto(estado.db);
+  const guia = sinEtapa4 ? null : id => guiaEstado(estado.db, id, ahora);
+  // Los pedidos de la etapa 5: las RPC del panel y de la niñera (la admin las llama y recibe no_autorizada).
+  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true, guia }));
+  Object.assign(estado.rpc, rpcGuiaAdmin(estado.db, ahora, { admin: true }));
+  if (sinEtapa4) RPC_ETAPA_4_ADMIN.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+  if (sinEtapa4) (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_4.forEach(c => { delete n[c]; }));
+  else completarColumnasGuia(estado.db);
   Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora, { sinEtapa6 })).filter(([n]) => RPC_ETAPA_5.includes(n) || RPC_ETAPA_6.includes(n))));
   if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
@@ -212,7 +222,8 @@ async function abrirApp(page, opciones = {}) {
   const sinCv = sinMigrarTodo || baseSinMigrar === 'cv';
   if (sinCv) (estado.db.ninieras || []).forEach(n => { delete n.cv_datos; delete n.cv_generado_con; });
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinCv, tablasSinMigrar: baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : [] });
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinCv,
+    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && baseSinMigrar !== 'etapa4' ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []), ...(sinEtapa4 ? TABLAS_ETAPA_4 : [])] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -251,9 +262,17 @@ async function abrirAppNinera(page, opciones = {}) {
   // 'etapa6' (01/11/2026): solo falta la de elegir la niñera (la 6 es posterior a la 5).
   const sinEtapa5 = baseSinMigrar === true || baseSinMigrar === 'etapa3' || baseSinMigrar === 'etapa5';
   const sinEtapa6 = sinEtapa5 || baseSinMigrar === 'etapa6';
-  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6 }));
+  // La guía (etapa 4, 20261105): posterior a la 6; 'etapa4' es solo sin la guía.
+  const sinEtapa4 = sinEtapa6 || baseSinMigrar === 'etapa4';
+  completarFirmasPorDefecto(estado.db);
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4 }));
   // Una niñera no es admin: enviar_pedido_app y sugeridas_datos le dan no_autorizada / nada.
   Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false }));
+  Object.assign(estado.rpc, rpcGuiaNinera(estado.db, ninera, ahora || undefined), rpcGuiaAdmin(estado.db, ahora || undefined, { admin: false, nineraId: ninera }));
+  if (sinEtapa4) {
+    [...RPC_ETAPA_4, ...RPC_ETAPA_4_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
+    (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_4.forEach(c => { delete n[c]; }));
+  } else completarColumnasGuia(estado.db);
   if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (baseSinMigrar === true) {
@@ -270,7 +289,7 @@ async function abrirAppNinera(page, opciones = {}) {
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, sinEtapa5, sinEtapa6,
+    sesionNinera: ninera, sinEtapa5, sinEtapa6, sinEtapa4,
     tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : [])] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
@@ -330,7 +349,7 @@ function crearEstado(datos) {
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinEtapa4 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -430,6 +449,23 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       // Con el permiso CORS de Supabase (CV automático, 01/11/2026): sin eso la foto no se puede dibujar
       // en un lienzo que después se exporta. estado.imagenStorage (base64) cambia la imagen que devuelve.
       if (metodo === 'GET') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: Buffer.from(estado.imagenStorage || PNG_1X1, 'base64') });
+      // La niñera solo sube a sus rutas exactas de ninieras-privado (políticas de las etapas 2 y 4: la foto
+      // propuesta, la firma del día y el certificado de RCP); lo que sube queda en db.storage_ninieras_privado
+      // (ninera_firmar_guia y ninera_guardar_rcp miran que esté).
+      const privado = /^\/storage\/v1\/object\/ninieras-privado\/(.+)$/.exec(url.pathname);
+      if (privado && ['POST', 'PUT'].includes(metodo)) {
+        const ruta = decodeURIComponent(privado[1]);
+        if (sesionNinera) {
+          const hoyMvd = new Date(new Date(ahora || Date.now()).getTime() - 3 * 3600000).toISOString().slice(0, 10);
+          const permitidas = [`fotos/${sesionNinera}/propuesta.jpg`, `firmas/${sesionNinera}/${hoyMvd}.png`, `rcp/${sesionNinera}/certificado.jpg`];
+          if (!permitidas.includes(ruta)) {
+            estado.rechazadas = (estado.rechazadas || 0) + 1;
+            return route.fulfill({ status: 403, json: { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' } });
+          }
+        }
+        const subidas = (db.storage_ninieras_privado = db.storage_ninieras_privado || []);
+        if (!subidas.includes(ruta)) subidas.push(ruta);
+      }
       if (estado.demoraEscrituras) await new Promise(r => setTimeout(r, estado.demoraEscrituras));
       // bytes: lo subido tal cual (un PNG dentro del multipart de supabase-js), para mirar la imagen.
       estado.escrituras.push({ tabla: url.pathname, metodo, params: url.search, cuerpo: req.postData(), bytes: req.postDataBuffer() });
@@ -468,7 +504,9 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         return route.fulfill({ status: falla.status || 500, json: { code: falla.code || 'XX000', message: falla.message || 'falla simulada' } });
       }
       if (estado.demoraEscrituras) await new Promise(r => setTimeout(r, estado.demoraEscrituras));
-      estado.escrituras.push({ tabla, metodo, cuerpo });
+      // Las RPC de la guía que solo leen (etapa 4) van aparte: no son escrituras, y la lista y la ficha de
+      // Niñeras las piden al abrir (los tests que miran que "no se guardó nada" no las tienen que ver).
+      (RPC_LECTURA_GUIA.includes(tabla.slice(4)) ? (estado.lecturasRpc = estado.lecturasRpc || []) : estado.escrituras).push({ tabla, metodo, cuerpo });
       // Con la base sin migrar, una función nueva no existe (mismo error que Supabase).
       if (baseSinMigrar) return route.fulfill({ status: 404, json: { code: 'PGRST202', message: `Could not find the function public.${tabla.slice(4)} in the schema cache` } });
       // estado.rpc[nombre] = (cuerpo, db) => resultado simula lo que hace la función en la base. Si
@@ -478,7 +516,7 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       try { resultado = simular ? await simular(cuerpo, db) : []; }
       catch (e) {
         if (!e || !e.rpc) throw e;
-        return route.fulfill({ status: e.rpc.status, json: { code: e.rpc.code, details: null, hint: e.rpc.hint ?? null, message: e.rpc.message } });
+        return route.fulfill({ status: e.rpc.status, json: { code: e.rpc.code, details: e.rpc.details ?? null, hint: e.rpc.hint ?? null, message: e.rpc.message } });
       }
       return route.fulfill({ json: resultado });
     }
@@ -490,7 +528,8 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     // 42703 (select) y escribirlas PGRST204, como Supabase.
     // Etapa 6 (01/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
     // CV automático (01/11/2026): sin 20261104_cv_automatico, ninieras no tiene cv_datos ni cv_generado_con.
-    const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : []), ...(sinCv ? COLUMNAS_CV[tabla] || [] : [])];
+    const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : []), ...(sinCv ? COLUMNAS_CV[tabla] || [] : []),
+      ...(sinEtapa4 && tabla === 'ninieras' ? COLUMNAS_NINIERAS_ETAPA_4 : [])];
     if (columnasNuevas.length) {
       if (metodo === 'GET' || metodo === 'HEAD') {
         const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(url.searchParams.get('select') || ''));

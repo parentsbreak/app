@@ -941,7 +941,17 @@ pueden romper otros tests (si alguno cuenta filas, se ajusta con el porqué).
 
 ## Etapa 4: guía obligatoria y firma anual
 
-Rama `claude/fase1-guia`. Migración `AAAAMMDD_guia.sql`. Bucket `ninieras-privado`.
+Rama `claude/fase1-guia`. Migración `20261105_guia.sql` (aplicada el 02/11/2026). Bucket `ninieras-privado` (ya existía).
+
+**Cómo quedó (02/11/2026, PR #100).** La guía de `guia-original.html` es idéntica a la publicada: 14 módulos menos inicio,
+ficha y recibidas = 11; 48 lecciones (no 49/50); `b2` en Bebés; 20 lecciones obligatorias (Protocolos 7, RCP 13). El texto
+de la guía queda en voseo, igual al publicado (pregunta para las dueñas en `textos-provisorios.md`); la app alrededor, en tú.
+Sin los juegos ni su "Para jugar acá". Decisiones: una versión nueva no obliga a rehacerla antes del año; los repasos se
+corrigen en el celular; la de práctica pasa por el freno; "Asignar" a mano no se frena pero avisa; marca "Sin guía" en la
+lista de Niñeras. Las etapas 5 y 6 ya estaban: `enviar_pedido_app` rechaza con `ninera_sin_guia` (hint = nombre, detail =
+motivo), `sugeridas_datos` devuelve `guia_puede` / `guia_motivo` / `guia_hasta` y "Elegir niñeras" deja a la que no puede en
+su lugar, con la marca, sin casilla (no en "No se les puede mandar"). La ruta de la firma es una por día
+(`firmas/<id>/<AAAA-MM-DD>.png`) y la arma la base. RCP presencial solo en "Mi perfil" (no en la primera vez).
 
 ### Tarea 4.1: `scripts/guia-desde-html.mjs` y `ninera/guia/contenido.json`
 - Script sin dependencias (regex como el análisis del 25/10/2026): módulos `<section class="module">`
@@ -1096,6 +1106,10 @@ Después de la revisión del plan con un lector fresco (31/10/2026):
    muestra el inicio como hoy. Tests en 5.5, 5.6 y 5.7.
 
 ### Para la sesión de prueba en un iPhone real (al final de la fase)
+- Al empezar, Diego completa la guía con "Niñera (práctica)" (etapa 4, 02/11/2026): desde que se aplicó `20261105_guia`
+  queda frenada para los pedidos de práctica. Leer Protocolos y RCP, los dos repasos y la firma con el dedo (que el
+  trazo se vea bien y la página no se mueva al firmar); después, en el panel, la fila "Guía" con "Ver firma", y el
+  RCP presencial con la foto del certificado desde "Mi perfil".
 - El push del pedido con cuatro renglones (¿se ven los saltos de línea?) y tocarlo con la app instalada abre
   `#pedido/<id>`.
 - Los botones de días que no puede con el dedo (área de toque) y el teclado de "Otro motivo".
@@ -1112,8 +1126,9 @@ pedido = { tipo: 'sitting'|'traslado', zona: string|null, fecha: 'AAAA-MM-DD', e
 datos  = { ninieras: [{id, nombre, tipo, zona, activa, user_id}],
            historialFamilia, historialTotal, sittingsSemana, rechazosSeguidos: {[id]: number},
            edadesCuidadas: {[id]: number[]}, maxChicos: {[id]: number},
-           noDisponibles, incidentesFamilia, preferirOtros, ocupadas, sinGuia, excluirIds: uuid[],
-           fueraTemporada: {[id]: string} }   // motivo, por ejemplo "En Punta del Este esa quincena"
+           noDisponibles, incidentesFamilia, preferirOtros, ocupadas, excluirIds: uuid[],
+           fueraTemporada: {[id]: string},    // motivo, por ejemplo "En Punta del Este esa quincena"
+           guia: {[id]: 'sin_guia'|'firma_vencida'} }  // etapa 4: queda en su bloque, con la marca y enviable false
 Item        = { ninera, bloque: 1|2|3, baja: boolean, bajas: string[], porque: string, conApp: boolean,
                 enviable: boolean, pedida: boolean, vecesFamilia, total, edad, varios }
 Descartada  = { ninera, motivo: string }

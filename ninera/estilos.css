@@ -244,3 +244,50 @@ button.aviso-item:hover{border-color:var(--accent);}
 .dia-op:hover{border-color:var(--accent);}
 .dia-op[aria-pressed="true"]{background:#666EAE;border-color:#666EAE;color:#fff;}
 .pantalla-pedido #dias-error:empty,.pantalla-pedido #motivo-error:empty{display:none;}
+
+/* ---- Guía (etapa 4, 02/11/2026) ---- */
+.tarjeta-guia{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:18px;}
+.tarjeta-guia h2{font-size:20px;margin:0 0 4px;}
+.tarjeta-guia p{font-size:15px;margin:4px 0 12px;line-height:1.45;}
+.guia-estado{background:var(--accent-soft);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:15px;line-height:1.45;}
+.guia-estado p{margin:0;}
+.guia-grupo{margin:18px 0;}
+.guia-grupo h2{font-size:17px;margin:0 0 8px;}
+.guia-modulo,.guia-leccion-fila{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:56px;text-align:left;padding:12px 14px;margin-bottom:8px;background:var(--paper);border:1px solid var(--line);border-radius:12px;font:15px 'Inter',sans-serif;color:var(--ink);cursor:pointer;}
+.guia-modulo-nombre{font-weight:700;}
+.guia-modulo-detalle,.guia-modulo-avance{font-size:13px;color:var(--ink-soft);}
+.guia-obligatorio{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--clay-soft);color:var(--clay-text);font-size:12px;font-weight:600;}
+.guia-leccion-fila{flex-direction:row;align-items:center;gap:12px;}
+.guia-leccion-fila small{display:block;font-size:13px;color:var(--ink-soft);margin-top:2px;}
+.guia-leccion-num{flex:0 0 28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;}
+/* El HTML de la lección (el de la guía original). */
+.guia-leccion{display:flex;flex-direction:column;gap:14px;font-size:16px;line-height:1.5;margin:8px 0 18px;overflow-wrap:anywhere;}
+.guia-leccion h3{font-size:16px;margin:6px 0 0;}
+.guia-leccion p{margin:0;}
+.guia-leccion ul,.guia-leccion ol{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;}
+.guia-leccion .key{background:var(--clay-soft);border-radius:10px;padding:12px 14px;}
+.guia-leccion .key b{color:var(--clay-text);}
+.guia-leccion .alarm{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:6px;padding:12px 14px;}
+.guia-leccion .alarm b{color:#7A5A16;}
+.guia-leccion .table{overflow-x:auto;}
+.guia-leccion table{border-collapse:collapse;font-size:14px;}
+.guia-leccion td,.guia-leccion th{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;}
+.guia-leccion .n{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.guia-leccion .src{font-size:13px;color:var(--ink-soft);}
+.guia-leccion .src a{color:var(--ink-soft);}
+.guia-leccion .emerg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+.guia-leccion .num{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;}
+.guia-leccion .num b{font-size:22px;color:var(--clay-text);user-select:all;}
+.guia-leccion .num small{color:var(--ink-soft);font-size:13px;}
+/* Repaso */
+.guia-pregunta{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px;background:var(--paper);}
+.guia-pregunta legend{font-weight:700;font-size:16px;padding:0 4px;line-height:1.4;}
+.guia-opcion{display:block;width:100%;min-height:48px;text-align:left;margin:8px 0 0;padding:10px 12px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font:15px 'Inter',sans-serif;color:var(--ink);cursor:pointer;}
+.guia-opcion.bien{background:var(--good-soft);border-color:var(--good);}
+.guia-opcion.mal{background:var(--bad-soft);border-color:var(--bad);}
+.guia-explicacion{margin:8px 0 0;font-size:14px;line-height:1.45;}
+.guia-explicacion.bien{color:var(--good);}
+.guia-explicacion.mal{color:var(--bad);}
+/* Firma */
+.guia-declaracion{align-items:flex-start;line-height:1.45;margin:8px 0 14px;}
+.firma-lienzo{display:block;width:100%;height:180px;border:1px dashed var(--ink-soft);border-radius:10px;background:#fff;touch-action:none;}
