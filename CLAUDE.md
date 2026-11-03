@@ -1143,9 +1143,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - `tests/precio-ninera-familia.spec.js` (31/10/2026): los tests de Sittings fallan de a varios, distintos en cada corrida, en local
   y también sobre `main` limpio (02/11/2026: 8 de 61 en main, 9 en la rama de la etapa 4) y desde el 02/11 también en el CI (4 en
   el PR #100). No es la fecha: es intermitencia (la casilla "Guardar como precio" todavía oculta al mirarla). Revisar las esperas.
-- Tests intermitentes en el CI (01/11/2026): el alta de niñera con escrituras demoradas (`guardados.spec.js:136` y `:168`,
-  `celular-ninera.spec.js:62`) falla a veces, también en una rama de solo docs; en local, `ninera-temporada.spec.js:122`
-  con la suite completa. Pasan solos. Revisar las esperas fijas (`waitForTimeout`) de esos tests.
+- Test intermitente (01/11/2026): en local, `ninera-temporada.spec.js:122` con la suite completa; pasa solo. Revisar sus esperas
+  fijas (`waitForTimeout`). (El del alta de niñera en el CI era el foco a los 30 ms del modal; arreglado el 03/11/2026.)
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.

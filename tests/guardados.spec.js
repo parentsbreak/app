@@ -68,6 +68,8 @@ const FORMULARIOS = [
     llenar: async page => {
       await irAModulo(page, 'ninieras');
       await page.locator('button[onclick^="abrirModalNuevaNinera"]').click();
+      // El modal pone el foco en el nombre a los 30 ms: si se escribe antes, el celular puede terminar en el nombre (03/11/2026, CI).
+      await expect(page.locator('#nn-nombre')).toBeFocused();
       await page.fill('#nn-nombre', 'Niñera Doble Toque');
       await page.fill('#nn-telefono', '099 123 456');
     },
