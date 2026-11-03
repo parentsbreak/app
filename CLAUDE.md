@@ -1050,8 +1050,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) hecha, mergeada y en producción (PR #103); etapa 11 (pedidos de traslado por la app) en curso en la
-rama `claude/fase1-traslados` (migración `20261109_traslados_app`, espera el OK; `decisiones.md` 6.9). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) hecha, mergeada y en producción (PR #103); etapa 11 (pedidos de traslado por la app) hecha, mergeada y en
+producción (PR #104, 03/11/2026: migración `20261109_traslados_app` aplicada y `pedido-whatsapp` versión 6 publicada; `decisiones.md` 6.9). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1089,9 +1089,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
-- Etapa 11 (03/11/2026): `pedido-whatsapp` con el origen, el destino y la zona de destino está en el repo; la publica el orquestador
-  (hasta entonces el ticket no los trae y la ruta se precarga con lo de la familia). "Calcular km con el mapa" (TomTom) no está simulado en
-  los tests: probarlo en el iPhone real. La ruta no guarda borrador.
+- Etapa 11 (03/11/2026): "Calcular km con el mapa" (TomTom) no está simulado en los tests: probarlo en el iPhone real. La ruta no guarda
+  borrador.
 - Etapa 11 (03/11/2026, orquestador): la tarjeta del día y el cierre de los traslados (llegó, dejó a los chicos, peajes como gasto).
   Hoy `ninera_mi_dia`, `ninera_cerrar_sitting` y los avisos de "no marcó que llegó" y del cierre son solo de sittings.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel
