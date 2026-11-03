@@ -44,8 +44,8 @@ function madreNombreInicial(nombre) {
   if (p.length === 1) return p[0];
   return `${p[0]} ${Array.from(p[p.length - 1])[0]}.`;
 }
-// chicos_texto(): "2 chicos (3 y 5 años)" desde hijos_familia; sin hijos, familias.ninos recortado a
-// 80; sin nada, null.
+// chicos_texto(): "2 chicos (3 y 5 años)" desde hijos_familia (con fecha, los años por mes calendario); sin
+// hijos, familias.ninos recortado a 80; sin nada, null.
 function chicosTexto(db, familiaId, hoy) {
   const hijos = (db.hijos_familia || []).filter(h => familiaId && h.familia_id === familiaId)
     .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
@@ -57,7 +57,8 @@ function chicosTexto(db, familiaId, hoy) {
   }
   const n = hijos.length;
   const edades = hijos.map(h => {
-    if (h.fecha_nacimiento) return anosEntre(h.fecha_nacimiento, hoy);
+    // Etapa 12: por mes calendario (20261111_guia_sitting), como edades_meses.
+    if (h.fecha_nacimiento) return Math.trunc(mesesCalendario(hoy, h.fecha_nacimiento) / 12);
     if (h.edad_declarada != null) return h.edad_declarada + Math.max(0, h.edad_declarada_en ? anosEntre(h.edad_declarada_en, hoy) : 0);
     return null;
   }).filter(x => x !== null);

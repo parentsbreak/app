@@ -10,7 +10,9 @@ const { test, expect } = require('@playwright/test');
 const { abrirAppNinera, verificarLimpio } = require('./support/app');
 const { ID, datosBase } = require('./support/datos');
 
-const RUIDO = { ignorar: [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed to fetch/, /\[para este sitting\]|\[ninera_mis_sittings\]/] };
+const RUIDO = { ignorar: [/status of [45]\d\d/, /Failed to load resource|ERR_FAILED|Failed to fetch/] };
+// Solo en los tests de fallas: el error que la pantalla anota a propósito.
+const RUIDO_FALLAS = { ignorar: [...RUIDO.ignorar, /\[para este sitting\]|\[ninera_mis_sittings\]|\[guía\]/] };
 const SID = '70000000-0000-4000-8000-000000000005';
 const SID_NOVIEMBRE = '70000000-0000-4000-8000-0000000000d2';
 const TRASLADO = '70000000-0000-4000-8000-0000000000d1';
@@ -128,11 +130,11 @@ test.describe('Para este sitting', () => {
   });
 
   test('los cortes de edad: recién nacido, bebé, edad cargada a mano en 0, toddler y preadolescente', async ({ page }) => {
-    // Octubre de 2026: 2 meses (Recién nacidos), 3 meses (Bebés), 0 años cargado a mano (los dos), 23 meses (Toddlers)
+    // Octubre de 2026: 2 meses (Recién nacidos), 4 meses (Bebés), 0 años cargado a mano (los dos), 23 meses (Toddlers)
     // y 13 años cargados a mano (Preadolescentes).
     const e = await abrir(page, { hijos: [
       hijo('21000000-0000-4000-8000-0000000000a1', { fecha_nacimiento: '2026-08-31', orden: 0 }),
-      hijo('21000000-0000-4000-8000-0000000000a2', { fecha_nacimiento: '2026-07-01', orden: 1 }),
+      hijo('21000000-0000-4000-8000-0000000000a2', { fecha_nacimiento: '2026-06-01', orden: 1 }),
       hijo('21000000-0000-4000-8000-0000000000a3', { edad_declarada: 0, edad_declarada_en: '2026-09-01', orden: 2 }),
       hijo('21000000-0000-4000-8000-0000000000a4', { fecha_nacimiento: '2024-11-30', orden: 3 }),
       hijo('21000000-0000-4000-8000-0000000000a5', { edad_declarada: 13, edad_declarada_en: '2026-09-01', orden: 4 }),
@@ -140,7 +142,7 @@ test.describe('Para este sitting', () => {
     await abrirDesdeLaTarjeta(page);
     await expect(bloques(page)).toHaveText(['Recién nacidos', 'Bebés', 'Toddlers', 'Preadolescentes']);
     await expect(page.locator('[data-modulo="recien"] .helper')).toHaveText('Para los chicos de 2 meses y menos de 1 año');
-    await expect(page.locator('[data-modulo="bebes"] .helper')).toHaveText('Para los chicos de 3 meses y menos de 1 año');
+    await expect(page.locator('[data-modulo="bebes"] .helper')).toHaveText('Para los chicos de 4 meses y menos de 1 año');
     await expect(page.locator('[data-modulo="toddlers"] .helper')).toHaveText('Para el chico de 23 meses');
     await expect(page.locator('[data-modulo="preteens"] .helper')).toHaveText('Para el chico de 13 años');
     // 1 año (el de 23 meses) no tiene juegos; 13, ninguno de los del kit pasa de 12: sin el bloque.
@@ -151,24 +153,26 @@ test.describe('Para este sitting', () => {
   test('las reglas puras: cortes por meses y por años, juegos por rango y solo las tres necesidades', async ({ page }) => {
     await abrir(page);
     const r = await page.evaluate(() => ({
-      meses: [0, 2, 3, 11, 12, 35, 36, 59, 60, 107, 108, 200].map(m => modulosDeChico({ meses: m, anios: Math.floor(m / 12) })[0]),
+      meses: [0, 2, 3, 4, 11, 12, 13, 35, 36, 59, 60, 107, 108, 200].map(m => modulosDeChico({ meses: m, anios: Math.floor(m / 12) }).join('+')),
       anios: [0, 1, 2, 3, 4, 5, 8, 9, 15].map(a => modulosDeChico({ meses: null, anios: a }).join('+')),
       juegos2: juegosPorEdad({ edades_meses: [24] }),
       juegos11: juegosPorEdad({ edades_anios: [11] }),
       juegos13: juegosPorEdad({ edades_anios: [13] }),
       nada: juegosPorEdad({}),
       necesidades: necesidadesSitting({ necesidades: ['<b>otra</b>', 'discapacidad', 'autismo', 'autismo'] }),
-      textos: [textoChicosDelModulo([{ meses: 1, anios: 0 }]), textoChicosDelModulo([{ meses: null, anios: 4 }, { meses: 50, anios: 4 }]),
+      textos: [textoChicosDelModulo([{ meses: 0, anios: 0 }]), textoChicosDelModulo([{ meses: 1, anios: 0 }]), textoChicosDelModulo([{ meses: null, anios: 4 }, { meses: 50, anios: 4 }]),
         textoChicosDelModulo([{ meses: 30, anios: 2 }, { meses: null, anios: 1 }])],
     }));
-    expect(r.meses).toEqual(['recien', 'recien', 'bebes', 'bebes', 'toddlers', 'toddlers', 'preescolares', 'preescolares', 'escolar', 'escolar', 'preteens', 'preteens']);
+    // Justo en el corte, los dos (los meses por mes calendario pueden pasarse casi un mes de la edad real).
+    expect(r.meses).toEqual(['recien', 'recien', 'recien+bebes', 'bebes', 'bebes', 'bebes+toddlers', 'toddlers', 'toddlers', 'toddlers+preescolares',
+      'preescolares', 'preescolares+escolar', 'escolar', 'escolar+preteens', 'preteens']);
     expect(r.anios).toEqual(['recien+bebes', 'toddlers', 'toddlers', 'preescolares', 'preescolares', 'escolar', 'escolar', 'preteens', 'preteens']);
     expect(r.juegos2).toEqual(['emociones']);
     expect(r.juegos11).toEqual(['tateti']);
     expect(r.juegos13).toEqual([]);
     expect(r.nada).toEqual([]);
     expect(r.necesidades).toEqual(['autismo', 'discapacidad']);
-    expect(r.textos).toEqual(['Para el chico de 1 mes', 'Para los chicos de 4 años', 'Para los chicos de 2 años y 1 año']);
+    expect(r.textos).toEqual(['Para el chico de menos de 1 mes', 'Para el chico de 1 mes', 'Para los chicos de 4 años', 'Para los chicos de 2 años y 1 año']);
   });
 
   test('sin edades: los teléfonos, "No tenemos las edades de los chicos." y "Ver toda la guía"', async ({ page }) => {
@@ -251,17 +255,31 @@ test.describe('Para este sitting', () => {
     await page.evaluate(() => { guiaContenidoPromesa = null; pantallaParaSitting('70000000-0000-4000-8000-000000000005'); });
     await expect(page.locator('.error-form')).toBeVisible();
     await expect(page.locator('.para-sitting-emergencias a[href="tel:1722"]')).toBeVisible();
-    verificarLimpio(e, RUIDO);
+    verificarLimpio(e, RUIDO_FALLAS);
+  });
+
+  test('lee de nuevo al abrir: la ficha que cambió recién se ve; si la lectura falla, usa lo ya cargado', async ({ page }) => {
+    const e = await abrir(page);
+    // La ficha se guardó (por ejemplo desde la misma tarjeta) después de cargar el inicio.
+    e.db.fichas_familia.push(ficha('Asperger'));
+    await abrirDesdeLaTarjeta(page);
+    await expect(bloques(page)).toHaveText(['Preescolares', 'Edad escolar', 'Juegos', 'Autismo']);
+    await page.getByRole('button', { name: 'Volver' }).last().click();
+    await expect(page.locator('#inicio-dia[data-cargada]')).toBeAttached();
+    e.fallar = p => p.tabla === 'rpc/ninera_mis_sittings' ? { status: 500, message: 'falla simulada' } : undefined;
+    await abrirDesdeLaTarjeta(page);
+    await expect(bloques(page)).toHaveText(['Preescolares', 'Edad escolar', 'Juegos', 'Autismo']);
+    await expect(page.locator('.error-form')).toHaveCount(0);
+    verificarLimpio(e, RUIDO_FALLAS);
   });
 
   test('escape: el texto de los chicos de la familia y necesidades raras de la base no se ejecutan', async ({ page }) => {
     const datos = datosBase();
     datos.familias.find(f => f.id === ID.fUno).ninos = '<img src=x onerror="window.__x=1">"\'); alert(1)//';
     const e = await abrir(page, { datos, hijos: [] });
-    await page.evaluate(() => {
-      const s = sittingsNineraCargados.find(x => x.id === '70000000-0000-4000-8000-000000000005');
-      s.necesidades = ['<img src=x onerror="window.__x=2">', 'tdah'];
-    });
+    // Una base que devolviera algo raro en necesidades: solo pasan las tres conocidas.
+    const leer = e.rpc.ninera_mis_sittings;
+    e.rpc.ninera_mis_sittings = (...a) => leer(...a).map(s => ({ ...s, necesidades: ['<img src=x onerror="window.__x=2">', 'tdah'] }));
     await abrirDesdeLaTarjeta(page);
     await expect(page.locator('main > .helper').first()).toContainText('<img src=x');
     await expect(bloques(page)).toHaveText(['TDAH']);

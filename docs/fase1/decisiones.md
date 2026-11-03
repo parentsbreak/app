@@ -754,7 +754,11 @@ Pedido de Paulina y Delfina; respuestas de Diego (03/11/2026). Diseño completo:
 - Autismo, TDAH, discapacidad: por palabras clave en "salud" de la ficha de la familia que la niñera ya ve (la de su sitting, si no la
   última), sin casilla en el panel. La base devuelve solo esos tres valores, nunca el texto.
 - La base (`20261111_guia_sitting`): `ninera_mis_sittings` suma `edades_meses` (por mes calendario: no deja deducir el día de
-  nacimiento), `edades_anios` y `necesidades`; `ninera_mi_dia` no cambia.
+  nacimiento), `edades_anios` y `necesidades`; `ninera_mi_dia` no cambia. `chicos_texto` (el "Chicos" de la niñera) pasa también a
+  contar los años por mes calendario: con los años por día y el mes de `edades_meses`, abriendo la app un mes se sabía el día del
+  cumpleaños (revisión final, 03/11/2026). Puede decir la edad nueva hasta un mes antes.
+- Como los meses por mes calendario pueden pasarse casi un mes de la edad real, justo en un corte (3, 12, 36, 60 y 108 meses) van
+  los dos módulos (revisión final). Un bebé del mismo mes del sitting: "menos de 1 mes".
 
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo

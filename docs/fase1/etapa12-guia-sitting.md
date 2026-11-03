@@ -42,6 +42,9 @@ lo dijo, y siempre los teléfonos de emergencia y qué hacer si pasa algo. Adem�
 | 60 a 107 | `escolar` (5 a 8 años) |
 | 108 o más | `preteens` (también 13 o más) |
 
+Justo en un corte (3, 12, 36, 60 y 108 meses) van los dos módulos: los meses por mes calendario pueden pasarse casi un mes
+de la edad real (nacido el 15/08, el 03/11 da 3). Un bebé del mismo mes del sitting: "menos de 1 mes".
+
 Edad cargada a mano (años, sin fecha): 0 años → `recien` y `bebes`; 1 y 2 → `toddlers`; 3 y 4 →
 `preescolares`; 5 a 8 → `escolar`; 9 o más → `preteens`. Para los juegos cuenta la edad en años.
 
@@ -69,10 +72,15 @@ la app publicada lee por nombre, así que las columnas de más no la rompen):
   Solo en sittings (en un traslado, vacío). La niñera ya lee esa ficha en cada sitting próximo
   (`ninera_ficha_familia`): las marcas no le muestran nada nuevo.
 
+`chicos_texto` (el "Chicos" que ve la niñera en sus sittings, pedidos y avisos) pasa a contar los años por mes calendario: con los
+años por día y el mes que da `edades_meses`, abriendo la app un mes se sabía el día del cumpleaños. Puede decir la edad nueva hasta
+un mes antes. La edad cargada a mano queda igual.
+
 `ninera_mi_dia` no cambia: la tarjeta del día usa la fila de `ninera_mis_sittings` ya cargada (como "Cómo
 llegar").
 
-Prueba `supabase/pruebas/fase1_guia_sitting.sql` (como niñera): las tres columnas; dos chicos nacidos el 1 y
+Prueba `supabase/pruebas/fase1_guia_sitting.sql` (como niñera): las tres columnas; `chicos_texto` igual para los nacidos el 1 y el
+último día del mismo mes; dos chicos nacidos el 1 y
 el 31 del mismo mes dan lo mismo en 60 días seguidos de sittings; el valor no cambia dentro de un mes; nada de
 tipo `date` en el resultado; `necesidades` solo con esos tres valores (con textos tramposos), vacía sin ficha,
 con "salud" vacío y en un traslado; la de este sitting gana a la última; ida y vuelta de la migración.

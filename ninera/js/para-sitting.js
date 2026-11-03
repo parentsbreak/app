@@ -21,16 +21,17 @@ function chicosConEdadSitting(s){
   ];
 }
 
-// El módulo de la guía de un chico (docs/fase1/etapa12-guia-sitting.md, cortes aprobados por Diego). Con la edad cargada
-// a mano (solo años), 0 años son Recién nacidos y Bebés.
+// El módulo de la guía de un chico (docs/fase1/etapa12-guia-sitting.md, cortes aprobados por Diego). Los meses vienen
+// por mes calendario y pueden pasarse hasta casi un mes de la edad real (nacido el 15/08, el 03/11 da 3): justo en un
+// corte van los dos módulos, así un bebé de 2 meses y medio no se queda sin Recién nacidos (revisión, 03/11/2026). Con
+// la edad cargada a mano (solo años), 0 años son Recién nacidos y Bebés.
+const CORTES_EDAD_MESES = [[3, 'recien'], [12, 'bebes'], [36, 'toddlers'], [60, 'preescolares'], [108, 'escolar']];
 function modulosDeChico(c){
   if(c.meses != null){
-    if(c.meses < 3) return ['recien'];
-    if(c.meses < 12) return ['bebes'];
-    if(c.meses < 36) return ['toddlers'];
-    if(c.meses < 60) return ['preescolares'];
-    if(c.meses < 108) return ['escolar'];
-    return ['preteens'];
+    const i = CORTES_EDAD_MESES.findIndex(([hasta]) => c.meses < hasta);
+    const actual = i < 0 ? 'preteens' : CORTES_EDAD_MESES[i][1];
+    const corte = CORTES_EDAD_MESES.find(([hasta]) => c.meses === hasta);
+    return corte ? [corte[1], actual] : [actual];
   }
   if(c.anios <= 0) return ['recien', 'bebes'];
   if(c.anios < 3) return ['toddlers'];
@@ -41,7 +42,7 @@ function modulosDeChico(c){
 
 // "8 meses" hasta los 2 años si se sabe el mes; si no, en años ("menos de 1 año" con la edad cargada a mano en 0).
 function textoEdadChicoSitting(c){
-  if(c.meses != null && c.meses < 24) return c.meses === 1 ? '1 mes' : `${c.meses} meses`;
+  if(c.meses != null && c.meses < 24) return c.meses === 0 ? 'menos de 1 mes' : c.meses === 1 ? '1 mes' : `${c.meses} meses`;
   if(c.anios <= 0) return 'menos de 1 año';
   return c.anios === 1 ? '1 año' : `${c.anios} años`;
 }
@@ -107,15 +108,20 @@ function htmlLeccionesParaSitting(id, m){
   </div>`;
 }
 
-// Lee el sitting de ninera_mis_sittings (si no está ya cargado, por ejemplo al abrir el link) y la guía, a la vez.
+// Lee el sitting de ninera_mis_sittings y la guía, a la vez. Siempre de nuevo: la ficha de la familia (necesidades)
+// puede haber cambiado recién, desde la misma tarjeta. Si la lectura falla y el sitting ya estaba cargado, sirve ese.
 async function cargarParaSitting(id){
   const leerSitting = async () => {
     const ya = sittingsNineraCargados.find(x => x.id === id);
-    if(ya) return ya;
-    const { data, error } = await sbn.rpc('ninera_mis_sittings');
-    if(error) throw error;
-    if(Array.isArray(data)) sittingsNineraCargados = data;
-    return (Array.isArray(data) ? data : []).find(x => x.id === id) || null;
+    try{
+      const { data, error } = await sbn.rpc('ninera_mis_sittings');
+      if(error) throw error;
+      if(Array.isArray(data)) sittingsNineraCargados = data;
+      return (Array.isArray(data) ? data : []).find(x => x.id === id) || null;
+    }catch(err){
+      if(ya){ console.error('[para este sitting] uso lo ya cargado', err); return ya; }
+      throw err;
+    }
   };
   const [s, guia] = await Promise.all([leerSitting(), cargarContenidoGuia()]);
   return { s, guia };

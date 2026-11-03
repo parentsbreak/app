@@ -1828,8 +1828,10 @@ as $function$
     from (select array_remove(regexp_split_to_array(coalesce(p_nombre, ''), '\s+'), '') as p) x
 $function$;
 
--- Los chicos de una familia en una línea: "2 chicos (3 y 5 años)". La edad es la misma regla que
--- edadHijo() en core.js: años cumplidos desde la fecha de nacimiento o, si no hay, la edad
+-- Los chicos de una familia en una línea: "2 chicos (3 y 5 años)". Con fecha de nacimiento, los años
+-- por MES calendario (etapa 12, 03/11/2026): contados por día, abriendo la app cada día se veía el día
+-- del cumpleaños, y con edades_meses (el mes) alcanzaba con un mes. Puede decir la edad nueva hasta
+-- un mes antes del cumpleaños. Sin fecha, la edad
 -- declarada más los años que pasaron desde que se declaró (nunca negativos: una fecha futura
 -- suma 0, como anosCompletosDesde). Un bebé es "menos de 1 año"; el que no
 -- tiene edad cuenta pero no va entre paréntesis. Sin hijos cargados, el texto viejo de
@@ -1853,7 +1855,8 @@ begin
     into v_n, v_edades
     from (select h.orden, h.created_at, h.id,
                  case when h.fecha_nacimiento is not null
-                        then extract(year from age(public.hoy_mvd(), h.fecha_nacimiento))::int
+                        then div((extract(year from public.hoy_mvd())::int * 12 + extract(month from public.hoy_mvd())::int)
+                               - (extract(year from h.fecha_nacimiento)::int * 12 + extract(month from h.fecha_nacimiento)::int), 12)::int
                       when h.edad_declarada is not null
                         then h.edad_declarada + greatest(0, coalesce(extract(year from age(public.hoy_mvd(), h.edad_declarada_en))::int, 0))
                  end as edad

@@ -836,7 +836,9 @@ reporte.
   sitting" (`ninera/js/para-sitting.js`, `#sitting/<id>/guia`) arma lo de cada chico con `ninera_mis_sittings`: `edades_meses` (por MES
   calendario, mes del sitting menos mes de nacimiento: así no se deduce el día del cumpleaños mirando días seguidos; nunca devolver la
   fecha ni una edad por día), `edades_anios` (la edad cargada a mano) y `necesidades` (solo 'autismo', 'tdah', 'discapacidad', por palabras
-  clave en "salud" de la ficha que la niñera ya ve). Cortes y rangos de los juegos en `modulosDeChico` / `juegosPorEdad` (puras). Los
+  clave en "salud" de la ficha que la niñera ya ve). `chicos_texto` también cuenta los años por mes calendario (con el mes de
+  `edades_meses` y los años por día, en un mes se sabía el día del cumpleaños). Cortes y rangos de los juegos en `modulosDeChico` /
+  `juegosPorEdad` (puras); justo en un corte van los dos módulos (los meses pueden pasarse casi un mes de la edad real). Los
   juegos (`ninera/js/juegos.js`, `JUEGOS_GUIA`) son los del original, no guardan nada, y van en las lecciones con `juegos` en
   `contenido.json` (lo arma `scripts/guia-desde-html.mjs`). Un `hidden` dentro del kit necesita `.kit [hidden]{display:none}`: el
   `display:flex` de la hoja le gana (pasó, 03/11/2026).
@@ -1136,10 +1138,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
-- Etapa 12 (03/11/2026): `chicos_texto` (lo que la niñera ve en "Chicos") cuenta los años con `hoy_mvd()`: abriendo la app cada día se ve
-  el día en que un chico cumple años. Pasarlo al mes calendario, como `edades_meses` (migración aparte, con OK). "Para este sitting" no
-  muestra qué lecciones ya leyó (no lee `ninera_estado_guia`). Las palabras clave de "salud" no entienden negaciones ("no tiene
-  autismo" muestra la lección: sobra, no falta).
+- Etapa 12 (03/11/2026): "Para este sitting" no muestra qué lecciones ya leyó (no lee `ninera_estado_guia`). Las palabras clave de
+  "salud" no entienden negaciones ni usos sueltos ("no tiene autismo", "es muy hiperactivo" muestran la lección: sobra, no falta).
 - Etapa 11 (03/11/2026): "Calcular km con el mapa" (TomTom) no está simulado en los tests: probarlo en el iPhone real. La ruta no guarda
   borrador.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel

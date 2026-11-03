@@ -103,11 +103,22 @@ insert into fichas_familia (familia_id, sitting_id, ninera_id, datos, actualizad
   -- La Familia 1 también tiene una ficha que menciona discapacidad: el traslado igual va vacío.
   ('e3000000-0000-4000-8000-000000000001', null, 'e2000000-0000-4000-8000-000000000002', '{"salud": "discapacidad intelectual"}', now());
 -- Familia 9: sin ficha.
+-- Familia 10 (sin sittings): para chicos_texto, nacidos el 1 y el último día del mismo mes hace 3 años y un bebé de 2 meses.
+insert into familias (id, nombre, zona, cobro_hora, pago_hora) values
+  ('e3000000-0000-4000-8000-000000000010', 'Familia Prueba 10', 'Pocitos', 300, 200);
+insert into hijos_familia (familia_id, nombre, fecha_nacimiento, orden) values
+  ('e3000000-0000-4000-8000-000000000010', 'Primero Ficticio', date_trunc('month', public.hoy_mvd() - interval '3 years')::date, 0),
+  ('e3000000-0000-4000-8000-000000000010', 'Ultimo Ficticio', (date_trunc('month', public.hoy_mvd() - interval '3 years') + interval '1 month - 1 day')::date, 1),
+  ('e3000000-0000-4000-8000-000000000010', 'Bebe Ficticio', (date_trunc('month', public.hoy_mvd() - interval '2 months') + interval '1 month - 1 day')::date, 2);
 
 -- ---------------------------------------------------------------------------
 -- Sin ser niñera: nada
 -- ---------------------------------------------------------------------------
 select pg_temp.verificar('sin sesión de niñera: ninguna fila', (select count(*) = 0 from public.ninera_mis_sittings()));
+-- chicos_texto por mes calendario: el del último día del mes ya cuenta los 3 años desde el 1.º del mes del cumpleaños (por día
+-- daría 2 hasta ese día, y mirando cada día se sabría cuál es).
+select pg_temp.verificar('chicos_texto: los nacidos el 1 y el último día del mismo mes dicen la misma edad',
+  public.chicos_texto('e3000000-0000-4000-8000-000000000010') = '3 chicos (3 años, 3 años y menos de 1 año)');
 
 -- ---------------------------------------------------------------------------
 -- Desde la cuenta de Ana

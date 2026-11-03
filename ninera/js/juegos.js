@@ -6,7 +6,7 @@
 // niñera" se borra al salir de la pantalla. Sin el modo oscuro del original: la app es siempre clara.
 // El texto es el de la guía (voseo, como el publicado). Todo se arma con el DOM: no hay datos de nadie.
 
-// Las letras de la sopa, sus 8 animales y las paredes del laberinto ([arriba, derecha, abajo, izquierda] por celda),
+// Las letras de la sopa, sus 8 animales y las paredes del laberinto ([arriba, abajo, derecha, izquierda] por celda),
 // copiados tal cual del original (KIT).
 const KIT_JUEGOS = {
   sopa: ["UGPPMJHFHV", "CUAAJSRLPA", "JVCTDSPOFC", "LEROOOEBCA", "TULLMVRRUP", "CCIRCBRMJU", "PLLJNMOOAP", "MOEFVDRNBG", "JROSOEHONN", "RONCFPNTIE"],
