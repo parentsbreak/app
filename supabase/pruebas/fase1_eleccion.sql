@@ -93,7 +93,7 @@ insert into solicitudes (id, familia_id, familia_nombre, tipo, zona, fecha, hora
    public.hoy_mvd() + 1, '10:00', '12:00', 'sin_asignar', null, false),
   ('e4000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'sitting', null,
    public.hoy_mvd() + 3, '10:00', '12:00', 'sin_asignar', null, false),
-  -- traslado: el trigger no hace nada
+  -- traslado: desde la etapa 11, el trigger avisa igual
   ('e4000000-0000-4000-8000-000000000005', 'e3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'traslado', null,
    public.hoy_mvd() + 1, '08:00', null, 'sin_asignar', null, false);
 
@@ -250,8 +250,8 @@ reset role;
 select pg_temp.verificar('sin solo_practica, Ana asignada a mano recibe "¡Quedaste seleccionada!"',
   exists (select 1 from avisos a join solicitud_ninieras sn on a.clave = 'pedido:' || sn.id || ':seleccionada'
            where sn.solicitud_id = 'e4000000-0000-4000-8000-000000000004'));
-select pg_temp.verificar('un traslado no avisa',
-  not exists (select 1 from avisos a join solicitud_ninieras sn on a.clave = 'pedido:' || sn.id || ':seleccionada'
+select pg_temp.verificar('un traslado también avisa (etapa 11)',
+  exists (select 1 from avisos a join solicitud_ninieras sn on a.clave = 'pedido:' || sn.id || ':seleccionada'
                where sn.solicitud_id = 'e4000000-0000-4000-8000-000000000005'));
 insert into solicitudes (familia_id, familia_nombre, tipo, fecha, hora_inicio, hora_fin, estado)
 values ('e3000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'sitting', public.hoy_mvd() + 4, '10:00', '12:00', 'confirmada');

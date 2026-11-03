@@ -38,13 +38,16 @@ export const RespuestaModelo = z.object({
   servicio: z.enum(["sitting", "traslado"]).nullable()
     .describe("sitting: cuidar a los chicos. traslado: llevarlos o buscarlos. null si no se sabe."),
   fecha: z.string().nullable().describe("Día del servicio, AAAA-MM-DD. Resolvé 'mañana', 'el sábado', etc. con la fecha de hoy."),
-  hora_inicio: z.string().nullable().describe("HH:MM en 24 horas."),
+  hora_inicio: z.string().nullable().describe("HH:MM en 24 horas. En un traslado, la hora de salida (o a la que hay que buscarlos)."),
   hora_fin: z.string().nullable().describe("HH:MM en 24 horas. null si no dicen hasta qué hora."),
   horario_aproximado: z.boolean().describe("true si el horario no es exacto (falta el fin, 'tipo 8', 'después de cenar')."),
   horario_nota: z.string().nullable().describe("Lo que dicen del horario en pocas palabras, por ejemplo 'sin hora de fin, no antes de las 2'."),
   chicos_cantidad: z.number().int().nullable().describe("Cuántos chicos, si lo dicen."),
   chicos_edades: z.string().nullable().describe("Edades como las dicen, por ejemplo '2 y 5 años'."),
-  zona: z.string().nullable().describe("Barrio o dirección si lo mencionan."),
+  zona: z.string().nullable().describe("Barrio o dirección si lo mencionan. En un traslado, el barrio de donde salen."),
+  origen: z.string().nullable().describe("Solo en un traslado: de dónde salen (dirección o lugar, tal cual). 'casa' si es la casa de la familia. Si no, null."),
+  destino: z.string().nullable().describe("Solo en un traslado: a dónde van (dirección o lugar, tal cual). 'casa' si es la casa de la familia. Si no, null."),
+  destino_zona: z.string().nullable().describe("Solo en un traslado: el barrio a donde van, si lo dicen o se sabe por el lugar. Si no, null."),
   ninera_pedida: z.string().nullable().describe("Nombre de la niñera, solo si la madre pide a una por su nombre; copialo tal cual. Si no pide a ninguna, null."),
   notas: z.string().nullable().describe("Datos útiles para la niñera (primero salud y alergias), en pocas frases."),
   dudas: z.array(z.string()).describe("Lo que falta o no queda claro, en frases cortas. Vacío si está todo."),
@@ -62,6 +65,7 @@ Reglas:
 - Fechas: resolvé "hoy", "mañana", "el sábado", "el 24" con la fecha de hoy que te paso. Si el día ya pasó en esta semana, es el de la semana que viene.
 - Horas en 24 horas (HH:MM). "A las 8 de la noche" es 20:00. Si no dicen hasta qué hora, hora_fin es null, horario_aproximado es true y en horario_nota va lo que digan ("sin hora de fin, no antes de las 2").
 - Si piden llevar o buscar a los chicos a algún lado, servicio es traslado; si piden que alguien los cuide, sitting.
+- Un traslado es un viaje: origen (de dónde salen), destino (a dónde van) y hora_inicio es la hora de salida. Si es la casa de la familia, escribí "casa". zona es el barrio de origen y destino_zona el de destino. Si piden ida y vuelta, armá el ticket de la ida y anotá la vuelta en "dudas". En un sitting, origen, destino y destino_zona son null.
 - Si en vez de un pedido nuevo cambian o cancelan uno anterior, marcá cambio o cancelacion. Si no es un pedido, otra_cosa.
 - Niñera pedida: si la madre pide a una niñera por su nombre, copiá el nombre tal cual en ninera_pedida; si no pide a ninguna, null.
 - Respondé solo con el ticket, en español rioplatense.`;
@@ -109,6 +113,9 @@ export type Ticket = {
   chicos_cantidad: number | null;
   chicos_edades: string | null;
   zona: string | null;
+  origen: string | null;
+  destino: string | null;
+  destino_zona: string | null;
   ninera_pedida: string | null;
   notas: string | null;
   dudas: string[];
@@ -128,6 +135,8 @@ export function validarRespuesta(r: Respuesta, familias: Familia[], elegida: Fam
   if (ini && !HORA.test(ini)) { ini = null; dudas.push("No se entendió la hora de inicio."); }
   if (fin && !HORA.test(fin)) { fin = null; dudas.push("No se entendió la hora de fin."); }
   if (!ini) fin = null; // un fin sin inicio no sirve para nada
+  // Origen y destino, solo en un traslado (etapa 11, 03/11/2026): en un sitting no se guardan aunque el modelo los traiga.
+  const traslado = r.servicio === "traslado";
   const cantidad = Number.isInteger(r.chicos_cantidad) && (r.chicos_cantidad as number) >= 1 && (r.chicos_cantidad as number) <= 12 ? r.chicos_cantidad : null;
   return {
     tipo: r.tipo,
@@ -144,6 +153,9 @@ export function validarRespuesta(r: Respuesta, familias: Familia[], elegida: Fam
     chicos_cantidad: cantidad,
     chicos_edades: recortar(r.chicos_edades),
     zona: recortar(r.zona),
+    origen: traslado ? recortar(r.origen) : null,
+    destino: traslado ? recortar(r.destino) : null,
+    destino_zona: traslado ? recortar(r.destino_zona, 80) : null,
     ninera_pedida: recortar(r.ninera_pedida, 80),
     notas: recortar(r.notas, MAX_NOTAS),
     dudas,

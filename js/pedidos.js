@@ -97,7 +97,9 @@ function mapasSugeridas(respuesta, ninieras, tipo){
    `ocultas` hasta que la admin pida las nuevas (`mostrar_nuevas`).
    Las ya mandadas por la app conservan su lugar con su estado y no se vuelven a enviar.
    La que no puede recibir pedidos por la guía (`guia`, etapa 4) se queda en su bloque, con la marca ("Le falta
-   la guía" / "Firma vencida") y sin casilla: "Asignar" a mano sigue (decisión de una admin). */
+   la guía" / "Firma vencida") y sin casilla: "Asignar" a mano sigue (decisión de una admin).
+   Un traslado (etapa 11) se manda solo a las que tienen el carsitting aprobado (`carsittingAprobado`: sus ids; null si no
+   se pudo leer, y entonces a nadie): la que no, igual que la guía, con la marca "Sin carsitting aprobado" y sin casilla. */
 function ordenarSugeridas(pedido, datos = {}){
   const ninieras = datos.ninieras || [];
   const conjunto = l => new Set(l || []);
@@ -105,6 +107,8 @@ function ordenarSugeridas(pedido, datos = {}){
   const noDisponibles = conjunto(datos.noDisponibles), incidentesFamilia = conjunto(datos.incidentesFamilia);
   const preferirOtros = conjunto(datos.preferirOtros), sinTemporada = conjunto(datos.sinTemporada);
   const fueraTemporada = datos.fueraTemporada || {}, enviadas = datos.enviadas || {};
+  const traslado = pedido.tipo === 'traslado';
+  const carsitting = Array.isArray(datos.carsittingAprobado) ? new Set(datos.carsittingAprobado) : null;
   const pedidaId = pedido.ninera_pedida_id || null;
   const edadesPedido = [...new Set((pedido.edades || []).map(Number))];
   const masDeTres = sugeridaNumero(pedido.chicos) >= 3;
@@ -143,6 +147,8 @@ function ordenarSugeridas(pedido, datos = {}){
     if(sugeridaEnLista(sinTemporada, ninera, key)) marcas.push('sin temporada cargada');
     const motivoGuia = ninera.user_id ? guia[ninera.id] : null;
     if(motivoGuia) marcas.push(MOTIVO_GUIA_PANEL[motivoGuia] || MOTIVO_GUIA_PANEL.sin_guia);
+    const sinCarsitting = traslado && !!ninera.user_id && !(carsitting && carsitting.has(ninera.id));
+    if(sinCarsitting && carsitting) marcas.push('Sin carsitting aprobado');
     marcas.push(...bajas);
     const activa = ninera.activa !== false;
     const item = {
@@ -152,9 +158,9 @@ function ordenarSugeridas(pedido, datos = {}){
       edad: edadesCoinciden.length, edadesCoinciden,
       varios: masDeTres && sugeridaValor(datos.maxChicos, ninera, key) >= 3,
       conApp: !!ninera.user_id,
-      // Solo un sitting, a una niñera activa con app, que no lo recibió ya, y práctica con práctica.
-      enviable: activa && pedido.tipo === 'sitting' && !!ninera.user_id && !estadoEnvio
-        && nineraEsPractica(ninera) === !!pedido.practica && !(datos.soloPractica && !pedido.practica) && !motivoGuia,
+      // Un sitting o un traslado (con el carsitting), a una niñera activa con app, que no lo recibió ya, y práctica con práctica.
+      enviable: activa && (pedido.tipo === 'sitting' || traslado) && !!ninera.user_id && !estadoEnvio
+        && nineraEsPractica(ninera) === !!pedido.practica && !(datos.soloPractica && !pedido.practica) && !motivoGuia && !sinCarsitting,
     };
     const mismaZona = !!(pedido.zona && mismoGrupoZona(ninera.zona, pedido.zona));
     item.bloque = (vecesFamilia > 0 || pedida) ? 1 : (mismaZona ? 2 : 3);
@@ -262,12 +268,15 @@ function chicosPedidoTexto(edades, cantidad){
 async function abrirElegirNineras(solicitudId){
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
   if(!s) return;
+  delete rutasTraslado.elegir; // el recorrido se lee de nuevo en cada pedido
   abrirModal('<div class="empty"><span class="spinner dark"></span> Buscando niñeras recomendadas…</div>');
   const token = modalToken; // si mientras carga se abre otro modal, no se lo pisa
   if(!zonaGruposCache) await cargarZonaGrupos();
   const familia = familiaDeSolicitud(s);
   const familiaId = familia?.id || s.familia_id || null;
-  const [nins, sug, precios, hijos, fam, cfg, dudas, sns, dir] = await Promise.all([
+  const traslado = s.tipo==='traslado';
+  if(traslado && !tarifaTrasladoConfig) await cargarTarifaTrasladoConfig(); // el precio por viaje sale de los km
+  const [nins, sug, precios, hijos, fam, cfg, dudas, sns, dir, cars] = await Promise.all([
     // Todas, también las inactivas (van al fondo), con lo que necesita la temporada.
     sb.from('ninieras').select('id,nombre,zona,tipo,telefono,activa,user_id,temporada,temporada_actualizada_en,temporada_fuente,temporada_lugares,temporada_lugares_en').order('nombre'),
     sb.rpc('sugeridas_datos', { p_familia_id: familiaId, p_familia_nombre: s.familia_nombre, p_fecha: s.fecha }),
@@ -280,6 +289,8 @@ async function abrirElegirNineras(solicitudId){
     sb.from('solicitud_ninieras').select('*').eq('solicitud_id', s.id),
     // La dirección: para asignar un sitting es obligatoria (etapa 6); si falta, se pide abajo.
     familiaId && s.tipo==='sitting' ? sb.from('familias').select('direccion').eq('id', familiaId).maybeSingle() : { data: null },
+    // Un traslado va solo a las que tienen el carsitting aprobado desde la app (etapa 11).
+    traslado ? sb.from('carsitting_datos').select('ninera_id').not('enviado_en', 'is', null).not('aprobado_en', 'is', null) : { data: [] },
   ]);
   if(token!==modalToken) return;
   if(nins.error){ abrirModal(`<h2>Elegir niñeras</h2>${errBox(nins.error)}`); return; }
@@ -301,15 +312,10 @@ async function abrirElegirNineras(solicitudId){
   const nombreFamilia = familia?.nombre || s.familia_nombre;
   const practica = nineraEsPractica({ nombre: nombreFamilia });
   const soloPractica = cfg.error || !cfg.data ? true : cfg.data.valor?.solo_practica !== false;
-  // Mandar por la app: solo un sitting abierto, de hoy en adelante, con la base al día.
-  const puedeApp = !sinMigrar && s.tipo==='sitting' && s.fecha >= todayISO() && ['sin_asignar','pendiente_confirmar'].includes(s.estado);
-
-  let pagoTraslado = 0;
-  if(s.tipo==='traslado'){
-    if(!tarifaTrasladoConfig) await cargarTarifaTrasladoConfig();
-    const margenNinera = Number(tarifaTrasladoConfig?.margen_ninera)||0;
-    pagoTraslado = s.cobro_familia ? redondearAbajo50(Number(s.cobro_familia) * (1 - margenNinera)) : 0;
-  }
+  // Mandar por la app: un sitting o un traslado abierto, de hoy en adelante, con la base al día. Un traslado, con la
+  // migración de la etapa 11 (la solicitud trae origen) y con el carsitting leído.
+  const baseTraslados = !traslado || 'origen' in s;
+  const puedeApp = !sinMigrar && baseTraslados && s.fecha >= todayISO() && ['sin_asignar','pendiente_confirmar'].includes(s.estado);
   if(token!==modalToken) return;
 
   pedidoElegir = {
@@ -317,7 +323,10 @@ async function abrirElegirNineras(solicitudId){
     // Para el precio de cada niñera: la familia de la Agenda o, si la Agenda no la tiene cargada (la sumó
     // otra admin después), al menos su id, así se encuentran sus precios con esta familia.
     familiaPrecios: familia || (familiaId ? { id: familiaId } : null),
-    sinMigrar, falloLectura: !!sug.error && !sinMigrar, pagoTraslado,
+    sinMigrar, falloLectura: !!sug.error && !sinMigrar, pagoTraslado: pagoTrasladoElegir(s, s.km),
+    baseTraslados, falloCarsitting: traslado && !!cars.error,
+    // El recorrido del traslado, editable acá (los pedidos viejos no lo tienen): se guarda antes de mandar o asignar.
+    ruta: traslado ? { origen: s.origen || '', destino: s.destino || '', destinoZona: s.destino_zona || '', zona: s.zona || '', km: s.km || '' } : null,
     hijosLeidos, chicosTexto: chicosPedidoTexto(edades, (hijosLeidos||[]).length),
     soloConocidas: !fam.error && !!fam.data?.solo_conocidas, mostrarNuevas: false,
     // Si no se pudo leer, no se pide: la familia puede tenerla y una lectura fallida no frena la asignación.
@@ -326,7 +335,8 @@ async function abrirElegirNineras(solicitudId){
     tildadas: new Map(), // id -> { precio, tocado, guardar }
     pedido: { tipo: s.tipo, zona: zonaPedido, fecha: s.fecha, edades, chicos: (hijosLeidos||[]).length,
       ninera_pedida_id: s.ninera_pedida_id || null, solo_conocidas: false, mostrar_nuevas: false, practica },
-    datos: { ninieras, ...mapas, ocupadas, enviadas, soloPractica, excluirIds: [], ...temporadaPedido(ninieras, zonaPedido, s.fecha) },
+    datos: { ninieras, ...mapas, ocupadas, enviadas, soloPractica, excluirIds: [], ...temporadaPedido(ninieras, zonaPedido, s.fecha),
+      carsittingAprobado: traslado && !cars.error ? (cars.data || []).map(c=>c.ninera_id) : null },
   };
   pedidoElegir.pedido.solo_conocidas = pedidoElegir.soloConocidas;
   pintarElegirNineras();
@@ -339,12 +349,19 @@ function ordenElegirNineras(){
   return orden;
 }
 
+// El pago por viaje de un traslado: con los km, la tarifa de traslados; sin km, el cobro menos el margen.
+function pagoTrasladoElegir(s, km){
+  const porKm = precioTrasladoPorKm(km, (s.hora_inicio||'').slice(0,5));
+  if(porKm) return porKm.pago;
+  const margenNinera = Number(tarifaTrasladoConfig?.margen_ninera)||0;
+  return s.cobro_familia ? redondearAbajo50(Number(s.cobro_familia) * (1 - margenNinera)) : 0;
+}
 // El pago sugerido al tocar "Asignar": a una que ya recibió el pedido por la app, lo que se le ofreció
-// (su precio_hora por las horas); si no, su precio con esta familia o la tarifa. Un traslado, el cobro
-// menos el margen.
+// (su precio_hora por las horas, o su precio por viaje); si no, su precio con esta familia o la tarifa. Un traslado,
+// el de la tarifa de km.
 function pagoSugeridoElegir(n){
   const st = pedidoElegir, s = st.s;
-  if(s.tipo==='traslado') return st.pagoTraslado;
+  if(s.tipo==='traslado') return Number(st.filasApp[n.id]?.precio_viaje) || st.pagoTraslado;
   const ofrecido = Number(st.filasApp[n.id]?.precio_hora) || 0;
   const pagoHora = ofrecido || Number(precioHoraNinera(st.familiaPrecios, n.id, st.preciosFam)) || 0;
   if(!pagoHora || !s.hora_inicio || !s.hora_fin) return 0;
@@ -396,14 +413,17 @@ function pintarElegirNineras(){
   const hayEnviables = orden.sugeridas.some(i=>i.enviable);
   const bloqueaPractica = st.puedeApp && st.soloPractica && !st.practica;
   const fechaTxt = new Date(s.fecha+'T00:00:00').toLocaleDateString('es-UY',{weekday:'short',day:'2-digit',month:'2-digit'});
-  const resumen = [s.familia_nombre, s.tipo==='traslado' ? 'Traslado' : 'Sitting', fechaTxt, horarioPedidoTexto(s),
-    st.pedido.zona, st.chicosTexto, s.cobro_familia ? `Cobro a familia $${Number(s.cobro_familia).toLocaleString('es-UY')}` : ''].filter(Boolean).join(' · ');
+  const traslado = s.tipo==='traslado';
+  const resumen = [s.familia_nombre, traslado ? 'Traslado' : 'Sitting', fechaTxt, traslado ? `a las ${(s.hora_inicio||'').slice(0,5)}` : horarioPedidoTexto(s),
+    traslado ? '' : st.pedido.zona, st.chicosTexto, s.cobro_familia ? `Cobro a familia $${Number(s.cobro_familia).toLocaleString('es-UY')}` : ''].filter(Boolean).join(' · ');
   const avisos = [];
   if(st.soloConocidas) avisos.push(`<div class="warnbox">Esta familia no acepta niñeras nuevas.${orden.ocultas.length ? `<div style="margin-top:8px;"><button type="button" class="smallbtn" onclick="mostrarNuevasPedido()">Mostrar las que nunca fueron</button></div>` : ''}</div>`);
   if(bloqueaPractica) avisos.push('<div class="helper">Por ahora, por la app solo se mandan pedidos de práctica. Para este, usá "Asignar" o WhatsApp.</div>');
   if(st.puedeApp && !bloqueaPractica && st.sinFamilia) avisos.push(`<div class="warnbox">${escaparHtml(TEXTO_PEDIDO_SIN_FAMILIA)}</div>`);
   else if(st.puedeApp && !bloqueaPractica && st.hijosLeidos && !st.hijosLeidos.length) avisos.push('<div class="warnbox">Faltan los chicos de la familia: cargalos en su ficha.</div>');
   if(st.falloLectura) avisos.push('<div class="warnbox">No se pudo leer todo el historial de las niñeras: el orden puede no ser el de siempre.</div>');
+  if(traslado && !st.baseTraslados) avisos.push('<div class="helper">Falta actualizar la base para mandar traslados por la app: usá "Asignar" o WhatsApp.</div>');
+  if(traslado && st.puedeApp && st.falloCarsitting) avisos.push('<div class="warnbox">No se pudo leer el carsitting de las niñeras: cerrá y volvé a abrir para mandarlo por la app.</div>');
   const muestraPie = st.puedeApp && !bloqueaPractica;
   // Sin ninguna casilla posible (traslado, base sin migrar, solo práctica...), sin el lugar vacío de la casilla.
   const conCasillas = [...orden.sugeridas, ...orden.ocultas].some(i=>i.enviable);
@@ -412,6 +432,9 @@ function pintarElegirNineras(){
       <h2>Elegir niñeras</h2>
       <div class="helper pedido-resumen">${escaparHtml(resumen)}</div>
       <div id="pedido-dudas"></div>
+      ${traslado ? `<details class="pedido-plegado ruta-elegir" data-clave="ruta"${st.ruta.origen && st.ruta.destino && st.ruta.zona && st.ruta.destinoZona ? '' : ' open'}>
+        <summary>${escaparHtml(st.ruta.origen && st.ruta.destino ? `De ${st.ruta.origen} a ${st.ruta.destino}` : 'Recorrido: falta el origen o el destino')}</summary>
+        ${checklistZonas('elegir', st.ruta.zona, 'Zona de origen')}${htmlRutaTraslado('elegir', st.ruta)}</details>` : ''}
       ${avisos.join('')}
       ${hayEnviables ? `<div class="pedido-marcar">
         <button type="button" class="smallbtn" onclick="marcarPrimerasPedido(10)">Marcar las 10 primeras</button>
@@ -439,8 +462,43 @@ function pintarElegirNineras(){
       </div>
     </div>`;
   abrirModal(html);
+  if(traslado){
+    document.querySelectorAll('#editmodal .ruta-elegir .zona-detalle').forEach(d=>d.remove()); // "Editar zonas" abre otro modal
+    prepararRutaTraslado('elegir', 'elegir', st.familiaId, { onKm: onKmElegir });
+  }
   pintarDudasPedido();
   pintarPreciosPedido();
+}
+// Los km del recorrido cambian el precio sugerido por viaje: se actualiza en las tildadas que no se tocaron a mano.
+function onKmElegir(){
+  const st = pedidoElegir;
+  if(!st || st.s.tipo!=='traslado') return;
+  st.pagoTraslado = pagoTrasladoElegir(st.s, document.getElementById('elegir-km')?.value);
+  st.tildadas.forEach(t=>{ if(!t.tocado) t.precio = st.pagoTraslado ? String(st.pagoTraslado) : ''; });
+  pintarPreciosPedido();
+}
+// Lo que está escrito en el recorrido (para no perderlo al repintar).
+function rutaElegirEnPantalla(){
+  if(!document.getElementById('elegir-origen')) return null;
+  const r = leerRutaTraslado('elegir');
+  return { origen: r.origen || '', destino: r.destino || '', zona: r.zona || '', destinoZona: r.destino_zona || '', km: r.km || '' };
+}
+// Guarda el recorrido en la solicitud si cambió (antes de mandar o de asignar). Devuelve el error o null.
+async function guardarRutaElegir(){
+  const st = pedidoElegir;
+  if(!st || st.s.tipo!=='traslado' || !document.getElementById('elegir-origen')) return null;
+  const r = leerRutaTraslado('elegir'), s = st.s;
+  const cambios = {};
+  [['origen', r.origen], ['destino', r.destino], ['zona', r.zona], ['destino_zona', r.destino_zona], ['km', r.km]].forEach(([c, v])=>{
+    if((v ?? null) !== (c==='km' ? (Number(s.km) > 0 ? Number(s.km) : null) : (s[c] || null))) cambios[c] = v ?? null;
+  });
+  if(!Object.keys(cambios).length) return null;
+  const { error } = await sb.from('solicitudes').update(cambios).eq('id', s.id);
+  if(error) return error;
+  Object.assign(s, cambios);
+  const enAgenda = agendaSolicitudes.find(x=>x.id===s.id);
+  if(enAgenda && enAgenda!==s) Object.assign(enAgenda, cambios);
+  return null;
 }
 
 // Repinta las listas (por ejemplo, al mostrar las nuevas) sin perder lo tildado, los precios, los
@@ -454,6 +512,8 @@ function repintarListasPedido(){
   const pie = { visible: wrap && wrap.style.display!=='none', pago: document.getElementById('agenda-asignar-pago')?.value,
     tocado: document.getElementById('agenda-asignar-pago')?.dataset.tocadoManual, warn: document.getElementById('pedido-enviar-warn')?.innerHTML,
     direccion: document.getElementById('agenda-asignar-direccion')?.value };
+  const ruta = rutaElegirEnPantalla();
+  if(ruta && pedidoElegir) pedidoElegir.ruta = ruta;
   pintarElegirNineras();
   document.querySelectorAll('#editmodal details.pedido-plegado').forEach(d=>{ if(abiertos.includes(d.dataset.clave)) d.open = true; });
   if(elegida){
@@ -495,7 +555,7 @@ function tildarNineraPedido(nineraId, marcar){
       avisoTopePedido(true);
       return;
     }
-    const precio = precioHoraNinera(st.familiaPrecios, nineraId, st.preciosFam);
+    const precio = st.s.tipo==='traslado' ? (st.pagoTraslado || null) : precioHoraNinera(st.familiaPrecios, nineraId, st.preciosFam);
     st.tildadas.set(nineraId, { precio: precio==null ? '' : String(precio), tocado: false, guardar: undefined });
   }
   if(!marcar){ st.tildadas.delete(nineraId); avisoTopePedido(false); }
@@ -530,15 +590,17 @@ function pintarPreciosPedido(){
     return (ia<0 ? 1e6 : ia) - (ib<0 ? 1e6 : ib);
   });
   if(!ids.length){ cont.innerHTML = ''; actualizarPiePedido(); return; }
-  const noLeidos = preciosNoLeidos(st.preciosFam);
+  const traslado = st.s.tipo==='traslado';
+  const noLeidos = !traslado && preciosNoLeidos(st.preciosFam);
   cont.innerHTML = `
-    <div class="agenda-tier-label">Precio por hora para cada una</div>
+    <div class="agenda-tier-label">${traslado ? 'Precio por viaje para cada una' : 'Precio por hora para cada una'}</div>
+    ${traslado && !st.pagoTraslado ? '<div class="helper" style="margin:0 0 8px;">Cargá los km del recorrido para el precio sugerido, o escribilo.</div>' : ''}
     ${noLeidos ? `<div class="warnbox" style="margin:0 0 8px;">${escaparHtml(avisoPreciosNoLeidosTarifa(ids.map(id=>porId.get(id)?.nombre||'').join(', ')))}</div>` : ''}
     ${ids.map(id=>{
       const t = st.tildadas.get(id), nombre = porId.get(id)?.nombre || '';
       return `<div class="pedido-precio">
         <div class="pedido-precio-fila"><span>${escaparHtml(nombre)}</span>
-          <div class="moneyfield"><input type="number" inputmode="numeric" id="pedido-precio-${escaparHtml(id)}" data-id="${escaparHtml(id)}" value="${escaparHtml(t.precio)}" aria-label="${escaparHtml('Precio por hora de '+nombre)}" oninput="onPrecioPedido(this)"></div>
+          <div class="moneyfield"><input type="number" inputmode="numeric" id="pedido-precio-${escaparHtml(id)}" data-id="${escaparHtml(id)}" value="${escaparHtml(t.precio)}" aria-label="${escaparHtml((traslado ? 'Precio por viaje de ' : 'Precio por hora de ')+nombre)}" oninput="onPrecioPedido(this)"></div>
         </div>
         <div id="pedido-casilla-${escaparHtml(id)}">${casillaPrecioPedidoHtml(id)}</div>
       </div>`;
@@ -547,6 +609,7 @@ function pintarPreciosPedido(){
 }
 function casillaPrecioPedidoHtml(id){
   const st = pedidoElegir, t = st.tildadas.get(id);
+  if(st.s.tipo==='traslado'){ t.guardar = undefined; return ''; } // el precio por niñera es por hora: no aplica a un traslado
   const casilla = casillaPrecioNinera({ familiaId: st.familiaId, nineraId: id, filas: st.preciosFam, valor: t.precio,
     tocadoManual: t.tocado, pagoActual: precioHoraNinera(st.familiaPrecios, id, st.preciosFam) });
   if(!casilla){ t.guardar = undefined; return ''; }
@@ -644,17 +707,22 @@ function textoErrorEnvio(error){
       return `${n ? n.nombre : quien} ya no está en la lista: destildala.`;
     }
     case 'demasiadas_ninieras': return `Hasta ${MAX_TILDADAS_PEDIDO} por vez.`;
-    case 'ninera_sin_app': case 'ninera_inactiva': case 'ninera_solo_traslados':
+    case 'ninera_sin_app': case 'ninera_inactiva': case 'ninera_solo_traslados': case 'ninera_no_hace_traslados':
       return `${quien} ya no puede recibir pedidos por la app: destildala.`;
     // La guía (etapa 4): el motivo viene en details ('sin_guia' / 'firma_vencida').
     case 'ninera_sin_guia':
       return `${quien} no puede recibir pedidos por la app (${(MOTIVO_GUIA_PANEL[error?.details] || MOTIVO_GUIA_PANEL.sin_guia).toLowerCase()}): destildala.`;
+    // Traslados (etapa 11).
+    case 'sin_carsitting': return `${quien} no tiene el carsitting aprobado: destildala.`;
+    case 'sin_origen_destino': return 'Falta el origen o el destino del recorrido.';
+    case 'sin_zonas': return 'Marcá la zona de origen y la de destino del recorrido: la niñera las ve antes de responder.';
+    case 'solo_sittings': return 'Falta actualizar la base para mandar traslados por la app: usá "Asignar" o WhatsApp.';
     case 'sin_chicos': return 'Faltan los chicos de la familia: cargalos en su ficha.';
     case 'practica_mezclada': return 'Hay niñeras reales tildadas junto con una de práctica.';
     case 'solo_practica': return 'Por ahora, por la app solo se mandan pedidos de práctica. Para este, usá "Asignar" o WhatsApp.';
     case 'pasado': return 'Este pedido es de un día que ya pasó.';
     case 'sin_familia': return TEXTO_PEDIDO_SIN_FAMILIA;
-    case 'precio_invalido': return `El precio por hora de ${quien} no es válido.`;
+    case 'precio_invalido': return `El precio ${pedidoElegir?.s?.tipo==='traslado' ? 'por viaje' : 'por hora'} de ${quien} no es válido.`;
     default: return `Error de conexión con la base: ${error?.message || error}`;
   }
 }
@@ -671,16 +739,26 @@ async function enviarPedidoApp(solicitudId){
   if(bloqueo==='sin_familia'){ aviso(TEXTO_PEDIDO_SIN_FAMILIA); return; }
   if(bloqueo==='sin_chicos'){ aviso('Faltan los chicos de la familia: cargalos en su ficha.'); return; }
   if(practicaMezcladaPedido()){ actualizarPiePedido(); return; } // el aviso ya está a la vista
+  const traslado = st.s.tipo==='traslado';
+  if(traslado){
+    const r = leerRutaTraslado('elegir');
+    if(!r.origen || !r.destino){ aviso('Falta el origen o el destino del recorrido.'); return; }
+    if(!r.zona || !r.destino_zona){ aviso('Marcá la zona de origen y la de destino del recorrido: la niñera las ve antes de responder.'); return; }
+  }
   // En el orden de la lista; el precio sin centavos, como todo pago a una niñera.
   const ids = [...document.querySelectorAll('#pedido-precios input[type=number][data-id]')].map(i=>i.dataset.id).filter(id=>st.tildadas.has(id));
   const envios = [];
   for(const id of ids){
     const t = st.tildadas.get(id), nombre = st.ninieras.find(n=>n.id===id)?.nombre || '';
     const precio = redondearPago(Number(t.precio)||0);
-    if(!(precio > 0)){ aviso(`Falta el precio por hora de ${nombre}.`); return; }
-    envios.push({ ninera_id: id, precio_hora: precio, nombre, guardar: !!t.guardar });
+    if(!(precio > 0)){ aviso(`Falta el precio ${traslado ? 'por viaje' : 'por hora'} de ${nombre}.`); return; }
+    envios.push({ ninera_id: id, precio_hora: precio, nombre, guardar: !traslado && !!t.guardar });
   }
-  const { data, error } = await sb.rpc('enviar_pedido_app', { p_solicitud_id: solicitudId, p_envios: envios.map(e=>({ ninera_id: e.ninera_id, precio_hora: e.precio_hora })) });
+  // El recorrido, en la solicitud, antes de mandar: la base lo valida y la niñera lo ve.
+  const errRuta = await guardarRutaElegir();
+  if(errRuta){ warn.innerHTML = errBox(errRuta) + '<div class="warnbox">No se guardó el recorrido: no se mandó.</div>'; return; }
+  const { data, error } = await sb.rpc('enviar_pedido_app', { p_solicitud_id: solicitudId,
+    p_envios: envios.map(e=>traslado ? { ninera_id: e.ninera_id, precio_viaje: e.precio_hora } : { ninera_id: e.ninera_id, precio_hora: e.precio_hora }) });
   if(error){ aviso(textoErrorEnvio(error)); return; }
   // Los precios con la casilla tildada, después de mandar (como al registrar): si alguno falla, lo
   // mandado queda y se avisa qué faltó.
@@ -698,6 +776,201 @@ async function enviarPedidoApp(solicitudId){
     const a = avisoPrecioGuardado(res, aGuardar[i].nombre, 'Se mandó, pero');
     if(a) toast(a.texto, a.tipo);
   });
+}
+
+/* ================= La ruta de un traslado (etapa 11, 03/11/2026, decisiones 6.9) =================
+   Que cargar un traslado sea tan rápido como un sitting (Diego): origen y destino vienen precargados con lo último de
+   esa familia (la casa y el colegio u otro destino que ya usó), con un toque para invertirlos (ida / vuelta), y los km
+   salen del viaje anterior con esos dos lugares (si no, "Calcular km con el mapa"). Lo usan "+ Nueva solicitud"
+   (prefijo 'agenda') y el ticket de "Pegar WhatsApp" ('pedido'). La zona de origen es la casilla de zonas de siempre de
+   esa pantalla (solicitudes.zona); la de destino, otra igual (`<prefijo>-destino`). La niñera ve las dos zonas antes de
+   que la elijan y las direcciones recién cuando queda confirmada. */
+const rutasTraslado = {}; // prefijo -> { zonaPrefijo, familiaId, lugares, onKm, kmTocado }
+const MAX_LUGAR_TRASLADO = 300;
+const esCasaTexto = t => normaliza(String(t || '').trim()) === 'casa';
+
+// Lo de esa familia: la casa (dirección y zona de la ficha), los últimos viajes (de sus pedidos de traslado, con las
+// zonas, y de sus registros, con los km) y los lugares que ya usó. null si no se pudo leer la ficha.
+async function leerLugaresTraslado(familiaId){
+  if(!familiaId) return { casa: null, viajes: [], lugares: [] };
+  const [fam, sols, regs] = await Promise.all([
+    sb.from('familias').select('direccion,zona').eq('id', familiaId).maybeSingle(),
+    sb.from('solicitudes').select('origen,destino,zona,destino_zona,km,fecha,created_at').eq('familia_id', familiaId).eq('tipo', 'traslado')
+      .not('origen', 'is', null).order('created_at', { ascending: false }).limit(20),
+    sb.from('sittings_traslados').select('origen,destino,km,fecha').eq('familia_id', familiaId).eq('tipo', 'traslado')
+      .not('origen', 'is', null).order('fecha', { ascending: false }).limit(20),
+  ]);
+  if(fam.error) return null;
+  const direccion = String(fam.data?.direccion || '').trim();
+  const casa = direccion ? { texto: direccion, zona: fam.data?.zona || null } : null;
+  // Sin la migración de la etapa 11 los pedidos no tienen origen (42703): quedan los registros.
+  const viajes = [...(sols.error ? [] : sols.data || []).map(v => ({ ...v, deSolicitud: true })), ...(regs.error ? [] : regs.data || [])]
+    .filter(v => String(v.origen || '').trim() && String(v.destino || '').trim())
+    .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || (b.deSolicitud ? 1 : 0) - (a.deSolicitud ? 1 : 0));
+  const porClave = new Map();
+  const sumar = (texto, zona) => {
+    const t = String(texto || '').trim();
+    if(!t) return;
+    const k = normaliza(t);
+    const ya = porClave.get(k);
+    if(!ya) porClave.set(k, { nombre: t, zona: zona || null });
+    else if(!ya.zona && zona) ya.zona = zona;
+  };
+  if(casa) sumar(casa.texto, casa.zona);
+  viajes.forEach(v => { sumar(v.origen, v.deSolicitud ? v.zona : null); sumar(v.destino, v.deSolicitud ? v.destino_zona : null); });
+  return { casa, viajes, lugares: [...porClave.values()] };
+}
+function lugarTraslado(r, texto){
+  const k = normaliza(String(texto || '').trim());
+  return k ? (r?.lugares || []).find(l => normaliza(l.nombre) === k) || null : null;
+}
+// Los km del último viaje entre esos dos lugares, en cualquier sentido.
+function kmViajeTraslado(r, origen, destino){
+  const o = normaliza(String(origen || '').trim()), d = normaliza(String(destino || '').trim());
+  if(!o || !d) return null;
+  const v = (r?.viajes || []).find(x => Number(x.km) > 0 && ((normaliza(x.origen.trim()) === o && normaliza(x.destino.trim()) === d)
+    || (normaliza(x.origen.trim()) === d && normaliza(x.destino.trim()) === o)));
+  return v ? Number(v.km) : null;
+}
+
+// Los campos (el prefijo arma los ids). valores: lo que ya se sabe (del ticket); km: el campo de km de la pantalla.
+function htmlRutaTraslado(p, { origen = '', destino = '', destinoZona = '', km = '' } = {}){
+  const campo = (lado, etiqueta, valor) => `<div class="field" style="position:relative;"><label for="${p}-${lado}">${etiqueta}</label>
+      <input type="text" id="${p}-${lado}" autocomplete="off" maxlength="${MAX_LUGAR_TRASLADO}" value="${escaparHtml(valor)}" placeholder="Dirección o lugar"${valor ? ' data-tocado="1"' : ''} oninput="this.dataset.tocado='1'">
+      <div id="${p}-${lado}-dropdown" class="autocomplete-dropdown" style="display:none;"></div></div>`;
+  return `<div class="ruta-traslado" id="${p}-ruta">
+    ${campo('origen', 'Origen', origen)}
+    <button type="button" class="smallbtn ruta-invertir" onclick="invertirRutaTraslado(${argJs(p)})">Invertir (ida / vuelta)</button>
+    ${campo('destino', 'Destino', destino)}
+    ${checklistZonas(p+'-destino', destinoZona, 'Zona de destino')}
+    <div class="field"><label for="${p}-km">Km recorridos</label><input type="number" step="0.1" min="0" inputmode="decimal" id="${p}-km" value="${escaparHtml(km)}" oninput="onKmRutaTraslado(${argJs(p)}, true)"></div>
+    <div class="helper ruta-nota" id="${p}-ruta-nota"></div>
+    <div class="helper"><a href="#" onclick="calcularKmRutaTraslado(${argJs(p)});return false;">Calcular km con el mapa</a> <span id="${p}-ruta-km-estado"></span></div>
+  </div>`;
+}
+function onKmRutaTraslado(p, aMano){
+  const r = rutasTraslado[p];
+  if(r && aMano) r.kmTocado = true;
+  if(r && typeof r.onKm === 'function') r.onKm();
+}
+function ponerKmRutaTraslado(p, km){
+  const r = rutasTraslado[p], input = document.getElementById(p+'-km');
+  if(!input || (r && r.kmTocado) || !(Number(km) > 0)) return;
+  input.value = km;
+  onKmRutaTraslado(p, false);
+}
+// La zona de un lado: la casilla de origen de la pantalla o la de destino.
+function zonaRutaPrefijo(p, lado){ return lado === 'origen' ? rutasTraslado[p]?.zonaPrefijo : p+'-destino'; }
+function ponerZonaRutaTraslado(p, lado, zona){
+  const prefijo = zonaRutaPrefijo(p, lado);
+  if(prefijo && zona) setZonasChecklist(prefijo, zona, lado === 'origen' ? 'Zona de origen' : 'Zona de destino');
+}
+// Lee lo de la familia, engancha el autocompletar y, si los dos campos están vacíos, precarga el último viaje (o la casa
+// como origen). zonaPrefijo: la casilla de zonas de origen; onKm: qué repintar cuando cambian los km.
+// Con la misma familia ya leída (la pantalla se repintó), solo vuelve a enganchar el autocompletar.
+async function prepararRutaTraslado(p, zonaPrefijo, familiaId, { onKm = null } = {}){
+  const anterior = rutasTraslado[p];
+  const mismaFamilia = !!anterior && anterior.familiaId === familiaId;
+  const r = rutasTraslado[p] = { zonaPrefijo, familiaId, lugares: [], viajes: [], casa: null, onKm, kmTocado: mismaFamilia && !!anterior.kmTocado, leido: false };
+  const nota = document.getElementById(p+'-ruta-nota');
+  const leidos = mismaFamilia && anterior.leido ? anterior : await leerLugaresTraslado(familiaId);
+  if(rutasTraslado[p] !== r) return; // cambió la familia mientras se leía
+  if(!leidos){ if(nota) nota.textContent = 'No se pudieron leer los traslados anteriores de la familia: cargá origen y destino a mano.'; return; }
+  Object.assign(r, { casa: leidos.casa, viajes: leidos.viajes, lugares: leidos.lugares, leido: true });
+  const soloEnganchar = mismaFamilia && anterior.leido;
+  const o = document.getElementById(p+'-origen'), d = document.getElementById(p+'-destino');
+  if(!o || !d) return;
+  // Otra familia: lo precargado de la anterior se va (lo escrito a mano o lo del mensaje, no).
+  if(anterior && anterior.familiaId !== familiaId){
+    [o, d].forEach(input => { if(!input.dataset.tocado) input.value = ''; });
+    if(!r.kmTocado){ const km = document.getElementById(p+'-km'); if(km) km.value = ''; }
+  }
+  // Una sola vez por campo (si cambia la familia, la lista sale de rutasTraslado[p]).
+  [['origen', o], ['destino', d]].forEach(([lado, input]) => {
+    if(input.dataset.rutaAuto) return;
+    input.dataset.rutaAuto = '1';
+    attachAutocomplete(input.id, input.id+'-dropdown', () => rutasTraslado[p]?.lugares || [], l => {
+      if(!l) return;
+      input.dataset.tocado = '1';
+      if(l.zona) ponerZonaRutaTraslado(p, lado, l.zona);
+      ponerKmRutaTraslado(p, kmViajeTraslado(rutasTraslado[p], valorRuta(p, 'origen'), valorRuta(p, 'destino')));
+    }, { sinCoincidencias: '' });
+  });
+  // "casa" (del ticket): la dirección de la ficha.
+  [[o, 'origen'], [d, 'destino']].forEach(([input, lado]) => {
+    if(!esCasaTexto(input.value)) return;
+    input.value = r.casa ? r.casa.texto : '';
+    if(r.casa) ponerZonaRutaTraslado(p, lado, r.casa.zona);
+  });
+  if(soloEnganchar) return;
+  let texto = '';
+  if(!o.value.trim() && !d.value.trim()){
+    const v = r.viajes[0];
+    if(v){
+      o.value = v.origen.trim(); d.value = v.destino.trim();
+      ponerZonaRutaTraslado(p, 'origen', lugarTraslado(r, v.origen)?.zona);
+      ponerZonaRutaTraslado(p, 'destino', lugarTraslado(r, v.destino)?.zona);
+      texto = `Con el último traslado de la familia${v.fecha ? ` (${fechaCortaRuta(v.fecha)})` : ''}. Para la vuelta, tocá "Invertir".`;
+    } else if(r.casa){
+      o.value = r.casa.texto;
+      ponerZonaRutaTraslado(p, 'origen', r.casa.zona);
+      texto = 'Origen: la casa de la familia. Falta el destino.';
+    }
+  } else if(!o.value.trim() && r.casa && normaliza(d.value.trim()) !== normaliza(r.casa.texto)){
+    // Ya hay destino (escrito o del mensaje): sale de la casa.
+    o.value = r.casa.texto;
+    ponerZonaRutaTraslado(p, 'origen', r.casa.zona);
+  } else {
+    // Lo que vino del mensaje: las zonas de los lugares que ya usó, si no están marcadas.
+    [['origen', o], ['destino', d]].forEach(([lado, input]) => {
+      const l = lugarTraslado(r, input.value);
+      if(l && l.zona && !leerZonasChecklist(zonaRutaPrefijo(p, lado))) ponerZonaRutaTraslado(p, lado, l.zona);
+    });
+  }
+  ponerKmRutaTraslado(p, kmViajeTraslado(r, o.value, d.value));
+  if(nota) nota.textContent = texto;
+}
+function fechaCortaRuta(fecha){ return `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}`; }
+function valorRuta(p, lado){ return (document.getElementById(`${p}-${lado}`)?.value || '').trim(); }
+// Ida / vuelta: se dan vuelta los dos lugares y sus zonas; los km son los mismos.
+function invertirRutaTraslado(p){
+  const o = document.getElementById(p+'-origen'), d = document.getElementById(p+'-destino');
+  if(!o || !d) return;
+  [o.value, d.value] = [d.value, o.value];
+  const zo = zonaRutaPrefijo(p, 'origen'), zd = zonaRutaPrefijo(p, 'destino');
+  const zonaO = zo ? leerZonasChecklist(zo) : '', zonaD = leerZonasChecklist(zd);
+  if(zo) setZonasChecklist(zo, zonaD, 'Zona de origen');
+  setZonasChecklist(zd, zonaO, 'Zona de destino');
+  const nota = document.getElementById(p+'-ruta-nota');
+  if(nota) nota.textContent = '';
+}
+function leerRutaTraslado(p){
+  const r = rutasTraslado[p];
+  const km = Number(document.getElementById(p+'-km')?.value);
+  return { origen: valorRuta(p, 'origen') || null, destino: valorRuta(p, 'destino') || null,
+    zona: r?.zonaPrefijo ? leerZonasChecklist(r.zonaPrefijo) || null : null, destino_zona: leerZonasChecklist(p+'-destino') || null,
+    km: km > 0 ? Math.round(km * 10) / 10 : null };
+}
+// TomTom, como el registro de Sittings: ubica las dos direcciones y calcula la ruta.
+async function calcularKmRutaTraslado(p){
+  const estado = document.getElementById(p+'-ruta-km-estado');
+  const o = valorRuta(p, 'origen'), d = valorRuta(p, 'destino');
+  if(!o || !d){ if(estado) estado.textContent = 'Cargá origen y destino primero.'; return; }
+  if(estado) estado.textContent = 'Calculando…';
+  try{
+    const [co, cd] = await Promise.all([geocodeTomTom(o), geocodeTomTom(d)]);
+    const km = co && cd ? await rutaKmTomTom(co, cd) : null;
+    if(km == null){ if(estado) estado.textContent = 'No se pudo calcular: cargá los km a mano.'; return; }
+    const input = document.getElementById(p+'-km');
+    if(input){ input.value = km; onKmRutaTraslado(p, true); }
+    if(estado) estado.textContent = `${km} km con el mapa.`;
+  }catch(e){
+    if(estado) estado.textContent = 'No se pudo calcular: cargá los km a mano.';
+  }
+}
+// Una columna de la etapa 11 que la base todavía no tiene: se guarda sin la ruta y se avisa.
+function esFaltaColumnaRuta(error){
+  return !!error && (error.code==='PGRST204' || error.code==='42703') && /\b(origen|destino|destino_zona|km|precio_viaje)\b/.test(error.message || '');
 }
 
 /* ================= "Pegar WhatsApp" (etapa 5, tarea 5.6, 02/11/2026) =================
@@ -764,8 +1037,10 @@ function nineraPedidaDelTicket(texto){
 
 async function pintarTicket(pedido){
   const token = modalToken;
+  delete rutasTraslado.pedido;
   if(!agendaFamilias.length) await cargarAgendaBase();
   if(!zonaGruposCache) await cargarZonaGrupos();
+  if(pedido.servicio==='traslado' && !tarifaTrasladoConfig) await cargarTarifaTrasladoConfig(); // el precio por km
   if(token!==modalToken) return;
   if(pedido.tipo && pedido.tipo!=='pedido_nuevo') return await pintarNoEsPedidoNuevo(pedido);
   const familia = pedido.familia_id ? agendaFamilias.find(f=>f.id===pedido.familia_id) || null : null;
@@ -784,7 +1059,7 @@ async function pintarTicket(pedido){
     <details class="pedido-msg" open><summary>Mensaje pegado</summary><div class="pedido-msg-texto">${escaparHtml(pedido.texto||'')}</div></details>
     <div class="field"><label>Familia</label><div id="pedido-familia-box"></div></div>
     <div class="grid2">
-      <div class="field"><label>Tipo</label><select id="pedido-tipo" onchange="actualizarPrecioTicket()">
+      <div class="field"><label>Tipo</label><select id="pedido-tipo" onchange="onTipoTicket()">
         ${servicio ? '' : '<option value="">Elegí</option>'}
         <option value="sitting"${servicio==='sitting'?' selected':''}>Sitting</option>
         <option value="traslado"${servicio==='traslado'?' selected':''}>Traslado</option></select></div>
@@ -799,8 +1074,10 @@ async function pintarTicket(pedido){
       <label class="chk" style="margin:2px 0 12px;"><input type="checkbox" id="pedido-cruza"${pedido.termina_dia_siguiente ? ' checked' : ''}> Termina al día siguiente</label>
       <label class="chk" style="margin:2px 0 12px;"><input type="checkbox" id="pedido-aprox"${pedido.horario_aproximado ? ' checked' : ''}> Horario aproximado (se puede extender)</label>
     </div>
-    <div id="pedido-zona-wrap" onchange="onZonaTicket()">${checklistZonas('pedido', zonaTicket || familia?.zona || '', 'Zona')}</div>
+    <div id="pedido-zona-wrap" onchange="onZonaTicket()">${checklistZonas('pedido', zonaTicket || familia?.zona || '', servicio==='traslado' ? 'Zona de origen' : 'Zona')}</div>
     ${pedido.zona && !zonaTicket ? enMensaje(pedido.zona) : ''}
+    <div id="pedido-ruta-wrap"${servicio==='traslado' ? '' : ' style="display:none;"'}>${htmlRutaTraslado('pedido', { origen: pedido.origen || '', destino: pedido.destino || '',
+      destinoZona: zonasMencionadasEnTexto(pedido.destino_zona || '').map(g=>g.nombre).join('/') })}</div>
     <div class="field"><label>Chicos (de la ficha)</label><div id="pedido-chicos"></div></div>
     <div class="field" style="position:relative;"><label>La madre pidió a</label>
       <input type="text" id="pedido-ninera" autocomplete="off" placeholder="Nadie en especial" value="${escaparHtml(ninera?.nombre || '')}">
@@ -821,14 +1098,36 @@ async function pintarTicket(pedido){
   document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove(); // "Editar zonas" abriría otro modal encima del ticket
   attachAutocomplete('pedido-ninera', 'pedido-ninera-dropdown', ()=>agendaNinierasBase,
     n=>{ if(pedidoTicket) pedidoTicket.nineraPedidaId = n?.id || null; }, { sinCoincidencias: 'Ninguna niñera coincide.' });
+  document.querySelector('#pedido-ruta-wrap .zona-detalle')?.remove();
   pintarFamiliaTicket();
   pintarChicosTicket();
   pintarDudasTicket();
   pintarDireccionTicket();
   actualizarPrecioTicket();
   protegerModal('pedido-whatsapp:'+pedido.id); // pregunta antes de cerrar con cambios
+  if(servicio==='traslado') prepararRutaTicket();
 }
 function onZonaTicket(){ if(pedidoTicket) pedidoTicket.zonaTocada = true; }
+// Traslado (etapa 11): la zona es la de origen y aparecen origen, destino y km (precargados con lo de la familia).
+function onTipoTicket(){
+  const traslado = document.getElementById('pedido-tipo')?.value === 'traslado';
+  const wrap = document.getElementById('pedido-ruta-wrap');
+  if(wrap) wrap.style.display = traslado ? '' : 'none';
+  setZonasChecklist('pedido', leerZonasChecklist('pedido'), traslado ? 'Zona de origen' : 'Zona');
+  document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove();
+  if(traslado && !tarifaTrasladoConfig) cargarTarifaTrasladoConfig().then(actualizarPrecioTicket);
+  if(traslado) prepararRutaTicket();
+  actualizarPrecioTicket();
+}
+async function prepararRutaTicket(){
+  const st = pedidoTicket;
+  if(!st || document.getElementById('pedido-tipo')?.value !== 'traslado') return;
+  const id = st.familia?.id || null;
+  if(rutasTraslado.pedido && rutasTraslado.pedido.familiaId === id) return;
+  await prepararRutaTraslado('pedido', 'pedido', id, { onKm: actualizarPrecioTicket });
+  document.querySelector('#pedido-ruta-wrap .zona-detalle')?.remove();
+  document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove();
+}
 
 // La familia: la propuesta con "Es esta" / "Otra familia"; elegida, con "Cambiar"; si no, el buscador
 // y "+ Familia nueva" (la ficha corta del registro, ahí mismo, sin perder el ticket).
@@ -902,10 +1201,11 @@ async function elegirFamiliaTicket(id){
   pintarFamiliaTicket();
   // Sin zona en el mensaje (y sin tocarla), la de la familia elegida.
   if(!st.zonaDelTicket && !st.zonaTocada){
-    setZonasChecklist('pedido', f.zona || '', 'Zona');
+    setZonasChecklist('pedido', f.zona || '');
     document.querySelector('#pedido-zona-wrap .zona-detalle')?.remove();
   }
   pintarChicosTicket(); pintarDireccionTicket(); actualizarPrecioTicket();
+  prepararRutaTicket();
   await leerFichaFamiliaTicket(id);
 }
 // Los chicos (uno por uno, hijos_familia: el texto libre viejo no cuenta) y la dirección, en paralelo.
@@ -1048,7 +1348,12 @@ function leerHorarioTicket(){
 // un horario que no se puede guardar.
 function precioTicket(){
   const st = pedidoTicket, h = leerHorarioTicket();
-  if(h.tipo==='traslado') return { cobro: null, texto: 'El precio del traslado se calcula con los km al asignarlo.' };
+  if(h.tipo==='traslado'){
+    // Con los km, la tarifa de traslados (etapa 11); sin km, se calcula al cargarlos.
+    const p = precioTrasladoPorKm(document.getElementById('pedido-km')?.value, h.hi);
+    if(!p) return { cobro: null, texto: 'El precio del traslado se calcula con los km.' };
+    return { cobro: p.cobro, texto: `Precio esperado para la madre: $${p.cobro.toLocaleString('es-UY')}. A la niñera: $${p.pago.toLocaleString('es-UY')} por viaje.` };
+  }
   if(cruceMedianocheMalMarcado(h.hi, h.hf, h.cruza)) return { cobro: null, problema: AVISO_CRUCE_MEDIANOCHE };
   if(h.hi && h.hf && !h.cruza && h.hf <= h.hi) return { cobro: null, problema: 'La hora de fin tiene que ser después de la de inicio. Si termina pasada la medianoche, marcá "Termina al día siguiente".' };
   if(!h.hi) return { cobro: null, texto: '' };
@@ -1090,8 +1395,13 @@ async function crearSolicitudDesdeTicket({ mandar }){
   if(!h.hi){ aviso('Falta la hora de inicio.'); return; }
   const precio = precioTicket();
   if(precio.problema){ aviso(precio.problema); return; }
-  // Para mandar un sitting hacen falta los chicos cargados uno por uno (la base da sin_chicos igual).
-  if(mandar && h.tipo==='sitting'){
+  // Para mandar hacen falta los chicos cargados uno por uno (la base da sin_chicos igual); un traslado, también la ruta.
+  const ruta = h.tipo==='traslado' ? leerRutaTraslado('pedido') : null;
+  if(mandar && ruta){
+    if(!ruta.origen || !ruta.destino){ aviso('Falta el origen o el destino del traslado.'); return; }
+    if(!ruta.zona || !ruta.destino_zona){ aviso('Marcá la zona de origen y la de destino: la niñera las ve antes de responder.'); return; }
+  }
+  if(mandar){
     if(st.hijosError){ aviso('No se pudieron leer los chicos de la familia: tocá "Reintentar" antes de mandar.'); return; }
     if(st.hijos===null){ aviso('Esperá a que se lean los chicos de la familia.'); return; }
     if(!st.hijos.length){ aviso('Faltan los chicos de la familia: cargalos acá arriba antes de mandar el pedido.'); return; }
@@ -1116,8 +1426,15 @@ async function crearSolicitudDesdeTicket({ mandar }){
     hora_inicio: h.hi, hora_fin: h.hf || null, termina_dia_siguiente: !!(h.cruza && h.hf), horario_aproximado: h.aprox, cobro_familia: precio.cobro ?? null, estado: 'sin_asignar' };
   if(nineraId) solicitud.ninera_pedida_id = nineraId;
   if(notas) solicitud.notas_para_ninera = notas;
+  if(ruta) Object.assign(solicitud, { origen: ruta.origen, destino: ruta.destino, destino_zona: ruta.destino_zona, km: ruta.km });
   let { data: creada, error: e2 } = await sb.from('solicitudes').insert(solicitud).select('id').single();
-  let sinColumnas = false;
+  let sinColumnas = false, sinRuta = false;
+  if(esFaltaColumnaRuta(e2)){
+    // Base sin la migración de la etapa 11: sin la ruta (queda en el mensaje), y se avisa.
+    ['origen', 'destino', 'destino_zona', 'km'].forEach(c=>{ delete solicitud[c]; });
+    sinRuta = true;
+    ({ data: creada, error: e2 } = await sb.from('solicitudes').insert(solicitud).select('id').single());
+  }
   if(esFaltaColumnaSolicitudApp(e2)){
     // Base sin la migración de la etapa 5 o 6: se guarda igual, sin esas columnas, y se avisa.
     const { ninera_pedida_id, notas_para_ninera, horario_aproximado, ...resto } = solicitud;
@@ -1139,6 +1456,7 @@ async function crearSolicitudDesdeTicket({ mandar }){
   if(lbl) lbl.textContent = agendaRangoLabel();
   await cargarAgendaSolicitudes();
   actualizarAgendaBadge();
+  if(sinRuta) toast('Falta actualizar la base: la solicitud se guardó sin el origen, el destino ni los km (quedan en el mensaje). Avisale a Diego.', 'bad');
   if(sinColumnas) toast(`Falta actualizar la base: la solicitud se guardó sin ${[nineraId && 'la niñera que pidió la madre', notas && 'las notas para la niñera', h.aprox && 'la marca de horario aproximado'].filter(Boolean).join(' ni ')} (quedan en el mensaje). Avisale a Diego.`, 'bad');
   if(e3){
     toast(`La solicitud quedó en la Agenda, pero no se pudo vincular con el mensaje de WhatsApp (${e3.message || e3}): revisá las dudas con la madre antes de mandarlo.`, 'bad');
@@ -1469,8 +1787,9 @@ async function abrirAsignarPedido(solicitudId, snId){
   abrirModal('<div class="empty"><span class="spinner dark"></span> Cargando el pedido…</div>');
   const token = modalToken;
   const [sol, filas, cfg] = await Promise.all([
-    sb.from('solicitudes').select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,cobro_familia,estado,familias(id,nombre,direccion)').eq('id', solicitudId).maybeSingle(),
-    sb.from('solicitud_ninieras').select('id,solicitud_id,ninera_id,ninera_nombre,estado,precio_hora,origen,ninieras(id,nombre,user_id)').eq('solicitud_id', solicitudId),
+    // Todo: un traslado necesita su recorrido y lo ofrecido por viaje (etapa 11; con la base sin migrar no están).
+    sb.from('solicitudes').select('*,familias(id,nombre,direccion)').eq('id', solicitudId).maybeSingle(),
+    sb.from('solicitud_ninieras').select('*,ninieras(id,nombre,user_id)').eq('solicitud_id', solicitudId),
     sb.from('app_config').select('valor').eq('id', 'pedidos_app').maybeSingle(),
   ]);
   if(token !== modalToken) return;
@@ -1486,9 +1805,12 @@ async function abrirAsignarPedido(solicitudId, snId){
   // El pago: lo que se le ofreció por hora, por las horas reales (las que se le pagan).
   const horas = s.tipo === 'sitting' ? horasSitting(s.hora_inicio, s.hora_fin, !!s.termina_dia_siguiente, null, s.fecha) : null;
   const ofrecido = Number(sn.precio_hora) || 0;
-  const pago = horas && ofrecido ? redondearPago(ofrecido * horas.real) : 0;
+  // Un traslado: lo que se le ofreció por el viaje.
+  const ofrecidoViaje = s.tipo === 'traslado' ? Number(sn.precio_viaje) || 0 : 0;
+  const pago = ofrecidoViaje || (horas && ofrecido ? redondearPago(ofrecido * horas.real) : 0);
   const horasTxt = horas ? `${horas.real.toLocaleString('es-UY', { maximumFractionDigits: 2 })} ${horas.real === 1 ? 'hora' : 'horas'}` : '';
-  const ayudaPago = horas && ofrecido ? `${horasTxt} a $${ofrecido.toLocaleString('es-UY')} por hora, lo que se le ofreció.`
+  const ayudaPago = ofrecidoViaje ? 'Lo que se le ofreció por el viaje.'
+    : horas && ofrecido ? `${horasTxt} a $${ofrecido.toLocaleString('es-UY')} por hora, lo que se le ofreció.`
     : s.tipo === 'sitting' && !s.hora_fin ? 'Sin hora de fin: el pago se calcula cuando la cargues en Sittings & traslados.' : '';
   pedidoAsignar = { s, sn, familia, nombre };
   const estadoNinera = sn.estado === 'no_puedo' ? `<div class="warnbox">${escaparHtml(`${nombre} dijo que no puede. Si lo arreglaron por otro lado, la podés asignar igual.`)}</div>`
@@ -1516,19 +1838,21 @@ function campoDireccionAsignar(){
     <div class="helper">Falta en su ficha y hace falta para asignar: la niñera la ve recién cuando queda confirmada. Se guarda en la ficha.</div></div>`;
 }
 /* Lo que les llega a las niñeras al asignar, con la regla de los triggers (solicitud_ninieras_al_confirmar y
-   pedido_puede_avisar): solo sittings de hoy en adelante; con solo_practica prendido (o sin poder leerlo, como
+   pedido_puede_avisar): sittings y, desde la etapa 11, traslados (con la base al día), de hoy en adelante; con solo_practica prendido (o sin poder leerlo, como
    la base), solo si la familia y la niñera son de práctica. A la elegida, si tiene la app; a las otras de la
    app que dijeron "Puedo", que ya se cubrió; a las que no respondieron, nada. */
 function quienRecibeQue(s, sn, nombre, familia, cfg){
   const soloPractica = cfg.error || !cfg.data ? true : cfg.data.valor?.solo_practica !== false;
   const nombreFamilia = familia?.nombre || s.familia_nombre;
-  const avisa = n => s.tipo === 'sitting' && s.fecha >= todayISO()
+  const conAvisos = s.tipo === 'sitting' || (s.tipo === 'traslado' && 'origen' in s);
+  const que = s.tipo === 'traslado' ? 'traslado' : 'sitting';
+  const avisa = n => conAvisos && s.fecha >= todayISO()
     && (!soloPractica || (nineraEsPractica({ nombre: nombreFamilia }) && nineraEsPractica({ nombre: n })));
   const lineas = [];
   if(!sn.ninieras?.user_id) lineas.push(`${nombre} no tiene la app: avisale por WhatsApp.`);
-  else if(avisa(nombre)) lineas.push(`A ${nombre} le llega "¡Quedaste seleccionada!" con los datos del sitting.`);
+  else if(avisa(nombre)) lineas.push(`A ${nombre} le llega "¡Quedaste seleccionada!" con los datos del ${que}.`);
   else lineas.push(`A ${nombre} no le llega aviso por la app: avisale por WhatsApp.`);
-  if(s.tipo === 'sitting'){
+  if(conAvisos){
     const otras = (s.ninieras || []).filter(x => x.id !== sn.id && x.origen === 'app');
     const pueden = otras.filter(x => x.estado === 'acepto').map(x => x.ninera_nombre || '');
     const avisadas = pueden.filter(avisa), sinAviso = pueden.filter(n => !avisa(n));
@@ -1654,7 +1978,8 @@ function htmlPedidoEnCurso(s, historial, { enModal = false, filasExtra = '' } = 
 }
 function filaPedidoEnCurso(s, n, historial, esPedida, enModal){
   const partes = [];
-  if(n.precio_hora != null && n.precio_hora !== '') partes.push(`$${Number(n.precio_hora).toLocaleString('es-UY')} por hora.`);
+  if(s.tipo === 'traslado' && Number(n.precio_viaje) > 0) partes.push(`$${Number(n.precio_viaje).toLocaleString('es-UY')} por viaje.`);
+  else if(n.precio_hora != null && n.precio_hora !== '') partes.push(`$${Number(n.precio_hora).toLocaleString('es-UY')} por hora.`);
   if(historial){
     const veces = vecesEnFamilia(historial, n);
     partes.push(veces ? `Ya fue ${veces} ${veces === 1 ? 'vez' : 'veces'}.` : 'Nueva para esta familia.');
@@ -1705,7 +2030,7 @@ async function cargarPedidosEnCurso(){
   let respuesta;
   try {
     respuesta = await sb.from('solicitudes')
-      .select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,estado,enviado_app_en,ninera_pedida_id,solicitud_ninieras(id,ninera_id,ninera_nombre,estado,origen,precio_hora,motivo_no,motivo_texto,enviado_en)')
+      .select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,estado,enviado_app_en,ninera_pedida_id,solicitud_ninieras(*)')
       .eq('estado', 'pendiente_confirmar').gte('fecha', todayISO()).order('fecha').order('hora_inicio');
   } catch(e){ respuesta = { error: e }; }
   const { data, error } = respuesta;

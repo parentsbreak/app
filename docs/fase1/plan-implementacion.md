@@ -1958,3 +1958,5 @@ su carpeta y los 7 nombres). Migración aplicada en producción el 02/11/2026; a
 - Solo si todo lo anterior anda estable: `enviar_pedido_app` acepta `tipo 'traslado'` con
   `precio_viaje`; tarjeta "Traslado [dd/mm]" con "Precio: $X por viaje"; solo a las que tienen
   `carsitting_datos.aprobado_en`; `ordenarSugeridas` filtra por tipo. Migración chica, PR, OK, merge.
+- 03/11/2026: se hace ahora y completa, con el foco en que cargar un traslado sea tan rápido como un sitting (respuestas en
+  `decisiones.md` 6.9). Rama `claude/fase1-traslados`, migración `20261109_traslados_app`.

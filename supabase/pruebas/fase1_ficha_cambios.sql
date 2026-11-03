@@ -54,7 +54,7 @@ select pg_temp.verificar('las de la niñera: authenticated sí, anon no',
   and not has_function_privilege('anon', 'public.ninera_ficha_familia(uuid)', 'execute')
   and not has_function_privilege('anon', 'public.ninera_responder_cambio(uuid, boolean)', 'execute'));
 select pg_temp.verificar('las internas: ni authenticated ni anon',
-  not has_function_privilege('authenticated', 'public.aviso_sitting_ninera(text, uuid, uuid, uuid, text, date, time without time zone, time without time zone, boolean, uuid, date)', 'execute')
+  not has_function_privilege('authenticated', 'public.aviso_sitting_ninera(text, uuid, uuid, uuid, text, date, time without time zone, time without time zone, boolean, uuid, date, text)', 'execute')
   and not has_function_privilege('authenticated', 'public.avisar_cambios_previstos(date)', 'execute')
   and not has_function_privilege('authenticated', 'public.sitting_puede_avisar(uuid, uuid, text)', 'execute')
   and not has_function_privilege('authenticated', 'public.ficha_familia_campos()', 'execute'));
@@ -87,10 +87,11 @@ insert into sittings_traslados (id, tipo, familia_id, familia_nombre, ninera_id,
   ('e5800000-0000-4000-8000-000000000005', 'sitting', 'e3800000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'e2800000-0000-4000-8000-000000000005', 'Eva Sinapp', '2030-01-10', '16:00', '19:00', 1140, 750),
   ('e5800000-0000-4000-8000-000000000006', 'traslado', 'e3800000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'e2800000-0000-4000-8000-000000000001', 'Ana Ficticia', '2030-01-10', '08:00', null, 450, 250),
   ('e5800000-0000-4000-8000-000000000007', 'sitting', 'e3800000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 'e2800000-0000-4000-8000-000000000001', 'Ana Ficticia', '2020-01-10', '16:00', '19:00', 1140, 750);
-select pg_temp.verificar('un sitting nuevo: "Tienes un sitting el [día]" a Ana; nada a Eva (sin app), del traslado ni del pasado',
-  pg_temp.avisos_de('e2800000-0000-4000-8000-000000000001') = array['Tienes un sitting el ' || pg_temp.dia('2030-01-10') || ' | 16:00, en Pocitos. Mira los datos en la app.']
+select pg_temp.verificar('un sitting nuevo: "Tienes un sitting el [día]" a Ana, y el traslado (etapa 11, sin la zona); nada a Eva (sin app) ni del pasado',
+  pg_temp.avisos_de('e2800000-0000-4000-8000-000000000001') = array['Tienes un sitting el ' || pg_temp.dia('2030-01-10') || ' | 16:00, en Pocitos. Mira los datos en la app.',
+    'Tienes un traslado el ' || pg_temp.dia('2030-01-10') || ' | A las 08:00. Mira los datos en la app.']
   and pg_temp.avisos_de('e2800000-0000-4000-8000-000000000005') = '{}'
-  and (select url = '#inicio' and tipo = 'sitting' from avisos where para_ninera_id = 'e2800000-0000-4000-8000-000000000001'));
+  and (select bool_and(url = '#inicio' and tipo = 'sitting') from avisos where para_ninera_id = 'e2800000-0000-4000-8000-000000000001'));
 
 delete from avisos;
 update sittings_traslados set hora_inicio = '17:00', hora_fin = '20:00' where id = 'e5800000-0000-4000-8000-000000000001';
@@ -104,8 +105,9 @@ update sittings_traslados set hora_inicio = '17:00', hora_fin = '20:00' where id
 update sittings_traslados set cobro_familia = 1200, cobrado = true where id = 'e5800000-0000-4000-8000-000000000001';
 update sittings_traslados set cobrado = false where id = 'e5800000-0000-4000-8000-000000000001';
 update sittings_traslados set hora_inicio = '09:00' where id = 'e5800000-0000-4000-8000-000000000006';
-select pg_temp.verificar('sin cambio de horario, solo plata, o un traslado: nada más',
-  (select count(*) = 1 from avisos where para_ninera_id = 'e2800000-0000-4000-8000-000000000001'));
+select pg_temp.verificar('sin cambio de horario o solo plata: nada más; el traslado (etapa 11) avisa la hora de salida',
+  pg_temp.avisos_de('e2800000-0000-4000-8000-000000000001') = array['Cambió el horario de tu sitting del ' || pg_temp.dia('2030-01-10') || ' | Ahora es de 17:00 a 20:00. Mira los detalles.',
+    'Cambió el horario de tu traslado del ' || pg_temp.dia('2030-01-10') || ' | Ahora es a las 09:00. Mira los detalles.']);
 
 delete from avisos;
 update sittings_traslados set fecha = '2030-01-11' where id = 'e5800000-0000-4000-8000-000000000001';

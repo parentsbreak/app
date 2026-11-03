@@ -18,7 +18,7 @@ function respuesta(cambios: Partial<Respuesta> = {}): Respuesta {
   return {
     tipo: "pedido_nuevo", familia_id: FAMILIAS[0].id, familia_en_mensaje: "Ana, mamá de Tomi", servicio: "sitting",
     fecha: "2026-10-24", hora_inicio: "20:00", hora_fin: "23:30", horario_aproximado: false, horario_nota: null,
-    chicos_cantidad: 2, chicos_edades: "2 y 5 años", zona: "Pocitos", ninera_pedida: null, notas: null, dudas: [], ...cambios,
+    chicos_cantidad: 2, chicos_edades: "2 y 5 años", zona: "Pocitos", origen: null, destino: null, destino_zona: null, ninera_pedida: null, notas: null, dudas: [], ...cambios,
   };
 }
 // Base y modelo de mentira: anotan qué se les pidió. La base lleva la cuenta de las llamadas
@@ -287,4 +287,39 @@ Deno.test("ninera_pedida: la fila guardada la lleva y el SISTEMA la explica", as
   assertEquals(llamadas.guardado[0].ninera_pedida, "Ana Ficticia");
   assertStringIncludes(SISTEMA, "ninera_pedida");
   assert(RespuestaModelo.safeParse(respuesta({ ninera_pedida: "Ana Ficticia" })).success);
+});
+
+// Etapa 11 (03/11/2026): un traslado trae origen, destino y la zona de destino; un sitting, nunca.
+const TRASLADO: Partial<Respuesta> = {
+  servicio: "traslado", hora_inicio: "07:45", hora_fin: null, horario_aproximado: false,
+  zona: "Pocitos", origen: "casa", destino: "Colegio Inventado", destino_zona: "Carrasco",
+};
+Deno.test("traslado: origen, destino y la zona de destino, recortados; sin precio (depende de los km)", async () => {
+  const { deps, llamadas } = simulado(respuesta({ ...TRASLADO, origen: "  casa  ", destino: "d".repeat(400), destino_zona: "z".repeat(120) }));
+  const r = await pedir(deps, "¿Pueden llevar a Tomi mañana a las 7:45 de casa al Colegio Inventado?");
+  assert(r.ok);
+  const fila = llamadas.guardado[0];
+  assertEquals(fila.servicio, "traslado");
+  assertEquals(fila.hora_inicio, "07:45");
+  assertEquals(fila.origen, "casa");
+  assertEquals((fila.destino as string).length, 300);
+  assertEquals((fila.destino_zona as string).length, 80);
+  assertEquals(fila.zona, "Pocitos");
+  assertEquals(llamadas.precio, []);
+  assertEquals(fila.cobro_estimado, null);
+});
+Deno.test("traslado sin origen ni destino: quedan null (el panel los pide)", () => {
+  const t = validarRespuesta(respuesta({ ...TRASLADO, origen: null, destino: "   ", destino_zona: null }), FAMILIAS, null);
+  assertEquals([t.origen, t.destino, t.destino_zona], [null, null, null]);
+});
+Deno.test("un sitting no guarda origen ni destino aunque el modelo los traiga", () => {
+  const t = validarRespuesta(respuesta({ origen: "casa", destino: "Colegio Inventado", destino_zona: "Carrasco" }), FAMILIAS, null);
+  assertEquals([t.origen, t.destino, t.destino_zona], [null, null, null]);
+});
+Deno.test("el SISTEMA explica el traslado (un viaje, la hora de salida, 'casa') y el esquema lo acepta", () => {
+  assertStringIncludes(SISTEMA, "Un traslado es un viaje");
+  assertStringIncludes(SISTEMA, "hora de salida");
+  assertStringIncludes(SISTEMA, '"casa"');
+  assert(RespuestaModelo.safeParse(respuesta(TRASLADO)).success);
+  assertEquals(RespuestaModelo.safeParse({ ...respuesta(TRASLADO), origen: 3 }).success, false);
 });

@@ -169,9 +169,10 @@ function textoCambioNinera(c){
 function htmlTarjetaCambio(c){
   const id = argJs(c.id);
   return `<section class="tarjeta-dia tarjeta-cambio" id="cambio-${escaparHtml(c.id)}">
-    <h2>${c.es_fijo ? 'Cambió el horario de tu fijo' : 'Cambió el horario de tu sitting'}</h2>
+    <h2>${c.tipo === 'traslado' ? (c.es_fijo ? 'Cambió el horario de tu fijo de traslados' : 'Cambió el horario de tu traslado')
+      : (c.es_fijo ? 'Cambió el horario de tu fijo' : 'Cambió el horario de tu sitting')}</h2>
     <p class="dia-cuando">${escaparHtml(textoCambioNinera(c))}</p>
-    ${c.madre ? `<p class="helper">Madre: ${escaparHtml(c.madre)}${c.zona ? `, en ${escaparHtml(c.zona)}` : ''}</p>` : ''}
+    ${c.madre ? `<p class="helper">Madre: ${escaparHtml(c.madre)}${c.zona && c.tipo !== 'traslado' ? `, en ${escaparHtml(c.zona)}` : ''}</p>` : ''}
     <div class="dia-botones">
       <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>responderCambioNinera(${id}, true))">Ok</button>
       <button type="button" class="btn ghost ancho" onclick="conGuardado(this, ()=>responderCambioNinera(${id}, false))">A esa hora no puedo</button>

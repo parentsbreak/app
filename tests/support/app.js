@@ -14,7 +14,7 @@ const path = require('path');
 const { expect } = require('@playwright/test');
 const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
-const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
+const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, COLUMNAS_ETAPA_11, alConfirmarFila, alCancelarSolicitud, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 const { RPC_ETAPA_7, TABLAS_ETAPA_7, COLUMNAS_REVISION_CIERRE, rpcDiaNinera, rutaComprobantePermitida, prefiereOtros } = require('./rpc-dia');
 const { RPC_ETAPA_8, TABLAS_ETAPA_8, rpcFichaNinera, avisosSittings, cancelarRegistroDelPedido } = require('./rpc-ficha');
 const { RPC_ETAPA_10, COLUMNAS_ETAPA_10, rpcCarsittingNinera, rutaFotoCarsittingPermitida, rechazoRevision, carsittingAlRevisar } = require('./rpc-carsitting');
@@ -204,6 +204,10 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *     migrar también la saca (también en abrirAppNinera).
  *     'etapa10' (02/11/2026): solo falta 20261108_carsitting_app: sus dos RPC dan 404 PGRST202 y las columnas nuevas de
  *     carsitting_datos dan 42703 / PGRST204; sin el trigger de la revisión. La 8 sin migrar también la saca.
+ *     'etapa11' (03/11/2026): solo falta 20261109_traslados_app: enviar_pedido_app rechaza un traslado (solo_sittings), las
+ *     columnas nuevas (solicitudes.origen / destino / destino_zona / km, solicitud_ninieras.precio_viaje, pedidos_whatsapp.origen /
+ *     destino / destino_zona, cambios_horario.tipo) dan 42703 / PGRST204 y los avisos y lo que lee la niñera son solo de sittings.
+ *     La 10 sin migrar también la saca.
  *     'cv' (01/11/2026): solo falta 20261104_cv_automatico: ninieras sin cv_datos ni cv_generado_con (leerlas da
  *     42703 y escribirlas PGRST204). true también las saca.
  *   Con los pedidos de la etapa 5, app_config 'pedidos_app'.solo_practica arranca en true (como la migración): un
@@ -224,11 +228,13 @@ async function abrirApp(page, opciones = {}) {
   const sinEtapa8 = sinEtapa7 || baseSinMigrar === 'etapa8';
   // El carsitting (etapa 10, 20261108): posterior a la 8; 'etapa10' es solo sin la 10.
   const sinEtapa10 = sinEtapa8 || baseSinMigrar === 'etapa10';
+  // Los traslados por la app (etapa 11, 20261109): posterior a la 10; 'etapa11' es solo sin la 11.
+  const sinEtapa11 = sinEtapa10 || baseSinMigrar === 'etapa11';
   completarFirmasPorDefecto(estado.db);
   const guia = sinEtapa4 ? null : id => guiaEstado(estado.db, id, ahora);
   const prefiere = sinEtapa7 ? null : (...a) => prefiereOtros(estado.db, ...a);
   // Los pedidos de la etapa 5: las RPC del panel y de la niñera (la admin las llama y recibe no_autorizada).
-  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true, guia, prefiere }));
+  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true, guia, prefiere, sinEtapa11 }));
   // Las de la niñera del día (etapa 7): una admin no es niñera (vacío / no_autorizada).
   Object.assign(estado.rpc, sinEtapa7 ? Object.fromEntries(RPC_ETAPA_7.map(n => [n, rpcNoExiste(n)])) : rpcDiaNinera(estado.db, null, ahora));
   Object.assign(estado.rpc, sinEtapa8 ? Object.fromEntries(RPC_ETAPA_8.map(n => [n, rpcNoExiste(n)])) : rpcFichaNinera(estado.db, null, ahora));
@@ -237,7 +243,7 @@ async function abrirApp(page, opciones = {}) {
   if (sinEtapa4) RPC_ETAPA_4_ADMIN.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinEtapa4) (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_4.forEach(c => { delete n[c]; }));
   else completarColumnasGuia(estado.db);
-  Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora, { sinEtapa6 })).filter(([n]) => RPC_ETAPA_5.includes(n) || RPC_ETAPA_6.includes(n))));
+  Object.assign(estado.rpc, Object.fromEntries(Object.entries(rpcNinera(estado.db, null, ahora, { sinEtapa6, sinEtapa11 })).filter(([n]) => RPC_ETAPA_5.includes(n) || RPC_ETAPA_6.includes(n))));
   if (sinEtapa5) [...RPC_ETAPA_5, ...RPC_ETAPA_5_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinEtapa6) RPC_ETAPA_6.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinMigrarTodo) (estado.db.familias || []).forEach(f => { delete f.terminos_aceptados_el; });
@@ -245,8 +251,8 @@ async function abrirApp(page, opciones = {}) {
   const sinCv = sinMigrarTodo || baseSinMigrar === 'cv';
   if (sinCv) (estado.db.ninieras || []).forEach(n => { delete n.cv_datos; delete n.cv_generado_con; });
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinEtapa10, sinCv,
-    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7', 'etapa8', 'etapa10'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinEtapa10, sinEtapa11, sinCv,
+    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7', 'etapa8', 'etapa10', 'etapa11'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
       ...(sinEtapa4 ? TABLAS_ETAPA_4 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : []), ...(sinEtapa8 ? TABLAS_ETAPA_8 : [])] });
 
   await page.goto(ruta);
@@ -292,13 +298,14 @@ async function abrirAppNinera(page, opciones = {}) {
   const sinEtapa7 = sinEtapa4 || baseSinMigrar === 'etapa7';
   const sinEtapa8 = sinEtapa7 || baseSinMigrar === 'etapa8';
   const sinEtapa10 = sinEtapa8 || baseSinMigrar === 'etapa10';
+  const sinEtapa11 = sinEtapa10 || baseSinMigrar === 'etapa11';
   completarFirmasPorDefecto(estado.db);
-  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4 }));
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4, sinEtapa11 }));
   Object.assign(estado.rpc, sinEtapa7 ? Object.fromEntries(RPC_ETAPA_7.map(n => [n, rpcNoExiste(n)])) : rpcDiaNinera(estado.db, ninera, ahora || undefined));
   Object.assign(estado.rpc, sinEtapa8 ? Object.fromEntries(RPC_ETAPA_8.map(n => [n, rpcNoExiste(n)])) : rpcFichaNinera(estado.db, ninera, ahora || undefined));
   Object.assign(estado.rpc, sinEtapa10 ? Object.fromEntries(RPC_ETAPA_10.map(n => [n, rpcNoExiste(n)])) : rpcCarsittingNinera(estado.db, ninera, ahora || undefined));
   // Una niñera no es admin: enviar_pedido_app y sugeridas_datos le dan no_autorizada / nada.
-  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false }));
+  Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false, sinEtapa11 }));
   Object.assign(estado.rpc, rpcGuiaNinera(estado.db, ninera, ahora || undefined), rpcGuiaAdmin(estado.db, ahora || undefined, { admin: false, nineraId: ninera }));
   if (sinEtapa4) {
     [...RPC_ETAPA_4, ...RPC_ETAPA_4_ADMIN].forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
@@ -312,7 +319,7 @@ async function abrirAppNinera(page, opciones = {}) {
   }
   // 'etapa3': sin la 3 ni la 9 (la base real no tiene la 9 sin la 3). 'etapa9': solo sin la 9.
   if (baseSinMigrar === true || baseSinMigrar === 'etapa3') RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
-  if (baseSinMigrar && !['etapa7', 'etapa8', 'etapa10'].includes(baseSinMigrar)) {
+  if (baseSinMigrar && !['etapa7', 'etapa8', 'etapa10', 'etapa11'].includes(baseSinMigrar)) {
     RPC_ETAPA_9.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_9.forEach(c => { delete n[c]; }));
   }
@@ -320,7 +327,7 @@ async function abrirAppNinera(page, opciones = {}) {
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinEtapa10,
+    sesionNinera: ninera, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinEtapa10, sinEtapa11,
     tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : []), ...(sinEtapa8 ? TABLAS_ETAPA_8 : [])] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
@@ -380,7 +387,7 @@ function crearEstado(datos) {
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinEtapa4 = false, sinEtapa8 = false, sinEtapa10 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinEtapa4 = false, sinEtapa8 = false, sinEtapa10 = false, sinEtapa11 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -573,11 +580,14 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     // Etapa 6 (01/11/2026): lo mismo con las columnas de elegir la niñera (COLUMNAS_ETAPA_6).
     // CV automático (01/11/2026): sin 20261104_cv_automatico, ninieras no tiene cv_datos ni cv_generado_con.
     const columnasNuevas = [...(sinEtapa5 ? COLUMNAS_ETAPA_5[tabla] || [] : []), ...(sinEtapa6 ? COLUMNAS_ETAPA_6[tabla] || [] : []), ...(sinCv ? COLUMNAS_CV[tabla] || [] : []),
-      ...(sinEtapa4 && tabla === 'ninieras' ? COLUMNAS_NINIERAS_ETAPA_4 : []), ...(sinEtapa10 ? COLUMNAS_ETAPA_10[tabla] || [] : [])];
+      ...(sinEtapa4 && tabla === 'ninieras' ? COLUMNAS_NINIERAS_ETAPA_4 : []), ...(sinEtapa10 ? COLUMNAS_ETAPA_10[tabla] || [] : []),
+      ...(sinEtapa11 ? COLUMNAS_ETAPA_11[tabla] || [] : [])];
     if (columnasNuevas.length) {
       if (metodo === 'GET' || metodo === 'HEAD') {
         // También un filtro por la columna (?revision=eq.pendiente) da 42703 (etapa 10).
-        const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(url.searchParams.get('select') || '') || url.searchParams.has(c));
+        // Las columnas de otra tabla embebida (solicitud_ninieras(origen)) no cuentan como de esta (etapa 11).
+        const select = (url.searchParams.get('select') || '').replace(/\w+\([^()]*\)/g, '');
+        const col = columnasNuevas.find(c => new RegExp(`(^|[^\\w])${c}([^\\w]|$)`).test(select) || url.searchParams.has(c));
         if (col) return route.fulfill({ status: 400, json: { code: '42703', message: `column ${tabla}.${col} does not exist` } });
       } else if (['POST', 'PATCH'].includes(metodo) && req.postData()) {
         const col = columnasNuevas.find(c => [].concat(JSON.parse(req.postData())).some(f => c in f));
@@ -661,14 +671,14 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
     const triggersEleccion = (tablaFila, fila, estadoAntes) => {
       if (sinEtapa6 || fila.estado === estadoAntes) return;
       const ahoraDb = new Date(ahora || Date.now()).toISOString();
-      if (tablaFila === 'solicitud_ninieras' && fila.estado === 'confirmada') alConfirmarFila(db, ahoraDb, fila);
+      if (tablaFila === 'solicitud_ninieras' && fila.estado === 'confirmada') alConfirmarFila(db, ahoraDb, fila, { sinEtapa11 });
       if (tablaFila === 'solicitudes' && fila.estado === 'cancelada') alCancelarSolicitud(db, ahoraDb, fila);
-      if (tablaFila === 'solicitudes' && fila.estado === 'cancelada' && !sinEtapa8) cancelarRegistroDelPedido(db, ahoraDb, fila);
+      if (tablaFila === 'solicitudes' && fila.estado === 'cancelada' && !sinEtapa8) cancelarRegistroDelPedido(db, ahoraDb, fila, { sinEtapa11 });
     };
     // Los avisos por día de la etapa 8 (trigger por sentencia de sittings_traslados): con lo de antes y lo de después.
     const avisosDelDia = (pares) => {
       if (sinEtapa8 || tabla !== 'sittings_traslados' || !pares.length) return;
-      avisosSittings(db, new Date(ahora || Date.now()).toISOString(), metodo, pares);
+      avisosSittings(db, new Date(ahora || Date.now()).toISOString(), metodo, pares, { sinEtapa11 });
     };
     let afectadas = [];
     if (metodo === 'POST' && tabla === 'chat_mensajes') {

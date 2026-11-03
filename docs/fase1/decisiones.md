@@ -677,6 +677,43 @@ Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.
   (con lo de antes cuando es una actualización), el panel "Car sitting" de Niñeras, la marca en la ficha y el aviso al asignar un
   traslado ("+ Nueva solicitud", "Elegir niñeras" y "Cambiar de niñera"). Salió el aviso "Pendientes de carsitting" de RR.HH.
 
+### 6.9 Pedidos de traslado por la app (etapa 11)
+Respuestas del orquestador y de Diego (03/11/2026) al detallar la etapa 11:
+- Se hace ahora y completa. Los traslados casi no aparecen como pedidos porque hoy es incómodo cargarlos en la app, no porque
+  no haya: el foco es que cargar un traslado sea tan rápido como un sitting. "Pegar WhatsApp" saca del mensaje el origen, el
+  destino y la hora de salida; "+ Nueva solicitud" de traslado precarga origen y destino con lo último de esa familia (la casa y
+  el colegio u otro destino que ya usó), con un toque para invertirlos (ida / vuelta).
+- Origen y destino: dos campos de texto en la solicitud. La niñera ve las zonas antes de que la elijan y las direcciones al
+  quedar confirmada (como la dirección de un sitting).
+- Quién recibe un pedido de traslado: las que hacen traslados, con el carsitting aprobado y la guía firmada.
+- Avisos de un traslado de una niñera con app, también los de los fijos de traslado: los mismos que un sitting ("¡Quedaste
+  seleccionada!", cancelado, "Ya no vas", cambio de horario con "Ok" / "No puedo", 24 h y 1 h). Sin la tarjeta del día ni el
+  cierre por ahora (pendiente).
+- Precio que ve la niñera: solo "Precio: $X por viaje", sugerido con la tarifa de km y editable antes de mandar. Nunca el cobro
+  a la familia.
+- Decisiones del constructor, con OK: un pedido es un viaje (ida y vuelta son dos pedidos); textos en tú para la niñera y en
+  voseo para el panel.
+Cómo quedó la base (migración `20261109_traslados_app`): `solicitudes.origen`, `destino`, `destino_zona` y `km` (en un traslado,
+`zona` es la de origen); `solicitud_ninieras.precio_viaje`; `pedidos_whatsapp.origen`, `destino` y `destino_zona`;
+`cambios_horario.tipo`. `enviar_pedido_app` acepta un traslado con `{ninera_id, precio_viaje}` y frena con `sin_origen_destino`,
+`sin_zonas`, `ninera_no_hace_traslados` y `sin_carsitting` (aprobado alguna vez desde la app: `carsitting_aprobado()`; una
+actualización en revisión no la frena). El aviso: "Traslado [dd/mm]" / "A las [hora]", "De [zona] a [zona]", los chicos y "Precio:
+$X por viaje". `ninera_mis_pedidos` y `ninera_mis_sittings` devuelven `tipo`, `destino_zona` y `precio_viaje`. Los avisos de los
+triggers y del cron valen para los traslados con "traslado" en el texto; en un traslado, el cambio de horario es el del día o la
+hora de salida (la hora de fin no avisa), y "Tienes un traslado" y los recordatorios no llevan la zona (la de la casa puede no ser
+la de salida). Los fijos de traslado van en su propio resumen ("tu fijo de traslados con [madre]"). Como en los sittings, los
+recordatorios de 24 h y 1 h son solo de los puntuales (OK del orquestador, 03/11/2026, con las otras tres decisiones del constructor:
+solo avisa el cambio de la hora de salida, las dos zonas obligatorias para mandar y el push con "Precio: $X por viaje").
+Cómo quedaron el panel y la app (03/11/2026): "+ Nueva solicitud" de traslado y el ticket de "Pegar WhatsApp" tienen origen, destino, la
+zona de destino (la de origen es la casilla de siempre) y los km, precargados con el último viaje de la familia (de sus pedidos, con las
+zonas, o de sus registros, con los km) o con la casa como origen, con "Invertir" y "Calcular km con el mapa"; el precio sale de los km con
+la tarifa de traslados (`precioTrasladoPorKm`, sittings.js, la misma cuenta que el registro). `pedido-whatsapp` saca del mensaje el origen,
+el destino ("casa" es la dirección de la ficha), la zona de destino y la hora de salida. "Elegir niñeras" de un traslado: solo con el
+carsitting aprobado (la marca "Sin carsitting aprobado" sin casilla), el precio por viaje editable sin "Guardar como precio", y el recorrido
+plegable para completarlo ahí (se guarda en la solicitud antes de mandar o asignar). "Asignar" lleva la ruta y los km al registro y
+`precio_viaje` a la fila. En la app, la tarjeta "Traslado [día]", "¡Quedaste seleccionada!" con las dos direcciones y "Cómo llegar" al
+origen y al destino, y la tarjeta del cambio con "traslado".
+
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo
 escribió). `chat_mensajes (id, ninera_id, de 'ninera' | 'admin', autor text, texto text, creado_en,

@@ -1434,6 +1434,18 @@ function marcarCampoEditadoManual(id){
 // familia) o para abajo (precio a la niñera), nunca al revés.
 function redondearArriba50(v){ return Math.ceil(v/50)*50; }
 function redondearAbajo50(v){ return Math.floor(v/50)*50; }
+// El precio de un traslado con la tarifa de km (etapa 11, 03/11/2026: una sola cuenta para Sittings, "+ Nueva solicitud"
+// y "Elegir niñeras"): tarifa base + km × precio por km, con el recargo horario y el premium; a la familia redondeado a 50
+// para arriba y a la niñera, menos el margen, a 50 para abajo. null sin la tarifa cargada o sin km.
+function precioTrasladoPorKm(km, horaHHMM){
+  const cfg = tarifaTrasladoConfig;
+  km = Number(km)||0;
+  if(!cfg || !(km > 0)) return null;
+  const mult = multiplicadorHorarioTraslado(horaHHMM);
+  const margenNinera = Number(cfg.margen_ninera)||0;
+  const crudo = ((Number(cfg.tarifa_base)||0) + km*(Number(cfg.precio_km)||0)) * mult * (Number(cfg.margen_premium)||1);
+  return { cobro: redondearArriba50(crudo), pago: redondearAbajo50(crudo * (1 - margenNinera)), mult, margenNinera };
+}
 function actualizarPrecioSugeridoTraslado(){
   const box = document.getElementById('sit-precio-sugerido-box');
   if(!box) return;
@@ -1441,15 +1453,7 @@ function actualizarPrecioSugeridoTraslado(){
   const km = Number(document.getElementById('sit-km')?.value||0);
   const hora = leerHora('sit-hora');
   if(!km){ box.innerHTML = `<div class="helper" style="margin:0;">Cargá los km para ver el precio sugerido. <a href="#" onclick="abrirModalTarifaTraslado();return false;">Ajustar tarifa</a></div>`; return; }
-  const cfg = tarifaTrasladoConfig;
-  const base = Number(cfg.tarifa_base)||0;
-  const porKm = Number(cfg.precio_km)||0;
-  const mult = multiplicadorHorarioTraslado(hora);
-  const premium = Number(cfg.margen_premium)||1;
-  const margenNinera = Number(cfg.margen_ninera)||0;
-  const crudo = (base + km*porKm) * mult * premium;
-  const cobro = redondearArriba50(crudo);
-  const pago = redondearAbajo50(crudo * (1 - margenNinera));
+  const { cobro, pago, mult, margenNinera } = precioTrasladoPorKm(km, hora);
   // Se precarga directo en los campos de arriba (Cobro a familia / Pago a niñera) -- son
   // los mismos campos que se guardan, no hace falta un botón aparte para "usarlos". Si la
   // persona ya los había tocado a mano, no se pisa: se respeta lo que puso.

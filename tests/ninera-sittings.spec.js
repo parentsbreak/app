@@ -239,7 +239,7 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     return datos;
   }
 
-  test('traslado confirmado: desde y hasta, "Cómo llegar" con el destino; escape en todo', async ({ page }) => {
+  test('traslado confirmado: desde y hasta, "Cómo llegar" al origen y al destino (etapa 11); escape en todo', async ({ page }) => {
     const e = await abrir(page, { ninera: ID.nCarla, datos: datosCarla() });
     await expect(tarjetas(page)).toHaveCount(3);
     expect(await page.locator('#proximos-sittings .sittings-dia').allTextContents()).toEqual(['Hoy', 'jue 08/10', 'vie 09/10']);
@@ -255,9 +255,13 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     await traslado.click();
     await expect(modal(page)).toContainText('Desde: Casa, "la de siempre"');
     await expect(modal(page)).toContainText('Hasta: Colegio Ficticio; puerta 2');
-    await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
-    await expect(modal(page).getByRole('link', { name: 'Google Maps', exact: true }))
+    await modal(page).getByRole('button', { name: 'Cómo llegar al destino' }).click();
+    await expect(modal(page).locator('#como-llegar-destino').getByRole('link', { name: 'Google Maps', exact: true }))
       .toHaveAttribute('href', 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Colegio Ficticio; puerta 2'));
+    await expect(modal(page).locator('#como-llegar-origen')).toBeHidden();
+    await modal(page).getByRole('button', { name: 'Cómo llegar al origen' }).click();
+    await expect(modal(page).locator('#como-llegar-origen').getByRole('link', { name: 'Waze', exact: true }))
+      .toHaveAttribute('href', 'https://waze.com/ul?q=' + encodeURIComponent('Casa, "la de siempre"') + '&navigate=yes');
     expect(await modal(page).innerHTML()).not.toMatch(PAGO);
     await modal(page).getByRole('button', { name: 'Cerrar' }).click();
 

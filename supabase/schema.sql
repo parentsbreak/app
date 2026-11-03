@@ -550,13 +550,20 @@ create table public.pedidos_whatsapp (
   tokens_salida integer,
   -- La niñera que pide la madre, tal cual la escribe (02/11/2026, etapa 5); la devuelve pedido-whatsapp.
   ninera_pedida text,
+  -- Etapa 11 (03/11/2026): el origen, el destino y la zona de destino de un traslado, como los saca el ticket.
+  origen text,
+  destino text,
+  destino_zona text,
   constraint pedidos_whatsapp_pkey PRIMARY KEY (id),
   constraint pedidos_whatsapp_texto_check CHECK ((char_length(texto) between 1 and 6000)),
   constraint pedidos_whatsapp_estado_check CHECK ((estado = ANY (ARRAY['borrador'::text, 'confirmado'::text, 'descartado'::text]))),
   constraint pedidos_whatsapp_tipo_check CHECK ((tipo = ANY (ARRAY['pedido_nuevo'::text, 'cambio'::text, 'cancelacion'::text, 'otra_cosa'::text]))),
   constraint pedidos_whatsapp_servicio_check CHECK ((servicio = ANY (ARRAY['sitting'::text, 'traslado'::text]))),
   constraint pedidos_whatsapp_chicos_check CHECK ((chicos_cantidad between 1 and 12)),
-  constraint pedidos_whatsapp_ninera_pedida_check CHECK (((ninera_pedida IS NULL) OR (char_length(ninera_pedida) <= 80)))
+  constraint pedidos_whatsapp_ninera_pedida_check CHECK (((ninera_pedida IS NULL) OR (char_length(ninera_pedida) <= 80))),
+  constraint pedidos_whatsapp_origen_check check (origen is null or char_length(origen) <= 300),
+  constraint pedidos_whatsapp_destino_check check (destino is null or char_length(destino) <= 300),
+  constraint pedidos_whatsapp_destino_zona_check check (destino_zona is null or char_length(destino_zona) <= 80)
 );
 -- Una fila por llamada al modelo (pedidos guardados y pruebas): tope diario, reservar_llamada_pedido().
 create table public.pedidos_whatsapp_uso (
@@ -852,12 +859,15 @@ create table public.solicitud_ninieras (
   -- de una vez se van). 'cubierto' = se asignó a otra; 'cancelado' = se canceló el pedido.
   seleccionada_en timestamp with time zone,
   visto_en timestamp with time zone,
+  -- Etapa 11 (03/11/2026): lo que se le ofreció por el viaje en un traslado (precio_hora queda vacío).
+  precio_viaje numeric,
   constraint solicitud_ninieras_pkey PRIMARY KEY (id),
   constraint solicitud_ninieras_estado_check CHECK ((estado = ANY (ARRAY['invitada'::text, 'confirmada'::text, 'rechazada'::text, 'acepto'::text, 'no_puedo'::text, 'cubierto'::text, 'cancelado'::text]))),
   constraint solicitud_ninieras_origen_check CHECK ((origen = ANY (ARRAY['panel'::text, 'app'::text]))),
   constraint solicitud_ninieras_precio_hora_check CHECK (((precio_hora IS NULL) OR ((precio_hora > (0)::numeric) AND (precio_hora < (100000)::numeric)))),
   constraint solicitud_ninieras_motivo_no_check CHECK (((motivo_no IS NULL) OR (motivo_no = ANY (ARRAY['otro_trabajo'::text, 'facultad'::text, 'lejos'::text, 'tarde'::text, 'otro'::text])))),
-  constraint solicitud_ninieras_motivo_texto_check CHECK (((motivo_texto IS NULL) OR (char_length(motivo_texto) <= 200)))
+  constraint solicitud_ninieras_motivo_texto_check CHECK (((motivo_texto IS NULL) OR (char_length(motivo_texto) <= 200))),
+  constraint solicitud_ninieras_precio_viaje_check check (precio_viaje is null or (precio_viaje > 0 and precio_viaje < 100000))
 );
 
 create table public.solicitudes (
@@ -883,10 +893,20 @@ create table public.solicitudes (
   -- Etapa 6 (01/11/2026): la madre no dio una hora de fin cerrada; solo con la marca va
   -- "(aproximada, se puede extender)" en el aviso del pedido y en la app de niñeras.
   horario_aproximado boolean default false not null,
+  -- Etapa 11 (03/11/2026, 20261109_traslados_app): un traslado lleva origen, destino, la zona de destino (zona es la de
+  -- origen) y los km. La niñera ve las zonas antes de que la elijan y las direcciones al quedar confirmada.
+  origen text,
+  destino text,
+  destino_zona text,
+  km numeric,
   constraint solicitudes_pkey PRIMARY KEY (id),
   constraint solicitudes_estado_check CHECK ((estado = ANY (ARRAY['sin_asignar'::text, 'pendiente_confirmar'::text, 'confirmada'::text, 'cancelada'::text]))),
   constraint solicitudes_tipo_check CHECK ((tipo = ANY (ARRAY['sitting'::text, 'traslado'::text]))),
-  constraint solicitudes_notas_para_ninera_check CHECK (((notas_para_ninera IS NULL) OR (char_length(notas_para_ninera) <= 1000)))
+  constraint solicitudes_notas_para_ninera_check CHECK (((notas_para_ninera IS NULL) OR (char_length(notas_para_ninera) <= 1000))),
+  constraint solicitudes_origen_check check (origen is null or char_length(origen) <= 300),
+  constraint solicitudes_destino_check check (destino is null or char_length(destino) <= 300),
+  constraint solicitudes_destino_zona_check check (destino_zona is null or char_length(destino_zona) <= 80),
+  constraint solicitudes_km_check check (km is null or (km > 0 and km < 1000))
 );
 
 create table public.tarifas_traslado_config (
@@ -1980,14 +2000,15 @@ create or replace function public.ninera_mis_sittings()
 returns table (id uuid, tipo text, fecha date, hora_inicio time without time zone,
                hora_fin time without time zone, termina_dia_siguiente boolean, estado text,
                zona text, madre text, direccion text, origen text, destino text, chicos text,
-               notas_para_ninera text, horario_aproximado boolean, precio_hora numeric, solicitud_id uuid)
+               notas_para_ninera text, horario_aproximado boolean, precio_hora numeric, solicitud_id uuid,
+               destino_zona text, precio_viaje numeric)
 language sql
 stable
 security definer
 set search_path to 'public'
 as $function$
   select s.id, s.tipo, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, s.estado,
-         f.zona,
+         case when s.tipo = 'traslado' then coalesce(nullif(btrim(sol.zona), ''), f.zona) else f.zona end,
          public.madre_nombre_inicial(coalesce(f.nombre, s.familia_nombre)),
          case when s.estado = 'confirmado' then f.direccion end,
          case when s.estado = 'confirmado' then s.origen end,
@@ -1995,13 +2016,16 @@ as $function$
          public.chicos_texto(f.id),
          case when s.estado = 'confirmado' then nullif(btrim(sol.notas_para_ninera), '') end,
          coalesce(sol.horario_aproximado, false),
-         (select sn.precio_hora from public.solicitud_ninieras sn
-           where sn.solicitud_id = s.solicitud_id and sn.ninera_id = s.ninera_id and sn.estado = 'confirmada'
-           order by sn.created_at desc limit 1),
-         s.solicitud_id
+         sn.precio_hora,
+         s.solicitud_id,
+         case when s.tipo = 'traslado' then nullif(btrim(sol.destino_zona), '') end,
+         case when s.tipo = 'traslado' then sn.precio_viaje end
     from public.sittings_traslados s
     left join public.familias f on f.id = s.familia_id
     left join public.solicitudes sol on sol.id = s.solicitud_id
+    left join lateral (select x.precio_hora, x.precio_viaje from public.solicitud_ninieras x
+                        where x.solicitud_id = s.solicitud_id and x.ninera_id = s.ninera_id and x.estado = 'confirmada'
+                        order by x.created_at desc limit 1) sn on true
    where s.ninera_id = (select public.ninera_actual())
      and not s.cancelado
      and s.estado in ('previsto', 'confirmado')
@@ -3250,10 +3274,12 @@ declare
   v_inicio timestamp with time zone;
   v_fin timestamp with time zone;
   v_lugar text;
+  v_traslado boolean;
+  v_que text;
   r record;
 begin
   for r in
-    select s.id, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, s.asignacion_id is not null as es_fijo,
+    select s.id, s.tipo, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, s.asignacion_id is not null as es_fijo,
            s.ninera_id, n.nombre as ninera, coalesce(f.nombre, s.familia_nombre) as familia, nullif(btrim(f.zona), '') as zona,
            exists (select 1 from public.sitting_eventos e where e.sitting_id = s.id and e.tipo = 'entre') as entro,
            exists (select 1 from public.sitting_cierres c where c.sitting_id = s.id) as cerro
@@ -3261,29 +3287,31 @@ begin
       join public.ninieras n on n.id = s.ninera_id
       left join public.familias f on f.id = s.familia_id
      where s.fecha between v_hoy - 1 and v_hoy + 1
-       and s.tipo = 'sitting' and not s.cancelado and s.estado = 'confirmado' and s.revisado_at is null
+       and s.tipo in ('sitting', 'traslado') and not s.cancelado and s.estado = 'confirmado' and s.revisado_at is null
        and s.hora_inicio is not null
        and n.activa and n.user_id is not null
        and public.pedido_puede_avisar(s.familia_id, s.familia_nombre, n.nombre)
   loop
+    v_traslado := r.tipo = 'traslado';
+    v_que := case when v_traslado then 'traslado' else 'sitting' end;
     v_inicio := (r.fecha + r.hora_inicio) at time zone 'America/Montevideo';
     v_fin := case when r.hora_fin is not null
                   then ((r.fecha + case when r.termina_dia_siguiente then 1 else 0 end) + r.hora_fin) at time zone 'America/Montevideo' end;
-    v_lugar := coalesce(', en ' || r.zona, '');
+    v_lugar := case when v_traslado then '' else coalesce(', en ' || r.zona, '') end;
     if not r.es_fijo then
       if p_ahora >= v_inicio - interval '24 hours' and p_ahora < v_inicio - interval '23 hours'
-         and public.encolar_aviso('sitting:' || r.id || ':24h', r.ninera_id, null, 'sitting', '¡Hola! Mañana tienes un sitting',
+         and public.encolar_aviso('sitting:' || r.id || ':24h', r.ninera_id, null, 'sitting', '¡Hola! Mañana tienes un ' || v_que,
                v_dias[extract(dow from r.fecha)::int + 1] || ' ' || to_char(r.fecha, 'DD/MM') || ' a las '
                  || to_char(r.hora_inicio, 'HH24:MI') || v_lugar || '.',
                '#inicio', jsonb_build_object('sitting_id', r.id)) then
         v_total := v_total + 1;
       end if;
       if p_ahora >= v_inicio - interval '1 hour' and p_ahora < v_inicio - interval '30 minutes'
-         and public.encolar_aviso('sitting:' || r.id || ':1h', r.ninera_id, null, 'sitting', 'Tu sitting empieza en 1 hora',
+         and public.encolar_aviso('sitting:' || r.id || ':1h', r.ninera_id, null, 'sitting', 'Tu ' || v_que || ' empieza en 1 hora',
                to_char(r.hora_inicio, 'HH24:MI') || v_lugar || '.', '#inicio', jsonb_build_object('sitting_id', r.id)) then
         v_total := v_total + 1;
       end if;
-      if not r.entro and not r.cerro
+      if not v_traslado and not r.entro and not r.cerro
          and p_ahora >= v_inicio + make_interval(mins => v_no_llego) and p_ahora < v_inicio + interval '2 hours'
          and public.encolar_aviso('admin:sitting:' || r.id || ':no_llego', null, 'todas', 'el_dia',
                r.ninera || ' no marcó que llegó',
@@ -3292,7 +3320,7 @@ begin
         v_total := v_total + 1;
       end if;
     end if;
-    if v_fin is not null and not r.cerro then
+    if not v_traslado and v_fin is not null and not r.cerro then
       if p_ahora >= v_fin and p_ahora < v_fin + make_interval(mins => v_rec)
          and public.encolar_aviso('sitting:' || r.id || ':fin', r.ninera_id, null, 'sitting', '¿Ya te retiraste del hogar?',
                'Cuéntanos hasta qué hora estuviste.', '#sitting/' || r.id || '/cierre', jsonb_build_object('sitting_id', r.id)) then
@@ -3348,6 +3376,7 @@ declare
   v_cant integer := 0;
   v_puede boolean;
   v_motivo text;
+  v_traslado boolean;
 begin
   if not coalesce((select public.es_usuaria_autorizada()), false) then
     raise exception 'no_autorizada';
@@ -3363,7 +3392,7 @@ begin
   select * into v_s from public.solicitudes where id = p_solicitud_id for update;
   if not found then raise exception 'no_existe'; end if;
   if v_s.estado not in ('sin_asignar', 'pendiente_confirmar') then raise exception 'cerrado'; end if;
-  if v_s.tipo <> 'sitting' then raise exception 'solo_sittings'; end if;
+  v_traslado := v_s.tipo = 'traslado';
   if v_s.fecha < public.hoy_mvd() then raise exception 'pasado'; end if;
   select * into v_fam from public.familias where id = v_s.familia_id;
   if not found then raise exception 'sin_familia'; end if;
@@ -3377,19 +3406,31 @@ begin
   if not v_practica and coalesce((v_cfg->>'solo_practica')::boolean, true) then
     raise exception 'solo_practica';
   end if;
-  v_zona := coalesce(nullif(btrim(v_s.zona), ''), nullif(btrim(v_fam.zona), ''));
-  -- Textos 1: "(aproximada, se puede extender)" solo con la marca horario_aproximado (etapa 6); sin
-  -- fin, "sin hora de fin"; si termina pasada la medianoche, "del día siguiente".
-  v_horario := to_char(v_s.hora_inicio, 'HH24:MI')
-    || case when v_s.hora_fin is null then ', sin hora de fin'
-            else ' – ' || to_char(v_s.hora_fin, 'HH24:MI')
-                 || case when v_s.termina_dia_siguiente then ' del día siguiente' else '' end
-                 || case when v_s.horario_aproximado then ' (aproximada, se puede extender)' else '' end end;
+  if v_traslado then
+    -- Un traslado: las direcciones (las ve la elegida) y las dos zonas (las ven todas antes de responder).
+    if nullif(btrim(coalesce(v_s.origen, '')), '') is null or nullif(btrim(coalesce(v_s.destino, '')), '') is null then
+      raise exception 'sin_origen_destino';
+    end if;
+    if nullif(btrim(coalesce(v_s.zona, '')), '') is null or nullif(btrim(coalesce(v_s.destino_zona, '')), '') is null then
+      raise exception 'sin_zonas';
+    end if;
+    v_zona := 'De ' || btrim(v_s.zona) || ' a ' || btrim(v_s.destino_zona);
+    v_horario := 'A las ' || to_char(v_s.hora_inicio, 'HH24:MI');
+  else
+    v_zona := 'Zona: ' || coalesce(nullif(btrim(v_s.zona), ''), nullif(btrim(v_fam.zona), ''));
+    -- Textos 1: "(aproximada, se puede extender)" solo con la marca horario_aproximado (etapa 6); sin
+    -- fin, "sin hora de fin"; si termina pasada la medianoche, "del día siguiente".
+    v_horario := to_char(v_s.hora_inicio, 'HH24:MI')
+      || case when v_s.hora_fin is null then ', sin hora de fin'
+              else ' – ' || to_char(v_s.hora_fin, 'HH24:MI')
+                   || case when v_s.termina_dia_siguiente then ' del día siguiente' else '' end
+                   || case when v_s.horario_aproximado then ' (aproximada, se puede extender)' else '' end end;
+  end if;
 
   for v_e in select * from jsonb_array_elements(p_envios) loop
     begin
       v_id := (v_e->>'ninera_id')::uuid;
-      v_precio := (v_e->>'precio_hora')::numeric;
+      v_precio := (v_e->>(case when v_traslado then 'precio_viaje' else 'precio_hora' end))::numeric;
     exception when others then
       raise exception 'envio_invalido';
     end;
@@ -3401,9 +3442,16 @@ begin
     if not found then raise exception 'ninera_no_existe' using hint = coalesce(v_id::text, ''); end if;
     if not v_n.activa then raise exception 'ninera_inactiva' using hint = v_n.nombre; end if;
     if v_n.user_id is null then raise exception 'ninera_sin_app' using hint = v_n.nombre; end if;
-    if v_n.tipo = 'Traslados' then raise exception 'ninera_solo_traslados' using hint = v_n.nombre; end if;
+    if not v_traslado and v_n.tipo = 'Traslados' then raise exception 'ninera_solo_traslados' using hint = v_n.nombre; end if;
+    if v_traslado and v_n.tipo is distinct from 'Traslados' and v_n.tipo is distinct from 'Ambas' then
+      raise exception 'ninera_no_hace_traslados' using hint = v_n.nombre;
+    end if;
     if (position('(practica)' in public.normaliza_nombre(v_n.nombre)) > 0) <> v_practica then
       raise exception 'practica_mezclada' using hint = v_n.nombre;
+    end if;
+    -- El carsitting (etapa 11): sin aprobar no recibe pedidos de traslado por la app, tampoco la de práctica.
+    if v_traslado and not public.carsitting_aprobado(v_n.id) then
+      raise exception 'sin_carsitting' using hint = v_n.nombre;
     end if;
     -- La guía (etapa 4, decisiones 8): sin la guía o con la firma vencida no recibe pedidos por la app,
     -- tampoco la de práctica. detail: el motivo ('sin_guia', 'firma_vencida').
@@ -3413,15 +3461,18 @@ begin
     end if;
 
     v_sn := null;
-    insert into public.solicitud_ninieras (solicitud_id, ninera_id, ninera_nombre, estado, origen, precio_hora, enviado_en)
-    values (v_s.id, v_n.id, v_n.nombre, 'invitada', 'app', v_precio, now())
+    insert into public.solicitud_ninieras (solicitud_id, ninera_id, ninera_nombre, estado, origen, precio_hora, precio_viaje, enviado_en)
+    values (v_s.id, v_n.id, v_n.nombre, 'invitada', 'app',
+            case when v_traslado then null else v_precio end, case when v_traslado then v_precio end, now())
     on conflict (solicitud_id, ninera_id) where origen = 'app' do nothing
     returning id into v_sn;
     if v_sn is not null then
       v_cant := v_cant + 1;
       perform public.encolar_aviso('pedido:' || v_sn || ':nuevo', v_n.id, null, 'pedido',
-        'Sitting ' || to_char(v_s.fecha, 'DD/MM'),
-        concat_ws(E'\n', v_horario, 'Zona: ' || v_zona, v_chicos, 'Precio por hora: ' || public.pesos_texto(v_precio)),
+        case when v_traslado then 'Traslado ' else 'Sitting ' end || to_char(v_s.fecha, 'DD/MM'),
+        concat_ws(E'\n', v_horario, v_zona, v_chicos,
+          case when v_traslado then 'Precio: ' || public.pesos_texto(v_precio) || ' por viaje'
+               else 'Precio por hora: ' || public.pesos_texto(v_precio) end),
         '#pedido/' || v_sn, jsonb_build_object('solicitud_ninera_id', v_sn));
     end if;
   end loop;
@@ -3494,7 +3545,10 @@ create table public.cambios_horario (
   creado_en timestamp with time zone default now() not null,
   respuesta boolean,
   respondido_en timestamp with time zone,
-  constraint cambios_horario_pkey primary key (id)
+  -- Etapa 11 (03/11/2026): de un sitting o de un traslado (la tarjeta lo dice).
+  tipo text default 'sitting' not null,
+  constraint cambios_horario_pkey primary key (id),
+  constraint cambios_horario_tipo_check check (tipo in ('sitting', 'traslado'))
 );
 create index cambios_horario_ninera on public.cambios_horario (ninera_id, creado_en desc);
 
@@ -3661,7 +3715,7 @@ revoke execute on function public.horario_texto(time without time zone, time wit
 -- cambio, el horario nuevo (el mismo cambio no se repite). Interna.
 create or replace function public.aviso_sitting_ninera(p_tipo text, p_sitting_id uuid, p_ninera_id uuid, p_familia_id uuid,
   p_familia_nombre text, p_fecha date, p_hi time without time zone, p_hf time without time zone, p_termina boolean,
-  p_solicitud_id uuid default null, p_fecha_antes date default null)
+  p_solicitud_id uuid default null, p_fecha_antes date default null, p_servicio text default 'sitting')
 returns void
 language plpgsql
 volatile
@@ -3674,6 +3728,8 @@ declare
   v_dia text := public.dia_corto_texto(p_fecha);
   v_cambio uuid;
   v_datos jsonb := jsonb_build_object('sitting_id', p_sitting_id);
+  v_traslado boolean := p_servicio = 'traslado';
+  v_que text := case when p_servicio = 'traslado' then 'traslado' else 'sitting' end;
 begin
   if p_ninera_id is null or p_fecha is null then return; end if;
   if ((p_fecha + coalesce(p_hi, '00:00'::time)) at time zone 'America/Montevideo') <= now() then return; end if;
@@ -3682,36 +3738,40 @@ begin
     into v_madre, v_zona from (select 1) x left join public.familias f on f.id = p_familia_id;
   if p_tipo = 'cancelado' then
     perform public.encolar_aviso('sitting:' || p_sitting_id || ':cancelado:' || txid_current(), p_ninera_id, null, 'sitting',
-      'Se canceló tu sitting del ' || v_dia, 'Con ' || rtrim(v_madre, '.') || '. Si tienes dudas, escríbenos.', '#inicio', v_datos);
+      'Se canceló tu ' || v_que || ' del ' || v_dia, 'Con ' || rtrim(v_madre, '.') || '. Si tienes dudas, escríbenos.', '#inicio', v_datos);
   elsif p_tipo = 'sin' then
     perform public.encolar_aviso('sitting:' || p_sitting_id || ':sin:' || p_ninera_id || ':' || txid_current(), p_ninera_id, null, 'sitting',
-      'Ya no vas al sitting del ' || v_dia, 'El equipo hizo un cambio. Si tienes dudas, escríbenos.', '#inicio', v_datos);
+      'Ya no vas al ' || v_que || ' del ' || v_dia, 'El equipo hizo un cambio. Si tienes dudas, escríbenos.', '#inicio', v_datos);
   elsif p_tipo = 'nuevo' then
     if p_solicitud_id is not null and exists (select 1 from public.solicitud_ninieras sn
          where sn.solicitud_id = p_solicitud_id and sn.ninera_id = p_ninera_id and sn.estado = 'confirmada') then
       return;
     end if;
     perform public.encolar_aviso('sitting:' || p_sitting_id || ':nuevo:' || p_ninera_id || ':' || txid_current(), p_ninera_id, null, 'sitting',
-      'Tienes un sitting el ' || v_dia,
-      coalesce(to_char(p_hi, 'HH24:MI'), 'Sin horario') || coalesce(', en ' || v_zona, '') || '. Mira los datos en la app.',
+      'Tienes un ' || v_que || ' el ' || v_dia,
+      case when v_traslado then coalesce('A las ' || to_char(p_hi, 'HH24:MI'), 'Sin horario')
+           else coalesce(to_char(p_hi, 'HH24:MI'), 'Sin horario') || coalesce(', en ' || v_zona, '') end
+        || '. Mira los datos en la app.',
       '#inicio', v_datos);
   elsif p_tipo = 'cambio' then
     v_cambio := gen_random_uuid();
     if public.encolar_aviso('sitting:' || p_sitting_id || ':cambio:' || p_fecha || ':' || coalesce(to_char(p_hi, 'HH24MI'), '') || '-'
-           || coalesce(to_char(p_hf, 'HH24MI'), '') || case when p_termina then 'd' else '' end,
+           || case when v_traslado then '' else coalesce(to_char(p_hf, 'HH24MI'), '') || case when p_termina then 'd' else '' end end,
          p_ninera_id, null, 'sitting',
-         'Cambió el horario de tu sitting del ' || public.dia_corto_texto(coalesce(p_fecha_antes, p_fecha)),
+         'Cambió el horario de tu ' || v_que || ' del ' || public.dia_corto_texto(coalesce(p_fecha_antes, p_fecha)),
          'Ahora es ' || case when p_fecha_antes is not null and p_fecha_antes <> p_fecha then 'el ' || v_dia || ', ' else '' end
-           || public.horario_texto(p_hi, p_hf, p_termina) || '. Mira los detalles.',
+           || case when v_traslado then coalesce('a las ' || to_char(p_hi, 'HH24:MI'), 'sin horario')
+                   else public.horario_texto(p_hi, p_hf, p_termina) end || '. Mira los detalles.',
          '#cambio/' || v_cambio, v_datos || jsonb_build_object('cambio_id', v_cambio)) then
       insert into public.cambios_horario (id, ninera_id, familia_id, familia_nombre, sitting_id, solicitud_id, es_fijo, desde,
-                                          hora_inicio, hora_fin, termina_dia_siguiente)
-      values (v_cambio, p_ninera_id, p_familia_id, p_familia_nombre, p_sitting_id, p_solicitud_id, false, p_fecha, p_hi, p_hf, coalesce(p_termina, false));
+                                          hora_inicio, hora_fin, termina_dia_siguiente, tipo)
+      values (v_cambio, p_ninera_id, p_familia_id, p_familia_nombre, p_sitting_id, p_solicitud_id, false, p_fecha, p_hi,
+              case when v_traslado then null else p_hf end, case when v_traslado then false else coalesce(p_termina, false) end, v_que);
     end if;
   end if;
 end
 $function$;
-revoke execute on function public.aviso_sitting_ninera(text, uuid, uuid, uuid, text, date, time without time zone, time without time zone, boolean, uuid, date) from public, anon, authenticated;
+revoke execute on function public.aviso_sitting_ninera(text, uuid, uuid, uuid, text, date, time without time zone, time without time zone, boolean, uuid, date, text) from public, anon, authenticated;
 
 -- Los triggers (uno por sentencia: lo que tocó la sentencia entera en old / new table). Mientras corre
 -- generar_previstos_fijos (pb.previstos = '1') no avisa: anota en una tabla temporal y avisar_cambios_previstos
@@ -3750,34 +3810,34 @@ begin
 
     if tg_op = 'UPDATE' then
       for r in
-        select o.id, o.fecha as f0, n.fecha as f1, o.cancelado as c0, n.cancelado as c1, o.ninera_id as n0, n.ninera_id as n1,
+        select o.id, n.tipo, o.fecha as f0, n.fecha as f1, o.cancelado as c0, n.cancelado as c1, o.ninera_id as n0, n.ninera_id as n1,
                o.hora_inicio as hi0, n.hora_inicio as hi1, o.hora_fin as hf0, n.hora_fin as hf1,
                o.termina_dia_siguiente as t0, n.termina_dia_siguiente as t1, n.familia_id, n.familia_nombre, n.solicitud_id
           from viejas o join nuevas n on n.id = o.id
-         where n.tipo = 'sitting'
-           and (o.cancelado, o.ninera_id, o.fecha, o.hora_inicio, o.hora_fin, o.termina_dia_siguiente)
-               is distinct from (n.cancelado, n.ninera_id, n.fecha, n.hora_inicio, n.hora_fin, n.termina_dia_siguiente)
+         where n.tipo in ('sitting', 'traslado')
+           and ((o.cancelado, o.ninera_id, o.fecha, o.hora_inicio) is distinct from (n.cancelado, n.ninera_id, n.fecha, n.hora_inicio)
+                or (n.tipo = 'sitting' and (o.hora_fin, o.termina_dia_siguiente) is distinct from (n.hora_fin, n.termina_dia_siguiente)))
       loop
         if not r.c0 and r.c1 then
-          perform public.aviso_sitting_ninera('cancelado', r.id, r.n0, r.familia_id, r.familia_nombre, r.f0, r.hi0, r.hf0, r.t0);
+          perform public.aviso_sitting_ninera('cancelado', r.id, r.n0, r.familia_id, r.familia_nombre, r.f0, r.hi0, r.hf0, r.t0, null, null, r.tipo);
         elsif r.c0 and not r.c1 then
-          perform public.aviso_sitting_ninera('nuevo', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id);
+          perform public.aviso_sitting_ninera('nuevo', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id, null, r.tipo);
         elsif not r.c1 and r.n0 is distinct from r.n1 then
-          perform public.aviso_sitting_ninera('sin', r.id, r.n0, r.familia_id, r.familia_nombre, r.f0, r.hi0, r.hf0, r.t0);
-          perform public.aviso_sitting_ninera('nuevo', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id);
+          perform public.aviso_sitting_ninera('sin', r.id, r.n0, r.familia_id, r.familia_nombre, r.f0, r.hi0, r.hf0, r.t0, null, null, r.tipo);
+          perform public.aviso_sitting_ninera('nuevo', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id, null, r.tipo);
         elsif not r.c1 then
-          perform public.aviso_sitting_ninera('cambio', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id, r.f0);
+          perform public.aviso_sitting_ninera('cambio', r.id, r.n1, r.familia_id, r.familia_nombre, r.f1, r.hi1, r.hf1, r.t1, r.solicitud_id, r.f0, r.tipo);
         end if;
       end loop;
     elsif tg_op = 'INSERT' then
-      for r in select * from nuevas n where n.tipo = 'sitting' and not n.cancelado and n.asignacion_id is null loop
+      for r in select * from nuevas n where n.tipo in ('sitting', 'traslado') and not n.cancelado and n.asignacion_id is null loop
         perform public.aviso_sitting_ninera('nuevo', r.id, r.ninera_id, r.familia_id, r.familia_nombre, r.fecha, r.hora_inicio, r.hora_fin,
-          r.termina_dia_siguiente, r.solicitud_id);
+          r.termina_dia_siguiente, r.solicitud_id, null, r.tipo);
       end loop;
     elsif tg_op = 'DELETE' then
-      for r in select * from viejas o where o.tipo = 'sitting' and not o.cancelado loop
+      for r in select * from viejas o where o.tipo in ('sitting', 'traslado') and not o.cancelado loop
         perform public.aviso_sitting_ninera('cancelado', r.id, r.ninera_id, r.familia_id, r.familia_nombre, r.fecha, r.hora_inicio, r.hora_fin,
-          r.termina_dia_siguiente);
+          r.termina_dia_siguiente, null, null, r.tipo);
       end loop;
     end if;
   exception when others then
@@ -3829,77 +3889,96 @@ declare
   v_termina date;
   v_max date;
   v_dias boolean;
+  v_fijo text;
+  v_traslado boolean;
 begin
   if to_regclass('pg_temp._pb_cambios_previstos') is null then return 0; end if;
   begin
     for g in
       with c as (
-        select * from _pb_cambios_previstos
-         where coalesce(tipo, 'sitting') = 'sitting' and not coalesce(cancelado, false) and fecha > p_hoy and ninera_id is not null
+        select x.*, coalesce(x.tipo, 'sitting') as servicio from _pb_cambios_previstos x
+         where coalesce(x.tipo, 'sitting') in ('sitting', 'traslado') and not coalesce(x.cancelado, false) and x.fecha > p_hoy
+           and x.ninera_id is not null
       ), a as (
-        select distinct on (ninera_id, familia_id, fecha) * from c where accion = 'antes' order by ninera_id, familia_id, fecha, hora_inicio
+        select distinct on (ninera_id, familia_id, servicio, fecha) * from c where accion = 'antes'
+         order by ninera_id, familia_id, servicio, fecha, hora_inicio
       ), d as (
-        select distinct on (ninera_id, familia_id, fecha) * from c where accion = 'despues' order by ninera_id, familia_id, fecha, hora_inicio
+        select distinct on (ninera_id, familia_id, servicio, fecha) * from c where accion = 'despues'
+         order by ninera_id, familia_id, servicio, fecha, hora_inicio
       ), pares as (
         select coalesce(a.ninera_id, d.ninera_id) as ninera_id, coalesce(a.familia_id, d.familia_id) as familia_id,
+               coalesce(a.servicio, d.servicio) as servicio,
                coalesce(d.familia_nombre, a.familia_nombre) as familia_nombre, coalesce(a.fecha, d.fecha) as fecha,
                a.id is not null as habia, d.id is not null as hay,
                a.id is not null and d.id is not null
-                 and (a.hora_inicio, a.hora_fin, a.termina_dia_siguiente) is distinct from (d.hora_inicio, d.hora_fin, d.termina_dia_siguiente) as cambio,
+                 and case when coalesce(a.servicio, d.servicio) = 'traslado' then a.hora_inicio is distinct from d.hora_inicio
+                          else (a.hora_inicio, a.hora_fin, a.termina_dia_siguiente) is distinct from (d.hora_inicio, d.hora_fin, d.termina_dia_siguiente) end
+                 as cambio,
                d.hora_inicio, d.hora_fin, d.termina_dia_siguiente
-          from a full join d on d.ninera_id = a.ninera_id and d.familia_id is not distinct from a.familia_id and d.fecha = a.fecha
+          from a full join d on d.ninera_id = a.ninera_id and d.familia_id is not distinct from a.familia_id
+                            and d.servicio = a.servicio and d.fecha = a.fecha
       )
-      select p.ninera_id, p.familia_id, max(p.familia_nombre) as familia_nombre,
+      select p.ninera_id, p.familia_id, p.servicio, max(p.familia_nombre) as familia_nombre,
              min(p.fecha) filter (where p.cambio) as desde_cambio,
              min(p.fecha) filter (where p.habia and not p.hay) as desde_quita,
              max(p.fecha) filter (where p.habia and not p.hay) as hasta_quita,
              array_agg(p.fecha order by p.fecha) filter (where p.hay and not p.habia) as sumas
         from pares p
        where p.cambio or p.habia <> p.hay
-       group by p.ninera_id, p.familia_id
+       group by p.ninera_id, p.familia_id, p.servicio
     loop
       if not public.sitting_puede_avisar(g.ninera_id, g.familia_id, g.familia_nombre) then continue; end if;
       select public.madre_nombre_inicial(coalesce(f.nombre, g.familia_nombre)), nullif(btrim(f.zona), '')
         into v_madre, v_zona from (select 1) x left join public.familias f on f.id = g.familia_id;
-      v_clave := 'fijo:' || coalesce(g.familia_id::text, '-') || ':' || g.ninera_id || ':';
+      v_traslado := g.servicio = 'traslado';
+      v_fijo := case when v_traslado then 'fijo de traslados' else 'fijo' end;
+      v_clave := 'fijo:' || coalesce(g.familia_id::text, '-') || ':' || g.ninera_id || ':' || case when v_traslado then 'traslado:' else '' end;
       v_dias := false;
 
       if g.desde_cambio is not null then
         select * into v_pausa from _pb_cambios_previstos
-         where accion = 'despues' and ninera_id = g.ninera_id and familia_id is not distinct from g.familia_id and fecha = g.desde_cambio
+         where accion = 'despues' and ninera_id = g.ninera_id and familia_id is not distinct from g.familia_id
+           and coalesce(tipo, 'sitting') = g.servicio and fecha = g.desde_cambio
          order by hora_inicio limit 1;
         v_cambio := gen_random_uuid();
         if public.encolar_aviso(v_clave || 'horario:' || txid_current(), g.ninera_id, null, 'sitting',
-             'Cambió el horario de tu fijo con ' || v_madre,
-             'Desde el ' || public.dia_corto_texto(g.desde_cambio) || ', ' || public.horario_texto(v_pausa.hora_inicio, v_pausa.hora_fin, v_pausa.termina_dia_siguiente)
+             'Cambió el horario de tu ' || v_fijo || ' con ' || v_madre,
+             'Desde el ' || public.dia_corto_texto(g.desde_cambio) || ', '
+               || case when v_traslado then coalesce('a las ' || to_char(v_pausa.hora_inicio, 'HH24:MI'), 'sin horario')
+                       else public.horario_texto(v_pausa.hora_inicio, v_pausa.hora_fin, v_pausa.termina_dia_siguiente) end
                || '. Mira los detalles.',
              '#cambio/' || v_cambio, jsonb_build_object('cambio_id', v_cambio)) then
-          insert into public.cambios_horario (id, ninera_id, familia_id, familia_nombre, es_fijo, desde, hora_inicio, hora_fin, termina_dia_siguiente)
-          values (v_cambio, g.ninera_id, g.familia_id, g.familia_nombre, true, g.desde_cambio, v_pausa.hora_inicio, v_pausa.hora_fin,
-                  coalesce(v_pausa.termina_dia_siguiente, false));
+          insert into public.cambios_horario (id, ninera_id, familia_id, familia_nombre, es_fijo, desde, hora_inicio, hora_fin,
+                                              termina_dia_siguiente, tipo)
+          values (v_cambio, g.ninera_id, g.familia_id, g.familia_nombre, true, g.desde_cambio, v_pausa.hora_inicio,
+                  case when v_traslado then null else v_pausa.hora_fin end,
+                  case when v_traslado then false else coalesce(v_pausa.termina_dia_siguiente, false) end, g.servicio);
           v_total := v_total + 1;
         end if;
       end if;
 
       if g.desde_quita is not null then
         select p.desde, p.hasta into v_pausa from public.asignaciones_pausas p join public.asignaciones a on a.id = p.asignacion_id
-         where a.ninera_id = g.ninera_id and a.familia_id is not distinct from g.familia_id and g.desde_quita between p.desde and p.hasta
+         where a.ninera_id = g.ninera_id and a.familia_id is not distinct from g.familia_id and coalesce(a.tipo, 'sitting') = g.servicio
+           and g.desde_quita between p.desde and p.hasta
          order by p.created_at desc limit 1;
         if found then
-          v_titulo := 'Tu fijo con ' || v_madre || ' se pausa';
+          v_titulo := 'Tu ' || v_fijo || ' con ' || v_madre || ' se pausa';
           v_cuerpo := 'Del ' || public.dia_corto_texto(greatest(v_pausa.desde, g.desde_quita)) || ' al ' || public.dia_corto_texto(v_pausa.hasta)
                       || '. Si tienes dudas, escríbenos.';
         elsif exists (select 1 from _pb_cambios_previstos x
                        where x.accion = 'despues' and x.familia_id is not distinct from g.familia_id and x.ninera_id is distinct from g.ninera_id
+                         and coalesce(x.tipo, 'sitting') = g.servicio
                          and x.fecha between g.desde_quita and g.hasta_quita and not coalesce(x.cancelado, false)) then
-          v_titulo := 'Ya no vas al fijo con ' || v_madre || ' desde el ' || public.dia_corto_texto(g.desde_quita);
+          v_titulo := 'Ya no vas al ' || v_fijo || ' con ' || v_madre || ' desde el ' || public.dia_corto_texto(g.desde_quita);
           v_cuerpo := 'El equipo hizo un cambio. Si tienes dudas, escríbenos.';
         elsif not exists (select 1 from public.asignaciones a
                            where a.ninera_id = g.ninera_id and a.familia_id is not distinct from g.familia_id
+                             and coalesce(a.tipo, 'sitting') = g.servicio
                              and (a.vigente_hasta is null or a.vigente_hasta >= g.desde_quita)) then
           select max(a.vigente_hasta) into v_termina from public.asignaciones a
-           where a.ninera_id = g.ninera_id and a.familia_id is not distinct from g.familia_id;
-          v_titulo := 'Tu fijo con ' || v_madre || ' termina el ' || public.dia_corto_texto(coalesce(v_termina, g.desde_quita - 1));
+           where a.ninera_id = g.ninera_id and a.familia_id is not distinct from g.familia_id and coalesce(a.tipo, 'sitting') = g.servicio;
+          v_titulo := 'Tu ' || v_fijo || ' con ' || v_madre || ' termina el ' || public.dia_corto_texto(coalesce(v_termina, g.desde_quita - 1));
           v_cuerpo := 'Si tienes dudas, escríbenos.';
         else
           v_dias := true;
@@ -3913,14 +3992,16 @@ begin
       if g.sumas is not null then
         if not exists (select 1 from public.sittings_traslados s
                         where s.ninera_id = g.ninera_id and s.familia_id is not distinct from g.familia_id and s.asignacion_id is not null
+                          and s.tipo = g.servicio
                           and s.id not in (select x.id from _pb_cambios_previstos x where x.accion = 'despues' and x.id is not null)) then
           select * into v_pausa from _pb_cambios_previstos
-           where accion = 'despues' and ninera_id = g.ninera_id and familia_id is not distinct from g.familia_id and fecha = g.sumas[1]
+           where accion = 'despues' and ninera_id = g.ninera_id and familia_id is not distinct from g.familia_id
+             and coalesce(tipo, 'sitting') = g.servicio and fecha = g.sumas[1]
            order by hora_inicio limit 1;
           if public.encolar_aviso(v_clave || 'nuevo:' || txid_current(), g.ninera_id, null, 'sitting',
-               'Tienes un fijo nuevo con ' || v_madre,
+               case when v_traslado then 'Tienes un fijo nuevo de traslados con ' else 'Tienes un fijo nuevo con ' end || v_madre,
                'Desde el ' || public.dia_corto_texto(g.sumas[1]) || ', a las ' || coalesce(to_char(v_pausa.hora_inicio, 'HH24:MI'), '-')
-                 || coalesce(', en ' || v_zona, '') || '. Mira los datos en la app.',
+                 || case when v_traslado then '' else coalesce(', en ' || v_zona, '') end || '. Mira los datos en la app.',
                '#inicio', jsonb_build_object('familia_id', g.familia_id)) then
             v_total := v_total + 1;
           end if;
@@ -3928,13 +4009,14 @@ begin
           -- Lo que se suma al final de la ventana (la corrida de cada noche agrega un día) no es un cambio.
           select max(s.fecha) into v_max from public.sittings_traslados s
            where s.ninera_id = g.ninera_id and s.familia_id is not distinct from g.familia_id and s.asignacion_id is not null
+             and s.tipo = g.servicio
              and s.id not in (select x.id from _pb_cambios_previstos x where x.accion = 'despues' and x.id is not null);
           if exists (select 1 from unnest(g.sumas) f where f < v_max) then v_dias := true; end if;
         end if;
       end if;
 
       if v_dias and public.encolar_aviso(v_clave || 'dias:' || txid_current(), g.ninera_id, null, 'sitting',
-           'Cambiaron los días de tu fijo con ' || v_madre, 'Mira tus próximos sittings en la app.',
+           'Cambiaron los días de tu ' || v_fijo || ' con ' || v_madre, 'Mira tus próximos sittings en la app.',
            '#inicio', jsonb_build_object('familia_id', g.familia_id)) then
         v_total := v_total + 1;
       end if;
@@ -3953,14 +4035,14 @@ revoke execute on function public.avisar_cambios_previstos(date) from public, an
 -- el resto de la app. Vacío si no es niñera.
 create or replace function public.ninera_mis_cambios()
 returns table (id uuid, es_fijo boolean, desde date, hora_inicio time without time zone, hora_fin time without time zone,
-               termina_dia_siguiente boolean, madre text, zona text, creado_en timestamp with time zone)
+               termina_dia_siguiente boolean, madre text, zona text, creado_en timestamp with time zone, tipo text)
 language sql
 stable
 security definer
 set search_path to 'public'
 as $function$
   select c.id, c.es_fijo, c.desde, c.hora_inicio, c.hora_fin, c.termina_dia_siguiente,
-         public.madre_nombre_inicial(coalesce(f.nombre, c.familia_nombre)), nullif(btrim(f.zona), ''), c.creado_en
+         public.madre_nombre_inicial(coalesce(f.nombre, c.familia_nombre)), nullif(btrim(f.zona), ''), c.creado_en, c.tipo
     from public.cambios_horario c
     left join public.familias f on f.id = c.familia_id
    where c.ninera_id = (select public.ninera_actual()) and c.respuesta is null and c.desde >= public.hoy_mvd()
@@ -4260,6 +4342,20 @@ $function$;
 revoke execute on function public.programar_avisos_carsitting(timestamp with time zone) from public, anon, authenticated;
 grant execute on function public.programar_avisos_carsitting(timestamp with time zone) to service_role;
 
+-- ---- El freno del carsitting (03/11/2026, fase 1, etapa 11, 20261109_traslados_app) ----
+-- Tiene el carsitting aprobado desde la app (etapa 10): aprobado una vez, queda aprobado aunque mande una
+-- actualización. Las filas del formulario de Google no cuentan (no tienen enviado_en). Interna.
+create or replace function public.carsitting_aprobado(p_ninera_id uuid)
+returns boolean
+language sql
+stable
+set search_path to 'public'
+as $function$
+  select exists (select 1 from public.carsitting_datos c
+                  where c.ninera_id = p_ninera_id and c.enviado_en is not null and c.aprobado_en is not null)
+$function$;
+revoke execute on function public.carsitting_aprobado(uuid) from public, anon, authenticated;
+
 
 -- Una admin confirma a una niñera: "¡Quedaste seleccionada!" y "Ya se cubrió" (etapa 6)
 -- Corre cuando una fila de solicitud_ninieras pasa a 'confirmada' (o se inserta así: "Asignar" a una
@@ -4283,7 +4379,7 @@ declare
 begin
   if tg_op = 'UPDATE' and old.estado = 'confirmada' then return null; end if;
   select * into v_s from public.solicitudes where id = new.solicitud_id;
-  if not found or v_s.tipo <> 'sitting' then return null; end if;
+  if not found then return null; end if;
 
   for v_otra in
     update public.solicitud_ninieras x
@@ -4295,7 +4391,9 @@ begin
     if v_otra.respondido_en is not null and v_s.fecha >= public.hoy_mvd()
        and public.pedido_puede_avisar(v_s.familia_id, v_s.familia_nombre, v_otra.ninera_nombre) then
       perform public.encolar_aviso('pedido:' || v_otra.id || ':cubierto', v_otra.ninera_id, null, 'pedido',
-        'Gracias por responder', 'Este sitting ya quedó cubierto. ¡Te tendremos en cuenta para el próximo!',
+        'Gracias por responder',
+        case when v_s.tipo = 'traslado' then 'Este traslado' else 'Este sitting' end
+          || ' ya quedó cubierto. ¡Te tendremos en cuenta para el próximo!',
         '#inicio', jsonb_build_object('solicitud_ninera_id', v_otra.id));
     end if;
   end loop;
@@ -4370,7 +4468,8 @@ returns table (id uuid, estado text, fecha date, hora_inicio time without time z
                hora_fin time without time zone, termina_dia_siguiente boolean, zona text, chicos text,
                precio_hora numeric, responder_hasta timestamp with time zone,
                enviado_en timestamp with time zone, respondido_en timestamp with time zone,
-               horario_aproximado boolean, solicitud_id uuid)
+               horario_aproximado boolean, solicitud_id uuid,
+               tipo text, destino_zona text, precio_viaje numeric)
 language sql
 stable
 security definer
@@ -4381,7 +4480,8 @@ as $function$
          case when exists (select 1 from public.hijos_familia h where h.familia_id = s.familia_id)
               then public.chicos_texto(s.familia_id) end,
          sn.precio_hora, s.responder_hasta, sn.enviado_en, sn.respondido_en,
-         s.horario_aproximado, s.id
+         s.horario_aproximado, s.id,
+         s.tipo, case when s.tipo = 'traslado' then nullif(btrim(s.destino_zona), '') end, sn.precio_viaje
     from public.solicitud_ninieras sn
     join public.solicitudes s on s.id = sn.solicitud_id
     left join public.familias f on f.id = s.familia_id
@@ -4451,7 +4551,7 @@ declare
 begin
   -- Recordatorio a la niñera.
   for r in
-    select sn.id, sn.ninera_id, s.fecha
+    select sn.id, sn.ninera_id, s.fecha, s.tipo
       from public.solicitud_ninieras sn
       join public.solicitudes s on s.id = sn.solicitud_id
      where sn.origen = 'app' and sn.estado = 'invitada'
@@ -4460,7 +4560,8 @@ begin
        and p_ahora >= s.responder_hasta - make_interval(mins => v_rec) and p_ahora < s.responder_hasta
   loop
     if public.encolar_aviso('pedido:' || r.id || ':recordatorio', r.ninera_id, null, 'pedido',
-         'Sitting ' || to_char(r.fecha, 'DD/MM'), '¡Hola! Avísame por favor si estarías disponible.',
+         case when r.tipo = 'traslado' then 'Traslado ' else 'Sitting ' end || to_char(r.fecha, 'DD/MM'),
+         '¡Hola! Avísame por favor si estarías disponible.',
          '#pedido/' || r.id, jsonb_build_object('solicitud_ninera_id', r.id)) then
       v_total := v_total + 1;
     end if;
