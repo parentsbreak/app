@@ -1948,6 +1948,10 @@ Rama `claude/fase1-carsitting`. Migración `AAAAMMDD_carsitting_app.sql`.
 - 10.3 Panel: "Carsitting para revisar" en Hoy (fotos con links firmados), lista "Completaron /
   Faltan / Sin app" en Niñeras (rehecha de #60), ficha lee por `ninera_id`.
 - 10.4 Plan de apagado de Google Forms / Apps Script / webhooks en CLAUDE.md. PR, migración (OK), merge.
+Estado (02/11/2026): migración `20261108_carsitting_app` en el PR en borrador (respuestas de Diego y cómo quedó, en
+`decisiones.md` 6.7). Cambios respecto de lo de arriba: 7 fotos; sin `aprobar_carsitting` (la admin escribe directo y un trigger
+aprueba o manda el comentario por el chat); el aviso al aprobar es neutro; sin RPC de la ruta (la política del bucket deja solo
+su carpeta y los 7 nombres).
 
 ## Etapa 11 (opcional): pedidos de traslado por la app
 - Solo si todo lo anterior anda estable: `enviar_pedido_app` acepta `tipo 'traslado'` con

@@ -85,7 +85,10 @@ declare
     'ninera_guardar_ficha_familia(p_sitting_id uuid, p_datos jsonb)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su sitting del día
     'ninera_ficha_familia(p_sitting_id uuid)',   -- niñera: solo de su sitting, hasta que termina; sin datos de la niñera que la cargó
     'ninera_mis_cambios()',                      -- niñera: solo los suyos; vacío si no es niñera
-    'ninera_responder_cambio(p_cambio_id uuid, p_ok boolean)' -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo los suyos
+    'ninera_responder_cambio(p_cambio_id uuid, p_ok boolean)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo los suyos
+    -- Etapa 10 (20261108_carsitting_app): el carsitting desde la app.
+    'ninera_mi_carsitting()',                    -- niñera: solo lo suyo; null si no es niñera
+    'ninera_guardar_carsitting(p_datos jsonb, p_fotos jsonb)' -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo su fila y sus fotos
   ];
   -- anon (sin sesión): solo las que usan las políticas "to public" y devuelven false / null.
   lista_anon text[] := array['es_ninera()', 'es_usuaria_autorizada()', 'ninera_actual()'];

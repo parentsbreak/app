@@ -406,3 +406,15 @@ Panel (voseo, PROVISORIOS):
 - Ficha de la familia: "Fichas de la familia", "La completó [niñera] el [dd/mm/aaaa].", "Copiar para la próxima niñera" ("Ficha
   copiada. Pegala en WhatsApp."), "Anterior, del [dd/mm/aaaa]", "No se pudieron leer las fichas de la familia." El texto copiado
   empieza con "*Ficha de la familia, Parents' Break*", como el de la guía original.
+
+## Etapa 10: carsitting en la app (02/11/2026, esperan a las dueñas)
+Avisos a la niñera (tú, PROVISORIOS salvo el primero, que es de textos.md 6):
+- El primero (de 9 a 21): "Completa tus datos de carsitting" / "Marcaste que realizas traslados. Necesitamos estos datos una sola vez."
+- Los lunes a las 10: "Te faltan tus datos de carsitting" / "Los necesitamos para tus traslados. Complétalos en la app."
+- Al aprobar (orquestador, 02/11/2026: neutro): "Tu carsitting quedó aprobado" / "Gracias por completar los datos."
+- "Pedir de nuevo", por el chat con el nombre de la admin: "Hay que corregir algo de tus datos de carsitting: [comentario]"
+
+Avisos a las admins (voseo, PROVISORIOS): "[niñera] completó el carsitting" / "Revisalo."; si ya estaba aprobada y lo
+actualiza: "[niñera] actualizó los datos del auto" / "Revisalo."
+
+Las pantallas (el formulario en la app, "Carsitting para revisar" en Hoy y el panel "Car sitting" de Niñeras) se suman con la app.

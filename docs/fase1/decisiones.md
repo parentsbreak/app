@@ -652,6 +652,26 @@ Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.
   solicitudes de traslados". En Niñeras, panel plegable "Car sitting" con "Completaron / Faltan"
   (de las que hacen traslados) y "Sin app" con el botón de WhatsApp.
 - Recordatorio semanal (lunes 10:00) a las que marcaron Carsittings y no completaron.
+- Respuestas de Diego (02/11/2026) al detallar la etapa 10:
+  - Fotos: 7 en vez de 5 (reemplaza lo de arriba): licencia y libreta de propiedad de frente y de dorso por separado, los
+    asientos de atrás y el auto por dentro y por fuera. Motivo: el formulario pedía "ambos lados" en una sola foto, y así se
+    leen mejor y no se cortan.
+  - Sin carsitting aprobado: marca "Carsitting pendiente" en la ficha y aviso al asignarle un traslado, sin frenar (como el de
+    la guía). El freno va en la etapa 11, con los pedidos de traslado por la app.
+  - Cambio de auto o licencia vencida: "Actualizar los datos del auto" en "Mi perfil"; vuelve a revisión y sigue aprobada con
+    los datos anteriores mientras tanto.
+  - Fechas de vencimiento de la licencia y del seguro: no en esta etapa (pendiente).
+  - "Sin app" en el panel abre "Invitar a la app" de su ficha.
+  - El aviso de carsitting de RR.HH. (Postulantes, "Enviar mail de carsitting") se saca en este PR; el formulario de Google y
+    carsitting-webhook siguen vivos hasta que todas tengan la app.
+  - El aviso al aprobar es neutro (orquestador, 02/11/2026; reemplaza "Ya puedes recibir solicitudes de traslados", porque los
+    pedidos de traslado por la app son la etapa 11): "Tu carsitting quedó aprobado" / "Gracias por completar los datos."
+  Cómo quedó la base (migración `20261108_carsitting_app`): columnas nuevas en `carsitting_datos` (una fila por niñera desde
+  la app, con `enviado_en`; las del formulario quedan como están), `ninera_mi_carsitting` y `ninera_guardar_carsitting` (las
+  fotos se suben a `ninieras-privado/carsitting/<id>/<foto>_<8 hex>.jpg`, con un nombre nuevo en cada envío para no pisar lo
+  aprobado), la revisión de la admin escribiendo directo con la condición de `revision` (un trigger aprueba y avisa, o manda el
+  comentario por el chat) y `programar_avisos_carsitting` (el primero de 9 a 21 y el de los lunes a las 10, también a la que
+  tiene que corregir). Lo aprobado queda en `aprobado_datos` mientras se revisa lo nuevo.
 
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo
