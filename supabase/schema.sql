@@ -1991,49 +1991,7 @@ $function$;
 revoke execute on function public.ninera_guardar_perfil(text, text[], text[], text) from public, anon;
 grant execute on function public.ninera_guardar_perfil(text, text[], text[], text) to authenticated;
 
--- Los próximos sittings de la niñera de la sesión (de hoy a 60 días), sin cancelados. Nunca
--- montos, cobrado / pagado, notas internas ni precios (docs/fase1, decisiones 5.3). La dirección
--- (y el origen / destino de un traslado) solo cuando está confirmado: un previsto todavía puede
--- cambiar de niñera. notas_para_ninera (solo confirmado), horario_aproximado y precio_hora (lo ofrecido, nunca
--- un total) salen del pedido del que vino el registro (solicitud_id, etapa 6).
-create or replace function public.ninera_mis_sittings()
-returns table (id uuid, tipo text, fecha date, hora_inicio time without time zone,
-               hora_fin time without time zone, termina_dia_siguiente boolean, estado text,
-               zona text, madre text, direccion text, origen text, destino text, chicos text,
-               notas_para_ninera text, horario_aproximado boolean, precio_hora numeric, solicitud_id uuid,
-               destino_zona text, precio_viaje numeric)
-language sql
-stable
-security definer
-set search_path to 'public'
-as $function$
-  select s.id, s.tipo, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, s.estado,
-         case when s.tipo = 'traslado' then coalesce(nullif(btrim(sol.zona), ''), f.zona) else f.zona end,
-         public.madre_nombre_inicial(coalesce(f.nombre, s.familia_nombre)),
-         case when s.estado = 'confirmado' then f.direccion end,
-         case when s.estado = 'confirmado' then s.origen end,
-         case when s.estado = 'confirmado' then s.destino end,
-         public.chicos_texto(f.id),
-         case when s.estado = 'confirmado' then nullif(btrim(sol.notas_para_ninera), '') end,
-         coalesce(sol.horario_aproximado, false),
-         sn.precio_hora,
-         s.solicitud_id,
-         case when s.tipo = 'traslado' then nullif(btrim(sol.destino_zona), '') end,
-         case when s.tipo = 'traslado' then sn.precio_viaje end
-    from public.sittings_traslados s
-    left join public.familias f on f.id = s.familia_id
-    left join public.solicitudes sol on sol.id = s.solicitud_id
-    left join lateral (select x.precio_hora, x.precio_viaje from public.solicitud_ninieras x
-                        where x.solicitud_id = s.solicitud_id and x.ninera_id = s.ninera_id and x.estado = 'confirmada'
-                        order by x.created_at desc limit 1) sn on true
-   where s.ninera_id = (select public.ninera_actual())
-     and not s.cancelado
-     and s.estado in ('previsto', 'confirmado')
-     and s.fecha between public.hoy_mvd() and public.hoy_mvd() + 60
-   order by s.fecha, s.hora_inicio
-$function$;
-revoke execute on function public.ninera_mis_sittings() from public, anon;
-grant execute on function public.ninera_mis_sittings() to authenticated;
+-- ninera_mis_sittings() está más abajo, después de fichas_familia (etapa 12: lee "salud" de la ficha).
 
 -- Lo que la niñera de la sesión ve al abrir su temporada: {lugares, al_dia, solo_afuera}, o null si
 -- la sesión no es de una niñera. al_dia: la cargó (ella, la página o una admin) en esta temporada.
@@ -3785,6 +3743,76 @@ end
 $function$;
 revoke execute on function public.ninera_ficha_familia(uuid) from public, anon;
 grant execute on function public.ninera_ficha_familia(uuid) to authenticated;
+
+-- Los próximos sittings de la niñera de la sesión (de hoy a 60 días), sin cancelados. Nunca
+-- montos, cobrado / pagado, notas internas ni precios (docs/fase1, decisiones 5.3). La dirección
+-- (y el origen / destino de un traslado) solo cuando está confirmado: un previsto todavía puede
+-- cambiar de niñera. notas_para_ninera (solo confirmado), horario_aproximado y precio_hora (lo ofrecido, nunca
+-- un total) salen del pedido del que vino el registro (solicitud_id, etapa 6). Etapa 12: edades_meses (por mes
+-- calendario, nunca la fecha de nacimiento), edades_anios (edad cargada a mano) y necesidades (autismo, tdah,
+-- discapacidad) para "Para este sitting"; solo en sittings.
+create or replace function public.ninera_mis_sittings()
+returns table (id uuid, tipo text, fecha date, hora_inicio time without time zone,
+               hora_fin time without time zone, termina_dia_siguiente boolean, estado text,
+               zona text, madre text, direccion text, origen text, destino text, chicos text,
+               notas_para_ninera text, horario_aproximado boolean, precio_hora numeric, solicitud_id uuid,
+               destino_zona text, precio_viaje numeric, edades_meses integer[], edades_anios integer[],
+               necesidades text[])
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  select s.id, s.tipo, s.fecha, s.hora_inicio, s.hora_fin, s.termina_dia_siguiente, s.estado,
+         case when s.tipo = 'traslado' then coalesce(nullif(btrim(sol.zona), ''), f.zona) else f.zona end,
+         public.madre_nombre_inicial(coalesce(f.nombre, s.familia_nombre)),
+         case when s.estado = 'confirmado' then f.direccion end,
+         case when s.estado = 'confirmado' then s.origen end,
+         case when s.estado = 'confirmado' then s.destino end,
+         public.chicos_texto(f.id),
+         case when s.estado = 'confirmado' then nullif(btrim(sol.notas_para_ninera), '') end,
+         coalesce(sol.horario_aproximado, false),
+         sn.precio_hora,
+         s.solicitud_id,
+         case when s.tipo = 'traslado' then nullif(btrim(sol.destino_zona), '') end,
+         case when s.tipo = 'traslado' then sn.precio_viaje end,
+         coalesce((select array_agg(e.meses order by e.orden, e.created_at, e.id)
+                     from (select h.orden, h.created_at, h.id,
+                                  (extract(year from s.fecha)::int * 12 + extract(month from s.fecha)::int)
+                                  - (extract(year from h.fecha_nacimiento)::int * 12 + extract(month from h.fecha_nacimiento)::int) as meses
+                             from public.hijos_familia h
+                            where s.tipo = 'sitting' and h.familia_id = f.id and h.fecha_nacimiento is not null) e
+                    where e.meses >= 0), '{}'::integer[]),
+         coalesce((select array_agg(h.edad_declarada + greatest(0, coalesce(extract(year from age(s.fecha, h.edad_declarada_en))::int, 0))
+                                    order by h.orden, h.created_at, h.id)
+                     from public.hijos_familia h
+                    where s.tipo = 'sitting' and h.familia_id = f.id and h.fecha_nacimiento is null
+                      and h.edad_declarada is not null), '{}'::integer[]),
+         coalesce((select array_agg(n.necesidad order by n.orden)
+                     from (values (1, 'autismo', 'autis|asperger|\mtea\M'),
+                                  (2, 'tdah', 'tdah|hiperactiv|deficit de atencion'),
+                                  (3, 'discapacidad', 'discapacid|sindrome de down|paralisis|silla de ruedas')) n(orden, necesidad, patron)
+                    where s.tipo = 'sitting' and fic.salud ~ n.patron), '{}'::text[])
+    from public.sittings_traslados s
+    left join public.familias f on f.id = s.familia_id
+    left join public.solicitudes sol on sol.id = s.solicitud_id
+    left join lateral (select x.precio_hora, x.precio_viaje from public.solicitud_ninieras x
+                        where x.solicitud_id = s.solicitud_id and x.ninera_id = s.ninera_id and x.estado = 'confirmada'
+                        order by x.created_at desc limit 1) sn on true
+    -- "salud" de la ficha que vería la niñera, en minúsculas y sin tildes (las palabras clave van así).
+    left join lateral (select translate(lower(ff.datos ->> 'salud'), 'áéíóúüÁÉÍÓÚÜ', 'aeiouuaeiouu') as salud
+                         from public.fichas_familia ff
+                        where ff.familia_id = s.familia_id
+                        order by (ff.sitting_id is not distinct from s.id) desc, ff.actualizada_en desc
+                        limit 1) fic on true
+   where s.ninera_id = (select public.ninera_actual())
+     and not s.cancelado
+     and s.estado in ('previsto', 'confirmado')
+     and s.fecha between public.hoy_mvd() and public.hoy_mvd() + 60
+   order by s.fecha, s.hora_inicio
+$function$;
+revoke execute on function public.ninera_mis_sittings() from public, anon;
+grant execute on function public.ninera_mis_sittings() to authenticated;
 
 -- ---- Avisos de cambios y cancelaciones (textos.md 1; los nuevos, en textos-provisorios.md) ----
 
