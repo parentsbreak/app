@@ -304,6 +304,8 @@ button.aviso-item:hover{border-color:var(--accent);}
 /* Etapa 8: la ficha de la familia y los cambios de horario. */
 
 .dia-ficha{margin:10px 0 0;}
+.dia-llegar:not(:empty){margin:10px 0 0;}
+.dia-llegar .como-llegar{margin:10px 0 0;}
 .dia-ficha-ayuda{font-size:14px;color:var(--ink-soft);line-height:1.45;margin:4px 0 0;}
 .tarjeta-cambio.destacada{box-shadow:0 0 0 2px var(--accent-soft), var(--shadow-sm);}
 .aviso-cambio{margin:0 0 18px;}

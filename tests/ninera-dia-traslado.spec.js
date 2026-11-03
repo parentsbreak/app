@@ -318,3 +318,86 @@ test.describe('lo demás', () => {
     verificarLimpio(e2);
   });
 });
+
+// "Cómo llegar" en la tarjeta (03/11/2026, Diego): las direcciones del registro confirmado que ya trae ninera_mis_sittings
+// ("Próximos sittings"), con Google Maps, Waze y Mapas; antes de buscarlos al origen, después al destino.
+test.describe('"Cómo llegar" en la tarjeta del traslado', () => {
+  const links = page => tarjeta(page).locator('.como-llegar a');
+
+  test('antes de buscarlos, al origen: Google Maps, Waze y Mapas con la dirección; ninera_mi_dia no cambia', async ({ page }) => {
+    const e = await abrir(page, { hora: '17:30' });
+    const boton = tarjeta(page).getByRole('button', { name: 'Cómo llegar al origen' });
+    await expect(boton).toBeVisible();
+    await expect(boton).toHaveClass(/ghost/);
+    await expect(tarjeta(page).locator('.como-llegar')).toBeHidden();
+    await boton.click();
+    await expect(links(page)).toHaveText(['Google Maps', 'Waze', 'Mapas']);
+    const q = encodeURIComponent('Origen Inventado 1');
+    expect(await links(page).evaluateAll(as => as.map(a => a.getAttribute('href')))).toEqual([
+      `https://www.google.com/maps/search/?api=1&query=${q}`, `https://waze.com/ul?q=${q}&navigate=yes`, `https://maps.apple.com/?q=${q}`]);
+    // Sin un pedido de más: las dos lecturas de siempre.
+    expect([...e.lecturasRpc, ...e.escrituras].map(w => w.tabla).filter(t => /ninera_mi_dia|ninera_mis_sittings/.test(t)).sort())
+      .toEqual(['rpc/ninera_mi_dia', 'rpc/ninera_mis_sittings']);
+    verificarLimpio(e);
+  });
+
+  test('después de "Ya los busqué", al destino; después de "Ya los dejé", nada', async ({ page }) => {
+    const e = await abrir(page, { hora: '18:10' });
+    await tarjeta(page).getByRole('button', { name: 'Ya los busqué' }).click();
+    await expect(tarjeta(page).getByRole('button', { name: 'Cómo llegar al origen' })).toHaveCount(0);
+    await tarjeta(page).getByRole('button', { name: 'Cómo llegar al destino' }).click();
+    await expect(links(page).first()).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Destino Inventado 2')}`);
+    await abrirCierre(page);
+    await page.getByRole('button', { name: 'Volver' }).click();
+    await expect(botones(page)).toHaveText(['Cerrar el traslado']);
+    await expect(tarjeta(page).locator('.dia-llegar')).toBeEmpty();
+    verificarLimpio(e);
+  });
+
+  test('sin la dirección en el registro (un fijo sin cargar) no hay botón', async ({ page }) => {
+    const d = datosTraslado({ fijo: true });
+    Object.assign(d.sittings_traslados.find(s => s.id === TID), { origen: null, destino: null });
+    const e = await abrir(page, { hora: '17:30', datos: d });
+    await expect(botones(page)).toHaveText(['Ya los busqué']);
+    await expect(tarjeta(page).locator('.dia-llegar')).toBeEmpty();
+    verificarLimpio(e);
+  });
+
+  test('si "Próximos sittings" no se pudo leer, la tarjeta sigue sin "Cómo llegar"; al reintentar aparece', async ({ page }) => {
+    await page.addInitScript(() => { delete window.PushManager; });
+    const d = datosTraslado();
+    Object.assign(d.ninieras.find(n => n.id === ID.nAna), { zona: 'Pocitos', perfil_app_en: '2026-10-02T15:00:00+00:00' });
+    let fallar = true;
+    const e = await abrirAppNinera(page, { datos: d, ahora: '2026-10-04T17:30:00-03:00' });
+    e.fallar = ({ tabla }) => fallar && tabla === 'rpc/ninera_mis_sittings' ? 'red' : null;
+    await page.evaluate(() => cargarProximosSittings());
+    await expect(page.locator('#proximos-sittings-lista')).toContainText('No pudimos cargar tus sittings.');
+    await page.evaluate(() => { sittingsNineraCargados = []; pintarComoLlegarDia(); });
+    await expect(tarjeta(page).getByRole('button', { name: 'Ya los busqué' })).toBeVisible();
+    await expect(tarjeta(page).locator('.dia-llegar')).toBeEmpty();
+    fallar = false;
+    await page.locator('#proximos-sittings-lista').getByRole('button', { name: 'Reintentar' }).click();
+    await expect(tarjeta(page).getByRole('button', { name: 'Cómo llegar al origen' })).toBeVisible();
+    verificarLimpio(e, RUIDO);
+  });
+
+  test('escape: una dirección con HTML y comillas va codificada en los links y no ejecuta nada', async ({ page }) => {
+    const malo = '"><img src=x onerror="window.__xss=1"> & Rambla';
+    const d = datosTraslado();
+    d.sittings_traslados.find(s => s.id === TID).origen = malo;
+    const e = await abrir(page, { hora: '17:30', datos: d });
+    await tarjeta(page).getByRole('button', { name: 'Cómo llegar al origen' }).click();
+    await expect(links(page).first()).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(malo)}`);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    verificarLimpio(e);
+  });
+
+  test('390 px: con "Cómo llegar" abierto, sin scroll de costado', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const e = await abrir(page, { hora: '17:30' });
+    await tarjeta(page).getByRole('button', { name: 'Cómo llegar al origen' }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await tarjeta(page).screenshot({ path: test.info().outputPath('traslado-como-llegar-390.png') });
+    verificarLimpio(e);
+  });
+});
