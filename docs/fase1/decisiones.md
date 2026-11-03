@@ -731,7 +731,7 @@ Respuestas de Diego (03/11/2026) al detallar la etapa 11b:
 - La admin lo revisa en "Cierre de los fijos" como el de un sitting, con "Revisado" en lugar de "Sí, terminó [hora]" y sin "Otra
   hora" (el precio es por viaje y no cambia); el gasto pide "¿Quién lo paga?" y recién ahí pasa a `gastos_extra`. "Sitting en
   curso" de Hoy muestra también los traslados (tarde, no están los chicos, no marcó que salió) con "Contactarla"; con alguno, el
-  título es "En curso". Decisiones del constructor (avisadas a Diego al empezar, a confirmar en el PR): "Ya los dejé" abre
+  título es "En curso". Decisiones del constructor, confirmadas por Diego (03/11/2026): "Ya los dejé" abre
   el cierre, "Revisado" sin "Otra hora", sin "Ya los dejé" no hay aviso de cierre y sin aviso a las admins por "Ya los busqué" / "Ya los dejé".
 Cómo quedó la base (migración `20261110_dia_traslados`): `sitting_eventos` suma los tipos `busque`, `deje` y `no_estan` (solo
 traslados; `entre`, `no_abren` y `no_encuentro` solo sittings, `evento_invalido` si no); `sitting_cierres.hora_fin` puede ir vacía (el
