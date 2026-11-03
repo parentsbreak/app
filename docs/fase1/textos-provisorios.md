@@ -448,3 +448,19 @@ Panel (voseo, PROVISORIOS):
   "Todavía no completó los datos en la app: se los pide la app."
 - Al asignar un traslado: "[niñera] no tiene el carsitting aprobado. La podés asignar igual." Solo si tiene la app; la marca de la ficha, también.
 - Preferencias: "Carsitting" / "Cuando una niñera completa o actualiza sus datos de carsitting".
+
+## Etapa 11: pedidos de traslado por la app (03/11/2026, esperan a las dueñas)
+Avisos a la niñera (tú, PROVISORIOS):
+- Pedido nuevo: "Traslado [dd/mm]" / "A las [hora]", "De [zona de origen] a [zona de destino]", los chicos y "Precio: $X por viaje"
+  (un renglón cada uno). El recordatorio: "Traslado [dd/mm]" / "¡Hola! Avísame por favor si estarías disponible."
+- A las que dijeron "Puedo" y no quedaron: "Gracias por responder" / "Este traslado ya quedó cubierto. ¡Te tendremos en cuenta para el
+  próximo!"
+- Por día: "Se canceló tu traslado del [día]" / "Con [madre]. Si tienes dudas, escríbenos."; "Ya no vas al traslado del [día]" / "El
+  equipo hizo un cambio. Si tienes dudas, escríbenos."; "Tienes un traslado el [día]" / "A las [hora]. Mira los datos en la app.";
+  "Cambió el horario de tu traslado del [día]" / "Ahora es a las [hora]. Mira los detalles." (o "Ahora es el [día], a las [hora].").
+- Fijos de traslado: "Tienes un fijo nuevo de traslados con [madre]" / "Desde el [día], a las [hora]. Mira los datos en la app.";
+  "Cambió el horario de tu fijo de traslados con [madre]" / "Desde el [día], a las [hora]. Mira los detalles."; "Tu fijo de traslados
+  con [madre] se pausa" / "termina el [día]"; "Ya no vas al fijo de traslados con [madre] desde el [día]"; "Cambiaron los días de tu
+  fijo de traslados con [madre]".
+- Recordatorios: "¡Hola! Mañana tienes un traslado" / "[Día] [dd/mm] a las [hora]."; "Tu traslado empieza en 1 hora" / "[hora]."
+

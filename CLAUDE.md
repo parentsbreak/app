@@ -390,6 +390,10 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   actualizar estando aprobada (sigue aprobada con lo anterior), la fila del formulario intacta y `programar_avisos_carsitting` (el
   primero, los lunes a las 10, la que tiene que corregir, `solo_practica`). El DESHACER con datos, en
   `supabase/pruebas/deshacer/20261108_carsitting_app*.sql`.
+- `supabase/pruebas/fase1_traslados.sql` (03/11/2026, etapa 11): `enviar_pedido_app` con un traslado (origen, destino y zonas; solo a las
+  que hacen traslados, con el carsitting aprobado y la guía; todo o nada; "Precio: $X por viaje"), lo que lee la niñera (zonas antes,
+  direcciones solo confirmado, precio por viaje), "Puedo", el recordatorio, la elección, los avisos por día de un traslado (la hora de
+  salida, "Ya no vas", cancelado), 24 h y 1 h sin lo demás, los fijos de traslado aparte de los de sitting y `solo_practica`.
 - `tests/ninera-carsitting.spec.js` (02/11/2026, etapa 10): el carsitting en la app de niñeras (la tarjeta del inicio sin completar,
   para corregir con el comentario, en revisión y aprobada; `#carsitting` con los campos y las 7 fotos, lo que falta sin subir nada,
   las rutas de las fotos, el cuerpo exacto, corregir una sola foto, "Actualizar los datos del auto" en "Mi perfil", fallas al subir o
@@ -1029,8 +1033,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) en
-curso en la rama `claude/fase1-carsitting` (migración `20261108_carsitting_app` aplicada en producción el 02/11/2026; falta el merge); etapa 11 pendiente, se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) hecha, mergeada y en producción (PR #103); etapa 11 (pedidos de traslado por la app) en curso en la
+rama `claude/fase1-traslados` (migración `20261109_traslados_app`, espera el OK; `decisiones.md` 6.9). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1068,6 +1072,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
+- Etapa 11 (03/11/2026, orquestador): la tarjeta del día y el cierre de los traslados (llegó, dejó a los chicos, peajes como gasto).
+  Hoy `ninera_mi_dia`, `ninera_cerrar_sitting` y los avisos de "no marcó que llegó" y del cierre son solo de sittings.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel
   "Car sitting" de Niñeras, que arme los links de una vez.
 - Etapa 10 (02/11/2026, Diego): fechas de vencimiento de la licencia y del seguro del carsitting, con un aviso para renovarlas.

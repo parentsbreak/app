@@ -156,7 +156,7 @@ set local role authenticated;
 select pg_temp.verificar('sin niñeras', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000001', '[]')$$) = 'sin_ninieras');
 select pg_temp.verificar('pedido que no existe', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-0000000000ff', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'no_existe');
 select pg_temp.verificar('pedido cancelado', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000005', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'cerrado');
-select pg_temp.verificar('traslado', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000004', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'solo_sittings');
+select pg_temp.verificar('traslado sin origen ni destino (etapa 11: ya se mandan por la app)', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000004', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'sin_origen_destino');
 select pg_temp.verificar('día que ya pasó', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000007', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'pasado');
 select pg_temp.verificar('familia sin chicos cargados (el texto libre viejo no alcanza)', pg_temp.error_de($$select public.enviar_pedido_app('d4000000-0000-4000-8000-000000000003', '[{"ninera_id": "d2000000-0000-4000-8000-000000000001", "precio_hora": 300}]')$$) = 'sin_chicos');
 select pg_temp.verificar('niñera que ya no está en la base: el id en el hint',
