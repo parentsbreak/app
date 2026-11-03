@@ -594,6 +594,28 @@ Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_con
   admins "Busca a otra" y deja el registro como está: la admin decide).
 - Cancelación (`cancelado = true` o solicitud `cancelada`): aviso "Se canceló tu sitting del
   [día] / Con [madre: nombre + inicial]". Es el único aviso que nombra a la madre.
+- Respuestas de Diego (02/11/2026) al detallar la etapa 8: un fijo que cambia de horario desde una fecha manda un solo
+  aviso resumido (los días sueltos, uno por uno); lo mismo si un fijo entero cambia de niñera desde una fecha (uno a la que
+  deja de ir y uno a la nueva) y si se pausa o termina. La que deja de ir: "Ya no vas al sitting del [día]" / "El equipo
+  hizo un cambio. Si tienes dudas, escríbenos." La nueva fuera de un pedido: "Tienes un sitting el [día]" / "[hora], en
+  [zona]. Mira los datos en la app." La familia, como la ve la niñera en el resto de la app (madre_nombre_inicial), nunca
+  el apellido completo. Solo si el sitting no empezó; la ficha con teléfonos la ve la niñera siguiente solo desde que
+  queda confirmada hasta el fin de su sitting; lo que escribe la niñera en la ficha no pisa la ficha de la familia del
+  panel; solo sittings. Cancelar un pedido ya asignado cancela también el registro de la elegida en $0 (si no está cobrado
+  ni pagado) y le avisa; "Cambiar de niñera" pasa el mismo registro a la nueva; "+ Nueva solicitud" con niñera pasa por
+  "Asignar" (dirección obligatoria y confirmación para la madre).
+  Cómo quedó la base (migración `20261107_ficha_cambios`): `fichas_familia` (una por sitting, `datos` con los 15 textos y
+  las 6 casillas de la guía; la familia, la fecha y la niñera salen del sitting) y `cambios_horario` (uno por aviso, de un
+  día o de un fijo, con la respuesta). Los avisos los mandan triggers por sentencia sobre `sittings_traslados`; lo que
+  cambia `generar_previstos_fijos` se compara al final, por niñera y familia (un cambio "desde una fecha" cierra un fijo y
+  abre otro), y sale un aviso por fijo. `ninera_responder_cambio(p_cambio_id, p_ok)` (por el id del cambio: un resumen de un
+  fijo no tiene un solo sitting) avisa a las admins con `admin:cambio:<id>:no_puede`.
+  Cómo quedaron la app y el panel (02/11/2026): la ficha es opcional, desde la tarjeta del día ("Ficha de la familia", debajo
+  de los botones) y en el detalle del sitting ("¡Quedaste seleccionada!" incluido) se ve sin las casillas (son de lo que revisó
+  la niñera de ese día). Los cambios sin responder van en una tarjeta arriba del inicio. En el panel, un pedido ya registrado se
+  abre como su registro: "Cambiar de niñera" deja la fila de la anterior en `rechazada` (no `cancelado`: el pedido no se canceló
+  y su app diría "Se canceló el pedido") y "Cancelar el pedido" cancela el registro en la base. Las fichas, en la ficha de la
+  familia: la última arriba con "Copiar para la próxima niñera" y las dos anteriores plegadas.
 
 ### 6.6 Temporada (etapa 9)
 Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.

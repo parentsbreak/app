@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `ficha` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -378,6 +378,23 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   llegó, fin y fin + 30 en fechas fijas, fijos, medianoche, `solo_practica`). El DESHACER con datos, en `supabase/pruebas/deshacer/`
   (`20261106_el_dia*.sql`, a mano). Las funciones de la niñera usan la hora real: lo que depende de la hora del día se saltea cerca de la
   medianoche.
+- `supabase/pruebas/fase1_ficha_cambios.sql` (02/11/2026, etapa 8): los avisos por día del trigger de `sittings_traslados` (nuevo,
+  horario, día, niñera, cancelado, reactivado, borrado; nada de un sitting que empezó, de un traslado, a una niñera sin app ni con
+  `solo_practica`), el pedido asignado que se cancela (la elegida y su registro en $0), el resumen de los fijos en
+  `generar_previstos_fijos` (fijo nuevo, horario desde una fecha, la ventana que crece cada noche, pausa, cambio de niñera, termina,
+  días), `ninera_responder_cambio` y la ficha (`ninera_guardar_ficha_familia`, `ninera_ficha_familia`: quién la ve y hasta cuándo).
+  El DESHACER con datos, en `supabase/pruebas/deshacer/20261107_ficha_cambios*.sql`. Los avisos por día usan fechas de 2030.
+- `tests/ninera-ficha.spec.js` (02/11/2026, etapa 8): la ficha de la familia en la app de niñeras ("Ficha de la familia" debajo de los
+  botones de la tarjeta del día, `#sitting/<id>/ficha`, precargada con la última de la familia sin decir de quién ni sus casillas, el
+  cuerpo exacto, la propia con sus casillas, errores, doble toque, la ficha en el detalle del sitting y hasta cuándo, escape, base sin
+  migrar 'etapa8', 390 px) y los cambios de horario (la tarjeta, "Ok" / "A esa hora no puedo" con el aviso al equipo, un fijo,
+  `#cambio/<id>`, fallas). `tests/cambios-cancelaciones.spec.js`: el panel ("Cambiar de niñera" en el modal del registro de un
+  pedido con el orden de las escrituras y los avisos, la fila de la app que ya tenía, dos admins, fallas que vuelven atrás, doble
+  reserva; "Cancelar el pedido" ya asignado con el registro en $0; lo que respondió al cambio de horario; el link del aviso que abre
+  el registro; "Fichas de la familia" con "Copiar para la próxima niñera"; base sin migrar). El simulador: `tests/support/rpc-ficha.js`
+  (las 4 RPC, los avisos por día del trigger de `sittings_traslados` y el registro cancelado al cancelar un pedido asignado; el
+  resumen de los fijos no se simula) y `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa8' })` (la 7 sin migrar también la saca).
+  `tests/solicitud-un-paso.spec.js` cambió con la etapa: "+ Nueva solicitud" con niñera nace `sin_asignar` y la toma "Asignar".
 - `tests/temporada-app-panel.spec.js` (31/10/2026): el panel con la temporada de la app: niñera con app sin paso
   previo ni "Pedirle por WhatsApp", aviso anual, fuente, filtro con Fuera del país / Otro / La Paloma, temporada
   de otra temporada como "sin temporada cargada", ficha, correcciones que conservan o borran lugares, escape de
@@ -606,9 +623,10 @@ reporte.
   de `confirmarAccion` dice lo que hace: el 'Eliminar' por defecto solo si de verdad borra.
 - Solicitud en un paso (25/10/2026): "+ Nueva solicitud" lleva la niñera (opcional, solo las que hacen
   ese tipo: `nineraHaceTipo`), "Precio por hora a la familia" y "Precio por hora a la niñera"
-  precargados con la tarifa. Con niñera, la solicitud nace `confirmada` y `cargarNineraYRegistro`
-  (agenda.js, el mismo que usa "Asignar niñera") carga la niñera y el registro en Sittings; si falla
-  la niñera, vuelve a `sin_asignar`. Sin niñera, el precio por hora a la niñera no se guarda (no hay
+  precargados con la tarifa. Con niñera (etapa 8, 02/11/2026), la solicitud nace `sin_asignar` y la toma
+  `asignarNineraAlPedido` (con `warnId` y `yaChequeado`): la dirección obligatoria en un sitting (se pide antes
+  de crear nada), la doble reserva en la base y la confirmación para la madre, como "Asignar". Si la
+  asignación no sale, el pedido queda sin niñera y "Guardar solicitud" pasa a "Cerrar" (no crea otro). Sin niñera, el precio por hora a la niñera no se guarda (no hay
   columna): al asignar se vuelve a sugerir con la tarifa. En las tarjetas de la Agenda el pago de un
   sitting se ve por hora (`textoPagoAgenda`); los traslados, por viaje.
 - Fijos: nunca se borran. "Terminar desde [fecha]" completa `vigente_hasta` con el día
@@ -752,6 +770,16 @@ reporte.
   `.is('revisado_en', null)`, después el registro con la condición de cobrado / pagado, al final el gasto). El comprobante va a
   `comprobantes/ninieras/<id>/<sitting>.jpg` (la ruta la arma la base). Los avisos de las admins abren `?ir=hoy` (Hoy es `moduloActivo`
   null: nunca `moduloActivo = 'hoy'`). Avisos de tiempo en `programar_avisos_el_dia()`, con `solo_practica` como los de pedidos.
+- Ficha de la familia, cambios y cancelaciones (02/11/2026, etapa 8, decisiones 6.5): los campos de la ficha viven en `js/comun.js`
+  (`GRUPOS_FICHA_FAMILIA`, `CASILLAS_FICHA_FAMILIA`, `textoFichaFamilia`) con las mismas claves que `ficha_familia_campos()` en la base.
+  La niñera la lee y la guarda solo por RPC (`ninera_ficha_familia`, `ninera_guardar_ficha_familia`; `ninera/js/ficha.js`), una por
+  sitting: nunca pisa la ficha de la familia del panel, y las casillas no pasan a la siguiente. Los avisos de un sitting que cambia los
+  manda un trigger por sentencia de `sittings_traslados` (cancelado, "Ya no vas", "Tienes un sitting", cambio de horario con su fila en
+  `cambios_horario`): cualquier camino del panel avisa solo, y un aviso nunca frena un guardado. Un pedido ya asignado se ve en la
+  Agenda como su registro (`_solicitudId`): su modal tiene "Cambiar de niñera" (`abrirCambiarNinera`, agenda.js: la fila de la anterior a
+  `rechazada`, la de la nueva `confirmada` y después el registro con la condición de la niñera, así la nueva recibe "¡Quedaste
+  seleccionada!" y no "Tienes un sitting"; si falla un paso, lo anterior vuelve atrás) y "Cancelar el pedido" (la base cancela el
+  registro en $0). `abrirSolicitudDeLink` abre el registro de un pedido ya registrado.
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -978,7 +1006,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha en la rama `claude/fase1-el-dia` (PR #101, migración `20261106_el_dia` aplicada), pendiente el merge; etapas 8, 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) en
+curso en la rama `claude/fase1-ficha-cambios` (migración `20261107_ficha_cambios` aplicada en producción el 02/11/2026; falta el merge); etapas 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1008,8 +1037,14 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   pantalla, se pierde lo escrito). Si cargar el gasto falla al revisar, queda revisado y hay que cargarlo a mano (lo dice el aviso).
   "Lo que dijeron las niñeras" mira los últimos 60 sittings de la familia. Los advisors marcan sin índice `sitting_cierres.gasto_id` y
   `sitting_eventos.ninera_id` (tablas chicas, INFO). Probar en el iPhone real el campo de la hora y la foto del comprobante.
-- Para la etapa 8 (01/11/2026, orquestador): si una admin asigna a una niñera de la app y después cambia a otra, la
-  primera sigue en `confirmada` y no recibe ningún aviso de que ya no va.
+- Etapa 8 (02/11/2026): cambiar la niñera desde "Editar este registro" (Sittings) en vez de "Cambiar de niñera" avisa igual a las
+  dos (trigger), pero la fila de la anterior sigue `confirmada`: si no había visto sus datos, le queda "¡Quedaste seleccionada!" en el
+  inicio. OK del orquestador (02/11/2026): que "Editar este registro" use "Cambiar de niñera" cuando el registro sale de un pedido.
+- Etapa 8 (02/11/2026, orquestador): si falla el paso 3 de "Cambiar de niñera" (el registro) y se vuelve atrás, la anterior vuelve a
+  `confirmada` y el trigger `solicitud_ninieras_al_confirmar` le manda a la nueva "Gracias por responder, ya quedó cubierto" (es
+  cierto, pero sobra). El "No puede" de un cambio de un fijo abre la Agenda sin el fijo a la vista (`?ir=agenda`); solo se ve en el modal del
+  registro de un día. La ficha de la niñera no guarda borrador (si sale de la pantalla, se pierde lo escrito). Probar en el iPhone
+  real el formulario de la ficha con el teclado y la tarjeta del cambio desde un push.
 - Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y
   se vuelve a leer con cada evento de Realtime de Hoy; conviene una RPC de conteo como `sugeridas_datos`. Además compara el nombre de la
   familia tal cual y `sugeridas_datos` lo normaliza: en historia vieja pueden dar números distintos.
@@ -1026,12 +1061,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   terminar" en "Pegar WhatsApp".
 - Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
   nuevo igual" en esa pantalla.
-- Etapa 8 (01/11/2026): cancelar un pedido ya asignado (`confirmada`) no le manda aviso a la elegida ni cancela su registro
-  (`sitting:<id>:cancelado`); hoy el texto de "Cancelar" solo le pide a la admin que avise por WhatsApp y cancele en Sittings.
 - `confirmarNinera` (01/11/2026): confirma una fila sin tomar la solicitud; con filas viejas del panel en `invitada` sobre una solicitud
   `pendiente_confirmar`, el trigger cierra las de la app y la solicitud sigue `pendiente_confirmar` (solo datos viejos).
-- "+ Nueva solicitud" con niñera (01/11/2026) se salta la dirección obligatoria y la confirmación para la madre, pero igual le manda
-  "¡Quedaste seleccionada!": unificarlo con "Asignar".
 - Push de una elegida que ya vio sus datos (01/11/2026): no puede mostrarlos (`ninera_mis_pedidos` ya no devuelve su fila; hoy sale el
   texto neutro "Si te eligieron, lo ves en Próximos sittings."). Para mostrarlos, que la lectura la siga devolviendo hasta la fecha o
   llevar el id de la solicitud en la URL (migración).

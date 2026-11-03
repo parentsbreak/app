@@ -1731,7 +1731,11 @@ Los avisos con `?ir=hoy` (Hoy es `moduloActivo` null). Tests `tests/ninera-dia.s
 
 ## Etapa 8: ficha de la familia, cambios y cancelaciones
 
-Rama `claude/fase1-ficha-cambios`. Migración `AAAAMMDD_ficha_cambios.sql`.
+Rama `claude/fase1-ficha-cambios`. Migración `20261107_ficha_cambios.sql` (02/11/2026; las respuestas de Diego y cómo quedó la
+base, en `decisiones.md` 6.5). Cambios respecto de lo de abajo: `ninera_responder_cambio(p_cambio_id, p_ok)` (por el cambio, no
+por el sitting: un resumen de un fijo no tiene uno solo) y `admin:cambio:<id>:no_puede`; un aviso por fijo cuando cambia desde
+una fecha, se pausa o termina; además "Ya no vas" y "Tienes un sitting" fuera de un pedido, y cancelar un pedido asignado cancela
+el registro de la elegida en la base.
 - 8.1 `fichas_familia` + `ninera_guardar_ficha_familia` + `ninera_ficha_familia`; triggers de cambio
   de horario (`sitting:<id>:cambio:<n>`) y cancelación (`sitting:<id>:cancelado`, solicitud
   `cancelada`); `ninera_responder_cambio(p_sitting_id, p_ok boolean)` → `admin:sitting:<id>:no_puede`.
@@ -1739,6 +1743,9 @@ Rama `claude/fase1-ficha-cambios`. Migración `AAAAMMDD_ficha_cambios.sql`.
   seleccionada" y en el sitting del día; respuesta al cambio de horario.
 - 8.3 Panel: fichas en la ficha de la familia con "Copiar para la próxima niñera".
 - 8.4 PR, migración (OK), merge.
+Estado (02/11/2026): migración aplicada en producción; app (`ninera/js/ficha.js`), panel ("Cambiar de niñera", "Cancelar el
+pedido" de un registro, "+ Nueva solicitud" por "Asignar", "Fichas de la familia") y simulador (`tests/support/rpc-ficha.js`) en
+el PR #102, con `tests/ninera-ficha.spec.js` y `tests/cambios-cancelaciones.spec.js`.
 
 ## Etapa 9: temporada en la app
 

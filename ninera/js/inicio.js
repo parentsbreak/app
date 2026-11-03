@@ -21,6 +21,7 @@ async function renderInicio(){
       <h1>${nombre ? `Hola, ${escaparHtml(nombre)}` : 'Hola'}</h1>
     </header>
     <div id="inicio-avisos"></div>
+    <div id="inicio-cambios"></div>
     <div id="inicio-dia"></div>
     <div id="inicio-guia"></div>
     <div id="inicio-temporada"></div>
@@ -49,6 +50,8 @@ async function renderInicio(){
   cargarTarjetaGuia();
   // El sitting de hoy (dia.js, etapa 7): arriba de todo, con lo que toca según la hora.
   cargarTarjetaDia();
+  // Los cambios de horario sin responder (ficha.js, etapa 8): arriba del sitting de hoy.
+  cargarTarjetaCambios();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){
@@ -208,7 +211,10 @@ function abrirDetalleSittingNinera(id, { titulo } = {}){
     <div id="como-llegar-opciones" class="como-llegar" hidden>
       ${linksMapaNinera(lugar).map(([nombre, url]) => `<a class="btn ghost ancho" href="${urlSegura(url)}" target="_blank" rel="noopener">${nombre}</a>`).join('')}
     </div>` : ''}
-    <button type="button" class="btn ghost ancho" onclick="descargarIcsSitting(${argJs(s)})">Agregar al calendario</button>`);
+    <button type="button" class="btn ghost ancho" onclick="descargarIcsSitting(${argJs(s)})">Agregar al calendario</button>
+    ${s.tipo !== 'traslado' && !etapa8NineraSinMigrar ? `<section class="detalle-sitting detalle-ficha" id="detalle-ficha" data-sitting="${escaparHtml(s.id)}"><p class="helper">Cargando la ficha de la familia…</p></section>` : ''}`);
+  // La ficha de la familia (ficha.js, etapa 8): llega sola, sin frenar el detalle.
+  if(s.tipo !== 'traslado' && !etapa8NineraSinMigrar) pintarFichaEnDetalle(s.id);
 }
 
 /* ---- Calendario (.ics, RFC 5545) ----

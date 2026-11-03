@@ -25,6 +25,11 @@ function datosCon({ precios = [], fijo = {}, fijosAutomaticos = false } = {}) {
   }
   return d;
 }
+// Etapa 8: "+ Nueva solicitud" con niñera pasa por "Asignar", que pide la dirección de la familia de un sitting.
+function conDireccionDos(d) {
+  d.familias.find(f => f.id === ID.fDos).direccion = 'Calle Inventada 2';
+  return d;
+}
 const escrituras = (e, tabla, metodo) => e.escrituras.filter(w => w.tabla === tabla && w.metodo === metodo);
 const llamadasProceso = e => e.escrituras.filter(w => w.tabla === 'rpc/generar_previstos_fijos');
 async function hora(page, prefijo, hhmm) {
@@ -260,10 +265,16 @@ async function elegirNineraAgenda(page, texto, nombre) {
   await expect(page.locator('#agenda-ninera')).toHaveValue(nombre);
 }
 const guardarSolicitud = page => page.locator('#editmodal button', { hasText: 'Guardar solicitud' }).click();
+// Desde la etapa 8, después de asignar sale la confirmación para la madre (como en "Asignar"): se cierra.
+async function cerrarConfirmacionMadre(page, opciones) {
+  await expect(page.locator('#editmodal h2')).toHaveText('Confirmación para la madre', opciones);
+  await page.evaluate(() => cerrarModal());
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+}
 
 test.describe('Agenda: + Nueva solicitud con niñera', () => {
   test('el precio por hora a la niñera viene con el suyo; sin precio, la tarifa', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] })) });
     await nuevaSolicitud(page);
     await expect(page.locator('#agenda-pago-hora')).toHaveValue('260');
     await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
@@ -274,7 +285,7 @@ test.describe('Agenda: + Nueva solicitud con niñera', () => {
     await expect(page.locator('#agenda-pago-hora')).toHaveValue('260');
     await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nAna, pago_ninera: 900 });
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nAna, cobro_familia: 1200, pago_ninera: 900 });
     expect(escrituras(e, 'precios_ninera_familia', 'POST')).toEqual([]);
@@ -282,7 +293,7 @@ test.describe('Agenda: + Nueva solicitud con niñera', () => {
   });
 
   test('lo tipeado a mano no se pisa al elegir la niñera; sin precio guardado, la casilla tildada lo guarda', async ({ page }) => {
-    const e = await abrirApp(page);
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon()) });
     await nuevaSolicitud(page);
     await page.fill('#agenda-pago-hora', '310');
     await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo');
@@ -291,7 +302,7 @@ test.describe('Agenda: + Nueva solicitud con niñera', () => {
     await expect(page.locator('#agenda-guardar-precio')).toBeChecked();
     await expect(page.locator('#agenda-guardar-precio-wrap')).toContainText('Guardar como precio de Carla Ejemplo con esta familia');
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_ninera: 930 });
     await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1); // va después de asignar
     const [w] = escrituras(e, 'precios_ninera_familia', 'POST');
@@ -301,27 +312,27 @@ test.describe('Agenda: + Nueva solicitud con niñera', () => {
   });
 
   test('con precio guardado, otro precio tipeado aparece destildado y no lo pisa', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] }) });
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon({ precios: [precio(ID.fDos, ID.nAna, 300)] })) });
     await nuevaSolicitud(page);
     await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
     await page.fill('#agenda-pago-hora', '330');
     await expect(page.locator('#agenda-guardar-precio')).toBeVisible();
     await expect(page.locator('#agenda-guardar-precio')).not.toBeChecked();
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ pago_ninera: 990 });
     expect(escrituras(e, 'precios_ninera_familia', 'POST')).toEqual([]);
     verificarLimpio(e);
   });
 
   test('si falla guardar el precio, la solicitud queda asignada y el aviso lo dice', async ({ page }) => {
-    const e = await abrirApp(page);
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon()) });
     await nuevaSolicitud(page);
     await page.fill('#agenda-pago-hora', '310');
     await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo');
     e.fallar = ({ tabla }) => tabla === 'precios_ninera_familia' ? { status: 500, message: 'falla simulada' } : undefined;
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     expect(escrituras(e, 'sittings_traslados', 'POST')).toHaveLength(1);
     await expect(page.locator('.toaststack .toast.bad', { hasText: 'no el precio de Carla Ejemplo' })).toBeVisible();
     verificarLimpio(e, { ignorar: [/status of 500/] });
@@ -559,14 +570,14 @@ test.describe('base sin la tabla precios_ninera_familia: todo como hoy', () => {
   });
 
   test('Agenda: la solicitud con niñera y el día de un fijo van con la tarifa', async ({ page }) => {
-    const e = await abrirApp(page, { baseSinMigrar: true });
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon()), baseSinMigrar: true });
     await nuevaSolicitud(page);
     await elegirNineraAgenda(page, 'ana', 'Ana Ficticia');
     await expect(page.locator('#agenda-pago-hora')).toHaveValue('260');
     await page.fill('#agenda-pago-hora', '300');
     await expect(page.locator('#agenda-guardar-precio')).toBeHidden();
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ pago_ninera: 900 });
     await page.evaluate(async () => { agendaAncla = '2026-10-05'; await cargarAgendaSolicitudes(); }); // guardar la llevó al 06/10
     await esperarQuieta(page);
@@ -763,14 +774,14 @@ test.describe('doble toque con la casilla tildada: un registro y un precio', () 
   });
 
   test('"+ Nueva solicitud": "Guardar solicitud"', async ({ page }) => {
-    const e = await abrirApp(page);
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon()) });
     await nuevaSolicitud(page);
     await page.fill('#agenda-pago-hora', '310');
     await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo');
     await expect(page.locator('#agenda-guardar-precio')).toBeChecked();
     e.demoraEscrituras = 400;
     await page.locator('#editmodal button', { hasText: 'Guardar solicitud' }).dblclick();
-    await expect(page.locator('#editmodal')).toHaveCount(0, { timeout: 10_000 });
+    await cerrarConfirmacionMadre(page, { timeout: 10_000 });
     await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1);
     await page.waitForTimeout(600);
     expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
@@ -934,13 +945,13 @@ test.describe('"Guardar como precio de..." sin centavos, como la ficha (M3)', ()
   });
 
   test('"+ Nueva solicitud"', async ({ page }) => {
-    const e = await abrirApp(page);
+    const e = await abrirApp(page, { datos: conDireccionDos(datosCon()) });
     await nuevaSolicitud(page);
     await page.fill('#agenda-pago-hora', '310.5');
     await elegirNineraAgenda(page, 'carla', 'Carla Ejemplo');
     await expect(page.locator('#agenda-guardar-precio')).toBeChecked();
     await guardarSolicitud(page);
-    await expect(page.locator('#editmodal')).toHaveCount(0);
+    await cerrarConfirmacionMadre(page);
     await expect.poll(() => escrituras(e, 'precios_ninera_familia', 'POST').length).toBe(1);
     expect(escrituras(e, 'precios_ninera_familia', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nCarla, pago_hora: 310 });
     verificarLimpio(e);

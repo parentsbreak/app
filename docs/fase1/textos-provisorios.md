@@ -352,3 +352,57 @@ Panel (voseo, PROVISORIOS):
 - Ficha de la familia: "Lo que dijeron las niñeras" ("[niñera], [dd/mm]: ★★★★ de 5. Volvería.", "Jugaron:", "Comentarios:", "Para el
   equipo:").
 - Preferencias: "El día del sitting" y "Cierres de niñeras".
+
+## Etapa 8: ficha de la familia, cambios y cancelaciones (02/11/2026, esperan a las dueñas)
+Avisos a la niñera (tú; los de textos.md 1 tal cual, los demás PROVISORIOS):
+- Cancelación (textos.md 1): "Se canceló tu sitting del [día]" / "Con [madre: nombre e inicial]. Si tienes dudas, escríbenos."
+- Cambio de horario de un día (textos.md 1): "Cambió el horario de tu sitting del [día]" / "Ahora es de [hi] a [hf]. Mira los
+  detalles." Si cambió el día: "Ahora es el [día nuevo], de [hi] a [hf]. Mira los detalles."
+- Deja de ir (Diego, 02/11/2026): "Ya no vas al sitting del [día]" / "El equipo hizo un cambio. Si tienes dudas, escríbenos."
+- Nueva fuera de un pedido (Diego, 02/11/2026): "Tienes un sitting el [día]" / "[hora], en [zona]. Mira los datos en la app."
+- Fijos, un aviso por fijo (PROVISORIOS): "Cambió el horario de tu fijo con [madre]" / "Desde el [día], de [hi] a [hf]. Mira los
+  detalles."; "Ya no vas al fijo con [madre] desde el [día]" / "El equipo hizo un cambio. Si tienes dudas, escríbenos."; "Tienes un
+  fijo nuevo con [madre]" / "Desde el [día], a las [hi], en [zona]. Mira los datos en la app."; "Tu fijo con [madre] se pausa" /
+  "Del [día] al [día]. Si tienes dudas, escríbenos."; "Tu fijo con [madre] termina el [día]" / "Si tienes dudas, escríbenos.";
+  "Cambiaron los días de tu fijo con [madre]" / "Mira tus próximos sittings en la app."
+
+Avisos a las admins (voseo, PROVISORIOS):
+- "A esa hora no puedo" de un día: "[niñera] no puede el [día] de [hi] a [hf]" / "Buscá a otra."
+- De un fijo: "[niñera] no puede el nuevo horario de su fijo con [familia]" / "Desde el [día], de [hi] a [hf]. Buscá a otra."
+
+App de niñeras (tú, PROVISORIOS salvo "Repásala con los padres antes de que se vayan.", que es de textos.md 5):
+- Tarjeta del día: botón "Ficha de la familia" y debajo "Repásala con los padres antes de que se vayan."
+- Pantalla "Ficha de la familia": los campos y las casillas de la guía original con sus textos (grupos "La casa", "Los chicos",
+  "Contactos", "Salud", "Rutina y reglas", "Antes de que se vayan los padres"). Ayuda de Alergias: "Si no tiene: no tiene".
+  Precargada con la de otra niñera: "Ya viene con lo que sabemos de la familia. Revisa con los padres que siga igual." Ya guardada
+  por ella: "Ya la guardaste a las [hora]. Puedes corregirla hasta mañana." Botón "Guardar la ficha". Al guardar: "¡Gracias! La
+  ficha quedó guardada." Errores: "Algún dato es demasiado largo: hasta 1.000 caracteres.", "Este sitting ya no está en tu día. Si
+  algo no está bien, escríbenos por el chat.", "No pudimos guardar la ficha. Revisa tu conexión a internet y vuelve a intentar.",
+  "No pudimos cargar la ficha de la familia. Revisa tu conexión a internet y vuelve a intentar."
+- Detalle del sitting y "¡Quedaste seleccionada!": sección "Ficha de la familia" con los datos cargados (sin las casillas).
+- Tarjeta del cambio: "Cambió el horario de tu sitting" / "[Martes 06/10], de [hi] a [hf]." (fijo: "Cambió el horario de tu fijo"
+  / "Desde el [Martes 06/10], de [hi] a [hf]."), "Madre: [madre], en [zona]", botones "Ok" y "A esa hora no puedo". Después: "Listo,
+  gracias por confirmar." / "Le avisamos al equipo. Te escribimos si hace falta." Link de un cambio ya respondido: "Este cambio ya
+  no está pendiente." Si falla: "No pudimos enviar tu respuesta. Revisa tu conexión a internet y vuelve a intentar." / "No pudimos
+  cargar los cambios de tus sittings. Revisa tu conexión a internet y vuelve a intentar."
+
+Panel (voseo, PROVISORIOS):
+- Modal del registro de un pedido (Agenda): "Cambiar de niñera" y "Cancelar el pedido".
+- "Cambiar de niñera": "[familia], [día], de [hi] a [hf]. Ahora va [niñera].", "Niñera nueva", "Pago a la niñera" (traslado: "Pago a
+  la niñera por el viaje"), "$[x] por hora", "A [niñera] le llega que ya no va y a la nueva, que quedó seleccionada (si tienen la
+  app). Después sale el mensaje para la madre." Al terminar: "Listo, ahora va [niñera]." Errores: "Elegí una niñera de la lista.",
+  "No se cambió nada: este pedido ya tiene otra niñera confirmada (lo cambió alguien más). Cerrá para ver cómo quedó.", "No se
+  cambió nada: mientras elegías, alguien más cambió este pedido. Cerrá para ver cómo quedó.", "El registro sigue con [niñera]. Si
+  [nueva] tiene la app, ya le llegó que quedó seleccionada: avisale por WhatsApp que no va.", "Este registro ya está cancelado o
+  pagado: no se puede cambiar la niñera."
+- "Cancelar el pedido" ya asignado (reemplaza "avisale por WhatsApp y cancelá el registro"): "¿Cancelar el pedido? El registro de
+  [niñera] en Sittings & traslados queda cancelado en $0 (si no está cobrado ni pagado) y, si tiene la app, le llega un aviso."
+- Respuesta al cambio, en el modal del registro: "[niñera] no puede con el nuevo horario ([horario]). Cambiá de niñera o volvé al
+  horario de antes." / "[niñera] confirmó el nuevo horario ([horario])." / "[niñera] todavía no respondió el cambio de horario
+  ([horario])."
+- "+ Nueva solicitud" con niñera y la familia sin dirección: el campo "Dirección de la familia" de "Asignar" y "Falta la dirección
+  de la familia. Escribila para asignar: la niñera la ve cuando queda confirmada." Si la asignación no sale: "El pedido quedó
+  guardado sin niñera: cerrá y asignala desde la tarjeta." y el botón "Cerrar".
+- Ficha de la familia: "Fichas de la familia", "La completó [niñera] el [dd/mm/aaaa].", "Copiar para la próxima niñera" ("Ficha
+  copiada. Pegala en WhatsApp."), "Anterior, del [dd/mm/aaaa]", "No se pudieron leer las fichas de la familia." El texto copiado
+  empieza con "*Ficha de la familia, Parents' Break*", como el de la guía original.

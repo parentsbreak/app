@@ -358,6 +358,7 @@ function verFamilia(id){
     ${historialHtml}
     <div id="fam-saldo" style="margin-top:14px;"></div>
     <div id="fam-variantes" style="margin-top:14px;"></div>
+    <div id="fam-fichas" data-familia="${escaparHtml(f.id)}" style="margin-top:14px;"></div>
     <div id="fam-dijeron" data-familia="${escaparHtml(f.id)}" style="margin-top:14px;"></div>
     <div id="fam-incidentes" style="margin-top:14px;"></div>
     <div class="card-section-title">Niñeras asignadas</div>
@@ -394,6 +395,42 @@ function verFamilia(id){
   pintarVariantesEnFicha(f.id);
   pintarPreciosNineraEnFicha(f.id);
   pintarLoQueDijeronNinieras(f.id); // etapa 7 (pedidos.js)
+  pintarFichasFamilia(f.id); // etapa 8
+}
+/* "Fichas de la familia" (fase 1, etapa 8, 02/11/2026; decisiones 6.5): las que completaron las niñeras con los padres
+   en la app, la última arriba y las dos anteriores plegadas. Son de cada sitting: no pisan nada de esta ficha.
+   "Copiar para la próxima niñera" copia la última como texto para WhatsApp (textoFichaFamilia, comun.js), sin las
+   casillas (son de lo que revisó la niñera de ese día). Sin la tabla (base sin migrar), sin la sección. */
+let fichasFamiliaCargadas = new Map(); // id de la ficha -> datos, para copiarla
+async function pintarFichasFamilia(familiaId){
+  const { data: fichas, error } = await sb.from('fichas_familia').select('id,datos,actualizada_en,ninera_id')
+    .eq('familia_id', familiaId).order('actualizada_en', { ascending: false }).limit(3);
+  if(error && esFaltaTabla(error)) return;
+  let nombres = new Map();
+  const ids = [...new Set((fichas || []).map(x => x.ninera_id).filter(Boolean))];
+  if(!error && ids.length){
+    const r = await sb.from('ninieras').select('id,nombre').in('id', ids);
+    if(!r.error) nombres = new Map((r.data || []).map(n => [n.id, n.nombre]));
+  }
+  const cont = document.getElementById('fam-fichas');
+  if(!cont || cont.dataset.familia !== familiaId) return;
+  const titulo = '<div class="card-section-title" style="margin:0 0 4px;">Fichas de la familia</div>';
+  if(error){ cont.innerHTML = `${titulo}<div class="warnbox">No se pudieron leer las fichas de la familia.</div>`; return; }
+  const conDatos = (fichas || []).filter(x => lineasFichaFamilia(x.datos).length);
+  if(!conDatos.length){ cont.innerHTML = ''; return; }
+  conDatos.forEach(x => fichasFamiliaCargadas.set(x.id, x.datos));
+  const fecha = iso => new Intl.DateTimeFormat('es-UY', { timeZone: ZONA_NEGOCIO, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
+  const una = x => `<div class="helper" style="margin:2px 0 6px;">${escaparHtml(`La completó ${nombres.get(x.ninera_id) || 'una niñera'} el ${fecha(x.actualizada_en)}.`)}</div>
+    ${lineasFichaFamilia(x.datos).map(l => `<div class="ficha-familia-linea" style="margin:0 0 4px;white-space:pre-wrap;overflow-wrap:anywhere;"><b>${escaparHtml(l.etiqueta)}:</b> ${escaparHtml(l.valor)}</div>`).join('')}`;
+  const [ultima, ...anteriores] = conDatos;
+  cont.innerHTML = `${titulo}
+    <div class="ficha-familia">${una(ultima)}</div>
+    <button class="smallbtn" style="margin:6px 0;" onclick="copiarFichaFamilia(${argJs(ultima.id)})">Copiar para la próxima niñera</button>
+    ${anteriores.map(x => `<details class="ficha-familia-anterior" style="margin-top:6px;"><summary>${escaparHtml(`Anterior, del ${fecha(x.actualizada_en)}`)}</summary>${una(x)}</details>`).join('')}`;
+}
+function copiarFichaFamilia(fichaId){
+  const datos = fichasFamiliaCargadas.get(fichaId);
+  if(datos) copiarAlPortapapeles(textoFichaFamilia(datos), 'Ficha copiada. Pegala en WhatsApp.');
 }
 /* Términos y condiciones (20/10/2026): la admin marca que la familia los aceptó y desde qué
    fecha. Desde ese día, el fin de cada sitting se le cobra redondeado (horasSitting, core.js).
