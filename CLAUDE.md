@@ -517,6 +517,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   390 y 1280 px. El simulador: `abrirApp(..., { baseSinMigrar: 'cv' })` (sin `cv_datos` ni `cv_generado_con`), storage responde con
   CORS y `estado.imagenStorage` cambia la imagen que baja, y cada subida anota `bytes`. En la base: `supabase/pruebas/cv_automatico.sql`
   y el DESHACER con datos en `supabase/pruebas/deshacer/20261104_cv_automatico*.sql`.
+- `tests/pdf-detalle.spec.js` (03/11/2026): el Detalle del PDF de la familia sin las notas del sistema (cada una sola y con
+  texto después), notas de las chicas, motivos de cancelado y variantes intactos, el Detalle editable en la vista previa
+  (lo que va a autoTable, sin tocar el registro, se conserva al volver a "Ver vista previa"), escape y 390 px.
 - `tests/regresiones.spec.js`: bugs conocidos. Los que tienen `test.fail()` todavía no están
   arreglados; cuando el arreglo se mergea, el test empieza a pasar y hay que sacarle la marca.
 - Supabase está simulado en `tests/support/app.js` con datos ficticios (`tests/support/datos.js`).
@@ -1028,6 +1031,9 @@ reporte.
   `pago_hora`. Guardar o borrar un precio recalcula los previstos si el par tiene un fijo vigente, y el de hoy
   sigue al precio nuevo si es automático y nadie lo tocó (`recalcularPrevistosDelPar` → `alinearRegistroDeHoy`).
   Se cargan y editan en la ficha de la familia (con la condición de `actualizado_en`).
+- Detalle del PDF de la familia (03/11/2026, Paulina y Delfina): sin las notas que escribe el sistema (`NOTAS_DEL_SISTEMA`,
+  sittings.js: si el sistema empieza a escribir otra nota en `notas`, va ahí); los motivos de un cancelado sí van. En la vista
+  previa se edita por fila (`exphistDetalles`): sale en el PDF y nunca se guarda en el registro.
 - Pagos a niñeras: "Por pagar" no muestra sittings con fecha futura (E7) y marcar pagado
   siempre pasa por `confirmarPagoSittings()` con el detalle y el total (E3). La semana de una
   fija va de lunes a sábado y se paga el sábado; lo que se trabaja un domingo, fijo o puntual, se

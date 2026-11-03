@@ -225,8 +225,9 @@ async function renderSitHistorialCustom(){
    más", así que el PDF siempre sale completo aunque el rango sea grande o muy atrás en el
    histórico. Respeta los filtros de Familia/Tipo que ya estén elegidos arriba. No incluye
    Pago a niñera ni Reseña niñera -- eso queda solo en pantalla, no en el PDF que se comparte
-   afuera. El "Detalle" (columna nueva) es el mismo campo "Notas" que ya existía en el
-   formulario de sitting -- se edita ahí (o tocando la fila en el historial), no acá. */
+   afuera. El "Detalle" sale de las notas del registro sin las que escribe el sistema
+   (detalleParaPDF) y en la vista previa se puede cambiar para este PDF, sin tocar las notas
+   (03/11/2026): las notas del registro se editan en el formulario de sitting. */
 let exphistItemsPreview = [];
 let exphistAjustes = []; // saldo a favor de la familia elegida (07/10/2026)
 let exphistGastos = [];  // gastos extra de esos registros (08/10/2026)
@@ -238,6 +239,7 @@ function abrirModalExportarHistorialPDF(){
   const desdeActual = document.getElementById('sithist-desde')?.value || `${hoy.slice(0,4)}-01-01`;
   const hastaActual = document.getElementById('sithist-hasta')?.value || hoy;
   exphistItemsPreview = [];
+  exphistDetalles = {};
   const html = `
     <h2>Exportar historial a PDF</h2>
     <div class="helper">Elegí el rango de fechas exacto a exportar — no depende de lo que esté cargado en pantalla.</div>
@@ -255,6 +257,36 @@ function abrirModalExportarHistorialPDF(){
 // El detalle de un registro en el historial y en el PDF: las variantes de precio que se le
 // aplicaron (23/10/2026) y las notas.
 function detalleRegistro(r){ return [nombresVariantes(r.precio_variantes), r.notas].filter(Boolean).join(' · '); }
+// Notas que escribe el sistema al principio de `notas` (03/11/2026, Paulina y Delfina): dicen cómo se
+// cargó el registro y no le sirven a la madre, así que no van al Detalle del PDF ni a su vista previa
+// (el historial de pantalla las sigue mostrando). Salen de generar_previstos_fijos (schema.sql),
+// agenda.js y app-shell.js; "generado automáticamente" es de una versión vieja que quedó en la base.
+// Si el sistema empieza a escribir otra nota, va acá. Los motivos de un cancelado ("no fue — sin
+// reemplazo", "Fijo en pausa: ...", "— Pedido cancelado") NO van: explican la fila en $0.
+const NOTAS_DEL_SISTEMA = [
+  /^(Sitting|Traslado) fijo — (cargado|generado) automáticamente/,
+  /^(Sitting|Traslado) fijo — registrado desde Agenda/,
+  /^((Sitting|Traslado) fijo — cargado|Cargado) desde "Sittings sin registrar"/,
+  /^Asignado desde Agenda/,
+  // El nombre de la niñera llega hasta un signo o un renglón nuevo: "Reemplazo de Ana Llegó tarde"
+  // (sin nada que los separe) sale entero, porque no se sabe dónde termina el nombre.
+  /^Reemplazo de [^.,;:—\n]+/,
+];
+// Lo que las chicas escribieron después va separado con ". ", " — ", un espacio o un renglón nuevo.
+function sacarNotaDelSistema(notas){
+  const t = (notas || '').trim();
+  for(const re of NOTAS_DEL_SISTEMA){
+    const m = t.match(re);
+    const resto = m ? t.slice(m[0].length) : null;
+    if(resto !== null && (resto === '' || /^[\s.,;:—–-]/.test(resto))) return resto.replace(/^[\s.,;:—–-]+/, '');
+  }
+  return t;
+}
+function detalleParaPDF(r){ return [nombresVariantes(r.precio_variantes), sacarNotaDelSistema(r.notas)].filter(Boolean).join(' · '); }
+// Lo que escriben en el Detalle de la vista previa, por id del registro (sale en el PDF, no se
+// guarda en la base). Sobrevive a volver a tocar "Ver vista previa"; abrir el modal lo vacía.
+let exphistDetalles = {};
+function detalleExportado(r){ return Object.prototype.hasOwnProperty.call(exphistDetalles, r.id) ? exphistDetalles[r.id] : detalleParaPDF(r); }
 async function generarVistaPreviaHistorialPDF(){
   await esperarConfigFijos(); // fijos automáticos: saber si hay que sacar los previstos
   const desde = document.getElementById('exphist-desde')?.value;
@@ -325,9 +357,10 @@ async function generarVistaPreviaHistorialPDF(){
         <td>${horarioEfectuadoTexto(r)}</td>
         <td>${horasEfectuadasTexto(r)}</td>
         <td>${plataFin(r.cobro_familia)}</td>
-        <td class="hist-detalle" title="${escaparHtml(detalleRegistro(r))}">${escaparHtml(detalleRegistro(r)||'—')}</td>
+        <td style="min-width:170px;"><textarea class="exphist-detalle" data-id="${escaparHtml(r.id)}" rows="2" aria-label="Detalle (sale en el PDF)" placeholder="Sin detalle" style="min-height:40px;" oninput="exphistDetalles[${argJs(r.id)}]=this.value">${escaparHtml(detalleExportado(r))}</textarea></td>
       </tr>`).join('')}</tbody>
     </table></div>
+    <div class="helper" style="margin-top:4px;">El Detalle se puede cambiar acá: sale así en el PDF y no cambia las notas del registro.</div>
     ${gastosHtml}
     ${ajustesHtml}
     <div class="exphist-total" style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--accent-soft, rgba(117,124,187,.12));">
@@ -388,7 +421,7 @@ async function descargarHistorialPDF(desde, hasta){
       horarioEfectuadoTexto(r),
       horasEfectuadasTexto(r),
       `$${(r.cobro_familia||0).toLocaleString('es-UY')}`,
-      detalleRegistro(r),
+      detalleExportado(r),
     ]),
     styles:{fontSize:8, cellPadding:3, overflow:'linebreak'},
     headStyles:{fillColor:[117,124,187]},
