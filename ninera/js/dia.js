@@ -115,6 +115,7 @@ function htmlTarjetaDia(s, ahora = Date.now()){
     ${s.madre ? `<p class="helper">Madre: ${escaparHtml(s.madre)}</p>` : ''}
     ${lineas.map(l => `<p class="dia-estado">${escaparHtml(l)}</p>`).join('')}
     <div class="dia-botones">${botones.join('')}</div>
+    ${htmlBotonFichaDia(s)}
     <p class="error-form dia-error" id="dia-error-${escaparHtml(s.id)}" role="alert"></p>
   </section>`;
 }
@@ -155,11 +156,12 @@ async function marcarEventoDia(id, tipo, minutos){
 
 /* ---- El cierre (#sitting/<id>/cierre) ---- */
 
-// La ruta #sitting/<id>/cierre (el link de los avisos de fin y "Llegaron los padres").
+// La ruta #sitting/<id>/cierre (el link de los avisos de fin y "Llegaron los padres") y, desde la etapa 8,
+// #sitting/<id>/ficha (la ficha de la familia, ficha.js).
 function abrirRutaSittingNinera(hash){
-  const m = /^#sitting\/([0-9a-f-]{36})\/cierre$/.exec(hash || '');
+  const m = /^#sitting\/([0-9a-f-]{36})\/(cierre|ficha)$/.exec(hash || '');
   if(!m) return renderInicio();
-  return pantallaCierreSitting(m[1]);
+  return m[2] === 'ficha' ? pantallaFichaFamilia(m[1]) : pantallaCierreSitting(m[1]);
 }
 
 // La hora con que arranca el cierre: la de fin prevista si ya llegó (o falta menos de 15 minutos); si no, o

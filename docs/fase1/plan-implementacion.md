@@ -1743,6 +1743,9 @@ el registro de la elegida en la base.
   seleccionada" y en el sitting del día; respuesta al cambio de horario.
 - 8.3 Panel: fichas en la ficha de la familia con "Copiar para la próxima niñera".
 - 8.4 PR, migración (OK), merge.
+Estado (02/11/2026): migración aplicada en producción; app (`ninera/js/ficha.js`), panel ("Cambiar de niñera", "Cancelar el
+pedido" de un registro, "+ Nueva solicitud" por "Asignar", "Fichas de la familia") y simulador (`tests/support/rpc-ficha.js`) en
+el PR #102, con `tests/ninera-ficha.spec.js` y `tests/cambios-cancelaciones.spec.js`.
 
 ## Etapa 9: temporada en la app
 

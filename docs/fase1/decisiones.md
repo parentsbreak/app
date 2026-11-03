@@ -610,6 +610,12 @@ Avísame cuál preferís y te la confirmo." Cada plantilla se guarda en `app_con
   cambia `generar_previstos_fijos` se compara al final, por niñera y familia (un cambio "desde una fecha" cierra un fijo y
   abre otro), y sale un aviso por fijo. `ninera_responder_cambio(p_cambio_id, p_ok)` (por el id del cambio: un resumen de un
   fijo no tiene un solo sitting) avisa a las admins con `admin:cambio:<id>:no_puede`.
+  Cómo quedaron la app y el panel (02/11/2026): la ficha es opcional, desde la tarjeta del día ("Ficha de la familia", debajo
+  de los botones) y en el detalle del sitting ("¡Quedaste seleccionada!" incluido) se ve sin las casillas (son de lo que revisó
+  la niñera de ese día). Los cambios sin responder van en una tarjeta arriba del inicio. En el panel, un pedido ya registrado se
+  abre como su registro: "Cambiar de niñera" deja la fila de la anterior en `rechazada` (no `cancelado`: el pedido no se canceló
+  y su app diría "Se canceló el pedido") y "Cancelar el pedido" cancela el registro en la base. Las fichas, en la ficha de la
+  familia: la última arriba con "Copiar para la próxima niñera" y las dos anteriores plegadas.
 
 ### 6.6 Temporada (etapa 9)
 Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.

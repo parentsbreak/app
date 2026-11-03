@@ -294,7 +294,7 @@ test.describe('ficha de la familia: "No acepta niñeras nuevas"', () => {
   });
 });
 
-test.describe('cancelar un pedido que ya está asignado (revisión final, 01/11/2026)', () => {
+test.describe('cancelar un pedido que ya está asignado (revisión final, 01/11/2026; desde la etapa 8 la base cancela el registro)', () => {
   async function abrirYCancelar(page, filas) {
     const d = datos({ filas });
     Object.assign(d.solicitudes.find(x => x.id === SOL), { estado: 'confirmada' });
@@ -304,15 +304,15 @@ test.describe('cancelar un pedido que ya está asignado (revisión final, 01/11/
     return e;
   }
 
-  test('el texto dice la verdad: a la elegida no le llega aviso y hay que cancelar el registro', async ({ page }) => {
+  test('el texto dice la verdad: el registro de la elegida queda en $0 y le llega un aviso si tiene la app', async ({ page }) => {
     const e = await abrirYCancelar(page, [sn(SN_CARLA, ID.nCarla, 'Carla Ejemplo', 'confirmada', { respondido_en: '2026-10-04T13:05:00Z' })]);
-    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? A Carla Ejemplo no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.');
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? El registro de Carla Ejemplo en Sittings & traslados queda cancelado en $0 (si no está cobrado ni pagado) y, si tiene la app, le llega un aviso.');
     verificarLimpio(e);
   });
 
   test('sin el nombre de la elegida: "la niñera"', async ({ page }) => {
     const e = await abrirYCancelar(page, [sn(SN_CARLA, null, '', 'confirmada')]);
-    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? A la niñera no le llega ningún aviso: avisale por WhatsApp y cancelá el registro en Sittings & traslados.');
+    await expect(page.locator('.confirmoverlay .confirmmsg')).toHaveText('¿Cancelar el pedido? El registro de la niñera en Sittings & traslados queda cancelado en $0 (si no está cobrado ni pagado) y, si tiene la app, le llega un aviso.');
     verificarLimpio(e);
   });
 });

@@ -296,3 +296,54 @@ function resumenLugaresTemporada(lugares){
     quincenas: por.get(k),
   }));
 }
+
+/* ---- La ficha de la familia (fase 1, etapa 8, 02/11/2026; decisiones.md 6.5) ----
+   Los campos de la ficha de la guía original, en su orden y con sus textos: la completa la niñera con los padres
+   (ninera/js/ficha.js) y las admins la ven y la copian para la próxima niñera (familias.js). Las claves son las
+   de ficha_familia_campos() en la base: si cambia una, cambian las dos. La familia, la fecha y la niñera no son
+   campos: las pone la base (son las del sitting). largo: un cuadro de varias líneas. ayuda: el ejemplo de la guía. */
+const GRUPOS_FICHA_FAMILIA = [
+  ['La casa', [{ clave: 'direccion', etiqueta: 'Dirección exacta de la casa', ayuda: 'Calle, número, apartamento y esquina, para dar al 911' }]],
+  ['Los chicos', [{ clave: 'chicos', etiqueta: 'Nombre y edad de cada chico', largo: true, ayuda: 'Ej.: Juana, 4 años. Felipe, 10 meses.' }]],
+  ['Contactos', [
+    { clave: 'tel_madre', etiqueta: 'Teléfono de la madre', tel: true },
+    { clave: 'tel_padre', etiqueta: 'Teléfono del padre', tel: true },
+    { clave: 'otro_adulto', etiqueta: 'Otro adulto de confianza (nombre y teléfono)' },
+    { clave: 'emergencia', etiqueta: 'Emergencia móvil (nombre y número de socio)' },
+    { clave: 'mutualista', etiqueta: 'Mutualista o prestador de salud' },
+  ]],
+  ['Salud', [
+    { clave: 'alergias', etiqueta: 'Alergias (alimentos, remedios, picaduras) y qué hacer si hay una reacción', largo: true, ayuda: 'Si no tiene: no tiene' },
+    { clave: 'medicacion', etiqueta: 'Medicación: cuál, dosis y horario', largo: true },
+    { clave: 'salud', etiqueta: 'Problemas de salud, autismo, TDAH o discapacidad, y cómo acompañarlo', largo: true, ayuda: 'Cómo se comunica, qué lo calma, qué lo altera' },
+  ]],
+  ['Rutina y reglas', [
+    { clave: 'comidas', etiqueta: 'Comidas: qué come, qué no puede comer, horarios', largo: true },
+    { clave: 'sueno', etiqueta: 'Siesta y sueño: horario y cómo se duerme', largo: true },
+    { clave: 'reglas', etiqueta: 'Pantallas, golosinas, salidas y otras reglas', largo: true },
+    { clave: 'retira', etiqueta: 'Quién puede retirar a los chicos' },
+    { clave: 'otros', etiqueta: 'Mascotas y otras indicaciones', largo: true },
+  ]],
+];
+const CAMPOS_FICHA_FAMILIA = GRUPOS_FICHA_FAMILIA.flatMap(([, campos]) => campos);
+// "Antes de que se vayan los padres": lo que revisó la niñera de ese sitting (no pasa a la siguiente).
+const CASILLAS_FICHA_FAMILIA = [
+  ['c_botiquin', 'Sé dónde está el botiquín'],
+  ['c_llaves', 'Sé dónde están las llaves y la salida'],
+  ['c_linterna', 'Tengo ubicada una linterna'],
+  ['c_telefonos', 'Guardé los teléfonos en mi celular'],
+  ['c_medicacion', 'Si hay medicación, me la dejaron indicada por escrito'],
+  ['c_adrenalina', 'Si hay autoinyector de adrenalina, me mostraron cómo se usa'],
+];
+const LARGO_MAXIMO_FICHA = 1000;
+
+// Los datos cargados de una ficha, en orden: [{etiqueta, valor}], sin los vacíos ni las casillas. Sin escapar.
+function lineasFichaFamilia(datos){
+  return CAMPOS_FICHA_FAMILIA
+    .map(c => ({ etiqueta: c.etiqueta, valor: typeof datos?.[c.clave] === 'string' ? datos[c.clave].trim() : '' }))
+    .filter(l => l.valor);
+}
+// El texto para pasarle la ficha a la próxima niñera por WhatsApp (el mismo formato que la guía original).
+function textoFichaFamilia(datos){
+  return ["*Ficha de la familia, Parents' Break*", ...lineasFichaFamilia(datos).map(l => `*${l.etiqueta}:* ${l.valor}`)].join('\n');
+}

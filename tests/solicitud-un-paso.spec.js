@@ -7,6 +7,10 @@
 // Datos inventados: Familia Prueba Dos cobra $400 y paga $260 por hora (la Uno, $380 y $250, ya tiene el
 // fijo de Ana los lunes y miércoles); Ana hace sittings y Bruno solo traslados; la tarifa de traslados
 // es $200 + $20/km con 15 % de margen.
+// Etapa 8 (02/11/2026, decisiones 6.5): con niñera pasa por "Asignar" (asignarNineraAlPedido): la solicitud nace
+// 'sin_asignar' y "Asignar" la toma (PATCH a 'confirmada'), la dirección de la familia es obligatoria en un sitting y
+// al final sale la confirmación para la madre. Los tests con niñera usan Familia Prueba Dos con dirección
+// (conDireccion); sin dirección, se pide antes de crear nada.
 const { test, expect } = require('@playwright/test');
 const { abrirApp, irAModulo, esperarQuieta, verificarLimpio } = require('./support/app');
 const { datosBase, ID } = require('./support/datos');
@@ -33,6 +37,12 @@ async function elegirNinera(page, texto, nombre) {
   await expect(page.locator('#agenda-ninera')).toHaveValue(nombre);
 }
 const guardar = page => page.locator('#editmodal button', { hasText: 'Guardar solicitud' }).click();
+function conDireccion() {
+  const d = datosBase();
+  d.familias.find(f => f.id === ID.fDos).direccion = 'Calle Inventada 2';
+  return d;
+}
+const confirmacionMadre = page => expect(page.locator('#editmodal h2')).toHaveText('Confirmación para la madre');
 
 test('el formulario trae la niñera opcional y los dos precios por hora, precargados con la tarifa de la familia', async ({ page }) => {
   const e = await abrirApp(page);
@@ -51,13 +61,16 @@ test('el formulario trae la niñera opcional y los dos precios por hora, precarg
 });
 
 test('con niñera: queda confirmada, con su niñera y cargada en Sittings; la tarjeta muestra el pago por hora', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   await nuevaSolicitud(page);
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await guardar(page);
   await expect(page.locator('.toaststack .toast', { hasText: 'ya quedó cargado en Sittings' })).toBeVisible();
+  await confirmacionMadre(page);
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ familia_id: ID.fDos, familia_nombre: 'Familia Prueba Dos', tipo: 'sitting', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', cobro_familia: 1200, estado: 'sin_asignar' });
+  expect(escrituras(e, 'solicitudes', 'PATCH')[0]).toMatchObject({ cuerpo: { estado: 'confirmada' }, params: { estado: 'in.(sin_asignar,pendiente_confirmar)' } });
+  await page.evaluate(() => cerrarModal());
   await expect(page.locator('#editmodal')).toHaveCount(0);
-  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ familia_id: ID.fDos, familia_nombre: 'Familia Prueba Dos', tipo: 'sitting', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', cobro_familia: 1200, estado: 'confirmada' });
   const sol = e.db.solicitudes.find(s => s.estado === 'confirmada' && s.fecha === '2026-10-06');
   expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({ solicitud_id: sol.id, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 780, precio_hora: 260 }); // etapa 6: su precio por hora
   expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ tipo: 'sitting', familia_id: ID.fDos, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', fecha: '2026-10-06', hora_inicio: '16:00', hora_fin: '19:00', termina_dia_siguiente: false, cobro_familia: 1200, pago_ninera: 780, cobrado: false, pagado: false, notas: 'Asignado desde Agenda', solicitud_id: sol.id });
@@ -93,13 +106,13 @@ test('una niñera que no está en la lista: avisa y no guarda nada', async ({ pa
 });
 
 test('los precios por hora cambiados a mano mandan sobre la tarifa', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   await nuevaSolicitud(page);
   await page.fill('#agenda-cobro', '450');
   await page.fill('#agenda-pago-hora', '300');
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await guardar(page);
-  await expect(page.locator('#editmodal')).toHaveCount(0);
+  await confirmacionMadre(page);
   expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ cobro_familia: 1350 });
   expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ pago_ninera: 900 });
   expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ cobro_familia: 1350, pago_ninera: 900 });
@@ -108,13 +121,14 @@ test('los precios por hora cambiados a mano mandan sobre la tarifa', async ({ pa
 });
 
 test('sin hora de fin con niñera: se carga en $0 y avisa que falta la hora de fin', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   await nuevaSolicitud(page, { fin: null });
   await expect(page.locator('#agenda-pago-preview')).toHaveText('');
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await guardar(page);
   await expect(page.locator('.toaststack .toast', { hasText: 'Falta la hora de fin' })).toBeVisible();
-  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ estado: 'confirmada', cobro_familia: null, hora_fin: null });
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ estado: 'sin_asignar', cobro_familia: null, hora_fin: null });
+  expect(e.db.solicitudes.at(-1).estado).toBe('confirmada');
   expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ pago_ninera: 0 });
   expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ cobro_familia: 0, pago_ninera: 0, hora_fin: null });
   verificarLimpio(e);
@@ -132,7 +146,11 @@ test('traslado con niñera: precio por viaje y pago por viaje sugeridos por los 
   await elegirNinera(page, 'bru', 'Bruno Inventado');
   await guardar(page);
   await expect(page.locator('.toaststack .toast', { hasText: 'ya quedó cargado en Sittings' })).toBeVisible();
-  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ tipo: 'traslado', estado: 'confirmada', cobro_familia: 450 });
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ tipo: 'traslado', estado: 'sin_asignar', cobro_familia: 450 });
+  // Un traslado no pide la dirección de la familia (no tiene).
+  expect(escrituras(e, 'familias', 'PATCH')).toEqual([]);
+  await confirmacionMadre(page);
+  await page.evaluate(() => cerrarModal());
   expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toMatchObject({ ninera_id: ID.nBruno, pago_ninera: 350 });
   expect(escrituras(e, 'sittings_traslados', 'POST')[0].cuerpo).toMatchObject({ tipo: 'traslado', cobro_familia: 450, pago_ninera: 350, hora_inicio: '08:00', hora_fin: null });
   const tarjeta = tarjetas(page, 'Familia Prueba Dos').filter({ hasText: '08:00' });
@@ -155,21 +173,28 @@ test('la lista de niñeras respeta el tipo: para un sitting no ofrece a quien so
 });
 
 test('si falla cargar la niñera, el pedido vuelve a "sin asignar" y avisa; no se carga el registro', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   e.fallar = ({ tabla, metodo }) => (tabla === 'solicitud_ninieras' && metodo === 'POST') ? { status: 500, message: 'falla simulada' } : undefined;
   await nuevaSolicitud(page);
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await guardar(page);
   await expect(warn(page)).toContainText('falla simulada');
   await expect(warn(page)).toContainText('quedó guardado sin niñera');
-  expect(escrituras(e, 'solicitudes', 'PATCH')[0].cuerpo).toEqual({ estado: 'sin_asignar' });
+  // "Asignar" la tomó y la devolvió a como estaba.
+  expect(escrituras(e, 'solicitudes', 'PATCH').map(w => w.cuerpo)).toEqual([{ estado: 'confirmada' }, { estado: 'sin_asignar' }]);
   expect(e.db.solicitudes.at(-1).estado).toBe('sin_asignar');
   expect(escrituras(e, 'sittings_traslados', 'POST')).toEqual([]);
+  // Ya no se puede guardar otra vez (crearía una segunda solicitud): solo "Cerrar".
+  await expect(page.locator('#editmodal button', { hasText: 'Guardar solicitud' })).toHaveCount(0);
+  await page.locator('#editmodal button', { hasText: 'Cerrar' }).click();
+  await expect(page.locator('#editmodal')).toHaveCount(0);
+  expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
+  await expect(tarjetas(page, 'Familia Prueba Dos').filter({ hasText: '16:00' })).toContainText('Sin asignar');
   verificarLimpio(e, { ignorar: [/status of 500/] });
 });
 
 test('si falla cargar el registro en Sittings, queda asignado y avisa', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   e.fallar = ({ tabla, metodo }) => (tabla === 'sittings_traslados' && metodo === 'POST') ? { status: 500, message: 'falla simulada' } : undefined;
   await nuevaSolicitud(page);
   await elegirNinera(page, 'ana', 'Ana Ficticia');
@@ -181,7 +206,7 @@ test('si falla cargar el registro en Sittings, queda asignado y avisa', async ({
 });
 
 test('la niñera ya tiene un fijo a esa hora: pregunta antes, y al cancelar no guarda nada', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   await nuevaSolicitud(page, { fecha: '2026-10-05' }); // lunes: Ana hace 16 a 19 en Familia Uno
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await guardar(page);
@@ -194,7 +219,7 @@ test('la niñera ya tiene un fijo a esa hora: pregunta antes, y al cancelar no g
 });
 
 test('doble toque en Guardar: una sola solicitud', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   e.demoraEscrituras = 400;
   await nuevaSolicitud(page);
   await elegirNinera(page, 'ana', 'Ana Ficticia');
@@ -248,13 +273,14 @@ test('horario aproximado: sin tildar se guarda en false y la tarjeta no dice nad
 });
 
 test('horario aproximado con niñera: la solicitud lo lleva y el registro se carga igual', async ({ page }) => {
-  const e = await abrirApp(page);
+  const e = await abrirApp(page, { datos: conDireccion() });
   await nuevaSolicitud(page);
   await elegirNinera(page, 'ana', 'Ana Ficticia');
   await page.locator('#agenda-aproximado').check();
   await guardar(page);
   await expect(page.locator('.toaststack .toast', { hasText: 'ya quedó cargado en Sittings' })).toBeVisible();
-  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ horario_aproximado: true, estado: 'confirmada' });
+  expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ horario_aproximado: true, estado: 'sin_asignar' });
+  expect(e.db.solicitudes.at(-1).estado).toBe('confirmada');
   expect(escrituras(e, 'sittings_traslados', 'POST')).toHaveLength(1);
   verificarLimpio(e);
 });
@@ -272,4 +298,41 @@ test('horario aproximado: base sin la migración de la etapa 6 guarda lo demás 
   await expect(page.locator('.toaststack .toast.bad', { hasText: 'la marca de horario aproximado' })).toBeVisible();
   expect(e.db.solicitudes.some(s => s.familia_nombre === 'Familia Prueba Dos' && s.fecha === '2026-10-06')).toBe(true);
   verificarLimpio(e, { ignorar: [/status of 4\d\d/] });
+});
+
+// Etapa 8 (02/11/2026): "+ Nueva solicitud" con niñera pasa por "Asignar" (decisiones 6.5).
+test('con niñera y la familia sin dirección: la pide antes de crear nada y la guarda en la ficha al asignar', async ({ page }) => {
+  const e = await abrirApp(page);
+  await nuevaSolicitud(page);
+  await elegirNinera(page, 'ana', 'Ana Ficticia');
+  await guardar(page);
+  await expect(warn(page)).toContainText('Falta la dirección de la familia');
+  await expect(page.locator('#agenda-asignar-direccion')).toBeVisible();
+  expect(escrituras(e, 'solicitudes', 'POST')).toEqual([]);
+  // Vacía no pasa.
+  await guardar(page);
+  await expect(warn(page)).toContainText('Falta la dirección de la familia');
+  expect(escrituras(e, 'solicitudes', 'POST')).toEqual([]);
+  await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2, apto 1');
+  await guardar(page);
+  await confirmacionMadre(page);
+  expect(escrituras(e, 'familias', 'PATCH')[0]).toMatchObject({ cuerpo: { direccion: 'Calle Inventada 2, apto 1' }, params: { id: `eq.${ID.fDos}` } });
+  expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
+  expect(escrituras(e, 'sittings_traslados', 'POST')).toHaveLength(1);
+  verificarLimpio(e);
+});
+
+test('con niñera: si no se puede guardar la dirección no se asigna y el pedido queda sin niñera', async ({ page }) => {
+  const e = await abrirApp(page);
+  e.fallar = ({ tabla, metodo }) => (tabla === 'familias' && metodo === 'PATCH') ? { status: 500, message: 'falla simulada' } : undefined;
+  await nuevaSolicitud(page);
+  await elegirNinera(page, 'ana', 'Ana Ficticia');
+  await guardar(page);
+  await page.fill('#agenda-asignar-direccion', 'Calle Inventada 2');
+  await guardar(page);
+  await expect(warn(page)).toContainText('No se pudo guardar la dirección. No se asignó.');
+  await expect(warn(page)).toContainText('quedó guardado sin niñera');
+  expect(e.db.solicitudes.at(-1).estado).toBe('sin_asignar');
+  expect(escrituras(e, 'solicitud_ninieras', 'POST')).toEqual([]);
+  verificarLimpio(e, { ignorar: [/status of 500/] });
 });

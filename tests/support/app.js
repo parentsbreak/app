@@ -16,13 +16,15 @@ const { datosBase, ID } = require('./datos');
 const { STUB_CHART, STUB_XLSX } = require('./stubs');
 const { rpcNinera, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, alConfirmarFila, alCancelarSolicitud, rpcPedidosAdmin, avisoPedidoNuevo, recortarBlancos, largo, insertarMensajeChat } = require('./rpc-ninera');
 const { RPC_ETAPA_7, TABLAS_ETAPA_7, COLUMNAS_REVISION_CIERRE, rpcDiaNinera, rutaComprobantePermitida, prefiereOtros } = require('./rpc-dia');
+const { RPC_ETAPA_8, TABLAS_ETAPA_8, rpcFichaNinera, avisosSittings, cancelarRegistroDelPedido } = require('./rpc-ficha');
 const { RPC_ETAPA_4, RPC_ETAPA_4_ADMIN, TABLAS_ETAPA_4, COLUMNAS_NINIERAS_ETAPA_4, completarFirmasPorDefecto, completarColumnasGuia, guiaEstado, rpcGuiaNinera, rpcGuiaAdmin } = require('./rpc-guia');
 
 const REF_PROD = 'wvewzamdohrpfhpccvcz';
 // PNG transparente de 1×1: lo que devuelve Storage al bajar una foto o abrir una URL firmada.
 const COLUMNAS_CV = { ninieras: ['cv_datos', 'cv_generado_con'] };
-// ninera_mi_dia (etapa 7) también solo lee: el inicio de la niñera la pide cada vez.
-const RPC_LECTURA_GUIA = ['guia_estado_ninieras', 'ninera_puede_recibir_pedidos', 'ninera_estado_guia', 'ninera_mi_dia'];
+// ninera_mi_dia (etapa 7) también solo lee: el inicio de la niñera la pide cada vez. Lo mismo ninera_mis_cambios y
+// ninera_ficha_familia (etapa 8).
+const RPC_LECTURA_GUIA = ['guia_estado_ninieras', 'ninera_puede_recibir_pedidos', 'ninera_estado_guia', 'ninera_mi_dia', 'ninera_mis_cambios', 'ninera_ficha_familia'];
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const USUARIO = {
@@ -196,6 +198,9 @@ function nuevoId() { secuenciaId++; return `00000000-0000-4000-9000-${String(sec
  *     de columna de Supabase al leerlas o escribirlas.
  *     'etapa7' (02/11/2026): solo falta 20261106_el_dia: sus tres RPC dan 404 PGRST202 y sitting_eventos /
  *     sitting_cierres 404 PGRST205; sugeridas_datos no trae prefiere_otros. Lo de antes anda (también en abrirAppNinera).
+ *     'etapa8' (02/11/2026): solo falta 20261107_ficha_cambios: sus cuatro RPC dan 404 PGRST202, fichas_familia /
+ *     cambios_horario 404 PGRST205 y no hay avisos por día ni registro cancelado al cancelar un pedido asignado. La 7 sin
+ *     migrar también la saca (también en abrirAppNinera).
  *     'cv' (01/11/2026): solo falta 20261104_cv_automatico: ninieras sin cv_datos ni cv_generado_con (leerlas da
  *     42703 y escribirlas PGRST204). true también las saca.
  *   Con los pedidos de la etapa 5, app_config 'pedidos_app'.solo_practica arranca en true (como la migración): un
@@ -212,6 +217,8 @@ async function abrirApp(page, opciones = {}) {
   const sinEtapa4 = sinEtapa6 || baseSinMigrar === 'etapa4';
   // El día y el cierre (etapa 7, 20261106): posterior a la guía; 'etapa7' es solo sin el día.
   const sinEtapa7 = sinEtapa4 || baseSinMigrar === 'etapa7';
+  // La ficha y los cambios (etapa 8, 20261107): posterior al día; 'etapa8' es solo sin la 8.
+  const sinEtapa8 = sinEtapa7 || baseSinMigrar === 'etapa8';
   completarFirmasPorDefecto(estado.db);
   const guia = sinEtapa4 ? null : id => guiaEstado(estado.db, id, ahora);
   const prefiere = sinEtapa7 ? null : (...a) => prefiereOtros(estado.db, ...a);
@@ -219,6 +226,7 @@ async function abrirApp(page, opciones = {}) {
   Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora, { admin: true, guia, prefiere }));
   // Las de la niñera del día (etapa 7): una admin no es niñera (vacío / no_autorizada).
   Object.assign(estado.rpc, sinEtapa7 ? Object.fromEntries(RPC_ETAPA_7.map(n => [n, rpcNoExiste(n)])) : rpcDiaNinera(estado.db, null, ahora));
+  Object.assign(estado.rpc, sinEtapa8 ? Object.fromEntries(RPC_ETAPA_8.map(n => [n, rpcNoExiste(n)])) : rpcFichaNinera(estado.db, null, ahora));
   Object.assign(estado.rpc, rpcGuiaAdmin(estado.db, ahora, { admin: true }));
   if (sinEtapa4) RPC_ETAPA_4_ADMIN.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
   if (sinEtapa4) (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_4.forEach(c => { delete n[c]; }));
@@ -231,9 +239,9 @@ async function abrirApp(page, opciones = {}) {
   const sinCv = sinMigrarTodo || baseSinMigrar === 'cv';
   if (sinCv) (estado.db.ninieras || []).forEach(n => { delete n.cv_datos; delete n.cv_generado_con; });
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
-    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinCv,
-    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
-      ...(sinEtapa4 ? TABLAS_ETAPA_4 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : [])] });
+    baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinCv,
+    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7', 'etapa8'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
+      ...(sinEtapa4 ? TABLAS_ETAPA_4 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : []), ...(sinEtapa8 ? TABLAS_ETAPA_8 : [])] });
 
   await page.goto(ruta);
   if (sesion) await expect(page.locator('#modcontent')).toBeVisible();
@@ -276,9 +284,11 @@ async function abrirAppNinera(page, opciones = {}) {
   const sinEtapa4 = sinEtapa6 || baseSinMigrar === 'etapa4';
   // El día (etapa 7, 20261106): posterior a la guía; 'etapa7' es solo sin el día.
   const sinEtapa7 = sinEtapa4 || baseSinMigrar === 'etapa7';
+  const sinEtapa8 = sinEtapa7 || baseSinMigrar === 'etapa8';
   completarFirmasPorDefecto(estado.db);
   Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4 }));
   Object.assign(estado.rpc, sinEtapa7 ? Object.fromEntries(RPC_ETAPA_7.map(n => [n, rpcNoExiste(n)])) : rpcDiaNinera(estado.db, ninera, ahora || undefined));
+  Object.assign(estado.rpc, sinEtapa8 ? Object.fromEntries(RPC_ETAPA_8.map(n => [n, rpcNoExiste(n)])) : rpcFichaNinera(estado.db, ninera, ahora || undefined));
   // Una niñera no es admin: enviar_pedido_app y sugeridas_datos le dan no_autorizada / nada.
   Object.assign(estado.rpc, rpcPedidosAdmin(estado.db, ahora || undefined, { admin: false }));
   Object.assign(estado.rpc, rpcGuiaNinera(estado.db, ninera, ahora || undefined), rpcGuiaAdmin(estado.db, ahora || undefined, { admin: false, nineraId: ninera }));
@@ -294,7 +304,7 @@ async function abrirAppNinera(page, opciones = {}) {
   }
   // 'etapa3': sin la 3 ni la 9 (la base real no tiene la 9 sin la 3). 'etapa9': solo sin la 9.
   if (baseSinMigrar === true || baseSinMigrar === 'etapa3') RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
-  if (baseSinMigrar && baseSinMigrar !== 'etapa7') {
+  if (baseSinMigrar && !['etapa7', 'etapa8'].includes(baseSinMigrar)) {
     RPC_ETAPA_9.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_9.forEach(c => { delete n[c]; }));
   }
@@ -302,8 +312,8 @@ async function abrirAppNinera(page, opciones = {}) {
   // comparten sesión en el mismo navegador. sesionNinera: las lecturas de chat_mensajes y avisos
   // pasan por la RLS de la niñera (30/10/2026).
   await prepararPagina(page, estado, { usuario: USUARIO_NINERA, claveSesion: 'sb-ninera-auth', sesion, ahora,
-    sesionNinera: ninera, sinEtapa5, sinEtapa6, sinEtapa4,
-    tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : [])] });
+    sesionNinera: ninera, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8,
+    tablasSinMigrar: [...(baseSinMigrar === true || baseSinMigrar === 'etapa3' ? TABLAS_ETAPA_3 : []), ...(sinEtapa5 ? TABLAS_ETAPA_5 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : []), ...(sinEtapa8 ? TABLAS_ETAPA_8 : [])] });
 
   // page.emulateMedia no sabe de display-mode: se pisa matchMedia solo para esa consulta, y
   // navigator.standalone (el que mira Safari del iPhone).
@@ -362,7 +372,7 @@ function crearEstado(datos) {
  *   tablasSinMigrar: tablas que todavía no existen (404 PGRST205), además de las de baseSinMigrar
  *   sinEtapa5: las columnas de la migración de los pedidos (COLUMNAS_ETAPA_5) no existen
  */
-async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinEtapa4 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
+async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahora, baseSinMigrar = false, sinEtapa5 = false, sinEtapa6 = false, sinEtapa4 = false, sinEtapa8 = false, sinCv = false, sesionNinera = null, tablasSinMigrar = [] }) {
   const { db } = estado;
   const rls = reglasEtapa3(db, sesionNinera);
   page.on('console', m => { if (m.type() === 'error') estado.errores.push('consola: ' + m.text()); });
@@ -643,6 +653,12 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
       const ahoraDb = new Date(ahora || Date.now()).toISOString();
       if (tablaFila === 'solicitud_ninieras' && fila.estado === 'confirmada') alConfirmarFila(db, ahoraDb, fila);
       if (tablaFila === 'solicitudes' && fila.estado === 'cancelada') alCancelarSolicitud(db, ahoraDb, fila);
+      if (tablaFila === 'solicitudes' && fila.estado === 'cancelada' && !sinEtapa8) cancelarRegistroDelPedido(db, ahoraDb, fila);
+    };
+    // Los avisos por día de la etapa 8 (trigger por sentencia de sittings_traslados): con lo de antes y lo de después.
+    const avisosDelDia = (pares) => {
+      if (sinEtapa8 || tabla !== 'sittings_traslados' || !pares.length) return;
+      avisosSittings(db, new Date(ahora || Date.now()).toISOString(), metodo, pares);
     };
     let afectadas = [];
     if (metodo === 'POST' && tabla === 'chat_mensajes') {
@@ -667,8 +683,10 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         db[tabla].push(nueva); afectadas.push(nueva);
         triggersEleccion(tabla, nueva, undefined);
       }
+      avisosDelDia(afectadas.map(f => [null, f]));
     } else if (metodo === 'PATCH') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
+      const antesDelCambio = afectadas.map(f => ({ ...f }));
       afectadas.forEach(f => {
         const sinSolicitud = f.solicitud_id == null;
         const antes = f.estado;
@@ -677,9 +695,11 @@ async function prepararPagina(page, estado, { usuario, claveSesion, sesion, ahor
         // Trigger pedidos_whatsapp_aviso_nuevo (etapa 5): solicitud_id pasa de null a un valor.
         if (tabla === 'pedidos_whatsapp' && !sinEtapa5 && sinSolicitud && f.solicitud_id != null) avisoPedidoNuevo(db, new Date(ahora || Date.now()).toISOString(), f);
       });
+      avisosDelDia(afectadas.map((f, i) => [antesDelCambio[i], f]));
     } else if (metodo === 'DELETE') {
       afectadas = filtrar(db[tabla].filter(f => rls.modificable(tabla, metodo, f)), params);
       db[tabla] = db[tabla].filter(f => !afectadas.includes(f));
+      avisosDelDia(afectadas.map(f => [f, null]));
     }
     if (prefer.includes('return=representation')) return responder(afectadas, { status: metodo === 'POST' ? 201 : 200 });
     return route.fulfill({ status: metodo === 'POST' ? 201 : 204, body: '' });
@@ -714,11 +734,14 @@ function reglasEtapa3(db, sesionNinera) {
       if (tabla === 'ninera_no_disponible') return !esNinera || fila.ninera_id === sesionNinera;
       // Etapa 7: la niñera lee sus eventos y cierres; las admins, todos.
       if (tabla === 'sitting_eventos' || tabla === 'sitting_cierres') return !esNinera || fila.ninera_id === sesionNinera;
+      // Etapa 8: la niñera no lee las fichas (las ve por ninera_ficha_familia) y lee sus cambios; las admins, todo.
+      if (tabla === 'fichas_familia') return !esNinera;
+      if (tabla === 'cambios_horario') return !esNinera || fila.ninera_id === sesionNinera;
       return true;
     },
     modificable(tabla, metodo, fila) {
       if (tabla === 'chat_mensajes') return metodo === 'PATCH' && !esNinera;
-      if (tabla === 'avisos' || tabla === 'ninera_no_disponible' || tabla === 'sitting_eventos') return false;
+      if (tabla === 'avisos' || tabla === 'ninera_no_disponible' || tabla === 'sitting_eventos' || tabla === 'fichas_familia' || tabla === 'cambios_horario') return false;
       if (tabla === 'sitting_cierres') return metodo === 'PATCH' && !esNinera;
       return true;
     },
@@ -729,6 +752,8 @@ function reglasEtapa3(db, sesionNinera) {
       if (tabla === 'ninera_no_disponible') return permisoDenegado(tabla);
       // Etapa 7: nadie escribe directo; las admins solo actualizan la revisión del cierre.
       if (tabla === 'sitting_eventos') return permisoDenegado(tabla);
+      // Etapa 8: nadie escribe directo en fichas_familia ni en cambios_horario (la niñera, por sus RPC; la base, los avisos).
+      if (tabla === 'fichas_familia' || tabla === 'cambios_horario') return permisoDenegado(tabla);
       if (tabla === 'sitting_cierres') {
         const filas = [].concat(cuerpo || []);
         return metodo === 'PATCH' && !esNinera && filas.every(f => Object.keys(f).every(c => COLUMNAS_REVISION_CIERRE.includes(c))) ? null : permisoDenegado(tabla);
