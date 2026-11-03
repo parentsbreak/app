@@ -394,6 +394,14 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   que hacen traslados, con el carsitting aprobado y la guía; todo o nada; "Precio: $X por viaje"), lo que lee la niñera (zonas antes,
   direcciones solo confirmado, precio por viaje), "Puedo", el recordatorio, la elección, los avisos por día de un traslado (la hora de
   salida, "Ya no vas", cancelado), 24 h y 1 h sin lo demás, los fijos de traslado aparte de los de sitting y `solo_practica`.
+- `tests/traslados-panel.spec.js` (03/11/2026, etapa 11): "+ Nueva solicitud" de traslado (el último viaje de la familia, la casa
+  como origen, "Invertir" con las zonas, los km y el precio por km, otra familia, base sin migrar 'etapa11', 390 px) y "Elegir niñeras"
+  (solo con el carsitting, precio por viaje, `precio_viaje` en el envío, el recorrido de un pedido viejo guardado antes de mandar, errores de
+  la base, sin migrar, "Asignar" con la ruta en el registro, escape). `tests/ninera-traslado.spec.js`: la tarjeta del traslado (sin
+  direcciones ni cobro), "¡Quedaste seleccionada!" con "Cómo llegar" al origen y al destino, el fijo previsto, la tarjeta del cambio,
+  sin migrar, escape y 390 px. `tests/simulador-traslados.spec.js`: el simulador contra la regla de la SQL. `abrirApp` /
+  `abrirAppNinera(..., { baseSinMigrar: 'etapa11' })`: sin 20261109_traslados_app (la 10 sin migrar también la saca).
+  `tests/pedido-pegar.spec.js` cambió con la etapa: un traslado pide la ruta, las zonas y los chicos para mandarlo.
 - `tests/ninera-carsitting.spec.js` (02/11/2026, etapa 10): el carsitting en la app de niñeras (la tarjeta del inicio sin completar,
   para corregir con el comentario, en revisión y aprobada; `#carsitting` con los campos y las 7 fotos, lo que falta sin subir nada,
   las rutas de las fotos, el cuerpo exacto, corregir una sola foto, "Actualizar los datos del auto" en "Mi perfil", fallas al subir o
@@ -685,8 +693,8 @@ reporte.
   `de`, `autor` ni `ninera_id`. Las admins insertan solo `ninera_id, de, autor, texto` y actualizan solo
   `leido_admin_en`, y solo le escriben a una niñera con app (Diego, 29/10: cualquiera con app; solo texto;
   el push del chat llega también de noche). El push nunca lleva plata, salvo el del pedido nuevo, que
-  lleva solo el precio por hora ofrecido (`docs/fase1/textos.md` 1; nunca un total, un acumulado ni el
-  cobro a la familia), y el del chat va recortado a 120 caracteres. Realtime por pantalla (canal propio por apertura de la ficha), con dedupe por id y sin
+  lleva solo el precio por hora ofrecido, o en un traslado "Precio: $X por viaje" (`docs/fase1/textos.md` 1, etapa 11; nunca un total,
+  un acumulado ni el cobro a la familia), y el del chat va recortado a 120 caracteres. Realtime por pantalla (canal propio por apertura de la ficha), con dedupe por id y sin
   repintar el textarea. `alCerrarModal(fn)` (core.js) suelta el canal al cerrar la ficha. La campanita tiene
   su canal aparte, que se abre solo si la tabla `avisos` existe (con la base sin migrar no se une y no
   tumba nada); `avisos` y el tipo `chat` están en `TIPOS_NOTIF`. Una niñera inactiva fuera de la lista se
@@ -806,7 +814,16 @@ reporte.
   no (`filaCarsittingDe`, ninieras.js, prefiere la de la app por id). Revisar es un update de la admin con la condición de `revision`
   = 'pendiente'; el trigger de la base aprueba y avisa, o manda el comentario por el chat. Aprobada una vez, queda aprobada
   (`aprobado_en`) aunque mande una actualización. Asignar un traslado a una con app sin aprobar avisa y no frena
-  (`pintarAvisoCarsitting`); el freno es de la etapa 11. El aviso y la marca "Carsitting pendiente" de la ficha, solo con app.
+  (`pintarAvisoCarsitting`); el freno de la etapa 11 es solo para mandar por la app. El aviso y la marca "Carsitting pendiente" de la
+  ficha, solo con app.
+- Traslados por la app (03/11/2026, etapa 11, decisiones 6.9): un pedido es un viaje. La solicitud lleva `origen`, `destino`, `destino_zona`
+  y `km` (`zona` es la de origen); la niñera ve las dos zonas antes de que la elijan y las direcciones en el registro confirmado, y lo
+  ofrecido va en `solicitud_ninieras.precio_viaje` (nunca el cobro). La ruta de las dos pantallas que crean un traslado ("+ Nueva
+  solicitud", prefijo 'agenda', y el ticket, 'pedido') y la de "Elegir niñeras" ('elegir') son las mismas funciones (`htmlRutaTraslado`,
+  `prepararRutaTraslado`, `leerRutaTraslado`, pedidos.js): precargan el último viaje de la familia y no pisan lo escrito a mano
+  (`data-tocado`). El precio por km sale siempre de `precioTrasladoPorKm` (sittings.js). `enviar_pedido_app` frena con `sin_carsitting`
+  (`carsitting_aprobado()`), `sin_origen_destino`, `sin_zonas` y `ninera_no_hace_traslados`. Los avisos de los triggers valen para los
+  traslados con "traslado" en el texto; en un traslado solo avisa el cambio del día o de la hora de salida.
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -1072,6 +1089,9 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
+- Etapa 11 (03/11/2026): `pedido-whatsapp` con el origen, el destino y la zona de destino está en el repo; la publica el orquestador
+  (hasta entonces el ticket no los trae y la ruta se precarga con lo de la familia). "Calcular km con el mapa" (TomTom) no está simulado en
+  los tests: probarlo en el iPhone real. La ruta no guarda borrador.
 - Etapa 11 (03/11/2026, orquestador): la tarjeta del día y el cierre de los traslados (llegó, dejó a los chicos, peajes como gasto).
   Hoy `ninera_mi_dia`, `ninera_cerrar_sitting` y los avisos de "no marcó que llegó" y del cierre son solo de sittings.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel

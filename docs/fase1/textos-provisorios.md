@@ -464,3 +464,28 @@ Avisos a la niñera (tú, PROVISORIOS):
   fijo de traslados con [madre]".
 - Recordatorios: "¡Hola! Mañana tienes un traslado" / "[Día] [dd/mm] a las [hora]."; "Tu traslado empieza en 1 hora" / "[hora]."
 
+App de niñeras (tú, PROVISORIOS):
+- Tarjeta del pedido: "Traslado [Día dd/mm]", "A las [hora]", "De [zona] a [zona]", los chicos y "Precio: $X por viaje".
+- "¡Quedaste seleccionada!": "Traslado del [Día dd/mm], a las [hora]. Ya tienes todos los datos."; en los datos: "Desde", "Hasta",
+  "Zonas: de [zona] a [zona]", "Precio: $X por viaje", "Cómo llegar al origen" y "Cómo llegar al destino". Un traslado de un fijo antes
+  de su día: "Las direcciones aparecen el día del traslado."
+- Cambio de horario: "Cambió el horario de tu traslado" / "Cambió el horario de tu fijo de traslados".
+
+Panel (voseo, PROVISORIOS):
+- "+ Nueva solicitud" y "Pegar WhatsApp": "Zona de origen", "Origen", "Invertir (ida / vuelta)", "Destino", "Zona de destino", "Km
+  recorridos", "Dirección o lugar", "Calcular km con el mapa" ("Calculando…", "[N] km con el mapa.", "No se pudo calcular: cargá los km a
+  mano.", "Cargá origen y destino primero."). Notas: "Con el último traslado de la familia ([dd/mm]). Para la vuelta, tocá "Invertir"." /
+  "Origen: la casa de la familia. Falta el destino." / "No se pudieron leer los traslados anteriores de la familia: cargá origen y destino a
+  mano."
+- El ticket: "Precio esperado para la madre: $X. A la niñera: $Y por viaje." / "El precio del traslado se calcula con los km."; "Falta el
+  origen o el destino del traslado." / "Marcá la zona de origen y la de destino: la niñera las ve antes de responder."
+- "Elegir niñeras": el recorrido plegable ("De [origen] a [destino]" / "Recorrido: falta el origen o el destino"), la marca "Sin carsitting
+  aprobado", "Precio por viaje para cada una", "Cargá los km del recorrido para el precio sugerido, o escribilo.", "Falta el precio por viaje
+  de [niñera].", "Falta actualizar la base para mandar traslados por la app: usá "Asignar" o WhatsApp.", "No se pudo leer el carsitting de
+  las niñeras: cerrá y volvé a abrir para mandarlo por la app.", "No se guardó el recorrido: no se mandó." / "no se asignó.".
+- Errores al mandar: "[niñera] no tiene el carsitting aprobado: destildala.", "Falta el origen o el destino del recorrido.", "Marcá la zona
+  de origen y la de destino del recorrido: la niñera las ve antes de responder.", "El precio por viaje de [niñera] no es válido."
+- Base sin migrar: "Falta actualizar la base: la solicitud se guardó sin el origen, el destino ni los km. Avisale a Diego."
+- "Pedidos en curso" y el modal de la solicitud: "$X por viaje"; "Asignar": "Lo que se le ofreció por el viaje.", "A [niñera] le llega
+  "¡Quedaste seleccionada!" con los datos del traslado."
+

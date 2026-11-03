@@ -70,6 +70,8 @@ function horaMontevideoNinera(ts){
 function horarioPedidoNinera(p){
   if(!p.hora_inicio) return 'horario a confirmar';
   const inicio = horaCortaNinera(p.hora_inicio);
+  // Un traslado (etapa 11): la hora de salida.
+  if(p.tipo === 'traslado') return `a las ${inicio}`;
   if(!p.hora_fin) return `${inicio}, sin hora de fin`;
   return `${inicio} – ${horaCortaNinera(p.hora_fin)}${p.termina_dia_siguiente ? ' del día siguiente' : ''}${p.horario_aproximado ? ` ${MARCA_APROXIMADA_NINERA}` : ''}`;
 }
@@ -83,18 +85,31 @@ function limitePedidoNinera(p, ahora){
 
 /* ---- Tarjetas y secciones ---- */
 
+// Las zonas de un traslado ("De Pocitos a Carrasco"); las direcciones, recién cuando la eligen.
+function zonasTrasladoNinera(p){
+  return p.zona && p.destino_zona ? `De ${p.zona} a ${p.destino_zona}` : p.zona ? `Zona: ${p.zona}` : '';
+}
+// Lo que se le ofrece: por hora en un sitting, por viaje en un traslado (etapa 11). Nunca un total ni el cobro.
+function precioPedidoNinera(p){
+  if(p.tipo === 'traslado'){ const v = pesosTextoNinera(p.precio_viaje); return v ? `Precio: ${v} por viaje` : ''; }
+  const h = pesosTextoNinera(p.precio_hora);
+  return h ? `Precio por hora: ${h}` : '';
+}
 function tarjetaPedidoNinera(p, ahora){
   const esperandoConfirmar = p.estado === 'acepto';
   const limite = esperandoConfirmar ? '' : limitePedidoNinera(p, ahora);
-  const precio = pesosTextoNinera(p.precio_hora);
-  return `<article class="pedido-tarjeta${p.id === pedidoDestacadoNinera ? ' pedido-destacado' : ''}" id="pedido-${escaparHtml(p.id)}">
+  const traslado = p.tipo === 'traslado';
+  const precio = precioPedidoNinera(p);
+  const horario = horarioPedidoNinera(p);
+  const zona = traslado ? zonasTrasladoNinera(p) : (p.zona ? `Zona: ${p.zona}` : '');
+  return `<article class="pedido-tarjeta${p.id === pedidoDestacadoNinera ? ' pedido-destacado' : ''}${traslado ? ' pedido-traslado' : ''}" id="pedido-${escaparHtml(p.id)}">
     ${limite ? `<p class="pedido-limite">${escaparHtml(limite)}</p>` : ''}
-    <h3 class="pedido-dia">${escaparHtml(diaLargoNinera(p.fecha))}</h3>
+    <h3 class="pedido-dia">${escaparHtml(traslado ? `Traslado ${diaLargoNinera(p.fecha)}` : diaLargoNinera(p.fecha))}</h3>
     <div class="pedido-datos">
-      <p>${escaparHtml(horarioPedidoNinera(p))}</p>
-      ${p.zona ? `<p>Zona: ${escaparHtml(p.zona)}</p>` : ''}
+      <p>${escaparHtml(horario.charAt(0).toUpperCase() + horario.slice(1))}</p>
+      ${zona ? `<p>${escaparHtml(zona)}</p>` : ''}
       ${p.chicos ? `<p>${escaparHtml(p.chicos)}</p>` : ''}
-      ${precio ? `<p>Precio por hora: ${escaparHtml(precio)}</p>` : ''}
+      ${precio ? `<p>${escaparHtml(precio)}</p>` : ''}
     </div>
     ${esperandoConfirmar ? `<p class="pedido-dijiste">✓ Dijiste que puedes</p>
       <p class="helper">¡Gracias! Te confirmamos a la brevedad.</p>` : `<div class="pedido-botones">
@@ -110,7 +125,7 @@ const TITULO_SELECCIONADA_NINERA = '¡Quedaste seleccionada!';
 // La tarjeta de la elegida: solo el día, el horario y a dónde tocar; los datos van en el detalle.
 function tarjetaSeleccionadaNinera(p){
   return `<article class="pedido-tarjeta pedido-seleccionada" id="pedido-${escaparHtml(p.id)}">
-    <p class="pedido-dato-principal">${escaparHtml(`${diaLargoNinera(p.fecha)}, ${horarioPedidoNinera(p)}. Ya tienes todos los datos.`)}</p>
+    <p class="pedido-dato-principal">${escaparHtml(`${p.tipo === 'traslado' ? 'Traslado del ' : ''}${diaLargoNinera(p.fecha)}, ${horarioPedidoNinera(p)}. Ya tienes todos los datos.`)}</p>
     <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>verDatosSeleccionadaNinera(${argJs(p.id)}))">Ver los datos</button>
   </article>`;
 }
@@ -297,9 +312,9 @@ function abrirDatosDelPedidoNinera(p){
   abrirModalNinera(`<h2 class="modal-titulo">${TITULO_SELECCIONADA_NINERA}</h2>
     <div class="detalle-sitting">
       <p class="detalle-cuando">${escaparHtml(`${diaLargoNinera(p.fecha)}, ${horarioPedidoNinera(p)}`)}</p>
-      ${linea('Zona', p.zona)}
+      ${p.tipo === 'traslado' ? linea('Zonas', p.zona && p.destino_zona ? `de ${p.zona} a ${p.destino_zona}` : p.zona) : linea('Zona', p.zona)}
       ${linea('Chicos', p.chicos)}
-      ${linea('Precio por hora', pesosTextoNinera(p.precio_hora))}
+      ${p.tipo === 'traslado' ? linea('Precio', pesosTextoNinera(p.precio_viaje) ? `${pesosTextoNinera(p.precio_viaje)} por viaje` : '') : linea('Precio por hora', pesosTextoNinera(p.precio_hora))}
       <p class="helper">${DATOS_INCOMPLETOS_NINERA}</p>
     </div>`);
 }

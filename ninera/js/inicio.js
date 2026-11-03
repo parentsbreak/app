@@ -156,7 +156,7 @@ function htmlSittingsNinera(filas, hoyISO = todayISO()){
   return dias.map(d => `<h3 class="sittings-dia">${escaparHtml(textoDiaNinera(d.fecha, hoyISO))}</h3>
     ${d.filas.map(s => `<button type="button" class="sitting-tarjeta" onclick="abrirDetalleSittingNinera(${argJs(s.id)})">
       <span class="sitting-horas">${escaparHtml(horasSittingNinera(s))}</span>
-      <span class="sitting-tipo">${escaparHtml(tipoSittingNinera(s))}${s.zona ? ` · ${escaparHtml(s.zona)}` : ''}</span>
+      <span class="sitting-tipo">${escaparHtml(tipoSittingNinera(s))}${s.zona ? ` · ${escaparHtml(s.tipo === 'traslado' && s.destino_zona ? `${s.zona} a ${s.destino_zona}` : s.zona)}` : ''}</span>
       ${s.madre ? `<span>Madre: ${escaparHtml(s.madre)}</span>` : ''}
       ${s.chicos ? `<span>Chicos: ${escaparHtml(s.chicos)}</span>` : ''}
     </button>`).join('')}`).join('');
@@ -179,10 +179,17 @@ function linksMapaNinera(lugar){
   ];
 }
 
-// "Cómo llegar" despliega la elección ahí mismo: sin otro modal, "Cerrar" sigue siendo uno solo.
-function alternarComoLlegarNinera(){
-  const op = document.getElementById('como-llegar-opciones');
+// "Cómo llegar" despliega la elección ahí mismo: sin otro modal, "Cerrar" sigue siendo uno solo. Un traslado tiene
+// dos (etapa 11): al origen y al destino.
+function alternarComoLlegarNinera(id = 'como-llegar-opciones'){
+  const op = document.getElementById(id);
   if(op) op.hidden = !op.hidden;
+}
+function htmlComoLlegarNinera(lugar, texto, id){
+  return `<button type="button" class="btn primary ancho" aria-controls="${id}" onclick="alternarComoLlegarNinera(${argJs(id)})">${escaparHtml(texto)}</button>
+    <div id="${id}" class="como-llegar" hidden>
+      ${linksMapaNinera(lugar).map(([nombre, url]) => `<a class="btn ghost ancho" href="${urlSegura(url)}" target="_blank" rel="noopener">${nombre}</a>`).join('')}
+    </div>`;
 }
 
 // titulo: 'Sitting' desde la lista; "¡Quedaste seleccionada!" cuando se abre desde su tarjeta (pedido.js).
@@ -198,22 +205,25 @@ function abrirDetalleSittingNinera(id, { titulo } = {}){
   else donde = linea('Dirección', s.direccion);
   // La base manda la dirección solo si está confirmado. Un previsto (un fijo antes de su día) la
   // muestra el día; un confirmado sin dirección cargada no promete nada.
-  if(!lugar && s.estado === 'previsto') donde = '<p class="helper">La dirección aparece el día del sitting.</p>';
-  const precio = pesosTextoNinera(s.precio_hora);
+  if(!lugar && s.estado === 'previsto') donde = s.tipo === 'traslado' ? '<p class="helper">Las direcciones aparecen el día del traslado.</p>'
+    : '<p class="helper">La dirección aparece el día del sitting.</p>';
+  const traslado = s.tipo === 'traslado';
+  const precio = traslado ? (pesosTextoNinera(s.precio_viaje) ? `${pesosTextoNinera(s.precio_viaje)} por viaje` : '') : pesosTextoNinera(s.precio_hora);
+  // Un traslado con las dos direcciones: "Cómo llegar" a cada una; si no, al único lugar que hay.
+  const comoLlegar = traslado && s.origen && s.destino
+    ? htmlComoLlegarNinera(s.origen, 'Cómo llegar al origen', 'como-llegar-origen') + htmlComoLlegarNinera(s.destino, 'Cómo llegar al destino', 'como-llegar-destino')
+    : lugar ? htmlComoLlegarNinera(lugar, 'Cómo llegar', 'como-llegar-opciones') : '';
   abrirModalNinera(`<h2 class="modal-titulo">${escaparHtml(titulo || tipoSittingNinera(s))}</h2>
     <div class="detalle-sitting">
       <p class="detalle-cuando">${escaparHtml(textoDiaNinera(s.fecha, todayISO()))}, ${escaparHtml(horasSittingNinera(s))}${s.horario_aproximado ? ` ${MARCA_APROXIMADA_NINERA}` : ''}</p>
-      ${linea('Zona', s.zona)}
+      ${traslado && s.destino_zona ? linea('Zonas', `de ${s.zona || '?'} a ${s.destino_zona}`) : linea('Zona', s.zona)}
       ${linea('Madre', s.madre)}
       ${linea('Chicos', s.chicos)}
       ${donde}
       ${linea('Indicaciones', s.notas_para_ninera)}
-      ${linea('Precio por hora', precio)}
+      ${linea(traslado ? 'Precio' : 'Precio por hora', precio)}
     </div>
-    ${lugar ? `<button type="button" class="btn primary ancho" aria-controls="como-llegar-opciones" onclick="alternarComoLlegarNinera()">Cómo llegar</button>
-    <div id="como-llegar-opciones" class="como-llegar" hidden>
-      ${linksMapaNinera(lugar).map(([nombre, url]) => `<a class="btn ghost ancho" href="${urlSegura(url)}" target="_blank" rel="noopener">${nombre}</a>`).join('')}
-    </div>` : ''}
+    ${comoLlegar}
     <button type="button" class="btn ghost ancho" onclick="descargarIcsSitting(${argJs(s)})">Agregar al calendario</button>
     ${s.tipo !== 'traslado' && !etapa8NineraSinMigrar ? `<section class="detalle-sitting detalle-ficha" id="detalle-ficha" data-sitting="${escaparHtml(s.id)}"><p class="helper">Cargando la ficha de la familia…</p></section>` : ''}`);
   // La ficha de la familia (ficha.js, etapa 8): llega sola, sin frenar el detalle.

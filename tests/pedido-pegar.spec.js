@@ -373,19 +373,29 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
     verificarLimpio(e);
   });
 
-  test('traslado: crea la solicitud sin pedir chicos y abre la misma pantalla, sin casillas de la app', async ({ page }) => {
+  // Etapa 11 (03/11/2026): un traslado ya se manda por la app, así que pide lo mismo que un sitting (los chicos) y además
+  // el recorrido con las dos zonas. Lo demás de la ruta, en tests/traslados-panel.spec.js.
+  test('traslado: la ruta con el último viaje de la familia, el precio por km y, para mandar, las zonas y los chicos', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     soloPracticaApagado(e);
-    conTicket(e, { familia_id: ID.fDos, servicio: 'traslado', hora_inicio: '08:00', hora_fin: null, dudas: [], ninera_pedida: null });
+    conTicket(e, { familia_id: ID.fDos, servicio: 'traslado', hora_inicio: '08:00', hora_fin: null, dudas: [], ninera_pedida: null, zona: null });
     await armar(page);
     await expect(page.locator('#pedido-tipo')).toHaveValue('traslado');
-    await expect(page.locator('#pedido-precio')).toContainText('El precio del traslado se calcula con los km al asignarlo.');
     await esEsta(page);
+    await expect(page.locator('#pedido-origen')).toHaveValue('Casa');
+    await expect(page.locator('#pedido-destino')).toHaveValue('Colegio');
+    await expect(page.locator('#pedido-km')).toHaveValue('12');
+    await expect(page.locator('#pedido-precio')).toContainText('Precio esperado para la madre: $450. A la niñera: $350 por viaje.');
     await boton(page, 'Revisar y elegir niñeras').click();
-    await expect(modal(page).locator('.pedido-elegir')).toBeVisible();
-    await esperarQuieta(page);
-    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ tipo: 'traslado', hora_inicio: '08:00', hora_fin: null, cobro_familia: null });
-    await expect(page.locator('#editmodal .pedido-tilde')).toHaveCount(0);
+    await expect(page.locator('#pedido-ticket-warn')).toContainText('Marcá la zona de origen y la de destino');
+    await page.locator('#pedido-destino-zonas-checklist input[value="Pocitos"]').check();
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(page.locator('#pedido-ticket-warn')).toContainText('Faltan los chicos de la familia');
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(0);
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(modal(page).locator('.pedido-ticket')).toHaveCount(0);
+    expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ tipo: 'traslado', hora_inicio: '08:00', hora_fin: null, cobro_familia: 450,
+      zona: 'Carrasco', origen: 'Casa', destino: 'Colegio', destino_zona: 'Pocitos', km: 12 });
     verificarLimpio(e);
   });
 });

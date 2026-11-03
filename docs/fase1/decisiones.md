@@ -702,7 +702,17 @@ $X por viaje". `ninera_mis_pedidos` y `ninera_mis_sittings` devuelven `tipo`, `d
 triggers y del cron valen para los traslados con "traslado" en el texto; en un traslado, el cambio de horario es el del día o la
 hora de salida (la hora de fin no avisa), y "Tienes un traslado" y los recordatorios no llevan la zona (la de la casa puede no ser
 la de salida). Los fijos de traslado van en su propio resumen ("tu fijo de traslados con [madre]"). Como en los sittings, los
-recordatorios de 24 h y 1 h son solo de los puntuales.
+recordatorios de 24 h y 1 h son solo de los puntuales (OK del orquestador, 03/11/2026, con las otras tres decisiones del constructor:
+solo avisa el cambio de la hora de salida, las dos zonas obligatorias para mandar y el push con "Precio: $X por viaje").
+Cómo quedaron el panel y la app (03/11/2026): "+ Nueva solicitud" de traslado y el ticket de "Pegar WhatsApp" tienen origen, destino, la
+zona de destino (la de origen es la casilla de siempre) y los km, precargados con el último viaje de la familia (de sus pedidos, con las
+zonas, o de sus registros, con los km) o con la casa como origen, con "Invertir" y "Calcular km con el mapa"; el precio sale de los km con
+la tarifa de traslados (`precioTrasladoPorKm`, sittings.js, la misma cuenta que el registro). `pedido-whatsapp` saca del mensaje el origen,
+el destino ("casa" es la dirección de la ficha), la zona de destino y la hora de salida. "Elegir niñeras" de un traslado: solo con el
+carsitting aprobado (la marca "Sin carsitting aprobado" sin casilla), el precio por viaje editable sin "Guardar como precio", y el recorrido
+plegable para completarlo ahí (se guarda en la solicitud antes de mandar o asignar). "Asignar" lleva la ruta y los km al registro y
+`precio_viaje` a la fila. En la app, la tarjeta "Traslado [día]", "¡Quedaste seleccionada!" con las dos direcciones y "Cómo llegar" al
+origen y al destino, y la tarjeta del cambio con "traslado".
 
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo

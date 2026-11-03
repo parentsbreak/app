@@ -424,10 +424,11 @@ function onAgendaFamiliaInput(){
   const pagoInput = document.getElementById('agenda-pago-hora');
   if(f){
     // Si todavía no marcaron ninguna zona, se precargan las de la familia elegida.
-    if(f.zona && !leerZonasChecklist('agenda')) setZonasChecklist('agenda', f.zona, 'Zona');
+    if(f.zona && !leerZonasChecklist('agenda')) setZonasChecklist('agenda', f.zona);
     if(cobroInput && !cobroInput.value && f.cobro_hora) cobroInput.value = f.cobro_hora;
   }
   if(pagoInput) precargarPagoHoraAgenda();
+  prepararRutaAgenda();
   actualizarAgendaTotal();
 }
 /* Precio por niñera (01/11/2026): "Precio por hora a la niñera" viene con el de la niñera elegida con
@@ -524,8 +525,19 @@ function onAgendaTipoChange(){
   document.getElementById('agenda-total-preview').textContent = '';
   document.getElementById('agenda-pago-preview').textContent = '';
   pintarGuardarPrecioAgenda();
+  // En un traslado la zona es la de origen, y la ruta viene precargada con lo último de la familia (etapa 11).
+  setZonasChecklist('agenda', leerZonasChecklist('agenda'), tipo==='traslado' ? 'Zona de origen' : 'Zona');
+  if(tipo==='traslado') prepararRutaAgenda();
   if(tipo==='traslado' && !tarifaTrasladoConfig) cargarTarifaTrasladoConfig().then(actualizarAgendaPrecioTraslado);
   if(tipo==='traslado') actualizarAgendaPrecioTraslado();
+}
+// Origen y destino de "+ Nueva solicitud" (pedidos.js, htmlRutaTraslado): se leen de nuevo si cambia la familia.
+function prepararRutaAgenda(){
+  if(document.getElementById('agenda-tipo')?.value !== 'traslado') return;
+  const f = familiaNuevaSolicitud();
+  const id = f ? f.id : null;
+  if(rutasTraslado.agenda && rutasTraslado.agenda.familiaId === id) return;
+  prepararRutaTraslado('agenda', 'agenda', id, { onKm: actualizarAgendaPrecioTraslado });
 }
 // Mismo cálculo que en Sittings & traslados (tarifa base + km × precio/km, con recargo
 // horario) -- antes esta pantalla nunca miraba los km, usaba siempre la tarifa por hora
@@ -537,16 +549,7 @@ function actualizarAgendaPrecioTraslado(){
   const km = Number(document.getElementById('agenda-km')?.value||0);
   box.style.display = '';
   if(!km){ box.innerHTML = `<div class="helper" style="margin:0;">Cargá los km para ver el precio sugerido.</div>`; return; }
-  const cfg = tarifaTrasladoConfig;
-  const hora = leerHora('agenda-hora-inicio');
-  const mult = multiplicadorHorarioTraslado(hora);
-  const base = Number(cfg.tarifa_base)||0;
-  const porKm = Number(cfg.precio_km)||0;
-  const premium = Number(cfg.margen_premium)||1;
-  const margenNinera = Number(cfg.margen_ninera)||0;
-  const crudo = (base + km*porKm) * mult * premium;
-  const cobro = redondearArriba50(crudo);
-  const pago = redondearAbajo50(crudo * (1 - margenNinera));
+  const { cobro, pago } = precioTrasladoPorKm(km, leerHora('agenda-hora-inicio'));
   const cobroInput = document.getElementById('agenda-cobro-traslado');
   if(cobroInput && !cobroInput.dataset.tocadoManual){ cobroInput.value = cobro; marcarCampoSugerido('agenda-cobro-traslado'); }
   const pagoInput = document.getElementById('agenda-pago-traslado');
@@ -616,6 +619,7 @@ function renderAgendaHorarioPorDia(){
 }
 function abrirModalNuevaSolicitud(){
   agendaModoNueva = 'puntual';
+  delete rutasTraslado.agenda; // la ruta se lee de nuevo en cada solicitud
   agendaPreciosFam = { familiaId: null, filas: null, leida: false }; // se leen de nuevo en cada solicitud
 
   const html = `
@@ -640,13 +644,11 @@ function abrirModalNuevaSolicitud(){
       </div>
       <div id="agenda-carsitting-aviso"></div>
       ${checklistZonas('agenda', '', 'Zona')}
+      <div id="agenda-campo-traslado" style="display:none;">${htmlRutaTraslado('agenda')}</div>
       <div class="grid3">
         <div class="field"><label>Hora inicio</label>${selectHora('agenda-hora-inicio')}</div>
         <div class="field" id="agenda-hora-fin-wrap"><label>Hora fin</label>${selectHora('agenda-hora-fin')}</div>
         <div class="field" id="agenda-campo-sitting"><label>Precio por hora a la familia</label><div class="moneyfield por-hora"><input type="number" id="agenda-cobro" oninput="actualizarAgendaTotal()"></div></div>
-        <div class="field" id="agenda-campo-traslado" style="display:none;">
-          <label>Km recorridos</label><input type="number" step="0.1" id="agenda-km" oninput="actualizarAgendaPrecioTraslado()">
-        </div>
       </div>
       <div class="grid3" id="agenda-campo-pago-hora">
         <div class="field"><label>Precio por hora a la niñera</label><div class="moneyfield por-hora"><input type="number" id="agenda-pago-hora" oninput="marcarCampoEditadoManual('agenda-pago-hora');actualizarAgendaPagoPreview();pintarGuardarPrecioAgenda()"></div></div>
@@ -732,6 +734,8 @@ async function guardarSolicitudPuntual(){
   }
   if(cruceMedianocheMalMarcado(horaInicio, horaFin, cruza)){ warn.innerHTML = `<div class="warnbox">${escaparHtml(AVISO_CRUCE_MEDIANOCHE)}</div>`; return; }
   const fam = agendaFamilias.find(f=>normaliza(f.nombre)===normaliza(familiaTxt));
+  // La ruta de un traslado (etapa 11): no es obligatoria para guardar, sí para mandarlo por la app.
+  const ruta = tipo==='traslado' ? leerRutaTraslado('agenda') : null;
   let cobroFinal = null;
   if(tipo==='traslado'){
     // Traslado: el total ya viene armado (por km, o tipeado a mano) — no se multiplica por
@@ -790,12 +794,21 @@ async function guardarSolicitudPuntual(){
     termina_dia_siguiente: cruza,
     horario_aproximado: !!document.getElementById('agenda-aproximado')?.checked,
     cobro_familia: cobroFinal,
+    ...(ruta ? { origen: ruta.origen, destino: ruta.destino, destino_zona: ruta.destino_zona, km: ruta.km } : {}),
     // Con niñera nace sin asignar y la toma "Asignar" (asignarNineraAlPedido), como cualquier pedido (etapa 8).
     estado: 'sin_asignar',
   };
   const marcaAproximado = solicitud.horario_aproximado;
   const precioNinera = ninera && tipo==='sitting' ? precioNineraAGuardarAgenda() : null;
   let { data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single();
+  // Base sin la migración de la etapa 11: se guarda sin la ruta y se avisa.
+  const conRuta = !!(ruta && (ruta.origen || ruta.destino || ruta.destino_zona || ruta.km));
+  let sinRuta = false;
+  if(esFaltaColumnaRuta(error)){
+    ['origen', 'destino', 'destino_zona', 'km'].forEach(c=>{ delete solicitud[c]; });
+    sinRuta = conRuta;
+    ({ data: creada, error } = await sb.from('solicitudes').insert(solicitud).select('id').single());
+  }
   // Base sin la migración de la etapa 6: se guarda igual, sin la marca, y se avisa (como el ticket de WhatsApp).
   if(esFaltaColumnaSolicitudApp(error)){
     delete solicitud.horario_aproximado;
@@ -823,6 +836,7 @@ async function guardarSolicitudPuntual(){
     actualizarAgendaBadge();
     toast('Solicitud guardada.');
   }
+  if(sinRuta) toast('Falta actualizar la base: la solicitud se guardó sin el origen, el destino ni los km. Avisale a Diego.', 'bad');
   if(marcaAproximado && !('horario_aproximado' in solicitud)) toast('Falta actualizar la base: la solicitud se guardó sin la marca de horario aproximado. Avisale a Diego.', 'bad');
   // El precio de la niñera con esta familia, después de asignarla: si falla, lo asignado queda y se avisa.
   if(precioNinera){
@@ -853,7 +867,9 @@ async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
     const fila = { solicitud_id: s.id, ninera_id: ninera.id, ninera_nombre: ninera.nombre, estado: 'confirmada', pago_ninera: pago };
     const precioHora = precioHoraDelPago(s, pago);
     if(precioHora!=null) fila.precio_hora = precioHora;
-    const { error: errorNinera } = await insertarSinColumnasFaltantes('solicitud_ninieras', fila, ['precio_hora']);
+    // Un traslado (etapa 11): lo que se le paga por el viaje, que la niñera ve como "Precio: $X por viaje".
+    if(s.tipo==='traslado' && Number(pago) > 0) fila.precio_viaje = redondearPago(pago);
+    const { error: errorNinera } = await insertarSinColumnasFaltantes('solicitud_ninieras', fila, ['precio_hora', 'precio_viaje']);
     if(errorNinera) return { errorNinera };
   }
   const faltaFin = s.tipo!=='traslado' && !s.hora_fin;
@@ -865,6 +881,8 @@ async function cargarNineraYRegistro(s, ninera, pago, familia, snIdApp = null){
     termina_dia_siguiente: !!s.termina_dia_siguiente,
     cobro_familia: faltaFin ? 0 : (Number(s.cobro_familia)||0), pago_ninera: pago,
     cobrado: false, pagado: false, notas: 'Asignado desde Agenda', solicitud_id: s.id,
+    // La ruta del pedido (etapa 11): la niñera ve las direcciones en el registro confirmado.
+    ...(s.tipo==='traslado' ? { origen: s.origen || null, destino: s.destino || null, km: Number(s.km) > 0 ? Number(s.km) : null } : {}),
   }, ['solicitud_id']);
   return { errorRegistro, faltaFin };
 }
@@ -975,6 +993,9 @@ async function guardarAsignacionDirecta(solicitudId){
   if(!sel){ warn.innerHTML = '<div class="warnbox">Elegí una niñera.</div>'; return; }
   const s = agendaSolicitudes.find(x=>x.id===solicitudId);
   if(!s) return;
+  // Un traslado (etapa 11): el recorrido de "Elegir niñeras" va a la solicitud antes, así llega al registro.
+  const errRuta = await guardarRutaElegir();
+  if(errRuta){ warn.innerHTML = errBox(errRuta) + '<div class="warnbox">No se guardó el recorrido: no se asignó.</div>'; return; }
   // Si ya le llegó por la app (etapa 5), se confirma SU fila en vez de crear otra.
   await asignarNineraAlPedido({
     s, ninera: { id: sel.value, nombre: sel.dataset.nombre }, familia: familiaDeSolicitud(s),
@@ -1080,7 +1101,8 @@ function filaNineraSolicitud(s, n){
   const deApp = esRespuestaApp(n);
   const estadoPanel = `<span class="badge ${n.estado==='confirmada'?'good':n.estado==='rechazada'?'bad':'warn'}">${n.estado==='confirmada'?'Confirmada':n.estado==='rechazada'?'Rechazada':'Pendiente'}</span>`;
   const precio = deApp
-    ? (n.precio_hora!=null ? `<div class="helper" style="margin:2px 0 0;">$${Number(n.precio_hora).toLocaleString('es-UY')} por hora</div>` : '')
+    ? (s.tipo==='traslado' && Number(n.precio_viaje) > 0 ? `<div class="helper" style="margin:2px 0 0;">$${Number(n.precio_viaje).toLocaleString('es-UY')} por viaje</div>`
+      : n.precio_hora!=null ? `<div class="helper" style="margin:2px 0 0;">$${Number(n.precio_hora).toLocaleString('es-UY')} por hora</div>` : '')
     : (n.pago_ninera ? `<div class="helper" style="margin:2px 0 0;">Pago ${textoPagoAgenda({...s, pago_ninera: n.pago_ninera})}</div>` : '');
   return `
       <div class="agenda-ninerarow">
@@ -2250,7 +2272,10 @@ async function guardarCambioDeNinera(){
     const fila = { solicitud_id: r.solicitud_id, ninera_id: n.id, ninera_nombre: n.nombre, estado: 'confirmada', pago_ninera: pago };
     const precioHora = precioHoraDelPago(r, pago);
     if(precioHora!=null) fila.precio_hora = precioHora;
-    const { data: creada, error: e2 } = await sb.from('solicitud_ninieras').insert(fila).select('id');
+    // Un traslado (etapa 11): lo que se le paga por el viaje, como al asignar.
+    if(r.tipo==='traslado' && Number(pago) > 0) fila.precio_viaje = redondearPago(pago);
+    let { data: creada, error: e2 } = await sb.from('solicitud_ninieras').insert(fila).select('id');
+    if(esFaltaColumnaRuta(e2)){ delete fila.precio_viaje; ({ data: creada, error: e2 } = await sb.from('solicitud_ninieras').insert(fila).select('id')); }
     if(e2 || !(creada||[]).length){ await volverFilasCambio(viejas, null); aviso(e2 ? errBox(e2) : yaCambiado); return; }
     nueva = { id: creada[0].id, antes: null };
   }

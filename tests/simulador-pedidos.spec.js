@@ -81,8 +81,9 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
     e.db.solicitudes.find(s => s.id === SOL_UNO).fecha = '2026-10-03';
     expect(await err(SOL_UNO, [envio(ID.nCarla)])).toMatchObject({ message: 'pasado' });
     e.db.solicitudes.find(s => s.id === SOL_UNO).fecha = '2026-10-06';
+    // Etapa 11 (03/11/2026): un traslado ya se manda, pero sin origen ni destino no (el resto, en traslados-simulador).
     e.db.solicitudes.find(s => s.id === SOL_UNO).tipo = 'traslado';
-    expect(await err(SOL_UNO, [envio(ID.nCarla)])).toMatchObject({ message: 'solo_sittings' });
+    expect(await err(SOL_UNO, [envio(ID.nCarla)])).toMatchObject({ message: 'sin_origen_destino' });
     verificarLimpio(e, { ignorar: [RUIDO_4XX] });
   });
 
@@ -173,6 +174,8 @@ test.describe('simulador del pedido por la app (etapa 5)', () => {
       enviado_en: sn.enviado_en, respondido_en: null,
       // Etapa 6: las dos columnas nuevas, al final.
       horario_aproximado: false, solicitud_id: SOL_PRACTICA,
+      // Etapa 11: el tipo, la zona de destino y el precio por viaje (vacíos en un sitting).
+      tipo: 'sitting', destino_zona: null, precio_viaje: null,
     });
     const texto = JSON.stringify(lista.data);
     for (const prohibido of ['familia', 'Familia', 'direccion', 'cobro', 'notas']) expect(texto).not.toContain(prohibido);
@@ -410,7 +413,7 @@ test.describe('simulador de la elección de niñera (etapa 6)', () => {
     verificarLimpio(e);
   });
 
-  test('asignar con una fila nueva avisa; un traslado, una niñera sin app y un pedido pasado, no; la real con solo_practica, tampoco', async ({ page }) => {
+  test('asignar con una fila nueva avisa, también un traslado (etapa 11); una niñera sin app y un pedido pasado, no; la real con solo_practica, tampoco', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosEleccion() });
     const insertar = (sol, ninera, nombre) => page.evaluate(async ([s, n, nom]) => (await sb.from('solicitud_ninieras').insert({ solicitud_id: s, ninera_id: n, ninera_nombre: nom, estado: 'confirmada', pago_ninera: 500 })).error, [sol, ninera, nombre]);
     const S = n => `86000000-0000-4000-8000-00000000000${n}`;
@@ -424,10 +427,11 @@ test.describe('simulador de la elección de niñera (etapa 6)', () => {
     soloPracticaApagado(e);
     await insertar(S(2), ID.nCarla, 'Carla Ejemplo');
     expect(avisosDe(e, `pedido:${dela(S(2)).id}:seleccionada`)).toHaveLength(1);
-    await insertar(S(3), ID.nCarla, 'Carla Ejemplo'); // traslado
+    await insertar(S(3), ID.nCarla, 'Carla Ejemplo'); // traslado: desde la etapa 11, avisa igual
+    expect(avisosDe(e, `pedido:${dela(S(3)).id}:seleccionada`)).toHaveLength(1);
     await insertar(S(4), ID.nAna, 'Ana Ficticia'); // sin app
     await insertar(S(5), ID.nCarla, 'Carla Ejemplo'); // pedido pasado
-    expect(e.db.avisos.filter(a => a.clave.includes(':seleccionada'))).toHaveLength(1);
+    expect(e.db.avisos.filter(a => a.clave.includes(':seleccionada'))).toHaveLength(2);
     expect(dela(S(4)).seleccionada_en ?? null).toBeNull();
     verificarLimpio(e);
   });

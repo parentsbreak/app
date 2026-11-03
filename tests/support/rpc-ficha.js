@@ -31,6 +31,8 @@ function horarioTexto(hi, hf, termina) {
   return `de ${hhmm(hi)} a ${hhmm(hf)}${termina ? ' del día siguiente' : ''}`;
 }
 const esSitting = s => (s.tipo || 'sitting') === 'sitting';
+// Etapa 11 (03/11/2026, 20261109_traslados_app): los avisos por día valen también para un traslado (sinEtapa11: solo sittings).
+const conAvisos = (s, sinEtapa11) => esSitting(s) || (!sinEtapa11 && s.tipo === 'traslado');
 // La base no deja un largo de más de 1000 caracteres (char_length cuenta caracteres, no unidades UTF-16).
 const largo = t => Array.from(t).length;
 
@@ -94,7 +96,7 @@ function rpcFichaNinera(db, nineraId, ahora = null) {
           const f = (db.familias || []).find(x => x.id === c.familia_id);
           return { id: c.id, es_fijo: !!c.es_fijo, desde: c.desde, hora_inicio: c.hora_inicio ?? null, hora_fin: c.hora_fin ?? null,
             termina_dia_siguiente: !!c.termina_dia_siguiente, madre: madreNombreInicial(f && f.nombre != null ? f.nombre : c.familia_nombre),
-            zona: f && String(f.zona || '').trim() ? f.zona.trim() : null, creado_en: c.creado_en };
+            zona: f && String(f.zona || '').trim() ? f.zona.trim() : null, creado_en: c.creado_en, ...(c.tipo ? { tipo: c.tipo } : {}) };
         });
     },
     ninera_responder_cambio: ({ p_cambio_id, p_ok }) => {
@@ -123,7 +125,10 @@ function rpcFichaNinera(db, nineraId, ahora = null) {
 
 // aviso_sitting_ninera(): un aviso de un día a una niñera activa con app, si el sitting no empezó (y con solo_practica,
 // solo los de práctica). txid: el número de la "transacción" (cada escritura del simulador es una).
-function avisoSitting(db, ahoraISO, txid, tipo, s, { ninera_id, fecha, hora_inicio, hora_fin, termina_dia_siguiente }, fechaAntes = null) {
+// Un traslado (etapa 11): "traslado" en el texto, "Tienes un traslado" sin la zona y el cambio "a las [hora de salida]".
+function avisoSitting(db, ahoraISO, txid, tipo, s, { ninera_id, fecha, hora_inicio, hora_fin, termina_dia_siguiente }, fechaAntes = null, sinEtapa11 = false) {
+  const traslado = s.tipo === 'traslado';
+  const que = traslado ? 'traslado' : 'sitting';
   if (!ninera_id || !fecha) return;
   if (momento(fecha, hora_inicio || '00:00') <= Date.parse(ahoraISO)) return;
   const n = (db.ninieras || []).find(x => x.id === ninera_id);
@@ -135,55 +140,57 @@ function avisoSitting(db, ahoraISO, txid, tipo, s, { ninera_id, fecha, hora_inic
   const datos = { sitting_id: s.id };
   if (tipo === 'cancelado') {
     encolarAviso(db, ahoraISO, { clave: `sitting:${s.id}:cancelado:${txid}`, para_ninera_id: ninera_id, tipo: 'sitting',
-      titulo: `Se canceló tu sitting del ${dia}`, cuerpo: `Con ${madre.replace(/\.+$/, '')}. Si tienes dudas, escríbenos.`, url: '#inicio', datos });
+      titulo: `Se canceló tu ${que} del ${dia}`, cuerpo: `Con ${madre.replace(/\.+$/, '')}. Si tienes dudas, escríbenos.`, url: '#inicio', datos });
   } else if (tipo === 'sin') {
     encolarAviso(db, ahoraISO, { clave: `sitting:${s.id}:sin:${ninera_id}:${txid}`, para_ninera_id: ninera_id, tipo: 'sitting',
-      titulo: `Ya no vas al sitting del ${dia}`, cuerpo: 'El equipo hizo un cambio. Si tienes dudas, escríbenos.', url: '#inicio', datos });
+      titulo: `Ya no vas al ${que} del ${dia}`, cuerpo: 'El equipo hizo un cambio. Si tienes dudas, escríbenos.', url: '#inicio', datos });
   } else if (tipo === 'nuevo') {
     if (s.solicitud_id && (db.solicitud_ninieras || []).some(sn => sn.solicitud_id === s.solicitud_id && sn.ninera_id === ninera_id && sn.estado === 'confirmada')) return;
     encolarAviso(db, ahoraISO, { clave: `sitting:${s.id}:nuevo:${ninera_id}:${txid}`, para_ninera_id: ninera_id, tipo: 'sitting',
-      titulo: `Tienes un sitting el ${dia}`, cuerpo: `${hora_inicio ? hhmm(hora_inicio) : 'Sin horario'}${zona ? `, en ${zona}` : ''}. Mira los datos en la app.`, url: '#inicio', datos });
+      titulo: `Tienes un ${que} el ${dia}`,
+      cuerpo: `${traslado ? (hora_inicio ? `A las ${hhmm(hora_inicio)}` : 'Sin horario') : `${hora_inicio ? hhmm(hora_inicio) : 'Sin horario'}${zona ? `, en ${zona}` : ''}`}. Mira los datos en la app.`, url: '#inicio', datos });
   } else if (tipo === 'cambio') {
     const id = randomUUID();
-    const clave = `sitting:${s.id}:cambio:${fecha}:${hora_inicio ? hhmm(hora_inicio).replace(':', '') : ''}-${hora_fin ? hhmm(hora_fin).replace(':', '') : ''}${termina_dia_siguiente ? 'd' : ''}`;
+    const clave = `sitting:${s.id}:cambio:${fecha}:${hora_inicio ? hhmm(hora_inicio).replace(':', '') : ''}-${traslado ? '' : `${hora_fin ? hhmm(hora_fin).replace(':', '') : ''}${termina_dia_siguiente ? 'd' : ''}`}`;
     const otroDia = fechaAntes && fechaAntes !== fecha;
     if (encolarAviso(db, ahoraISO, { clave, para_ninera_id: ninera_id, tipo: 'sitting',
-      titulo: `Cambió el horario de tu sitting del ${diaCortoTexto(fechaAntes || fecha)}`,
-      cuerpo: `Ahora es ${otroDia ? `el ${dia}, ` : ''}${horarioTexto(hora_inicio, hora_fin, termina_dia_siguiente)}. Mira los detalles.`,
+      titulo: `Cambió el horario de tu ${que} del ${diaCortoTexto(fechaAntes || fecha)}`,
+      cuerpo: `Ahora es ${otroDia ? `el ${dia}, ` : ''}${traslado ? (hora_inicio ? `a las ${hhmm(hora_inicio)}` : 'sin horario') : horarioTexto(hora_inicio, hora_fin, termina_dia_siguiente)}. Mira los detalles.`,
       url: `#cambio/${id}`, datos: { ...datos, cambio_id: id } })) {
       (db.cambios_horario = db.cambios_horario || []).push({ id, ninera_id, familia_id: s.familia_id ?? null, familia_nombre: s.familia_nombre ?? null,
-        sitting_id: s.id, solicitud_id: s.solicitud_id ?? null, es_fijo: false, desde: fecha, hora_inicio: hora_inicio ?? null, hora_fin: hora_fin ?? null,
-        termina_dia_siguiente: !!termina_dia_siguiente, creado_en: ahoraISO, respuesta: null, respondido_en: null });
+        sitting_id: s.id, solicitud_id: s.solicitud_id ?? null, es_fijo: false, desde: fecha, hora_inicio: hora_inicio ?? null,
+        hora_fin: traslado ? null : hora_fin ?? null, termina_dia_siguiente: traslado ? false : !!termina_dia_siguiente,
+        creado_en: ahoraISO, respuesta: null, respondido_en: null, ...(sinEtapa11 ? {} : { tipo: que }) });
     }
   }
 }
 
 // sittings_avisos_cambios(): metodo 'POST' | 'PATCH' | 'DELETE'; pares [antes, después] (antes null en un insert,
-// después null en un delete). Solo sittings.
+// después null en un delete). Sittings y, desde la etapa 11, traslados (en un traslado la hora de fin no avisa).
 let txSimulada = 0;
-function avisosSittings(db, ahoraISO, metodo, pares) {
+function avisosSittings(db, ahoraISO, metodo, pares, { sinEtapa11 = false } = {}) {
   const txid = ++txSimulada;
-  const campos = ['cancelado', 'ninera_id', 'fecha', 'hora_inicio', 'hora_fin', 'termina_dia_siguiente'];
+  const camposDe = s => ['cancelado', 'ninera_id', 'fecha', 'hora_inicio', ...(s.tipo === 'traslado' ? [] : ['hora_fin', 'termina_dia_siguiente'])];
   const de = s => ({ ninera_id: s.ninera_id, fecha: s.fecha, hora_inicio: s.hora_inicio, hora_fin: s.hora_fin, termina_dia_siguiente: !!s.termina_dia_siguiente });
   for (const [o, n] of pares) {
     if (metodo === 'POST') {
-      if (esSitting(n) && !n.cancelado && n.asignacion_id == null) avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n));
+      if (conAvisos(n, sinEtapa11) && !n.cancelado && n.asignacion_id == null) avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n), null, sinEtapa11);
     } else if (metodo === 'DELETE') {
-      if (esSitting(o) && !o.cancelado) avisoSitting(db, ahoraISO, txid, 'cancelado', o, de(o));
-    } else if (esSitting(n) && campos.some(c => (o[c] ?? null) !== (n[c] ?? null) && !(c === 'termina_dia_siguiente' && !!o[c] === !!n[c]))) {
-      if (!o.cancelado && n.cancelado) avisoSitting(db, ahoraISO, txid, 'cancelado', n, de(o));
-      else if (o.cancelado && !n.cancelado) avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n));
+      if (conAvisos(o, sinEtapa11) && !o.cancelado) avisoSitting(db, ahoraISO, txid, 'cancelado', o, de(o), null, sinEtapa11);
+    } else if (conAvisos(n, sinEtapa11) && camposDe(n).some(c => (o[c] ?? null) !== (n[c] ?? null) && !(c === 'termina_dia_siguiente' && !!o[c] === !!n[c]))) {
+      if (!o.cancelado && n.cancelado) avisoSitting(db, ahoraISO, txid, 'cancelado', n, de(o), null, sinEtapa11);
+      else if (o.cancelado && !n.cancelado) avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n), null, sinEtapa11);
       else if (!n.cancelado && (o.ninera_id ?? null) !== (n.ninera_id ?? null)) {
-        avisoSitting(db, ahoraISO, txid, 'sin', n, de(o));
-        avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n));
-      } else if (!n.cancelado) avisoSitting(db, ahoraISO, txid, 'cambio', n, de(n), o.fecha);
+        avisoSitting(db, ahoraISO, txid, 'sin', n, de(o), null, sinEtapa11);
+        avisoSitting(db, ahoraISO, txid, 'nuevo', n, de(n), null, sinEtapa11);
+      } else if (!n.cancelado) avisoSitting(db, ahoraISO, txid, 'cambio', n, de(n), o.fecha, sinEtapa11);
     }
   }
 }
 
 // Lo nuevo de solicitudes_al_cancelar() (etapa 8): la elegida pasa a 'cancelado' y su registro de hoy en adelante, si
 // no está cobrado ni pagado, queda cancelado en $0 (con su aviso, como cualquier cancelación).
-function cancelarRegistroDelPedido(db, ahoraISO, s) {
+function cancelarRegistroDelPedido(db, ahoraISO, s, opciones = {}) {
   const hoy = fechaMvd(Date.parse(ahoraISO));
   (db.solicitud_ninieras || []).forEach(sn => { if (sn.solicitud_id === s.id && sn.estado === 'confirmada') sn.estado = 'cancelado'; });
   const pares = [];
@@ -194,7 +201,7 @@ function cancelarRegistroDelPedido(db, ahoraISO, s) {
       notas: [String(r.notas || '').trim(), 'Pedido cancelado'].filter(Boolean).join(' — ') });
     pares.push([antes, r]);
   }
-  if (pares.length) avisosSittings(db, ahoraISO, 'PATCH', pares);
+  if (pares.length) avisosSittings(db, ahoraISO, 'PATCH', pares, opciones);
 }
 
 module.exports = { RPC_ETAPA_8, TABLAS_ETAPA_8, rpcFichaNinera, avisosSittings, cancelarRegistroDelPedido };
