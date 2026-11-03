@@ -2172,9 +2172,12 @@ function compartirCvsPerfiles(){
    su celular. Los avisos de esos casos traen "?ir=hoy&sitting=<id>" y esa fila queda marcada. Una lectura de los
    sittings y otra (en paralelo) de sus eventos, sus cierres y las niñeras. Sin la migración (las tablas no existen)
    o si algo falla, no aparece: es un atajo y lo demás de Hoy sigue. Sin Realtime: se lee al abrir Hoy (los avisos
-   abren Hoy de nuevo). */
+   abren Hoy de nuevo).
+   Traslados (etapa 11b, decisiones.md 6.10): hasta que los busca (o los deja): va a llegar tarde, no están los chicos
+   o, en un puntual, llegó la hora de salida sin ningún toque. El título dice "En curso" si hay alguno. */
 let sittingDeLinkHoy = null; // el sitting de "?ir=hoy&sitting=<id>" (app-shell.js), para marcar su fila una vez
 const NO_LLEGO_MIN = 15; // como app_config 'el_dia'.no_llego_min (la base avisa con el mismo número)
+const NO_SALIO_MIN = 0; // como app_config 'el_dia'.no_salio_min (etapa 11b)
 
 function problemasSittingEnCurso(s, eventos, ahora){
   const de = tipo => eventos.find(e => e.tipo === tipo);
@@ -2184,8 +2187,11 @@ function problemasSittingEnCurso(s, eventos, ahora){
   if(tarde) lista.push(`Va a llegar ${tarde.minutos === 30 ? '30 min o más' : `${tarde.minutos} min`} tarde (avisó a las ${hora(tarde)}).`);
   if(de('no_abren')) lista.push(`Está afuera y no le abren (${hora(de('no_abren'))}).`);
   if(de('no_encuentro')) lista.push(`No encuentra la casa (${hora(de('no_encuentro'))}).`);
+  if(de('no_estan')) lista.push(`Llegó y no están los chicos (${hora(de('no_estan'))}).`);
   const inicio = s.hora_inicio ? Date.parse(`${s.fecha}T${String(s.hora_inicio).slice(0,5)}:00-03:00`) : null;
-  if(!s.asignacion_id && inicio != null && ahora >= inicio + NO_LLEGO_MIN * 60000) lista.push('No marcó que llegó.');
+  if(s.tipo === 'traslado'){
+    if(!s.asignacion_id && !eventos.length && inicio != null && ahora >= inicio + NO_SALIO_MIN * 60000) lista.push('No marcó que salió.');
+  }else if(!s.asignacion_id && inicio != null && ahora >= inicio + NO_LLEGO_MIN * 60000) lista.push('No marcó que llegó.');
   return lista;
 }
 
@@ -2194,8 +2200,8 @@ async function cargarSittingsEnCurso(){
   if(!box) return;
   const hoy = todayISO(), ayer = sumarDiasISO(hoy, -1);
   const { data: sits, error } = await sb.from('sittings_traslados')
-    .select('id,fecha,hora_inicio,hora_fin,termina_dia_siguiente,asignacion_id,ninera_id,ninera_nombre,familia_nombre')
-    .eq('tipo', 'sitting').eq('cancelado', false).eq('estado', 'confirmado').in('fecha', [ayer, hoy]);
+    .select('id,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,asignacion_id,ninera_id,ninera_nombre,familia_nombre')
+    .in('tipo', ['sitting', 'traslado']).eq('cancelado', false).eq('estado', 'confirmado').in('fecha', [ayer, hoy]);
   const conNinera = (sits || []).filter(s => s.ninera_id);
   if(error || !conNinera.length){ if(document.getElementById('dash-en-curso')) box.innerHTML = ''; return; }
   const ids = conNinera.map(s => s.id);
@@ -2212,7 +2218,8 @@ async function cargarSittingsEnCurso(){
   const filas = conNinera.map(s => {
     const n = ninieras.get(s.ninera_id);
     const eventos = (ev.data || []).filter(e => e.sitting_id === s.id);
-    if(!n || !n.user_id || cerrados.has(s.id) || eventos.some(e => e.tipo === 'entre')) return null;
+    // Ya entró (sitting) o ya los buscó o los dejó (traslado): no es un problema.
+    if(!n || !n.user_id || cerrados.has(s.id) || eventos.some(e => ['entre', 'busque', 'deje'].includes(e.tipo))) return null;
     // Hasta el fin previsto (o 4 horas después del inicio, sin hora de fin): después ya no es "en curso".
     const inicio = s.hora_inicio ? Date.parse(`${s.fecha}T${String(s.hora_inicio).slice(0,5)}:00-03:00`) : null;
     const fin = s.hora_fin ? Date.parse(`${s.termina_dia_siguiente ? sumarDiasISO(s.fecha, 1) : s.fecha}T${String(s.hora_fin).slice(0,5)}:00-03:00`) : (inicio != null ? inicio + 4 * 3600000 : null);
@@ -2225,10 +2232,12 @@ async function cargarSittingsEnCurso(){
   sittingDeLinkHoy = null;
   const hhmm = h => escaparHtml(String(h || '').slice(0, 5));
   pintarSiCambio(box, `<div class="card en-curso-card">
-    <h2 style="margin:0 0 6px;">Sitting en curso</h2>
+    <h2 style="margin:0 0 6px;">${filas.some(f => f.s.tipo === 'traslado') ? 'En curso' : 'Sitting en curso'}</h2>
     ${filas.map(({ s, n, problemas }) => `<div class="en-curso-fila${s.id === marcado ? ' marcada' : ''}" data-sitting="${escaparHtml(s.id)}">
       <div class="en-curso-txt">
-        <div><b>${escaparHtml(s.ninera_nombre)}</b> en ${escaparHtml(s.familia_nombre)}, ${hhmm(s.hora_inicio)}${s.hora_fin ? ' a ' + hhmm(s.hora_fin) : ''}</div>
+        <div>${s.tipo === 'traslado'
+          ? `<b>${escaparHtml(s.ninera_nombre)}</b>, traslado de ${escaparHtml(s.familia_nombre)} a las ${hhmm(s.hora_inicio)}`
+          : `<b>${escaparHtml(s.ninera_nombre)}</b> en ${escaparHtml(s.familia_nombre)}, ${hhmm(s.hora_inicio)}${s.hora_fin ? ' a ' + hhmm(s.hora_fin) : ''}`}</div>
         ${problemas.map(p => `<div class="helper" style="margin:2px 0 0;">${escaparHtml(p)}</div>`).join('')}
       </div>
       ${String(n.telefono || '').replace(/\D/g, '')

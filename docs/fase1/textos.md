@@ -16,6 +16,7 @@ Primera línea = título; segunda = cuerpo.
 | 15 min antes de salir | Borrado (muchas no salen de su casa). |
 | A la hora de fin prevista | **¿Ya te retiraste del hogar?** / Cuéntanos hasta qué hora estuviste. |
 | 30 min después del fin, si no cerró | **Te falta cerrar el sitting** / Cuéntanos hasta qué hora estuviste. Botón "Se extendió el sitting". |
+| Traslado: 30 min después de "Ya los dejé", si no cerró (etapa 11b) | **Te falta cerrar el traslado** / Cuéntanos si hubo algún gasto. |
 | Cambio de horario | **Cambió el horario de tu sitting del [día]** / Ahora es de [hora inicio] a [hora fin]. Mira los detalles. Botones "Ok" / "A esa hora no puedo" (avisa a las admins para buscar a otra). |
 | Cancelación | **Se canceló tu sitting del [día]** / Con [madre: nombre + inicial]. Si tienes dudas, escríbenos. |
 | Pago del sábado | Borrado. Nunca. |
@@ -63,6 +64,11 @@ Primera línea = título; segunda = cuerpo.
 - Comentarios extras (reemplaza "¿Pasó algo?"): campo libre; llega al instante a las admins.
 - Calificación: ¿Cómo te fue con la familia? (1 a 5 estrellas). ¿Te gustaría volver a esa casa? Sí / Prefiero otros perfiles. ¿A qué jugaron? Deja feedback de juguetes si corresponde. Comentarios para el equipo (no lo ve la familia).
 - Al enviar: ¡Gracias, [niñera]! Ya quedó registrado.
+- Traslado (etapa 11b, 03/11/2026): tarjeta "Traslado de hoy" / "A las [hora], de [zona] a [zona]". Antes: Estoy saliendo / Voy a llegar
+  tarde / No están los chicos (avisa al instante a las admins) / Ya los busqué. Después: Ya los dejé (abre el cierre) y, si no cerró,
+  "Cerrar el traslado". Un fijo: solo Ya los busqué / Ya los dejé.
+- Cierre del traslado (sin hora): ¿Pagaste peajes, estacionamiento u otro gasto? Monto, ¿En qué? (ejemplo "Peaje, estacionamiento"),
+  foto del comprobante, "Te lo reintegramos junto al pago". Comentarios extras. Mismo "¡Gracias!".
 - Chat: Contáctate con una operadora de Parents' Break.
 - Mis pagos: Borrado. No existe.
 
@@ -87,6 +93,11 @@ Primera línea = título; segunda = cuerpo.
 - La niñera terminó: [niñera] terminó en [familia] a las [hora] / Revisa el registro.
 - Gasto: [niñera] cargó un gasto de [monto] / Con comprobante. Elige quién lo paga.
 - Comentarios extras: [niñera] dejó un comentario del sitting con [familia] / Léelo ahora.
+- Traslados (etapa 11b): Va a llegar tarde: [niñera] va a llegar [minutos] tarde / Al traslado de [familia]. No están los chicos:
+  [niñera] llegó y no están los chicos / Traslado de [familia]. No marcó que salió (a la hora de salida, sin ningún toque, puntuales):
+  [niñera] no marcó que salió / El traslado de [familia] salía a las [hora]. Cerró: [niñera] cerró el traslado de [familia] / Revisalo
+  en Hoy. No cerró (30 min después de "Ya los dejé"): [niñera] no cerró el traslado / Dejó a los chicos de [familia] a las [hora].
+  Comentario: [niñera] dejó un comentario del traslado de [familia] / Leelo ahora.
 - Carsitting para revisar: [niñera] completó el carsitting / Revísalo para habilitarle traslados.
 - Chat: [niñera] / [mensaje]
 

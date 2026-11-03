@@ -290,11 +290,13 @@ select public.programar_avisos_el_dia('2030-01-10 07:05-03');
 select public.programar_avisos_el_dia('2030-01-10 08:40-03');
 select public.programar_avisos_el_dia('2030-01-10 09:10-03');
 select public.programar_avisos_el_dia('2030-01-10 09:50-03');
+-- (a las admins, desde la etapa 11b, "no marcó que salió": fase1_dia_traslados.sql)
 select pg_temp.verificar('24 h y 1 h con "traslado" y sin la zona; nada más (ni no_llego, ni fin, ni fin30)',
   pg_temp.avisos_de('b2100000-0000-4000-8000-000000000002') @> array['¡Hola! Mañana tienes un traslado | Jueves 10/01 a las 08:00.',
     'Tu traslado empieza en 1 hora | 08:00.']
   and cardinality(pg_temp.avisos_de('b2100000-0000-4000-8000-000000000002')) = 2
-  and not exists (select 1 from avisos where clave like 'admin:sitting:b5100000-0000-4000-8000-000000000011%'));
+  and not exists (select 1 from avisos where clave like 'admin:sitting:b5100000-0000-4000-8000-000000000011%'
+                    and clave <> 'admin:sitting:b5100000-0000-4000-8000-000000000011:no_salio'));
 
 -- ---------------------------------------------------------------------------
 -- Los fijos de traslado: el resumen por fijo, aparte del de sitting de la misma familia
