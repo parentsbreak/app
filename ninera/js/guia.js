@@ -191,8 +191,10 @@ async function pantallaModuloGuia(moduloId){
   </main>`);
 }
 
-// El HTML de la lección es contenido del repo (la guía), no datos de nadie: va con innerHTML (decisiones 8).
-async function pantallaLeccionGuia(moduloId, leccionId){
+// El HTML de la lección es contenido del repo (la guía), no datos de nadie: va con innerHTML (decisiones 8). Las de
+// actividades traen sus juegos (`juegos`, juegos.js) debajo del texto, como el original. Con sittingId (abierta desde
+// "Para este sitting", etapa 12) vuelve ahí y queda en su ruta.
+async function pantallaLeccionGuia(moduloId, leccionId, { sittingId } = {}){
   let guia;
   try{
     guia = await cargarContenidoGuia();
@@ -203,24 +205,31 @@ async function pantallaLeccionGuia(moduloId, leccionId){
   }
   const m = guia.modulos.find(x => x.id === moduloId);
   const l = m && m.lecciones.find(x => x.id === leccionId);
-  if(!l) return pantallaGuiaNinera();
-  marcarRuta('#guia');
+  if(!l) return sittingId ? pantallaParaSitting(sittingId) : pantallaGuiaNinera();
+  marcarRuta(sittingId ? `#sitting/${sittingId}/guia` : '#guia');
+  const desde = sittingId ? `, ${argJs(sittingId)}` : '';
   pintar(`<main class="pantalla pantalla-guia">
     ${cabeceraGuia(l.titulo)}
+    ${sittingId ? `<p class="helper guia-desde-sitting">${escaparHtml(m.nombre)}, ${escaparHtml(m.edad)}</p>` : ''}
     ${l.subtitulo ? `<p class="helper">${escaparHtml(l.subtitulo)}</p>` : ''}
     <article class="guia-leccion" id="guia-leccion"></article>
+    <div id="guia-kit"></div>
     <p class="error-form" id="guia-error" role="alert"></p>
-    <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>marcarLeidaGuia(${argJs(m.id)}, ${argJs(l.id)}))">Ya lo leí</button>
-    <button type="button" class="link-boton" onclick="pantallaModuloGuia(${argJs(m.id)})">Volver a ${escaparHtml(m.nombre)}</button>
+    <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>marcarLeidaGuia(${argJs(m.id)}, ${argJs(l.id)}${desde}))">Ya lo leí</button>
+    ${sittingId
+      ? `<button type="button" class="link-boton" onclick="pantallaParaSitting(${argJs(sittingId)})">Volver a Para este sitting</button>`
+      : `<button type="button" class="link-boton" onclick="pantallaModuloGuia(${argJs(m.id)})">Volver a ${escaparHtml(m.nombre)}</button>`}
   </main>`);
   document.getElementById('guia-leccion').innerHTML = l.html;
+  montarKitJuegos(document.getElementById('guia-kit'), l.juegos);
   window.scrollTo(0, 0);
 }
 
-// Anota la lección y sigue con la próxima del módulo (o vuelve al módulo si era la última). Si falla, el aviso
-// queda arriba del botón para reintentar. El aviso no se borra al empezar: si se borrara, la pantalla subiría
-// y un segundo toque rápido caería en "Volver" (02/11/2026, lo encontró el test del doble toque).
-async function marcarLeidaGuia(moduloId, leccionId){
+// Anota la lección y sigue con la próxima del módulo (o vuelve al módulo si era la última); abierta desde "Para este
+// sitting" (sittingId), vuelve ahí. Si falla, el aviso queda arriba del botón para reintentar. El aviso no se borra al
+// empezar: si se borrara, la pantalla subiría y un segundo toque rápido caería en "Volver" (02/11/2026, lo encontró
+// el test del doble toque).
+async function marcarLeidaGuia(moduloId, leccionId, sittingId){
   const aviso = document.getElementById('guia-error');
   let guia;
   try{
@@ -232,6 +241,7 @@ async function marcarLeidaGuia(moduloId, leccionId){
     if(aviso) aviso.textContent = /no_autorizada/.test(err?.message || '') ? CUENTA_NO_ACTIVA : FALLA_GUARDAR_GUIA;
     return;
   }
+  if(sittingId) return pantallaParaSitting(sittingId);
   const m = guia.modulos.find(x => x.id === moduloId);
   const i = m.lecciones.findIndex(x => x.id === leccionId);
   if(i >= 0 && i < m.lecciones.length - 1) return pantallaLeccionGuia(moduloId, m.lecciones[i + 1].id);

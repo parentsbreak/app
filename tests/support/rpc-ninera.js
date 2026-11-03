@@ -72,6 +72,37 @@ function chicosTexto(db, familiaId, hoy) {
   const lista = partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`;
   return `${n} ${n === 1 ? 'chico' : 'chicos'} (${lista})`;
 }
+// Etapa 12 (03/11/2026, 20261111_guia_sitting): las columnas de "Para este sitting", con la regla de la SQL.
+// edades_meses: por mes calendario (mes del sitting menos mes de nacimiento), sin negativos; edades_anios: los sin
+// fecha con edad cargada a mano, al día del sitting; necesidades: palabras clave en "salud" de la ficha que vería la
+// niñera (la de este sitting, si no la última de la familia), en minúsculas y sin tildes. Solo en sittings.
+const NECESIDADES_SALUD = [
+  ['autismo', /autis|asperger|(^|[^\p{L}\p{N}_])tea($|[^\p{L}\p{N}_])/u],
+  ['tdah', /tdah|hiperactiv|deficit de atencion/],
+  ['discapacidad', /discapacid|sindrome de down|paralisis|silla de ruedas/],
+];
+function hijosOrdenados(db, familiaId) {
+  return (db.hijos_familia || []).filter(h => familiaId && h.familia_id === familiaId)
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
+}
+function mesesCalendario(fecha, nacimiento) {
+  const [ya, ma] = fecha.split('-').map(Number), [yn, mn] = nacimiento.split('-').map(Number);
+  return (ya * 12 + ma) - (yn * 12 + mn);
+}
+function columnasParaSitting(db, s) {
+  if (s.tipo !== 'sitting') return { edades_meses: [], edades_anios: [], necesidades: [] };
+  const hijos = hijosOrdenados(db, s.familia_id);
+  const ficha = (db.fichas_familia || []).filter(f => s.familia_id && f.familia_id === s.familia_id)
+    .sort((a, b) => Number(b.sitting_id === s.id) - Number(a.sitting_id === s.id) || String(b.actualizada_en).localeCompare(String(a.actualizada_en)))[0];
+  const salud = typeof ficha?.datos?.salud === 'string'
+    ? ficha.datos.salud.toLowerCase().replace(/[áéíóúü]/g, c => ({ á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u', ü: 'u' })[c]) : '';
+  return {
+    edades_meses: hijos.filter(h => h.fecha_nacimiento).map(h => mesesCalendario(s.fecha, h.fecha_nacimiento)).filter(m => m >= 0),
+    edades_anios: hijos.filter(h => !h.fecha_nacimiento && h.edad_declarada != null)
+      .map(h => h.edad_declarada + Math.max(0, h.edad_declarada_en ? anosEntre(h.edad_declarada_en, s.fecha) : 0)),
+    necesidades: NECESIDADES_SALUD.filter(([, patron]) => patron.test(salud)).map(([n]) => n),
+  };
+}
 // order by hora_inicio: en Postgres, sin hora va al final del día.
 function horaParaOrdenar(s) { return s.hora_inicio == null ? '99' : String(s.hora_inicio); }
 const TIPOS_PERFIL = ['Niñera', 'Traslados', 'Ambas'];
@@ -430,7 +461,8 @@ function rpcPedidosAdmin(db, ahora = new Date().toISOString(), { admin = true, g
 // ninera_mis_pedidos / ninera_mis_sittings devuelven lo de antes, sin las columnas nuevas.
 // sinEtapa4: sin 20261105_guia, ninera_mi_perfil no devuelve el RCP.
 // sinEtapa11: sin 20261109_traslados_app, ninera_mis_pedidos / ninera_mis_sittings sin tipo, destino_zona ni precio_viaje.
-function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false, sinEtapa4 = sinEtapa6, sinEtapa11 = sinEtapa6 } = {}) {
+// sinEtapa12: sin 20261111_guia_sitting, ninera_mis_sittings sin edades_meses, edades_anios ni necesidades.
+function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 = false, sinEtapa4 = sinEtapa6, sinEtapa11 = sinEtapa6, sinEtapa12 = sinEtapa11 } = {}) {
   const hoy = fechaMontevideo(ahora);
   const ahoraISO = new Date(ahora).toISOString();
   const miFila = () => (db.ninieras || []).find(n => n.id === nineraId);
@@ -524,6 +556,7 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 =
               precio_viaje: s.tipo === 'traslado' ? (db.solicitud_ninieras || []).filter(x => x.solicitud_id === s.solicitud_id && x.ninera_id === s.ninera_id && x.estado === 'confirmada')
                 .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.precio_viaje ?? null : null,
             }),
+            ...(sinEtapa12 ? {} : columnasParaSitting(db, s)),
           };
         });
     },
@@ -702,4 +735,4 @@ function rpcNinera(db, nineraId, ahora = new Date().toISOString(), { sinEtapa6 =
   };
 }
 
-module.exports = { rpcNinera, errorRpc, encolarAviso, madreNombreInicial, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, COLUMNAS_ETAPA_11, alConfirmarFila, alCancelarSolicitud, pedidoPuedeAvisar, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };
+module.exports = { rpcNinera, columnasParaSitting, errorRpc, encolarAviso, madreNombreInicial, rpcNoExiste, RPC_ETAPA_2, COLUMNAS_NINIERAS_ETAPA_2, RPC_ETAPA_3, TABLAS_ETAPA_3, RPC_ETAPA_9, COLUMNAS_NINIERAS_ETAPA_9, RPC_ETAPA_5, RPC_ETAPA_5_ADMIN, TABLAS_ETAPA_5, COLUMNAS_ETAPA_5, RPC_ETAPA_6, COLUMNAS_ETAPA_6, COLUMNAS_ETAPA_11, alConfirmarFila, alCancelarSolicitud, pedidoPuedeAvisar, rpcPedidosAdmin, avisoPedidoNuevo, inicioTemporadaMvd, recortarBlancos, largo, insertarMensajeChat };

@@ -74,6 +74,7 @@ Armarlo para hoy, empezando en unos 45 minutos y de una hora de duración, así 
 - [ ] iPhone: "Ya se cubrió" / "Se canceló" no aparece (fue elegida); al cambiar de pantalla la tarjeta "¡Quedaste seleccionada!" ya no vuelve.
 - [ ] iPhone: llega "Tu sitting empieza en 1 hora" → la tarjeta "Sitting de hoy" ya está en el inicio (aparece 3 horas antes).
 - [ ] iPhone: tarjeta del día > "Ficha de la familia" > completarla con el teclado → el teclado no tapa los campos; guarda y en el panel la ficha está en "Fichas de la familia".
+- [ ] iPhone: tarjeta del día > "Para este sitting" (etapa 12) → las lecciones y los juegos de la edad de "Familia (práctica)"; "Llamar al 911" y "Intoxicaciones, CIAT: 1722" abren la llamada del iPhone (cancelarla sin llamar). El laberinto se dibuja con el dedo sin que se mueva la pantalla; el diario se escribe con el teclado sin que tape el campo.
 - [ ] iPhone: "Estoy saliendo" y después "Voy a llegar tarde" > 10 min → Compu: push "va a llegar 10 min tarde" que abre Hoy con "Sitting en curso" marcado y "Contactarla" abre WhatsApp a su celular.
 - [ ] iPhone: "Ya entré" → la tarjeta dice la hora en que entró y queda "Llegaron los padres".
 - [ ] iPhone: a la hora de fin, push "¿Ya te retiraste del hogar?" → abre el cierre con la hora de fin precargada.

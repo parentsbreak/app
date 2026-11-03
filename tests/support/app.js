@@ -264,7 +264,7 @@ async function abrirApp(page, opciones = {}) {
   if (sinCv) (estado.db.ninieras || []).forEach(n => { delete n.cv_datos; delete n.cv_generado_con; });
   await prepararPagina(page, estado, { usuario: USUARIO, claveSesion: `sb-${REF_PROD}-auth-token`, sesion, ahora,
     baseSinMigrar: sinMigrarTodo, sinEtapa5, sinEtapa6, sinEtapa4, sinEtapa8, sinEtapa10, sinEtapa11, sinCv,
-    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7', 'etapa8', 'etapa10', 'etapa11', 'etapa11b'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
+    tablasSinMigrar: [...(baseSinMigrar === 'etapa5' ? TABLAS_ETAPA_5 : baseSinMigrar && !['etapa4', 'etapa7', 'etapa8', 'etapa10', 'etapa11', 'etapa11b', 'etapa12'].includes(baseSinMigrar) ? [...TABLAS_ETAPA_3, ...TABLAS_ETAPA_5] : []),
       ...(sinEtapa4 ? TABLAS_ETAPA_4 : []), ...(sinEtapa7 ? TABLAS_ETAPA_7 : []), ...(sinEtapa8 ? TABLAS_ETAPA_8 : [])] });
 
   await page.goto(ruta);
@@ -286,7 +286,8 @@ async function abrirApp(page, opciones = {}) {
  *     chat_mensajes y avisos dan 404 PGRST205; las de la etapa 1 andan. 'etapa3': falta la 3
  *     (y con ella la 9; el perfil y los próximos sittings andan). 'etapa9' (01/11/2026): solo falta
  *     la de la temporada (ninera_mi_temporada y ninera_guardar_temporada dan 404 PGRST202, ninieras
- *     sin sus dos columnas); lo de las etapas 2 y 3 anda
+ *     sin sus dos columnas); lo de las etapas 2 y 3 anda. 'etapa12' (03/11/2026): solo falta
+ *     20261111_guia_sitting (ninera_mis_sittings sin edades_meses, edades_anios ni necesidades)
  *   funciones: Edge Functions simuladas por nombre desde el primer pedido (como estado.funciones,
  *     pero antes de navegar: con consulta, la app llama a la función apenas abre)
  *   instalada: true simula la app abierta desde la pantalla de inicio (display-mode: standalone
@@ -312,8 +313,10 @@ async function abrirAppNinera(page, opciones = {}) {
   const sinEtapa10 = sinEtapa8 || baseSinMigrar === 'etapa10';
   const sinEtapa11 = sinEtapa10 || baseSinMigrar === 'etapa11';
   const sinEtapa11b = sinEtapa11 || baseSinMigrar === 'etapa11b';
+  // Etapa 12 (20261111_guia_sitting): ninera_mis_sittings sin las columnas de "Para este sitting".
+  const sinEtapa12 = sinEtapa11b || baseSinMigrar === 'etapa12';
   completarFirmasPorDefecto(estado.db);
-  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4, sinEtapa11 }));
+  Object.assign(estado.rpc, rpcNinera(estado.db, ninera, ahora || undefined, { sinEtapa6, sinEtapa4, sinEtapa11, sinEtapa12 }));
   Object.assign(estado.rpc, rpcDiaDelTest(estado.db, ninera, ahora || undefined, { sinEtapa7, sinEtapa11b }));
   Object.assign(estado.rpc, sinEtapa8 ? Object.fromEntries(RPC_ETAPA_8.map(n => [n, rpcNoExiste(n)])) : rpcFichaNinera(estado.db, ninera, ahora || undefined));
   Object.assign(estado.rpc, sinEtapa10 ? Object.fromEntries(RPC_ETAPA_10.map(n => [n, rpcNoExiste(n)])) : rpcCarsittingNinera(estado.db, ninera, ahora || undefined));
@@ -332,7 +335,7 @@ async function abrirAppNinera(page, opciones = {}) {
   }
   // 'etapa3': sin la 3 ni la 9 (la base real no tiene la 9 sin la 3). 'etapa9': solo sin la 9.
   if (baseSinMigrar === true || baseSinMigrar === 'etapa3') RPC_ETAPA_3.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
-  if (baseSinMigrar && !['etapa7', 'etapa8', 'etapa10', 'etapa11', 'etapa11b'].includes(baseSinMigrar)) {
+  if (baseSinMigrar && !['etapa7', 'etapa8', 'etapa10', 'etapa11', 'etapa11b', 'etapa12'].includes(baseSinMigrar)) {
     RPC_ETAPA_9.forEach(nombre => { estado.rpc[nombre] = rpcNoExiste(nombre); });
     (estado.db.ninieras || []).forEach(n => COLUMNAS_NINIERAS_ETAPA_9.forEach(c => { delete n[c]; }));
   }

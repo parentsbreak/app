@@ -6,8 +6,9 @@
 // - Módulos: los <section class="module ..."> menos "inicio", "ficha" (pasa a ser el formulario de la
 //   etapa 8) y "recibidas" (de las admins).
 // - Lecciones: <details class="lesson" data-id>: título (summary > b), subtítulo (summary > small) y el
-//   HTML de .lbody sin el botón "Ya lo leí" (lo pone la app) ni los juegos (.kit, con el "Para jugar
-//   acá" que los anunciaba).
+//   HTML de .lbody sin el botón "Ya lo leí" (lo pone la app). Los juegos (<div class="kit" data-games>) salen
+//   del HTML y quedan en `juegos` (los nombres, en orden): la app los monta debajo del texto, como el original,
+//   con el "Para jugar acá" que los anuncia (etapa 12, 03/11/2026; ninera/js/juegos.js).
 // - La lección "Higiene y cambio de pañales" (b2) pasa de Protocolos a Bebés, en segundo lugar.
 // - Repaso de cada módulo: el QUIZ de la guía (data-quiz; el de RCP se llama "emergencias").
 // - Los links externos se abren aparte (target="_blank" rel="noopener").
@@ -36,11 +37,16 @@ const QUIZ = new Function(`return ${html.slice(iQuiz + 'const QUIZ='.length, fQu
 function limpiarLeccion(cuerpo) {
   return cuerpo
     .replace(/\s*<button class="mark"[^>]*>[\s\S]*?<\/button>/g, '')
-    // Los juegos no van; su anuncio ("Para jugar acá" y el párrafo que dice qué tocar), tampoco.
-    .replace(/\s*<h3>Para jugar acá<\/h3>(\s*<p>[\s\S]*?<\/p>)?(?=\s*<div class="kit")/g, '')
+    // El kit lo monta la app (juegos.js) con los nombres de `juegos`.
     .replace(/\s*<div class="kit"[^>]*><\/div>/g, '')
     .replace(/<a href="(https:\/\/[^"]+)"(?![^>]*target=)/g, '<a href="$1" target="_blank" rel="noopener"')
     .trim();
+}
+
+// Los juegos del kit de la lección ({juegos: ['tesoro', ...]}), o nada si no tiene.
+function juegosDe(cuerpo) {
+  const kit = /<div class="kit" data-games="([^"]+)"><\/div>/.exec(cuerpo);
+  return kit ? { juegos: kit[1].split(',').map(j => j.trim()) } : {};
 }
 
 const modulos = [];
@@ -56,6 +62,7 @@ for (const bloque of html.split(/(?=<section class="module)/).slice(1)) {
       titulo: sinEspacios((/<b>([\s\S]*?)<\/b>/.exec(summary) || [])[1] || ''),
       subtitulo: sinEspacios((/<small>([\s\S]*?)<\/small>/.exec(summary) || [])[1] || ''),
       html: limpiarLeccion(lbody),
+      ...juegosDe(lbody),
     }));
   const claveQuiz = (/data-quiz="([^"]+)"/.exec(cuerpo) || [])[1];
   modulos.push({

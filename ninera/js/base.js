@@ -82,7 +82,7 @@ function pintarMensajeNinera(texto, acciones = ''){
   </main>`);
 }
 
-/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #guia, #carsitting, #pedido/<id>, #sitting/<id>/cierre, #sitting/<id>/ficha, #cambio/<id>, #no-puedo, #inactiva, #error ----
+/* ---- Navegación por hash: #inicio, #login, #invitacion, #instalar, #avisos, #perfil, #chat, #mis-avisos, #temporada, #guia, #carsitting, #pedido/<id>, #sitting/<id>/cierre, #sitting/<id>/ficha, #sitting/<id>/guia, #cambio/<id>, #no-puedo, #inactiva, #error ----
    La URL dice en qué pantalla está. Se cambia con replaceState, sin sumar pasos al historial:
    "Atrás" en el celular no tiene que volver a una pantalla vieja (el login después de entrar). */
 function marcarRuta(hash){

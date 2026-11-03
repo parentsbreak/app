@@ -120,6 +120,7 @@ function htmlTarjetaDia(s, ahora = Date.now()){
     ${lineas.map(l => `<p class="dia-estado">${escaparHtml(l)}</p>`).join('')}
     <div class="dia-botones">${botones.join('')}</div>
     ${htmlBotonFichaDia(s)}
+    ${htmlBotonParaSittingDia(s)}
     <p class="error-form dia-error" id="dia-error-${escaparHtml(s.id)}" role="alert"></p>
   </section>`;
 }
@@ -221,11 +222,12 @@ async function marcarEventoDia(id, tipo, minutos){
 
 /* ---- El cierre (#sitting/<id>/cierre) ---- */
 
-// La ruta #sitting/<id>/cierre (el link de los avisos de fin y "Llegaron los padres") y, desde la etapa 8,
-// #sitting/<id>/ficha (la ficha de la familia, ficha.js).
+// La ruta #sitting/<id>/cierre (el link de los avisos de fin y "Llegaron los padres"), desde la etapa 8
+// #sitting/<id>/ficha (la ficha de la familia, ficha.js) y desde la 12 #sitting/<id>/guia ("Para este sitting").
 function abrirRutaSittingNinera(hash){
-  const m = /^#sitting\/([0-9a-f-]{36})\/(cierre|ficha)$/.exec(hash || '');
+  const m = /^#sitting\/([0-9a-f-]{36})\/(cierre|ficha|guia)$/.exec(hash || '');
   if(!m) return renderInicio();
+  if(m[2] === 'guia') return pantallaParaSitting(m[1]);
   return m[2] === 'ficha' ? pantallaFichaFamilia(m[1]) : pantallaCierreSitting(m[1]);
 }
 
