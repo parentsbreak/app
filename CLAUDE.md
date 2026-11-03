@@ -399,7 +399,8 @@ npm run test:static               # solo los chequeos estáticos (segundos)
 - `tests/ninera-dia-traslado.spec.js` (03/11/2026, etapa 11b): la tarjeta del traslado en la app de niñeras (desde 3 horas antes, las zonas,
   "Estoy saliendo", "Voy a llegar tarde", "No están los chicos", "Ya los busqué", "Ya los dejé" que abre el cierre, el fijo, el de ayer) y el
   cierre sin hora (gasto con la foto, comentarios, cuerpos exactos, fallas, doble toque, link del aviso, base sin migrar 'etapa11b', escape,
-  sin montos, 390 px). `tests/cierre-traslado-panel.spec.js`: el cierre del traslado en "Cierre de los fijos" ("Revisado" sin tocar hora ni
+  sin montos, 390 px) y "Cómo llegar" en la tarjeta (al origen y después al destino, sin dirección, "Próximos sittings" que falla, escape,
+  390 px). `tests/cierre-traslado-panel.spec.js`: el cierre del traslado en "Cierre de los fijos" ("Revisado" sin tocar hora ni
   precio, "¿Quién lo paga?", dos admins, cobrado mientras tanto, doble toque, escape, 390 px) y "En curso" en Hoy (tarde, no están los
   chicos, no marcó que salió, fijo, sitting y traslado a la vez). `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa11b' })`: sin
   20261110_dia_traslados (la 11 sin migrar también la saca).
@@ -833,7 +834,9 @@ reporte.
   (`sitting_eventos`, `sitting_cierres`) que un sitting; la clase manda: `busque`, `deje` y `no_estan` solo en traslados, `entre`,
   `no_abren` y `no_encuentro` solo en sittings. El cierre de un traslado va por `ninera_cerrar_traslado` (sin hora: `hora_fin` vacía) y
   `ninera_cerrar_sitting` no lo acepta. "Ya los dejé" abre el cierre. En el panel, una fila de cierre sin hora es la de un traslado:
-  "Revisado" marca el registro sin tocar la hora ni el precio (`htmlFilaCierreTraslado`, app-shell.js).
+  "Revisado" marca el registro sin tocar la hora ni el precio (`htmlFilaCierreTraslado`, app-shell.js). "Cómo llegar" de la tarjeta
+  (Diego, 03/11/2026) usa las direcciones del registro que ya trae `ninera_mis_sittings` (`sittingsNineraCargados`), nunca
+  `ninera_mi_dia`: antes de "Ya los busqué" al origen, después al destino (`htmlComoLlegarDia`, dia.js).
 - Traslados por la app (03/11/2026, etapa 11, decisiones 6.9): un pedido es un viaje. La solicitud lleva `origen`, `destino`, `destino_zona`
   y `km` (`zona` es la de origen); la niñera ve las dos zonas antes de que la elijan y las direcciones en el registro confirmado, y lo
   ofrecido va en `solicitud_ninieras.precio_viaje` (nunca el cobro). La ruta de las dos pantallas que crean un traslado ("+ Nueva

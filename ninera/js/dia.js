@@ -157,8 +157,28 @@ function htmlTarjetaTraslado(s, ahora = Date.now()){
     ${s.madre ? `<p class="helper">Madre: ${escaparHtml(s.madre)}</p>` : ''}
     ${lineas.map(l => `<p class="dia-estado">${escaparHtml(l)}</p>`).join('')}
     <div class="dia-botones">${botones.join('')}</div>
+    <div class="dia-llegar" data-llegar="${escaparHtml(s.id)}">${htmlComoLlegarDia(s)}</div>
     <p class="error-form dia-error" id="dia-error-${escaparHtml(s.id)}" role="alert"></p>
   </section>`;
+}
+
+// "Cómo llegar" en la tarjeta del traslado (03/11/2026, Diego): las direcciones salen del registro confirmado que ya
+// trae ninera_mis_sittings ("Próximos sittings", inicio.js), sin sumar nada a ninera_mi_dia. Antes de "Ya los
+// busqué", al origen; después, al destino; ya los dejó, nada. Las dos lecturas llegan cada una por su lado: la que
+// termina última pinta el botón (pintarComoLlegarDia).
+function htmlComoLlegarDia(s){
+  const r = sittingsNineraCargados.find(x => x.id === s.id);
+  if(!r || eventoDiaNinera(s, 'deje')) return '';
+  const busque = eventoDiaNinera(s, 'busque');
+  const lugar = busque ? r.destino : r.origen;
+  if(!lugar) return '';
+  return htmlComoLlegarNinera(lugar, busque ? 'Cómo llegar al destino' : 'Cómo llegar al origen', `llegar-${s.id}`, 'ghost');
+}
+function pintarComoLlegarDia(){
+  document.querySelectorAll('#inicio-dia .dia-llegar[data-llegar]').forEach(caja => {
+    const s = diaNinera.find(x => x.id === caja.dataset.llegar);
+    if(s) caja.innerHTML = htmlComoLlegarDia(s);
+  });
 }
 
 // "Voy a llegar tarde": la demora, un toque (textos.md 5).

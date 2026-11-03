@@ -120,6 +120,8 @@ async function cargarProximosSittings(){
   // Puede haber cambiado de pantalla mientras cargaba: se busca de nuevo.
   const actual = document.getElementById('proximos-sittings-lista');
   if(actual) actual.innerHTML = filas.length ? htmlSittingsNinera(filas) : '<p class="vacio">No tienes sittings próximos.</p>';
+  // "Cómo llegar" de la tarjeta del traslado usa estas direcciones (dia.js): la tarjeta puede haberse pintado antes.
+  pintarComoLlegarDia();
 }
 
 // "Hoy", "Mañana" o "jue 30/10". Al mediodía, como sumarDiasISO: la zona horaria del celular nunca
@@ -185,8 +187,9 @@ function alternarComoLlegarNinera(id = 'como-llegar-opciones'){
   const op = document.getElementById(id);
   if(op) op.hidden = !op.hidden;
 }
-function htmlComoLlegarNinera(lugar, texto, id){
-  return `<button type="button" class="btn primary ancho" aria-controls="${id}" onclick="alternarComoLlegarNinera(${argJs(id)})">${escaparHtml(texto)}</button>
+// clase: 'primary' en el detalle; 'ghost' en la tarjeta del día, donde el botón principal es otro.
+function htmlComoLlegarNinera(lugar, texto, id, clase = 'primary'){
+  return `<button type="button" class="btn ${clase} ancho" aria-controls="${id}" onclick="alternarComoLlegarNinera(${argJs(id)})">${escaparHtml(texto)}</button>
     <div id="${id}" class="como-llegar" hidden>
       ${linksMapaNinera(lugar).map(([nombre, url]) => `<a class="btn ghost ancho" href="${urlSegura(url)}" target="_blank" rel="noopener">${nombre}</a>`).join('')}
     </div>`;
