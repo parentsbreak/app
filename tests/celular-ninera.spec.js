@@ -19,6 +19,8 @@ async function abrirAlta(page) {
   await irAModulo(page, 'ninieras');
   await page.locator('button[onclick^="abrirModalNuevaNinera"]').click();
   await expect(modal(page).locator('h2')).toHaveText('Nueva niñera');
+  // El modal pone el foco en el nombre a los 30 ms: si se escribe antes, el celular puede terminar en el nombre (03/11/2026, CI).
+  await expect(page.locator('#nn-nombre')).toBeFocused();
 }
 const agregar = page => modal(page).locator('button', { hasText: 'Agregar niñera' }).click();
 const guardar = page => modal(page).getByRole('button', { name: /^Guardar/ }).last().click();

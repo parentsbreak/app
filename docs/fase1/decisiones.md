@@ -714,6 +714,32 @@ plegable para completarlo ahí (se guarda en la solicitud antes de mandar o asig
 `precio_viaje` a la fila. En la app, la tarjeta "Traslado [día]", "¡Quedaste seleccionada!" con las dos direcciones y "Cómo llegar" al
 origen y al destino, y la tarjeta del cambio con "traslado".
 
+### 6.10 El día y el cierre de los traslados (etapa 11b)
+Respuestas de Diego (03/11/2026) al detallar la etapa 11b:
+- Un traslado confirmado aparece en la tarjeta del día desde 3 horas antes, como un sitting: "Traslado de hoy", la hora de salida y
+  las zonas (la de origen y la de destino del pedido; un fijo sin pedido, la zona de la casa). Botones: "Estoy saliendo" (hasta la
+  hora de salida), "Voy a llegar tarde" (10 / 20 / 30 min o más), "No están los chicos" (al llegar al origen, aviso al instante) y
+  "Ya los busqué"; después, "Ya los dejé", que abre el cierre (un paso menos; si sale sin mandarlo, "Cerrar el traslado").
+- Fijos de traslado como los de sitting (4.10): solo "Ya los busqué" / "Ya los dejé" y el cierre, sin "Estoy saliendo", "Voy a
+  llegar tarde", "No están los chicos" ni el aviso de "no marcó que salió".
+- El cierre no tiene hora de fin ni "Se extendió": el traslado es un viaje. Lleva el gasto (peajes o estacionamiento: monto, en qué
+  y la foto, igual que el del sitting) y "Comentarios extras" (llegan al instante). Sin calificar a la familia ni "¿A qué jugaron?".
+  Se manda una vez. Nunca montos.
+- Avisos: a las admins "no marcó que salió" a la hora de salida de un puntual sin ningún toque (cualquier toque dice que está en
+  camino) y, a los 30 min de "Ya los dejé" sin cierre, "no cerró el traslado"; a la niñera, en ese mismo momento, "Te falta cerrar el
+  traslado" (también en los fijos). Sin "Ya los dejé" no hay aviso de cierre.
+- La admin lo revisa en "Cierre de los fijos" como el de un sitting, con "Revisado" en lugar de "Sí, terminó [hora]" y sin "Otra
+  hora" (el precio es por viaje y no cambia); el gasto pide "¿Quién lo paga?" y recién ahí pasa a `gastos_extra`. "Sitting en
+  curso" de Hoy muestra también los traslados (tarde, no están los chicos, no marcó que salió) con "Contactarla"; con alguno, el
+  título es "En curso". Decisiones del constructor, confirmadas por Diego (03/11/2026): "Ya los dejé" abre
+  el cierre, "Revisado" sin "Otra hora", sin "Ya los dejé" no hay aviso de cierre y sin aviso a las admins por "Ya los busqué" / "Ya los dejé".
+Cómo quedó la base (migración `20261110_dia_traslados`): `sitting_eventos` suma los tipos `busque`, `deje` y `no_estan` (solo
+traslados; `entre`, `no_abren` y `no_encuentro` solo sittings, `evento_invalido` si no); `sitting_cierres.hora_fin` puede ir vacía (el
+cierre de un traslado, con `sitting_cierres_sin_hora_check`); `app_config 'el_dia'.no_salio_min` (0). `ninera_mi_dia` devuelve además
+`tipo` y `destino_zona`; `ninera_cerrar_sitting` no cierra un traslado (`no_existe`) y `ninera_cerrar_traslado(p_sitting_id,
+p_comentarios, p_gasto_monto, p_gasto_concepto)` es el cierre sin hora (la foto, la misma ruta `comprobantes/ninieras/<id>/<traslado>.jpg`).
+Avisos nuevos: `admin:sitting:<id>:no_estan`, `:no_salio` y `:sin_cierre`, y `sitting:<id>:fin30` para el traslado.
+
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo
 escribió). `chat_mensajes (id, ninera_id, de 'ninera' | 'admin', autor text, texto text, creado_en,
@@ -737,7 +763,7 @@ Niñera (todos con los textos de `textos.md`, sección 1; cuerpo en "tú"):
 | `pedido:<sn>:cancelado` | a las que dijeron "Puedo", si el pedido se cancela (trigger `solicitudes_al_cancelar`, url `#inicio`; 4.19) | 6 |
 | `sitting:<id>:24h` / `:1h` | puntuales con niñera con app (no fijos) | 7 |
 | `sitting:<id>:fin` | a la hora de fin prevista, sin cierre | 7 |
-| `sitting:<id>:fin30` | 30 min después, sin cierre | 7 |
+| `sitting:<id>:fin30` | 30 min después, sin cierre (traslado: 30 min después de "Ya los dejé", etapa 11b) | 7 |
 | `sitting:<id>:cambio:<n>` | al cambiar el horario de un sitting futuro | 8 |
 | `sitting:<id>:cancelado` | al cancelar | 8 |
 | `chat:<msg>` | mensaje de una admin | 3 |
@@ -759,6 +785,9 @@ Admins (`para_admin = 'todas'`, salvo "pedido nuevo", que va a las otras; textos
 | `admin:sitting:<id>:tarde` | "Voy a llegar tarde" (inmediato, con "Contactarla") | 7 |
 | `admin:sitting:<id>:no_llego` | 15 min después del inicio sin "Ya entré" (puntuales) | 7 |
 | `admin:sitting:<id>:problema` | no me abren / no encuentro (inmediato) | 7 |
+| `admin:sitting:<id>:no_estan` | traslado: no están los chicos (inmediato) | 11b |
+| `admin:sitting:<id>:no_salio` | traslado puntual: a la hora de salida sin ningún toque | 11b |
+| `admin:sitting:<id>:sin_cierre` | traslado: 30 min después de "Ya los dejé" sin cierre | 11b |
 | `admin:sitting:<id>:cerro` | la niñera cerró | 7 |
 | `admin:sitting:<id>:gasto` | cargó un gasto | 7 |
 | `admin:sitting:<id>:comentario` | comentarios extras | 7 |

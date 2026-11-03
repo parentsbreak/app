@@ -726,9 +726,37 @@ function minutosFinCierre(hora, diaSiguiente){
   const [h, m] = String(hora||'').split(':').map(Number);
   return h*60 + m + (diaSiguiente ? 1440 : 0);
 }
+// El gasto que mandó la niñera en el cierre, con "Ver comprobante" y "¿Quién lo paga?" (sitting o traslado).
+function htmlGastoCierreNinera(r, plata){
+  const c = r._cierre, id = escaparHtml(r.id);
+  return `<div>Gasto: ${escaparHtml(c.gasto_concepto)}, ${plata(c.gasto_monto)}.
+      <button type="button" class="smallbtn" style="min-height:30px;" onclick="verComprobanteGasto(${argJs(c.gasto_comprobante)})">Ver comprobante</button></div>
+    <div class="cierre-quien" role="radiogroup" aria-label="¿Quién lo paga?">¿Quién lo paga?
+      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="familia"> La familia</label>
+      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="pb"> Parents Break</label></div>`;
+}
+// La fila de un traslado con el cierre de la niñera (etapa 11b, decisiones.md 6.10): sin hora (es un viaje, el precio
+// no cambia), el gasto y los comentarios, y "Revisado".
+function htmlFilaCierreTraslado(r, { fmt, hhmm, plata }){
+  const c = r._cierre;
+  const lineas = [`<div><b>${escaparHtml(r.ninera_nombre)} mandó el cierre del traslado.</b>${c.gasto_monto == null && !c.comentarios ? ' Sin gastos ni comentarios.' : ''}</div>`];
+  if(c.gasto_monto != null) lineas.push(htmlGastoCierreNinera(r, plata));
+  if(c.comentarios) lineas.push(`<div>Comentarios: ${escaparHtml(c.comentarios)}</div>`);
+  return `<div class="autoconf-fila autoconf-cierre" data-autoconf="${escaparHtml(r.id)}">
+    <div class="autoconf-txt">
+      <div><b>${fmt(r.fecha)}</b>, ${escaparHtml(r.ninera_nombre)} con ${escaparHtml(r.familia_nombre)}</div>
+      <div class="helper" style="margin:2px 0 0;">Traslado a las ${hhmm(r.hora_inicio)}, cobro ${plata(r.cobro_familia)} y pago ${plata(r.pago_ninera)}.</div>
+      <div class="cierre-ninera helper" style="margin:6px 0 0;">${lineas.join('')}</div>
+    </div>
+    <div class="autoconf-btns">
+      <button class="smallbtn" onclick="conGuardado(this, ()=>confirmarCierreNinera(${argJs(r.id)}))">Revisado</button>
+    </div>
+  </div>`;
+}
 // La fila de un sitting con el cierre de la niñera: lo que mandó (hora, diferencia, gasto con "¿Quién lo paga?",
 // comentarios y cómo le fue) y "Sí, terminó [su hora]" / "Otra hora".
 function htmlFilaCierreNinera(r, { fmt, hhmm, plata }){
+  if(r.tipo === 'traslado') return htmlFilaCierreTraslado(r, { fmt, hhmm, plata });
   const c = r._cierre, id = escaparHtml(r.id);
   const fin = hhmm(c.hora_fin);
   let dif = '';
@@ -738,11 +766,7 @@ function htmlFilaCierreNinera(r, { fmt, hhmm, plata }){
     if(d) dif = ` (${dur(Math.abs(d))} ${d > 0 ? 'más' : 'menos'} que lo previsto)`;
   }
   const lineas = [`<div><b>${escaparHtml(r.ninera_nombre)} mandó el cierre:</b> terminó a las ${fin}${c.termina_dia_siguiente ? ' del día siguiente' : ''}${dif}.</div>`];
-  if(c.gasto_monto != null) lineas.push(`<div>Gasto: ${escaparHtml(c.gasto_concepto)}, ${plata(c.gasto_monto)}.
-      <button type="button" class="smallbtn" style="min-height:30px;" onclick="verComprobanteGasto(${argJs(c.gasto_comprobante)})">Ver comprobante</button></div>
-    <div class="cierre-quien" role="radiogroup" aria-label="¿Quién lo paga?">¿Quién lo paga?
-      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="familia"> La familia</label>
-      <label class="chk"><input type="radio" name="cierre-quien-${id}" value="pb"> Parents Break</label></div>`);
+  if(c.gasto_monto != null) lineas.push(htmlGastoCierreNinera(r, plata));
   if(c.comentarios) lineas.push(`<div>Comentarios: ${escaparHtml(c.comentarios)}</div>`);
   const familia = [c.calificacion ? `${'★'.repeat(c.calificacion)} de 5.` : '', c.volveria === true ? 'Volvería.' : c.volveria === false ? 'Prefiere otros perfiles.' : ''].filter(Boolean).join(' ');
   if(familia) lineas.push(`<div>Con la familia: ${familia}</div>`);
@@ -778,6 +802,8 @@ async function confirmarCierreNinera(id){
   if(r.cobrado || r.pagado){ toast('Ese día ya está marcado como cobrado o pagado: corregilo desde Sittings & traslados.', 'bad'); return; }
   const quien = quienPagaGastoCierre(r);
   if(quien === false) return;
+  // Un traslado no tiene hora de fin: se marca revisado sin tocar el horario ni el precio (es por viaje).
+  if(r.tipo === 'traslado') return revisarCierreNinera(r, {}, quien);
   const hf = String(c.hora_fin).slice(0,5), cruza = !!c.termina_dia_siguiente;
   const misma = String(r.hora_fin||'').slice(0,5) === hf && !!r.termina_dia_siguiente === cruza;
   let cambios = {};
@@ -830,7 +856,8 @@ async function revisarCierreNinera(r, cambios, quien){
     // Si esto falla, el gasto ya está cargado: solo queda sin el vínculo con el cierre.
     await sb.from('sitting_cierres').update({ gasto_id: g.id }).eq('sitting_id', r.id);
   }
-  toast(c.gasto_monto != null ? 'Listo: quedó revisado y el gasto pasó a Por cobrar / Por pagar.' : 'Listo: quedó con la hora de la niñera.');
+  toast(c.gasto_monto != null ? 'Listo: quedó revisado y el gasto pasó a Por cobrar / Por pagar.'
+    : r.tipo === 'traslado' ? 'Listo: quedó revisado.' : 'Listo: quedó con la hora de la niñera.');
   await cargarConfirmadosAutomaticos();
   return true;
 }

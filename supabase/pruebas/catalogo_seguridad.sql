@@ -79,6 +79,7 @@ declare
     'ninera_mi_dia()',                           -- niñera: solo sus sittings de hoy y de ayer, sin plata; vacío si no es niñera
     'ninera_marcar_evento(p_sitting_id uuid, p_tipo text, p_minutos integer)', -- niñera: raise 'no_autorizada' si ninera_actual() es null; solo sus sittings
     'ninera_cerrar_sitting(p_sitting_id uuid, p_hora_fin time without time zone, p_dia_siguiente boolean, p_comentarios text, p_calificacion integer, p_volveria boolean, p_jugaron text, p_comentario_equipo text, p_gasto_monto numeric, p_gasto_concepto text)', -- niñera: ídem; la ruta del comprobante la arma la base
+    'ninera_cerrar_traslado(p_sitting_id uuid, p_comentarios text, p_gasto_monto numeric, p_gasto_concepto text)', -- niñera: ídem (etapa 11b); solo sus traslados del día
     'ninera_ruta_comprobante(p_nombre text)',    -- niñera: solo lee; true solo para su ruta de un sitting suyo abierto (la política del bucket)
     -- Etapa 8 (02/11/2026): la ficha y los cambios de horario, por ninera_actual(). Los avisos (sittings_avisos_cambios,
     -- aviso_sitting_ninera, avisar_cambios_previstos, sitting_puede_avisar) y ficha_familia_campos NO van.

@@ -390,6 +390,19 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   actualizar estando aprobada (sigue aprobada con lo anterior), la fila del formulario intacta y `programar_avisos_carsitting` (el
   primero, los lunes a las 10, la que tiene que corregir, `solo_practica`). El DESHACER con datos, en
   `supabase/pruebas/deshacer/20261108_carsitting_app*.sql`.
+- `supabase/pruebas/fase1_dia_traslados.sql` (03/11/2026, etapa 11b): `ninera_mi_dia` con los traslados (tipo, zona de origen y de
+  destino del pedido, la de la casa en un fijo), `ninera_marcar_evento` con "busque", "deje" y "no_estan" (los de la otra clase,
+  `evento_invalido`; el aviso de "no están los chicos" y el de tarde con "Al traslado de"), `ninera_cerrar_traslado` (sin hora, gasto con la
+  foto, una vez, ya revisado; no toca el registro ni `gastos_extra`), `ninera_cerrar_sitting` que no cierra un traslado y
+  `programar_avisos_el_dia` ("no marcó que salió" a la hora de salida sin ningún toque, no en un fijo; los 30 min de "Ya los dejé" a la
+  niñera y a las admins, también fijos; `solo_practica`). El DESHACER con datos, en `supabase/pruebas/deshacer/20261110_dia_traslados*.sql`.
+- `tests/ninera-dia-traslado.spec.js` (03/11/2026, etapa 11b): la tarjeta del traslado en la app de niñeras (desde 3 horas antes, las zonas,
+  "Estoy saliendo", "Voy a llegar tarde", "No están los chicos", "Ya los busqué", "Ya los dejé" que abre el cierre, el fijo, el de ayer) y el
+  cierre sin hora (gasto con la foto, comentarios, cuerpos exactos, fallas, doble toque, link del aviso, base sin migrar 'etapa11b', escape,
+  sin montos, 390 px). `tests/cierre-traslado-panel.spec.js`: el cierre del traslado en "Cierre de los fijos" ("Revisado" sin tocar hora ni
+  precio, "¿Quién lo paga?", dos admins, cobrado mientras tanto, doble toque, escape, 390 px) y "En curso" en Hoy (tarde, no están los
+  chicos, no marcó que salió, fijo, sitting y traslado a la vez). `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa11b' })`: sin
+  20261110_dia_traslados (la 11 sin migrar también la saca).
 - `supabase/pruebas/fase1_traslados.sql` (03/11/2026, etapa 11): `enviar_pedido_app` con un traslado (origen, destino y zonas; solo a las
   que hacen traslados, con el carsitting aprobado y la guía; todo o nada; "Precio: $X por viaje"), lo que lee la niñera (zonas antes,
   direcciones solo confirmado, precio por viaje), "Puedo", el recordatorio, la elección, los avisos por día de un traslado (la hora de
@@ -792,7 +805,7 @@ reporte.
   firmó (orquestador, 02/11/2026); la base devuelve el día del vencimiento. Un aviso de error de la app de niñeras no se borra al
   empezar a guardar: la pantalla subía y un segundo toque caía en "Volver" (lo encontró el test del doble toque).
 - El día y el cierre (02/11/2026, etapa 7, decisiones 6.4): la niñera marca el día y cierra solo por RPC (`ninera_marcar_evento`,
-  `ninera_cerrar_sitting`) y lee `ninera_mi_dia`; solo sittings. El cierre va una vez; el gasto queda en `sitting_cierres` y pasa a
+  `ninera_cerrar_sitting`) y lee `ninera_mi_dia`; desde la etapa 11b, también traslados (ver abajo). El cierre va una vez; el gasto queda en `sitting_cierres` y pasa a
   `gastos_extra` recién cuando la admin elige quién lo paga (`revisarCierreNinera`, app-shell.js: primero toma el cierre con
   `.is('revisado_en', null)`, después el registro con la condición de cobrado / pagado, al final el gasto). El comprobante va a
   `comprobantes/ninieras/<id>/<sitting>.jpg` (la ruta la arma la base). Los avisos de las admins abren `?ir=hoy` (Hoy es `moduloActivo`
@@ -816,6 +829,11 @@ reporte.
   (`aprobado_en`) aunque mande una actualización. Asignar un traslado a una con app sin aprobar avisa y no frena
   (`pintarAvisoCarsitting`); el freno de la etapa 11 es solo para mandar por la app. El aviso y la marca "Carsitting pendiente" de la
   ficha, solo con app.
+- El día y el cierre de los traslados (03/11/2026, etapa 11b, decisiones 6.10): la misma tarjeta del día y las mismas tablas
+  (`sitting_eventos`, `sitting_cierres`) que un sitting; la clase manda: `busque`, `deje` y `no_estan` solo en traslados, `entre`,
+  `no_abren` y `no_encuentro` solo en sittings. El cierre de un traslado va por `ninera_cerrar_traslado` (sin hora: `hora_fin` vacía) y
+  `ninera_cerrar_sitting` no lo acepta. "Ya los dejé" abre el cierre. En el panel, una fila de cierre sin hora es la de un traslado:
+  "Revisado" marca el registro sin tocar la hora ni el precio (`htmlFilaCierreTraslado`, app-shell.js).
 - Traslados por la app (03/11/2026, etapa 11, decisiones 6.9): un pedido es un viaje. La solicitud lleva `origen`, `destino`, `destino_zona`
   y `km` (`zona` es la de origen); la niñera ve las dos zonas antes de que la elijan y las direcciones en el registro confirmado, y lo
   ofrecido va en `solicitud_ninieras.precio_viaje` (nunca el cobro). La ruta de las dos pantallas que crean un traslado ("+ Nueva
@@ -1051,7 +1069,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
 producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) hecha, mergeada y en producción (PR #103); etapa 11 (pedidos de traslado por la app) hecha, mergeada y en
-producción (PR #104, 03/11/2026: migración `20261109_traslados_app` aplicada y `pedido-whatsapp` versión 6 publicada; `decisiones.md` 6.9). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (PR #104, 03/11/2026: migración `20261109_traslados_app` aplicada y `pedido-whatsapp` versión 6 publicada; `decisiones.md` 6.9); etapa 11b
+(el día y el cierre de los traslados) hecha, mergeada y en producción (PR #106, 03/11/2026: migración `20261110_dia_traslados` aplicada; `decisiones.md` 6.10). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1091,8 +1110,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
 - Etapa 11 (03/11/2026): "Calcular km con el mapa" (TomTom) no está simulado en los tests: probarlo en el iPhone real. La ruta no guarda
   borrador.
-- Etapa 11 (03/11/2026, orquestador): la tarjeta del día y el cierre de los traslados (llegó, dejó a los chicos, peajes como gasto).
-  Hoy `ninera_mi_dia`, `ninera_cerrar_sitting` y los avisos de "no marcó que llegó" y del cierre son solo de sittings.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel
   "Car sitting" de Niñeras, que arme los links de una vez.
 - Etapa 10 (02/11/2026, Diego): fechas de vencimiento de la licencia y del seguro del carsitting, con un aviso para renovarlas.
@@ -1126,9 +1143,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - `tests/precio-ninera-familia.spec.js` (31/10/2026): los tests de Sittings fallan de a varios, distintos en cada corrida, en local
   y también sobre `main` limpio (02/11/2026: 8 de 61 en main, 9 en la rama de la etapa 4) y desde el 02/11 también en el CI (4 en
   el PR #100). No es la fecha: es intermitencia (la casilla "Guardar como precio" todavía oculta al mirarla). Revisar las esperas.
-- Tests intermitentes en el CI (01/11/2026): el alta de niñera con escrituras demoradas (`guardados.spec.js:136` y `:168`,
-  `celular-ninera.spec.js:62`) falla a veces, también en una rama de solo docs; en local, `ninera-temporada.spec.js:122`
-  con la suite completa. Pasan solos. Revisar las esperas fijas (`waitForTimeout`) de esos tests.
+- Test intermitente (01/11/2026): en local, `ninera-temporada.spec.js:122` con la suite completa; pasa solo. Revisar sus esperas
+  fijas (`waitForTimeout`). (El del alta de niñera en el CI era el foco a los 30 ms del modal; arreglado el 03/11/2026.)
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en
   `cron.job_run_details`, que nadie purga. Programar un borrado de las de más de unos días (o del job
   entero) antes de que pese.

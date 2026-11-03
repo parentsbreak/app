@@ -115,9 +115,11 @@ insert into storage.objects (bucket_id, name) values ('comprobantes', 'gastos/ot
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "e1700000-0000-4000-8000-000000000001", "email": "59899000001@ninieras.parentsbreak.invalid"}';
 select pg_temp.verificar('es Ana', public.ninera_actual() = 'e2700000-0000-4000-8000-000000000001');
-select pg_temp.verificar('ninera_mi_dia: los de ayer sin cerrar y el de hoy, en orden; ni el revisado, ni el viejo, ni el traslado, ni el cancelado, ni el previsto, ni el de Bruno',
+-- (desde la etapa 11b, 03/11/2026, también el traslado de hoy: fase1_dia_traslados.sql)
+select pg_temp.verificar('ninera_mi_dia: los de ayer sin cerrar y los de hoy, en orden; ni el revisado, ni el viejo, ni el cancelado, ni el previsto, ni el de Bruno',
   (select array_agg(id) from public.ninera_mi_dia())
-    = array['e5700000-0000-4000-8000-000000000001', 'e5700000-0000-4000-8000-000000000009', 'e5700000-0000-4000-8000-000000000002']::uuid[]);
+    = array['e5700000-0000-4000-8000-000000000001', 'e5700000-0000-4000-8000-000000000009', 'e5700000-0000-4000-8000-000000000002',
+            'e5700000-0000-4000-8000-000000000005']::uuid[]);
 select pg_temp.verificar('ninera_mi_dia: puntual, la zona y la madre con la inicial, sin eventos ni cierre',
   (select not es_fijo and zona = 'Pocitos' and madre = public.madre_nombre_inicial('Familia Prueba Uno')
           and eventos = '[]'::jsonb and cerrado_en is null
@@ -134,9 +136,9 @@ select pg_temp.verificar('inválidos: tipo raro, tarde sin minutos o con 15',
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000002', null)$$) = 'evento_invalido'
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000002', 'tarde')$$) = 'minutos_invalidos'
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000002', 'tarde', 15)$$) = 'minutos_invalidos');
-select pg_temp.verificar('ajenos o fuera del día: el de Bruno, el traslado, el cancelado, el previsto, el viejo, uno que no existe',
+select pg_temp.verificar('ajenos o fuera del día: el de Bruno, el cancelado, el previsto, el viejo, uno que no existe; "Ya entré" en el traslado no',
   pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000008', 'saliendo')$$) = 'no_existe'
-  and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000005', 'saliendo')$$) = 'no_existe'
+  and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000005', 'entre')$$) = 'evento_invalido'
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000006', 'saliendo')$$) = 'no_existe'
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000007', 'saliendo')$$) = 'no_existe'
   and pg_temp.error_de($$select public.ninera_marcar_evento('e5700000-0000-4000-8000-000000000004', 'saliendo')$$) = 'no_existe'

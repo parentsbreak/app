@@ -4,12 +4,17 @@
 // que la RLS deja leer y escribir de sitting_eventos y sitting_cierres (lo usa app.js). Datos en
 // db.sitting_eventos y db.sitting_cierres; las fotos de los comprobantes que subió la app, en
 // db.storage_comprobantes (las anota app.js). "Ahora" es el reloj fijo del test.
+// Etapa 11b (03/11/2026, 20261110_dia_traslados, decisiones.md 6.10): también los traslados (ninera_mi_dia con tipo y
+// destino_zona; "busque", "deje" y "no_estan"; ninera_cerrar_traslado sin hora). { sinEtapa11b: true }: como antes,
+// solo sittings, y ninera_cerrar_traslado no existe (lo arma app.js).
 const { randomUUID } = require('crypto');
 const { errorRpc, encolarAviso, madreNombreInicial } = require('./rpc-ninera');
 
 const RPC_ETAPA_7 = ['ninera_mi_dia', 'ninera_marcar_evento', 'ninera_cerrar_sitting'];
+const RPC_ETAPA_11B = ['ninera_cerrar_traslado'];
 const TABLAS_ETAPA_7 = ['sitting_eventos', 'sitting_cierres'];
-const TIPOS_EVENTO = ['saliendo', 'tarde', 'entre', 'no_abren', 'no_encuentro'];
+const EVENTOS_SITTING = ['saliendo', 'tarde', 'entre', 'no_abren', 'no_encuentro'];
+const EVENTOS_TRASLADO = ['saliendo', 'tarde', 'busque', 'deje', 'no_estan'];
 const COLUMNAS_REVISION_CIERRE = ['revisado_en', 'revisado_por', 'gasto_id'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -19,25 +24,26 @@ const hhmm = h => String(h).slice(0, 5);
 // Un momento de Montevideo (UTC-3 todo el año) de un día y una hora.
 const momento = (fecha, hora) => Date.parse(`${fecha}T${hhmm(hora)}:00-03:00`);
 
-// sitting_del_dia_ninera(): el sitting si es de esa niñera, un sitting (no traslado), no cancelado, confirmado
-// y de hoy o de ayer.
-function sittingDelDia(db, nineraId, id, hoy) {
-  return (db.sittings_traslados || []).find(s => s.id === id && s.ninera_id === nineraId && (s.tipo || 'sitting') === 'sitting'
+// sitting_del_dia_ninera(): el sitting o traslado (sin la 11b, solo sitting) si es de esa niñera, no cancelado,
+// confirmado y de hoy o de ayer.
+const tiposDelDia = sinEtapa11b => (sinEtapa11b ? ['sitting'] : ['sitting', 'traslado']);
+function sittingDelDia(db, nineraId, id, hoy, sinEtapa11b = false) {
+  return (db.sittings_traslados || []).find(s => s.id === id && s.ninera_id === nineraId && tiposDelDia(sinEtapa11b).includes(s.tipo || 'sitting')
     && !s.cancelado && (s.estado ?? 'confirmado') === 'confirmado' && (s.fecha === hoy || s.fecha === sumarDias(hoy, -1))) || null;
 }
 const cierreDe = (db, id) => (db.sitting_cierres || []).find(c => c.sitting_id === id) || null;
 const nombreFamilia = (db, s) => ((db.familias || []).find(f => f.id === s.familia_id)?.nombre) ?? s.familia_nombre;
 
 // La ruta exacta del comprobante que la niñera puede subir (ninera_ruta_comprobante).
-function rutaComprobantePermitida(db, nineraId, ruta, ahora) {
+function rutaComprobantePermitida(db, nineraId, ruta, ahora, sinEtapa11b = false) {
   const m = new RegExp(`^ninieras/${nineraId}/([0-9a-f-]{36})\\.jpg$`).exec(ruta || '');
   if (!m || !UUID.test(m[1])) return false;
   const hoy = fechaMvd(Date.parse(ahora));
-  return !!sittingDelDia(db, nineraId, m[1], hoy) && !cierreDe(db, m[1]);
+  return !!sittingDelDia(db, nineraId, m[1], hoy, sinEtapa11b) && !cierreDe(db, m[1]);
 }
 
 // ahora: el reloj fijo del test; sin reloj (null), la hora real de cada llamada, como now() en la base.
-function rpcDiaNinera(db, nineraId, ahora = null) {
+function rpcDiaNinera(db, nineraId, ahora = null, { sinEtapa11b = false } = {}) {
   const reloj = () => { const ahoraMs = ahora ? Date.parse(ahora) : Date.now(); return { ahoraMs, ahoraISO: new Date(ahoraMs).toISOString(), hoy: fechaMvd(ahoraMs) }; };
   const nombreNinera = () => (db.ninieras || []).find(n => n.id === nineraId)?.nombre || '';
   return {
@@ -45,16 +51,21 @@ function rpcDiaNinera(db, nineraId, ahora = null) {
       if (!nineraId) return [];
       const { hoy } = reloj();
       return (db.sittings_traslados || [])
-        .filter(s => s.ninera_id === nineraId && (s.tipo || 'sitting') === 'sitting' && !s.cancelado && (s.estado ?? 'confirmado') === 'confirmado')
+        .filter(s => s.ninera_id === nineraId && tiposDelDia(sinEtapa11b).includes(s.tipo || 'sitting') && !s.cancelado && (s.estado ?? 'confirmado') === 'confirmado')
         .filter(s => s.fecha === hoy || (s.fecha === sumarDias(hoy, -1) && !cierreDe(db, s.id) && !s.revisado_at))
         .sort((a, b) => (a.fecha + (a.hora_inicio || '')).localeCompare(b.fecha + (b.hora_inicio || '')))
         .map(s => {
           const f = (db.familias || []).find(x => x.id === s.familia_id);
           const c = cierreDe(db, s.id);
+          const traslado = s.tipo === 'traslado';
+          const sol = traslado ? (db.solicitudes || []).find(x => x.id === s.solicitud_id) : null;
+          const limpio = v => (String(v ?? '').trim() === '' ? null : v);
           return {
             id: s.id, fecha: s.fecha, hora_inicio: s.hora_inicio ?? null, hora_fin: s.hora_fin ?? null,
             termina_dia_siguiente: !!s.termina_dia_siguiente, es_fijo: s.asignacion_id != null,
-            zona: f ? (f.zona ?? null) : null, madre: madreNombreInicial(f && f.nombre != null ? f.nombre : s.familia_nombre),
+            zona: (traslado && sol && limpio(sol.zona)) || (f ? (f.zona ?? null) : null),
+            madre: madreNombreInicial(f && f.nombre != null ? f.nombre : s.familia_nombre),
+            ...(sinEtapa11b ? {} : { tipo: s.tipo || 'sitting', destino_zona: traslado && sol ? limpio(sol.destino_zona) : null }),
             eventos: (db.sitting_eventos || []).filter(e => e.sitting_id === s.id && e.ninera_id === nineraId)
               .sort((a, b) => a.creado_en.localeCompare(b.creado_en) || a.tipo.localeCompare(b.tipo))
               .map(e => ({ tipo: e.tipo, minutos: e.minutos ?? null, en: e.creado_en })),
@@ -66,11 +77,14 @@ function rpcDiaNinera(db, nineraId, ahora = null) {
     ninera_marcar_evento: ({ p_sitting_id, p_tipo, p_minutos = null } = {}) => {
       if (!nineraId) throw errorRpc('no_autorizada');
       const { ahoraISO, hoy } = reloj();
-      if (!TIPOS_EVENTO.includes(p_tipo)) throw errorRpc('evento_invalido');
+      const tipos = sinEtapa11b ? EVENTOS_SITTING : [...new Set([...EVENTOS_SITTING, ...EVENTOS_TRASLADO])];
+      if (!tipos.includes(p_tipo)) throw errorRpc('evento_invalido');
       if (p_tipo === 'tarde' && ![10, 20, 30].includes(p_minutos)) throw errorRpc('minutos_invalidos');
       const minutos = p_tipo === 'tarde' ? p_minutos : null;
-      const s = sittingDelDia(db, nineraId, p_sitting_id, hoy);
+      const s = sittingDelDia(db, nineraId, p_sitting_id, hoy, sinEtapa11b);
       if (!s) throw errorRpc('no_existe');
+      const traslado = s.tipo === 'traslado';
+      if (!(traslado ? EVENTOS_TRASLADO : EVENTOS_SITTING).includes(p_tipo)) throw errorRpc('evento_invalido');
       if (cierreDe(db, s.id)) throw errorRpc('ya_cerrado');
       const lista = db.sitting_eventos = db.sitting_eventos || [];
       const existente = lista.find(e => e.sitting_id === s.id && e.tipo === p_tipo);
@@ -80,19 +94,21 @@ function rpcDiaNinera(db, nineraId, ahora = null) {
       const familia = nombreFamilia(db, s), nombre = nombreNinera();
       const comun = { para_admin: 'todas', tipo: 'el_dia', url: `?ir=hoy&sitting=${s.id}`, datos: { sitting_id: s.id, ninera_id: nineraId } };
       if (p_tipo === 'tarde') encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:tarde:${minutos}`,
-        titulo: `${nombre} va a llegar ${minutos === 30 ? '30 min o más' : `${minutos} min`} tarde`, cuerpo: `A lo de ${familia}.` });
+        titulo: `${nombre} va a llegar ${minutos === 30 ? '30 min o más' : `${minutos} min`} tarde`, cuerpo: traslado ? `Al traslado de ${familia}.` : `A lo de ${familia}.` });
       if (p_tipo === 'no_abren') encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:no_abren`,
         titulo: `${nombre} está afuera y no le abren`, cuerpo: `${familia}.` });
       if (p_tipo === 'no_encuentro') encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:no_encuentro`,
         titulo: `${nombre} no encuentra la casa`, cuerpo: `${familia}.` });
+      if (p_tipo === 'no_estan') encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:no_estan`,
+        titulo: `${nombre} llegó y no están los chicos`, cuerpo: `Traslado de ${familia}.` });
       return existente ? existente.creado_en : ahoraISO;
     },
 
     ninera_cerrar_sitting: (c = {}) => {
       if (!nineraId) throw errorRpc('no_autorizada');
       const { ahoraMs, ahoraISO, hoy } = reloj();
-      const s = sittingDelDia(db, nineraId, c.p_sitting_id, hoy);
-      if (!s) throw errorRpc('no_existe');
+      const s = sittingDelDia(db, nineraId, c.p_sitting_id, hoy, sinEtapa11b);
+      if (!s || s.tipo === 'traslado') throw errorRpc('no_existe');
       const ya = cierreDe(db, s.id);
       if (ya) return ya.creado_en;
       if (s.revisado_at) throw errorRpc('ya_revisado');
@@ -105,15 +121,7 @@ function rpcDiaNinera(db, nineraId, ahora = null) {
       const comentarios = texto(c.p_comentarios), jugaron = texto(c.p_jugaron), equipo = texto(c.p_comentario_equipo);
       if ([comentarios, jugaron, equipo].some(t => t && t.length > 2000)) throw errorRpc('texto_largo');
       if (c.p_calificacion != null && !(c.p_calificacion >= 1 && c.p_calificacion <= 5)) throw errorRpc('calificacion_invalida');
-      let concepto = null, ruta = null;
-      const monto = c.p_gasto_monto ?? null;
-      if (monto != null) {
-        if (!(monto > 0 && monto < 100000)) throw errorRpc('gasto_invalido');
-        concepto = String(c.p_gasto_concepto ?? '').replace(/\s+/g, ' ').trim() || null;
-        if (!concepto || concepto.length > 120) throw errorRpc('gasto_sin_concepto');
-        ruta = `ninieras/${nineraId}/${s.id}.jpg`;
-        if (!(db.storage_comprobantes || []).includes(ruta)) throw errorRpc('falta_comprobante');
-      }
+      const { monto, concepto, ruta } = gastoDelCierre(db, nineraId, s, c);
       const fila = { sitting_id: s.id, ninera_id: nineraId, hora_fin: `${fin}:00`, termina_dia_siguiente: dia, comentarios,
         calificacion: c.p_calificacion ?? null, volveria: c.p_volveria ?? null, jugaron, comentario_equipo: equipo,
         gasto_monto: monto, gasto_concepto: concepto, gasto_comprobante: ruta, gasto_id: null, creado_en: ahoraISO,
@@ -128,7 +136,44 @@ function rpcDiaNinera(db, nineraId, ahora = null) {
         titulo: `${nombre} dejó un comentario del sitting con ${familia}`, cuerpo: 'Leelo ahora.' });
       return ahoraISO;
     },
+
+    // ninera_cerrar_traslado (etapa 11b): sin hora; el gasto y los comentarios.
+    ...(sinEtapa11b ? {} : { ninera_cerrar_traslado: (c = {}) => {
+      if (!nineraId) throw errorRpc('no_autorizada');
+      const { ahoraISO, hoy } = reloj();
+      const s = sittingDelDia(db, nineraId, c.p_sitting_id, hoy);
+      if (!s || s.tipo !== 'traslado') throw errorRpc('no_existe');
+      const ya = cierreDe(db, s.id);
+      if (ya) return ya.creado_en;
+      if (s.revisado_at) throw errorRpc('ya_revisado');
+      const comentarios = String(c.p_comentarios ?? '').trim() || null;
+      if (comentarios && comentarios.length > 2000) throw errorRpc('texto_largo');
+      const { monto, concepto, ruta } = gastoDelCierre(db, nineraId, s, c);
+      (db.sitting_cierres = db.sitting_cierres || []).push({ sitting_id: s.id, ninera_id: nineraId, hora_fin: null, termina_dia_siguiente: false,
+        comentarios, calificacion: null, volveria: null, jugaron: null, comentario_equipo: null, gasto_monto: monto, gasto_concepto: concepto,
+        gasto_comprobante: ruta, gasto_id: null, creado_en: ahoraISO, revisado_en: null, revisado_por: null });
+      const familia = nombreFamilia(db, s), nombre = nombreNinera();
+      const comun = { para_admin: 'todas', tipo: 'cierres', url: '?ir=hoy', datos: { sitting_id: s.id, ninera_id: nineraId } };
+      encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:cerro`, titulo: `${nombre} cerró el traslado de ${familia}`, cuerpo: 'Revisalo en Hoy.' });
+      if (monto != null) encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:gasto`,
+        titulo: `${nombre} cargó un gasto de $${Math.round(monto).toLocaleString('es-UY')}`, cuerpo: 'Con comprobante. Elegí quién lo paga.' });
+      if (comentarios) encolarAviso(db, ahoraISO, { ...comun, clave: `admin:sitting:${s.id}:comentario`,
+        titulo: `${nombre} dejó un comentario del traslado de ${familia}`, cuerpo: 'Leelo ahora.' });
+      return ahoraISO;
+    } }),
   };
+}
+
+// El gasto del cierre (sitting o traslado): las validaciones y la ruta de la foto, que la arma la base.
+function gastoDelCierre(db, nineraId, s, c) {
+  const monto = c.p_gasto_monto ?? null;
+  if (monto == null) return { monto: null, concepto: null, ruta: null };
+  if (!(monto > 0 && monto < 100000)) throw errorRpc('gasto_invalido');
+  const concepto = String(c.p_gasto_concepto ?? '').replace(/\s+/g, ' ').trim() || null;
+  if (!concepto || concepto.length > 120) throw errorRpc('gasto_sin_concepto');
+  const ruta = `ninieras/${nineraId}/${s.id}.jpg`;
+  if (!(db.storage_comprobantes || []).includes(ruta)) throw errorRpc('falta_comprobante');
+  return { monto, concepto, ruta };
 }
 
 // "Prefiero otros perfiles" de sugeridas_datos: la última respuesta de esa niñera con esa familia dijo que no.
@@ -142,4 +187,4 @@ function prefiereOtros(db, nineraId, familiaId, familiaNombre, mismoNombre) {
   return !!ultima && ultima.volveria === false;
 }
 
-module.exports = { RPC_ETAPA_7, TABLAS_ETAPA_7, COLUMNAS_REVISION_CIERRE, rpcDiaNinera, rutaComprobantePermitida, prefiereOtros };
+module.exports = { RPC_ETAPA_7, RPC_ETAPA_11B, TABLAS_ETAPA_7, COLUMNAS_REVISION_CIERRE, rpcDiaNinera, rutaComprobantePermitida, prefiereOtros };
