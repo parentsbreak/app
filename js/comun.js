@@ -347,3 +347,43 @@ function lineasFichaFamilia(datos){
 function textoFichaFamilia(datos){
   return ["*Ficha de la familia, Parents' Break*", ...lineasFichaFamilia(datos).map(l => `*${l.etiqueta}:* ${l.valor}`)].join('\n');
 }
+
+/* ---- El carsitting (fase 1, etapa 10, 02/11/2026; decisiones.md 6.7) ----
+   Los campos del formulario "Carsitters datos" y las 7 fotos, con las claves de carsitting_campos() y carsitting_fotos()
+   en la base (si cambia una, cambian las dos). Los usan la app de niñeras (ninera/js/carsitting.js) y el panel (Hoy y la
+   ficha de la niñera). Todos obligatorios salvo los que dicen opcional. */
+const GRUPOS_CARSITTING = [
+  ['Tus datos', [
+    { clave: 'nombre_completo', etiqueta: 'Nombre completo' },
+    { clave: 'cedula', etiqueta: 'Cédula de identidad' },
+  ]],
+  ['Licencia de conducir', [
+    { clave: 'numero_licencia', etiqueta: 'Número de licencia' },
+    { clave: 'anio_licencia', etiqueta: 'Año en que se obtuvo', numero: true },
+  ]],
+  ['El auto', [
+    { clave: 'modelo_auto', etiqueta: 'Modelo' },
+    { clave: 'anio_fabricacion', etiqueta: 'Año de fabricación', numero: true },
+    { clave: 'color_auto', etiqueta: 'Color' },
+    { clave: 'matricula', etiqueta: 'Matrícula' },
+    { clave: 'padron', etiqueta: 'Padrón' },
+    { clave: 'libreta_propiedad', etiqueta: 'Número de la libreta de propiedad (opcional)', opcional: true },
+    { clave: 'cantidad_asientos', etiqueta: 'Cantidad de asientos', numero: true },
+    { clave: 'cantidad_cinturones', etiqueta: 'Cantidad de cinturones', numero: true },
+  ]],
+  ['Seguro', [
+    { clave: 'compania_seguro', etiqueta: 'Compañía de seguro' },
+    { clave: 'tipo_seguro', etiqueta: 'Tipo de seguro (frente a terceros, total…)' },
+  ]],
+];
+const CAMPOS_CARSITTING = GRUPOS_CARSITTING.flatMap(([, campos]) => campos);
+const FOTOS_CARSITTING = [
+  ['licencia_frente', 'Licencia de conducir, frente'],
+  ['licencia_dorso', 'Licencia de conducir, dorso'],
+  ['libreta_frente', 'Libreta de propiedad, frente'],
+  ['libreta_dorso', 'Libreta de propiedad, dorso'],
+  ['asientos', 'Asientos de atrás'],
+  ['auto_dentro', 'El auto por dentro'],
+  ['auto_fuera', 'El auto por fuera'],
+];
+const LARGO_MAXIMO_CARSITTING = 120;

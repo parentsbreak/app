@@ -245,6 +245,7 @@ async function renderDashboard(cont){
     <div id="dash-autoconf"></div>
     <div id="dash-pedidos"></div>
     <div id="dash-chat"></div>
+    <div id="dash-carsitting"></div>
     <div id="dash-faltan"></div>
     <div class="card">
       <h2>Sin resolver · hoy y mañana</h2>
@@ -256,6 +257,7 @@ async function renderDashboard(cont){
   cargarMensajesNinerasHoy();
   cargarPedidosEnCurso();
   cargarSittingsEnCurso();
+  cargarCarsittingParaRevisar(); // etapa 10 (ninieras.js)
   // Se devuelve la carga para que la pantalla de entrada y el indicador de sección sepan
   // cuándo Hoy ya tiene sus datos (15/10/2026).
   return loadDashboardData();
@@ -1157,6 +1159,8 @@ const TIPOS_NOTIF = [
   // Etapa 7 (02/11/2026): lo que marca la niñera el día del sitting y su cierre.
   {tipo:'el_dia', label:'El día del sitting', sub:'Una niñera llega tarde, no le abren, no encuentra la casa o no marcó que llegó', icono:'agenda', defaultPush:true},
   {tipo:'cierres', label:'Cierres de niñeras', sub:'Cuando una niñera termina un sitting, carga un gasto o deja un comentario', icono:'sittings', defaultPush:true},
+  // Etapa 10 (02/11/2026): el carsitting que manda una niñera desde la app.
+  {tipo:'carsitting', label:'Carsitting', sub:'Cuando una niñera completa o actualiza sus datos de carsitting', icono:'ninieras', defaultPush:true},
 ];
 
 async function cargarNotificaciones(){

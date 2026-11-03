@@ -1951,7 +1951,8 @@ Rama `claude/fase1-carsitting`. Migración `AAAAMMDD_carsitting_app.sql`.
 Estado (02/11/2026): migración `20261108_carsitting_app` en el PR en borrador (respuestas de Diego y cómo quedó, en
 `decisiones.md` 6.7). Cambios respecto de lo de arriba: 7 fotos; sin `aprobar_carsitting` (la admin escribe directo y un trigger
 aprueba o manda el comentario por el chat); el aviso al aprobar es neutro; sin RPC de la ruta (la política del bucket deja solo
-su carpeta y los 7 nombres).
+su carpeta y los 7 nombres). Migración aplicada en producción el 02/11/2026; app (`ninera/js/carsitting.js`), panel y simulador
+(`tests/support/rpc-carsitting.js`) en el mismo PR, con `tests/ninera-carsitting.spec.js` y `tests/carsitting-panel.spec.js`.
 
 ## Etapa 11 (opcional): pedidos de traslado por la app
 - Solo si todo lo anterior anda estable: `enviar_pedido_app` acepta `tipo 'traslado'` con

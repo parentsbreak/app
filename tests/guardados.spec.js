@@ -303,7 +303,9 @@ test.describe('terminar un fijo desde una fecha (antes "Quitar" lo borraba)', ()
     // 404: tablas nuevas (saldo a favor) que la base sin migrar todavía no tiene. La lectura de "Pedidos en curso" de
     // Hoy pide columnas de la etapa 5 y la base sin migrar responde 400 (sin ellas no muestra nada, 01/11/2026). La
     // consola no dice la dirección: se controla acá que todo 400 sea esa lectura y solo entonces se ignora el aviso.
-    expect(respuestas400.filter(u => !/\/rest\/v1\/solicitudes\?select=id%2Cfamilia_id.*estado=eq\.pendiente_confirmar/.test(u))).toEqual([]);
+    // Lo mismo "Carsitting para revisar" (etapa 10, 02/11/2026): filtra por columnas que esa base no tiene.
+    expect(respuestas400.filter(u => !/\/rest\/v1\/solicitudes\?select=id%2Cfamilia_id.*estado=eq\.pendiente_confirmar/.test(u)
+      && !/\/rest\/v1\/carsitting_datos\?select=id%2Cninera_id%2Cninera_nombre%2Cenviado_en%2Caprobado_en&revision=eq\.pendiente/.test(u))).toEqual([]);
     verificarLimpio(e, { ignorar: [/status of 404/, ...(respuestas400.length ? [/status of 400/] : [])] });
   });
 });

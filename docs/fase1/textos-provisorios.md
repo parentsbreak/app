@@ -417,4 +417,34 @@ Avisos a la niñera (tú, PROVISORIOS salvo el primero, que es de textos.md 6):
 Avisos a las admins (voseo, PROVISORIOS): "[niñera] completó el carsitting" / "Revisalo."; si ya estaba aprobada y lo
 actualiza: "[niñera] actualizó los datos del auto" / "Revisalo."
 
-Las pantallas (el formulario en la app, "Carsitting para revisar" en Hoy y el panel "Car sitting" de Niñeras) se suman con la app.
+App de niñeras (tú, PROVISORIOS salvo los de textos.md 6):
+- Tarjeta del inicio: "Completa tus datos de carsitting" / "Marcaste que realizas traslados. Necesitamos estos datos una sola vez." (textos.md 6)
+  con "Completar"; "Hay que corregir tus datos de carsitting" con el comentario y "Corregir"; en revisión: "Tus datos de carsitting
+  los está revisando el equipo."
+- Pantalla: "Datos de carsitting" (la primera vez) o "Datos del auto". Grupos "Tus datos", "Licencia de conducir", "El auto",
+  "Seguro", "Fotos". Campos: "Nombre completo", "Cédula de identidad", "Número de licencia", "Año en que se obtuvo", "Modelo", "Año de
+  fabricación", "Color", "Matrícula", "Padrón", "Número de la libreta de propiedad (opcional)", "Cantidad de asientos", "Cantidad de
+  cinturones", "Compañía de seguro", "Tipo de seguro (frente a terceros, total…)". Fotos: "Licencia de conducir, frente" / "dorso",
+  "Libreta de propiedad, frente" / "dorso", "Asientos de atrás", "El auto por dentro", "El auto por fuera". Ya cargada: "Ya la
+  cargaste. Elige otra solo si quieres cambiarla." Arriba: "Hay que corregir algo: [comentario]" / "El equipo está revisando tus
+  datos. Si algo cambió, puedes corregirlo." / "Si cambiaste de auto o se te venció la licencia, actualízalos: el equipo los vuelve a
+  revisar." Botón "Enviar"; al enviar: "¡Listo! Gracias." (textos.md 6) y "El equipo lo va a revisar."
+- Errores: "Completa: [campo].", "Falta la foto: [foto].", "Vuelve a elegir la foto: [foto].", "[campo] es demasiado largo: hasta 120
+  caracteres.", "No pudimos subir las fotos. Revisa tu conexión a internet y vuelve a intentar.", "No pudimos enviar tus datos. Revisa
+  tu conexión a internet y vuelve a intentar.", "No pudimos cargar tus datos de carsitting. Revisa tu conexión a internet y vuelve a
+  intentar.", "Esto es para las que realizan traslados. Si los haces, márcalo en Mi perfil."
+- "Mi perfil" (si hace traslados): "Actualizar los datos del auto".
+
+Panel (voseo, PROVISORIOS):
+- Hoy: "Carsitting para revisar", "Lo mandó el [dd/mm]" / "Actualizó los datos del auto el [dd/mm] (sigue aprobada con los de antes)",
+  "Revisar". Modal "Carsitting de [niñera]", los datos con "(antes: [valor])" si cambió, un botón por foto, "Aprobar", "Qué tiene que
+  corregir" ("Le llega por el chat") y "Pedir de nuevo". Avisos: "Escribí qué tiene que corregir: le llega por el chat.", "No se cambió
+  nada: alguien más ya lo revisó (o la niñera lo volvió a mandar). Cerrá para ver cómo quedó.", "Carsitting aprobado. Si tiene la app,
+  le llega el aviso.", "Listo: le llega por el chat lo que tiene que corregir."
+- Niñeras: panel "Car sitting" ("Faltan N" / "Todas completaron"), grupos "Completaron", "Faltan" y "Sin app" (con "Invitar a la app"),
+  y por niñera "Aprobado", "Para revisar", "Le pedimos que corrija algo", "Por el formulario de Google", "No lo completó".
+- Ficha de la niñera: "Carsitting pendiente" / "Carsitting aprobado"; "Aprobado el [dd/mm]." (y si actualizó: "Actualizó los datos del
+  auto: están para revisar en Hoy."), "Le pedimos que corrija algo: [comentario]", "Lo mandó el [dd/mm]: está para revisar en Hoy.",
+  "Todavía no completó los datos en la app: se los pide la app."
+- Al asignar un traslado: "[niñera] no tiene el carsitting aprobado. La podés asignar igual."
+- Preferencias: "Carsitting" / "Cuando una niñera completa o actualiza sus datos de carsitting".

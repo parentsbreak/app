@@ -672,6 +672,10 @@ Detalle y respuestas de Diego del 31/10/2026 en `etapa9-temporada.md`.
   aprobado), la revisión de la admin escribiendo directo con la condición de `revision` (un trigger aprueba y avisa, o manda el
   comentario por el chat) y `programar_avisos_carsitting` (el primero de 9 a 21 y el de los lunes a las 10, también a la que
   tiene que corregir). Lo aprobado queda en `aprobado_datos` mientras se revisa lo nuevo.
+  Cómo quedaron la app y el panel (02/11/2026): en la app, la tarjeta del inicio (sin completar o para corregir, con el
+  comentario), `#carsitting` y "Actualizar los datos del auto" en "Mi perfil"; en el panel, "Carsitting para revisar" en Hoy
+  (con lo de antes cuando es una actualización), el panel "Car sitting" de Niñeras, la marca en la ficha y el aviso al asignar un
+  traslado ("+ Nueva solicitud", "Elegir niñeras" y "Cambiar de niñera"). Salió el aviso "Pendientes de carsitting" de RR.HH.
 
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo

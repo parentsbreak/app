@@ -111,6 +111,7 @@ async function pantallaPerfil(modo, perfil){
     ${modo === 'editar' && 'rcp_presencial' in perfil ? htmlRcpPerfil(perfil) : ''}
     <p class="error-form" id="perfil-error" role="alert"></p>
     <button class="btn primary ancho" id="perfil-guardar" onclick="conGuardado(this, ()=>guardarPerfilNinera(${argJs(modo)}))">Guardar</button>
+    ${modo === 'editar' && ['Traslados', 'Ambas'].includes(perfil.tipo) ? '<button type="button" class="link-boton" id="perfil-carsitting" onclick="irA(\'#carsitting\')">Actualizar los datos del auto</button>' : ''}
     ${modo === 'editar' ? '<button type="button" class="link-boton" onclick="renderInicio()">Volver</button>' : ''}
   </main>`);
   mostrarAvisoAutoPerfil();

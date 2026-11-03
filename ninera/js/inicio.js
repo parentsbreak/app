@@ -24,6 +24,7 @@ async function renderInicio(){
     <div id="inicio-cambios"></div>
     <div id="inicio-dia"></div>
     <div id="inicio-guia"></div>
+    <div id="inicio-carsitting"></div>
     <div id="inicio-temporada"></div>
     ${htmlInicioPedidos()}
     ${perfilNineraSinMigrar ? '' : `<section id="proximos-sittings" class="proximos" aria-live="polite">
@@ -52,6 +53,8 @@ async function renderInicio(){
   cargarTarjetaDia();
   // Los cambios de horario sin responder (ficha.js, etapa 8): arriba del sitting de hoy.
   cargarTarjetaCambios();
+  // El carsitting (carsitting.js, etapa 10): la tarjeta solo si le falta o tiene que corregir algo.
+  cargarTarjetaCarsitting();
   const cont = document.getElementById('inicio-avisos');
   // Abierta en el navegador del iPhone (sin avisos ahí): lo que falta es instalarla.
   if(!esAppInstalada() && !avisosSoportados()){
