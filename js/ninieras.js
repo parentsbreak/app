@@ -24,6 +24,7 @@ function renderNinieras(body){
     <div id="nin-cumpleaneras-wrap"></div>
     <div id="nin-zonasnuevas-wrap"></div>
     <div id="nin-temporadas-wrap"></div>
+    <div id="nin-carsitting-wrap"></div>
     <div id="nin-utilizacion-wrap"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn primary" onclick="abrirModalNuevaNinera()">+ Agregar niñera</button></div>
     <div class="card" style="padding:14px 18px;"><div class="grid2">
@@ -85,6 +86,7 @@ async function cargarNinierasUnaVez(){
   renderCumpleaneras();
   renderZonasNuevasPanel();
   renderTemporadasPanel();
+  cargarPanelCarsitting(); // etapa 10: sin esperar, el panel llega solo
   await cargarUtilizacionNinieras();
   await cargarConteoIncidentesNinieras();
   const wZonas = document.getElementById('filt-zonas-wrap');
@@ -366,12 +368,20 @@ function filtrarNinieras(){
 // Sección "Datos de carsitting" reutilizable: busca por nombre (sin importar tildes/mayúsculas)
 // contra TODOS los registros de carsitting_datos, sin depender de si ya está en Niñeras o
 // todavía en Candidatas — así aparece sola apenas ella manda el form, esté donde esté.
-async function cargarCarsittingSeccion(nombre, boxId, tipo, mail){
+// Etapa 10 (02/11/2026): con nineraId (la ficha de la niñera) manda la fila de la app (por id): el estado de la revisión,
+// la marca "Carsitting pendiente" mientras no está aprobado (solo con app) y las 7 fotos con link firmado. Una niñera con app que no lo
+// completó ve "Carsitting pendiente" sin los mails del formulario (lo pide la app).
+async function cargarCarsittingSeccion(nombre, boxId, tipo, mail, nineraId = null, conApp = false){
   const box = document.getElementById(boxId);
   if(!box) return;
   const { data } = await sb.from('carsitting_datos').select('*').order('created_at', {ascending:false});
   const nombreNorm = normaliza(nombre);
-  const c = (data||[]).find(r=>normaliza(r.ninera_nombre)===nombreNorm);
+  const deLaApp = nineraId ? (data||[]).find(r=>r.enviado_en && r.ninera_id===nineraId) : null;
+  const c = deLaApp || (data||[]).find(r=>!r.enviado_en && normaliza(r.ninera_nombre)===nombreNorm);
+  const hace = tipo==='Traslados' || tipo==='Ambas';
+  const est = estadoCarsitting(c || null);
+  // La marca, solo a las que tienen la app (orquestador, 02/11/2026): sin app no lo pueden completar.
+  const marca = hace && nineraId && conApp ? `<span class="badge ${est==='aprobado' ? 'good' : 'warn'} cs-marca" style="margin-left:6px;">${ESTADOS_CARSITTING[est==='aprobado' ? 'aprobado' : 'pendiente']}</span>` : '';
   if(c){
     const campos = [
       ['Auto', [c.modelo_auto, c.color_auto].filter(Boolean).join(' · ')],
@@ -383,12 +393,29 @@ async function cargarCarsittingSeccion(nombre, boxId, tipo, mail){
       ['Libreta de propiedad', c.libreta_propiedad],
       ['Cédula', c.cedula],
     ].filter(([,v])=>v);
+    const fotosApp = c.enviado_en ? FOTOS_CARSITTING.filter(([k])=>(c.fotos||{})[k]) : [];
     const fotos = [['Foto licencia', c.foto_licencia_url], ['Foto libreta', c.foto_libreta_url], ['Foto asientos', c.foto_asientos_url]].filter(([,v])=>v);
+    let estadoTxt = '';
+    if(c.enviado_en){
+      if(est==='aprobado') estadoTxt = `Aprobado el ${fechaCortaCarsitting(c.aprobado_en)}${c.revision==='pendiente' ? '. Actualizó los datos del auto: están para revisar en Hoy.' : '.'}`;
+      else if(est==='rehacer') estadoTxt = `Le pedimos que corrija algo: ${c.comentario || ''}`;
+      else estadoTxt = `Lo mandó el ${fechaCortaCarsitting(c.enviado_en)}: está para revisar en Hoy.`;
+    }
     box.innerHTML = `
       <div style="margin-top:14px;">
-        <h2 class="card-section-title" style="margin-top:0;">Datos de carsitting</h2>
+        <h2 class="card-section-title" style="margin-top:0;">Datos de carsitting${marca}</h2>
+        ${estadoTxt ? `<div class="helper cs-estado" style="margin:0 0 6px;">${escaparHtml(estadoTxt)}</div>` : ''}
         <div class="fichadl">${campos.map(([l,v])=>`<div><b>${l}</b>${escaparHtml(v)}</div>`).join('')}</div>
         ${fotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${fotos.map(([l,v])=>`<a href="${urlSegura(v)}" target="_blank" rel="noopener" class="smallbtn">${l}</a>`).join('')}</div>`:''}
+        ${fotosApp.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${fotosApp.map(([k,l])=>`<button type="button" class="smallbtn" onclick="verFotoCarsitting(${argJs(c.fotos[k])})">${escaparHtml(l)}</button>`).join('')}</div>`:''}
+      </div>`;
+    return;
+  }
+  // Con app: lo pide la app (etapa 10), sin los mails del formulario.
+  if(hace && conApp){
+    box.innerHTML = `<div style="margin-top:14px;">
+        <h2 class="card-section-title" style="margin-top:0;">Datos de carsitting${marca}</h2>
+        <div class="helper" style="margin:0;">Todavía no completó los datos en la app: se los pide la app.</div>
       </div>`;
     return;
   }
@@ -456,7 +483,7 @@ async function verNinera(id){
   if(n.user_id) cargarGuiaFicha(n.id);
   pintarChatFicha(n);
   if(n.foto_propuesta_ruta) cargarFotoPropuesta(n.id, n.foto_propuesta_ruta);
-  cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail);
+  cargarCarsittingSeccion(n.nombre, 'vn-carsitting', n.tipo, cd.mail, n.id, !!n.user_id);
   cargarJuguetesDeNinera(n.nombre);
   renderIncidentesEnFicha('vn-incidentes', 'ninera', n.id, n.nombre);
   pintarSaldoEnFicha('vn-saldo', 'ninera', n.id, n.nombre);
@@ -2372,4 +2399,157 @@ function pedirTemporadaWhatsapp(id){
     return;
   }
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensajeTemporadaPara(n))}`, '_blank');
+}
+
+/* ---- Carsitting desde la app (fase 1, etapa 10, 02/11/2026; decisiones 6.7) ----
+   La niñera manda los datos y las 7 fotos desde la app (carsitting_datos con enviado_en; las del formulario de Google
+   no lo tienen) y una admin lo revisa desde Hoy: "Aprobar" o "Pedir de nuevo" con un comentario. Se escribe con la
+   condición de la revisión que tenía al abrir (regla de dos admins a la vez): el trigger carsitting_al_revisar de la base
+   aprueba y le avisa, o le manda el comentario por el chat. Las fotos están en el bucket privado ninieras-privado: se
+   abren con un link firmado. Con la base sin la migración (sin las columnas: 42703), nada de esto aparece. */
+const ESTADOS_CARSITTING = { aprobado: 'Carsitting aprobado', pendiente: 'Carsitting pendiente' };
+// "03/10", en Montevideo (es-UY no siempre pone el cero: se arma desde AAAA-MM-DD).
+function fechaCortaCarsitting(iso){
+  if(!iso) return '';
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_NEGOCIO, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+  return `${f.slice(8, 10)}/${f.slice(5, 7)}`;
+}
+// La fila de la app de una niñera, o la del formulario (sin id en las viejas: por nombre). null si no hay; undefined si
+// no se pudo leer.
+function filaCarsittingDe(filas, n){
+  return filas.find(r => r.enviado_en && r.ninera_id === n.id)
+    || filas.find(r => !r.enviado_en && (r.ninera_id === n.id || normaliza(r.ninera_nombre || '') === normaliza(n.nombre || ''))) || null;
+}
+// "aprobado" (aprobado alguna vez: si actualizó, sigue aprobada mientras se revisa), "revisar", "rehacer", "formulario"
+// (lo mandó por el formulario de Google) o "falta".
+function estadoCarsitting(c){
+  if(!c) return 'falta';
+  if(!c.enviado_en) return 'formulario';
+  if(c.aprobado_en) return 'aprobado';
+  return c.revision === 'rehacer' ? 'rehacer' : 'revisar';
+}
+const TEXTO_ESTADO_CARSITTING = { aprobado: 'Aprobado', revisar: 'Para revisar', rehacer: 'Le pedimos que corrija algo', formulario: 'Por el formulario de Google', falta: 'No lo completó' };
+async function verFotoCarsitting(ruta){
+  const { data, error } = await sb.storage.from('ninieras-privado').createSignedUrl(ruta, 600);
+  if(error || !data?.signedUrl){ toast('No se pudo abrir la foto'+(error?': '+error.message:'.'), 'bad'); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
+
+// Panel plegable "Car sitting" de Niñeras: las activas que hacen traslados, en Completaron (aprobado, para revisar o
+// por el formulario), Faltan (con app, sin completar o con algo para corregir) y Sin app ("Invitar a la app" abre su
+// ficha, donde está el botón).
+let ninCarsittingAbierto = false;
+let ninCarsittingFilas = null; // null: sin leer o base sin migrar
+async function cargarPanelCarsitting(){
+  const { data, error } = await sb.from('carsitting_datos').select('id,ninera_id,ninera_nombre,enviado_en,revision,aprobado_en');
+  ninCarsittingFilas = error ? null : (data || []);
+  renderPanelCarsitting();
+}
+function toggleCarsittingPanel(){ ninCarsittingAbierto = !ninCarsittingAbierto; renderPanelCarsitting(); }
+async function abrirInvitarCarsitting(id){
+  await verNinera(id);
+  document.getElementById('vn-app')?.scrollIntoView({ block: 'center' });
+}
+function renderPanelCarsitting(){
+  const wrap = document.getElementById('nin-carsitting-wrap');
+  if(!wrap) return;
+  const traslados = ninierasItems.filter(n => n.tipo === 'Traslados' || n.tipo === 'Ambas');
+  if(ninCarsittingFilas === null || !traslados.length){ pintarSiCambio(wrap, ''); return; }
+  const conEstado = traslados.map(n => ({ n, est: estadoCarsitting(filaCarsittingDe(ninCarsittingFilas, n)) }));
+  const sinApp = conEstado.filter(x => !x.n.user_id && x.est === 'falta');
+  const completaron = conEstado.filter(x => ['aprobado', 'revisar', 'formulario'].includes(x.est));
+  const faltan = conEstado.filter(x => x.n.user_id && ['falta', 'rehacer'].includes(x.est));
+  const fila = ({ n, est }, boton = '') => `<div class="agendarow cs-fila" style="border-bottom:1px solid var(--line);">
+      <div style="min-width:0;cursor:pointer;" onclick="verNinera(${argJs(n.id)})"><b>${escaparHtml(n.nombre)}</b>
+        <div class="helper" style="margin:2px 0 0;">${escaparHtml(TEXTO_ESTADO_CARSITTING[est])}</div></div>
+      ${boton}
+    </div>`;
+  const grupo = (titulo, lista, boton) => lista.length ? `<div class="helper" style="margin:12px 0 4px;font-weight:600;">${escaparHtml(`${titulo} (${lista.length})`)}</div>${lista.map(x => fila(x, boton ? boton(x) : '')).join('')}` : '';
+  const pendientes = faltan.length + sinApp.length;
+  pintarSiCambio(wrap, `<div class="card" id="nin-carsitting" style="padding:14px 18px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleCarsittingPanel()">
+      <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">Car sitting</span>
+      <span class="helper" style="margin:0;">${escaparHtml(pendientes ? `Faltan ${pendientes}` : 'Todas completaron')} ${ninCarsittingAbierto ? 'ocultar ▲' : 'ver ▼'}</span>
+    </div>
+    ${ninCarsittingAbierto ? grupo('Completaron', completaron) + grupo('Faltan', faltan)
+      + grupo('Sin app', sinApp, x => `<button class="smallbtn" onclick="abrirInvitarCarsitting(${argJs(x.n.id)})">Invitar a la app</button>`) : ''}
+  </div>`);
+}
+
+// "Carsitting para revisar" en Hoy: lo que mandaron desde la app y espera una admin.
+async function cargarCarsittingParaRevisar(){
+  const box = document.getElementById('dash-carsitting');
+  if(!box) return;
+  const { data, error } = await sb.from('carsitting_datos').select('id,ninera_id,ninera_nombre,enviado_en,aprobado_en')
+    .eq('revision', 'pendiente').not('enviado_en', 'is', null).order('enviado_en', { ascending: true });
+  if(!document.getElementById('dash-carsitting')) return;
+  if(error || !(data || []).length){ box.innerHTML = ''; return; }
+  pintarSiCambio(box, `<div class="card cs-revisar-card">
+    <h2 style="margin:0 0 6px;">Carsitting para revisar</h2>
+    ${data.map(c => `<div class="agendarow cs-revisar-fila" style="border-bottom:1px solid var(--line);">
+      <div style="min-width:0;"><b>${escaparHtml(c.ninera_nombre || 'Niñera')}</b>
+        <div class="helper" style="margin:2px 0 0;">${escaparHtml(c.aprobado_en
+          ? `Actualizó los datos del auto el ${fechaCortaCarsitting(c.enviado_en)} (sigue aprobada con los de antes)`
+          : `Lo mandó el ${fechaCortaCarsitting(c.enviado_en)}`)}</div></div>
+      <button class="smallbtn" onclick="conGuardado(this, ()=>abrirRevisarCarsitting(${argJs(c.id)}))">Revisar</button>
+    </div>`).join('')}
+  </div>`);
+}
+async function abrirRevisarCarsitting(id){
+  const { data: c, error } = await sb.from('carsitting_datos').select('*').eq('id', id).maybeSingle();
+  if(error || !c){ toast(error ? 'No se pudo abrir el carsitting: ' + error.message : 'No se encontró ese carsitting.', 'bad'); return; }
+  const antes = c.aprobado_datos || null;
+  const filasDatos = CAMPOS_CARSITTING.map(k => {
+    const v = c[k.clave] || '';
+    const previo = antes && (antes[k.clave] || '') !== v ? ` <span class="helper" style="margin:0;">${escaparHtml(`(antes: ${antes[k.clave] || 'vacío'})`)}</span>` : '';
+    return `<div><b>${escaparHtml(k.etiqueta.replace(' (opcional)', ''))}</b>${escaparHtml(v || '—')}${previo}</div>`;
+  }).join('');
+  const fotos = c.fotos || {};
+  abrirModal(`<h2>${escaparHtml(`Carsitting de ${c.ninera_nombre || 'la niñera'}`)}</h2>
+    <div class="helper">${escaparHtml(c.aprobado_en ? `Actualizó los datos del auto el ${fechaCortaCarsitting(c.enviado_en)}. Sigue aprobada con los de antes hasta que lo revises.` : `Lo mandó el ${fechaCortaCarsitting(c.enviado_en)}.`)}</div>
+    <div class="fichadl" style="margin-top:10px;">${filasDatos}</div>
+    <div class="cs-fotos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      ${FOTOS_CARSITTING.map(([k, etiqueta]) => fotos[k] ? `<button type="button" class="smallbtn" onclick="verFotoCarsitting(${argJs(fotos[k])})">${escaparHtml(etiqueta)}</button>` : '').join('')}
+    </div>
+    <div id="cs-revisar-warn"></div>
+    ${c.revision === 'pendiente' ? `<button class="btn primary" style="width:100%;margin-top:12px;" onclick="conGuardado(this, ()=>revisarCarsitting(${argJs(c.id)}, 'aprobado'))">Aprobar</button>
+    <div class="field" style="margin-top:12px;"><label for="cs-comentario">Qué tiene que corregir</label>
+      <textarea id="cs-comentario" rows="2" maxlength="500" placeholder="Le llega por el chat"></textarea></div>
+    <button class="btn" style="width:100%;" onclick="conGuardado(this, ()=>revisarCarsitting(${argJs(c.id)}, 'rehacer'))">Pedir de nuevo</button>`
+    : `<div class="warnbox">Ya se revisó: ${escaparHtml(TEXTO_ESTADO_CARSITTING[estadoCarsitting(c)] || '')}.</div>`}`);
+}
+async function revisarCarsitting(id, revision){
+  const warn = document.getElementById('cs-revisar-warn');
+  const aviso = html => { if(warn) warn.innerHTML = html; };
+  const cambios = { revision, revisado_por: registradoPorUsuario() || null };
+  if(revision === 'rehacer'){
+    const comentario = (document.getElementById('cs-comentario')?.value || '').trim();
+    if(!comentario){ aviso('<div class="warnbox">Escribí qué tiene que corregir: le llega por el chat.</div>'); return; }
+    cambios.comentario = comentario;
+  }
+  const { data, error } = await sb.from('carsitting_datos').update(cambios).eq('id', id).eq('revision', 'pendiente').select('id');
+  if(error){ aviso(/falta_comentario/.test(error.message || '') ? '<div class="warnbox">Escribí qué tiene que corregir: le llega por el chat.</div>' : errBox(error)); return; }
+  if(!data || !data.length){ aviso('<div class="warnbox">No se cambió nada: alguien más ya lo revisó (o la niñera lo volvió a mandar). Cerrá para ver cómo quedó.</div>'); return; }
+  cerrarModal();
+  toast(revision === 'aprobado' ? 'Carsitting aprobado. Si tiene la app, le llega el aviso.' : 'Listo: le llega por el chat lo que tiene que corregir.');
+  cargarCarsittingParaRevisar();
+}
+
+// "Asignar" un traslado a una niñera sin el carsitting aprobado: se avisa y se deja asignar (decisión 2 de Diego,
+// 02/11/2026; el freno va en la etapa 11). Solo a las que tienen la app (orquestador, 02/11/2026): sin app no lo pueden
+// completar, y el aviso saltaría en cada traslado. cajaId: dónde va el aviso; si mientras se lee se eligió otra, no
+// pinta. Sin la base migrada o si una lectura falla, sin aviso.
+async function pintarAvisoCarsitting(cajaId, nineraId, nombre){
+  const caja = document.getElementById(cajaId);
+  if(!caja) return;
+  caja.dataset.ninera = nineraId || '';
+  caja.innerHTML = '';
+  if(!nineraId) return;
+  const [cs, nin] = await Promise.all([
+    sb.from('carsitting_datos').select('id').eq('ninera_id', nineraId).not('aprobado_en', 'is', null).limit(1),
+    sb.from('ninieras').select('user_id').eq('id', nineraId).maybeSingle(),
+  ]);
+  const actual = document.getElementById(cajaId);
+  if(cs.error || nin.error || !nin.data?.user_id || !actual || actual.dataset.ninera !== nineraId) return;
+  if(!(cs.data || []).length) actual.innerHTML = `<div class="warnbox aviso-carsitting-asignar">${escaparHtml(`${nombre} no tiene el carsitting aprobado. La podés asignar igual.`)}</div>`;
 }

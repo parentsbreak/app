@@ -310,3 +310,7 @@ button.aviso-item:hover{border-color:var(--accent);}
 .detalle-ficha{border-top:1px solid var(--line);padding-top:14px;margin-top:16px;}
 .detalle-ficha h3{font-size:17px;margin:0 0 10px;}
 .detalle-ficha p{white-space:pre-wrap;overflow-wrap:anywhere;}
+/* Etapa 10: el carsitting. */
+.aviso-carsitting{margin:0 0 18px;}
+.pantalla-carsitting .grupo{margin:18px 0;}
+.cs-foto-ya{margin:0 0 6px;}

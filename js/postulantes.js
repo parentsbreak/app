@@ -1,18 +1,19 @@
 /* ================= RR.HH. ================= */
 function rrhhShell(){
   const tabs = [['intake','Candidatas a entrevistar'],['entrevista','Entrevista'],['guardadas','Candidatas guardadas']];
-  return `<div class="card" id="rrhh-carsitting-pend"></div><div class="subnav">${tabs.map(([k,l])=>`<button class="subtab ${rrhhTab===k?'active':''}" data-rrhhtab="${k}">${l}</button>`).join('')}</div><div id="rrhh-body"></div>`;
+  // El aviso "Pendientes de carsitting" (mails con el formulario de Google) se sacó el 02/11/2026 (etapa 10): el
+  // carsitting se completa en la app de niñeras y se sigue en Niñeras > "Car sitting".
+  return `<div class="subnav">${tabs.map(([k,l])=>`<button class="subtab ${rrhhTab===k?'active':''}" data-rrhhtab="${k}">${l}</button>`).join('')}</div><div id="rrhh-body"></div>`;
 }
 // Cambio en vivo en RR.HH. (otra usuaria, o una candidata nueva del formulario público): en la
 // pestaña Entrevista no se repinta nada, porque reconstruirla borra lo que se está escribiendo;
-// el resto de las pestañas sí se actualiza. El aviso de carsitting de arriba se refresca siempre.
+// el resto de las pestañas sí se actualiza.
 function refrescarRrhhSinPisarEntrevista(){
-  if(rrhhTab==='entrevista'){ cargarCarsittingPendientes(); return; }
+  if(rrhhTab==='entrevista') return;
   return renderModulo();
 }
 function afterRrhhRender(){
   document.querySelectorAll('[data-rrhhtab]').forEach(b=>b.addEventListener('click', ()=>{ rrhhTab=b.dataset.rrhhtab; renderModulo(); }));
-  cargarCarsittingPendientes();
   const body = document.getElementById('rrhh-body');
   // Devuelve la promesa del tab que quede activo, para que renderModulo() la propague y
   // agendarDesdeIntake pueda esperar a que el form de entrevista ya esté armado en el DOM
@@ -20,76 +21,6 @@ function afterRrhhRender(){
   if(rrhhTab==='intake') return renderIntake(body);
   if(rrhhTab==='entrevista') return renderEntrevista(body);
   if(rrhhTab==='guardadas') return renderGuardadas(body);
-}
-let carsittingPendData = [];
-let carsittingPendAbierto = false;
-async function cargarCarsittingPendientes(){
-  const box = document.getElementById('rrhh-carsitting-pend');
-  if(!box) return;
-  const [{data:nins}, {data:cands}, {data:cd}] = await Promise.all([
-    sb.from('ninieras').select('id,nombre,tipo,carsitting_mail_enviado_at').in('tipo', ['Traslados','Ambas']),
-    sb.from('candidatas').select('id,nombre,apellido,tipo,mail,carsitting_mail_enviado_at').in('tipo', ['Traslados','Ambas']),
-    sb.from('carsitting_datos').select('ninera_nombre'),
-  ]);
-  const yaTiene = new Set((cd||[]).map(r=>normaliza(r.ninera_nombre||'')));
-  carsittingPendData = [
-    ...(nins||[]).filter(n=>!yaTiene.has(normaliza(n.nombre))).map(n=>({origen:'ninera', id:n.id, nombre:n.nombre, mail:null, enviado:n.carsitting_mail_enviado_at})),
-    ...(cands||[]).filter(c=>!yaTiene.has(normaliza(`${c.nombre} ${c.apellido||''}`.trim()))).map(c=>({origen:'candidata', id:c.id, nombre:`${c.nombre} ${c.apellido||''}`.trim(), mail:c.mail, enviado:c.carsitting_mail_enviado_at})),
-  ];
-  renderCarsittingPendientes();
-}
-function toggleCarsittingPend(){
-  carsittingPendAbierto = !carsittingPendAbierto;
-  renderCarsittingPendientes();
-}
-function renderCarsittingPendientes(){
-  const box = document.getElementById('rrhh-carsitting-pend');
-  if(!box) return;
-  const n = carsittingPendData.length;
-  const cabecera = `
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleCarsittingPend()">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">Pendientes de carsitting</span>
-        ${n?`<span style="background:var(--clay);color:#fff;border-radius:999px;min-width:20px;height:20px;padding:0 6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;">${n}</span>`:''}
-      </div>
-      <span class="helper" style="margin:0;">${n?(carsittingPendAbierto?'ocultar ▲':'ver lista ▼'):'todo al día'}</span>
-    </div>`;
-  if(!n || !carsittingPendAbierto){
-    box.innerHTML = cabecera;
-    return;
-  }
-  box.innerHTML = cabecera + `
-    <div style="margin-top:10px;">
-      ${carsittingPendData.map(p=>{
-        const asunto = encodeURIComponent('¡Bienvenida al equipo de traslados de Parents’ Break!');
-        const primerNombre = (p.nombre||'').split(' ')[0];
-        const cuerpo = encodeURIComponent(`Hola ${primerNombre},\n\n¡Qué alegría contar con vos para hacer traslados con Parents’ Break! Ya vimos en tu entrevista que tenés licencia de conducir y ganas de sumarte a esta parte del equipo.\n\nPara terminar de darte de alta como carsitter, necesitamos que completes este formulario con los datos de tu auto y algunos datos más:\n\nhttps://forms.gle/J4QXgNJQ8kXMsA4C6\n\nCon esto ya vas a quedar lista para que te empecemos a asignar traslados.\n\nCualquier duda, escribinos.\n\nUn abrazo,\nParents’ Break`);
-        const mailId = `carp-mail-${p.origen}-${p.id}`;
-        const enviadoTxt = p.enviado ? `Último mail enviado: ${new Date(p.enviado).toLocaleDateString('es-UY',{day:'2-digit',month:'short'})}` : 'Todavía no se le mandó nada';
-        const asuntoPersonal = encodeURIComponent('Parents’ Break');
-        const cuerpoPersonal = encodeURIComponent(`Hola ${primerNombre},\n\n\n\nUn abrazo,\nParents’ Break`);
-        return `<div class="agendarow" style="border-bottom:1px solid var(--line);flex-wrap:wrap;">
-          <div>
-            <div style="font-weight:600;">${escaparHtml(p.nombre)} <span class="badge" style="font-size:10px;">${p.origen==='ninera'?'niñera':'candidata'}</span></div>
-            <div class="helper" style="margin:2px 0 0;">${enviadoTxt}</div>
-            ${p.mail?'':`<input type="email" id="${mailId}" placeholder="mail de contacto" style="margin-top:6px;max-width:220px;">`}
-          </div>
-          <div style="display:flex;gap:8px;">
-            <a class="smallbtn" style="text-decoration:none;"
-               href="mailto:${escaparHtml(p.mail)}?subject=${asuntoPersonal}&body=${cuerpoPersonal}" target="_blank" rel="noopener"
-               ${p.mail?'':`onmousedown="this.href='mailto:'+(document.getElementById(${argJs(mailId)}).value||'')+${argJs('?subject='+asuntoPersonal+'&body='+cuerpoPersonal)}"`}>Mail personalizado</a>
-            <a class="smallbtn" style="text-decoration:none;" onclick="marcarCarsittingMailEnviado(${argJs(p.origen)},${argJs(p.id)})"
-               href="mailto:${escaparHtml(p.mail)}?subject=${asunto}&body=${cuerpo}" target="_blank" rel="noopener"
-               ${p.mail?'':`onmousedown="this.href='mailto:'+(document.getElementById(${argJs(mailId)}).value||'')+${argJs('?subject='+asunto+'&body='+cuerpo)}"`}>Enviar mail</a>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-async function marcarCarsittingMailEnviado(origen, id){
-  const tabla = origen==='ninera' ? 'ninieras' : 'candidatas';
-  const { error } = await sb.from(tabla).update({carsitting_mail_enviado_at: new Date().toISOString()}).eq('id', id);
-  if(error) toast('El mail se abrió, pero no se pudo anotar que se mandó: '+error.message, 'bad');
 }
 function errBox(e){ return `<div class="warnbox">Error de conexión con la base: ${escaparHtml(e?.message||e)}</div>`; }
 

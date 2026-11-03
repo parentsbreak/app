@@ -516,6 +516,7 @@ function onAgendaCruzaChange(){
 }
 function onAgendaTipoChange(){
   const tipo = document.getElementById('agenda-tipo').value;
+  avisoCarsittingNuevaSolicitud();
   document.getElementById('agenda-campo-sitting').style.display = tipo==='sitting' ? '' : 'none';
   document.getElementById('agenda-campo-traslado').style.display = tipo==='traslado' ? '' : 'none';
   document.getElementById('agenda-campo-traslado-cobro').style.display = tipo==='traslado' ? '' : 'none';
@@ -637,6 +638,7 @@ function abrirModalNuevaSolicitud(){
         <input type="text" id="agenda-ninera" autocomplete="off" placeholder="Si ya sabés quién va, queda asignada y cargada en Sittings">
         <div id="agenda-ninera-dropdown" class="autocomplete-dropdown" style="display:none;"></div>
       </div>
+      <div id="agenda-carsitting-aviso"></div>
       ${checklistZonas('agenda', '', 'Zona')}
       <div class="grid3">
         <div class="field"><label>Hora inicio</label>${selectHora('agenda-hora-inicio')}</div>
@@ -697,7 +699,12 @@ function abrirModalNuevaSolicitud(){
   // Solicitud en un paso (25/10/2026): la niñera se puede elegir acá mismo; solo las que hacen
   // ese tipo de servicio (el tipo se lee al escribir, por si cambia).
   // Cada niñera puede tener su precio con esa familia: elegirla (o cambiarla) lo precarga.
-  attachAutocomplete('agenda-ninera', 'agenda-ninera-dropdown', ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, document.getElementById('agenda-tipo')?.value)), ()=>precargarPagoHoraAgenda(), {sinCoincidencias:'Ninguna niñera coincide.'});
+  attachAutocomplete('agenda-ninera', 'agenda-ninera-dropdown', ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, document.getElementById('agenda-tipo')?.value)), ()=>{ precargarPagoHoraAgenda(); avisoCarsittingNuevaSolicitud(); }, {sinCoincidencias:'Ninguna niñera coincide.'});
+}
+// Un traslado con una niñera sin el carsitting aprobado (etapa 10): aviso sin frenar (ninieras.js).
+function avisoCarsittingNuevaSolicitud(){
+  const n = document.getElementById('agenda-tipo')?.value === 'traslado' ? nineraNuevaSolicitud() : null;
+  pintarAvisoCarsitting('agenda-carsitting-aviso', n ? n.id : null, n ? n.nombre : '');
 }
 // Sitting: cualquiera menos las que solo hacen traslados; traslado: "Traslados" o "Ambas".
 function nineraHaceTipo(n, tipo){
@@ -2168,12 +2175,18 @@ async function abrirCambiarNinera(regId){
       <div class="helper" id="cambio-ninera-pago-ayuda"></div>
     </div>
     <div id="cambio-ninera-precios-aviso"></div>
+    <div id="cambio-ninera-carsitting-aviso"></div>
     <div class="helper">${escaparHtml(`A ${r.ninera_nombre} le llega que ya no va y a la nueva, que quedó seleccionada (si tienen la app). Después sale el mensaje para la madre.`)}</div>
     <div id="cambio-ninera-warn"></div>
     <button class="btn primary" style="width:100%;margin-top:8px;" onclick="conGuardado(this, ()=>guardarCambioDeNinera())">Cambiar de niñera</button>`);
   cambioNinera = { r, token: modalToken }; // el modal de este cambio: lo que llega tarde de otro no pinta
   attachAutocomplete('cambio-ninera', 'cambio-ninera-dropdown',
-    ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, r.tipo) && n.id!==r.ninera_id), ()=>precargarPagoCambioNinera(), {sinCoincidencias:'Ninguna niñera coincide.'});
+    ()=>agendaNinierasBase.filter(n=>nineraHaceTipo(n, r.tipo) && n.id!==r.ninera_id), ()=>{
+      precargarPagoCambioNinera();
+      // Un traslado a una niñera sin el carsitting aprobado (etapa 10): aviso sin frenar.
+      const n = nineraCambioElegida();
+      if(r.tipo==='traslado') pintarAvisoCarsitting('cambio-ninera-carsitting-aviso', n ? n.id : null, n ? n.nombre : '');
+    }, {sinCoincidencias:'Ninguna niñera coincide.'});
 }
 function nineraCambioElegida(){
   const st = cambioNinera;

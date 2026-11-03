@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `ficha` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `ficha` → `carsitting` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -384,6 +384,21 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   `generar_previstos_fijos` (fijo nuevo, horario desde una fecha, la ventana que crece cada noche, pausa, cambio de niñera, termina,
   días), `ninera_responder_cambio` y la ficha (`ninera_guardar_ficha_familia`, `ninera_ficha_familia`: quién la ve y hasta cuándo).
   El DESHACER con datos, en `supabase/pruebas/deshacer/20261107_ficha_cambios*.sql`. Los avisos por día usan fechas de 2030.
+- `supabase/pruebas/fase1_carsitting.sql` (02/11/2026, etapa 10): `ninera_mi_carsitting` y `ninera_guardar_carsitting` (campos
+  obligatorios, largo, las 7 fotos de su carpeta, solo si hace traslados, el aviso a las admins), las fotos del bucket, la revisión de
+  la admin (pedir de nuevo con el comentario por el chat, aprobar con el aviso y lo aprobado guardado, la condición de `revision`),
+  actualizar estando aprobada (sigue aprobada con lo anterior), la fila del formulario intacta y `programar_avisos_carsitting` (el
+  primero, los lunes a las 10, la que tiene que corregir, `solo_practica`). El DESHACER con datos, en
+  `supabase/pruebas/deshacer/20261108_carsitting_app*.sql`.
+- `tests/ninera-carsitting.spec.js` (02/11/2026, etapa 10): el carsitting en la app de niñeras (la tarjeta del inicio sin completar,
+  para corregir con el comentario, en revisión y aprobada; `#carsitting` con los campos y las 7 fotos, lo que falta sin subir nada,
+  las rutas de las fotos, el cuerpo exacto, corregir una sola foto, "Actualizar los datos del auto" en "Mi perfil", fallas al subir o
+  de la base, reintento sin volver a subir, doble toque, base sin migrar 'etapa10', 390 px). `tests/carsitting-panel.spec.js`: el
+  panel ("Carsitting para revisar" en Hoy con los datos, las fotos con link firmado, "Aprobar" y "Pedir de nuevo" con la condición de
+  `revision`, dos admins, la actualización con lo de antes; el panel "Car sitting" de Niñeras; la ficha con "Carsitting pendiente" /
+  "aprobado"; el aviso al asignar un traslado; RR.HH. sin el aviso de mails; base sin migrar). El simulador:
+  `tests/support/rpc-carsitting.js` (las 2 RPC, la ruta de las fotos, el trigger de la revisión; los avisos de tiempo no se simulan) y
+  `abrirApp` / `abrirAppNinera(..., { baseSinMigrar: 'etapa10' })` (la 8 sin migrar también la saca).
 - `tests/ninera-ficha.spec.js` (02/11/2026, etapa 8): la ficha de la familia en la app de niñeras ("Ficha de la familia" debajo de los
   botones de la tarjeta del día, `#sitting/<id>/ficha`, precargada con la última de la familia sin decir de quién ni sus casillas, el
   cuerpo exacto, la propia con sus casillas, errores, doble toque, la ficha en el detalle del sitting y hasta cuándo, escape, base sin
@@ -780,6 +795,14 @@ reporte.
   `rechazada`, la de la nueva `confirmada` y después el registro con la condición de la niñera, así la nueva recibe "¡Quedaste
   seleccionada!" y no "Tienes un sitting"; si falla un paso, lo anterior vuelve atrás) y "Cancelar el pedido" (la base cancela el
   registro en $0). `abrirSolicitudDeLink` abre el registro de un pedido ya registrado.
+- Carsitting desde la app (02/11/2026, etapa 10, decisiones 6.7): los campos y las 7 fotos viven en `js/comun.js` (`GRUPOS_CARSITTING`,
+  `FOTOS_CARSITTING`) con las claves de `carsitting_campos()` / `carsitting_fotos()`. La niñera lee y manda solo por RPC
+  (`ninera/js/carsitting.js`); las fotos van a `ninieras-privado/carsitting/<su id>/<foto>_<8 hex>.jpg` con un nombre nuevo cada vez
+  (lo aprobado no se pisa) y se suben antes de llamar a la base. Las filas de la app tienen `enviado_en`; las del formulario de Google
+  no (`filaCarsittingDe`, ninieras.js, prefiere la de la app por id). Revisar es un update de la admin con la condición de `revision`
+  = 'pendiente'; el trigger de la base aprueba y avisa, o manda el comentario por el chat. Aprobada una vez, queda aprobada
+  (`aprobado_en`) aunque mande una actualización. Asignar un traslado a una con app sin aprobar avisa y no frena
+  (`pintarAvisoCarsitting`); el freno es de la etapa 11. El aviso y la marca "Carsitting pendiente" de la ficha, solo con app.
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -1006,8 +1029,8 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 `textos.md`, las decisiones de diseño en `decisiones.md` y el plan por etapas en
 `plan-implementacion.md`. Etapas 1 (puerta `ninera/`, cuentas, invitación, instalar, avisos) y 2 (perfil, foto
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
-producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) en
-curso en la rama `claude/fase1-ficha-cambios` (migración `20261107_ficha_cambios` aplicada en producción el 02/11/2026; falta el merge); etapas 10 y 11 pendientes, cada una se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
+producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) en
+curso en la rama `claude/fase1-carsitting` (migración `20261108_carsitting_app` aplicada en producción el 02/11/2026; falta el merge); etapa 11 pendiente, se detalla antes de arrancarla. La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1040,6 +1063,15 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 8 (02/11/2026): cambiar la niñera desde "Editar este registro" (Sittings) en vez de "Cambiar de niñera" avisa igual a las
   dos (trigger), pero la fila de la anterior sigue `confirmada`: si no había visto sus datos, le queda "¡Quedaste seleccionada!" en el
   inicio. OK del orquestador (02/11/2026): que "Editar este registro" use "Cambiar de niñera" cuando el registro sale de un pedido.
+- Etapa 10 (02/11/2026): "Carsitting para revisar" se lee al abrir Hoy (sin Realtime). Las fotos que se reemplazan o que se
+  subieron en un envío que falló quedan en el bucket sin usar (no se borran). Probar en el iPhone real los 7 campos de foto (cámara o
+  galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
+  app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
+  `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
+- Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel
+  "Car sitting" de Niñeras, que arme los links de una vez.
+- Etapa 10 (02/11/2026, Diego): fechas de vencimiento de la licencia y del seguro del carsitting, con un aviso para renovarlas.
+  Hoy no se piden; si cambia algo, la niñera lo actualiza desde "Mi perfil".
 - Etapa 8 (02/11/2026, orquestador): si falla el paso 3 de "Cambiar de niñera" (el registro) y se vuelve atrás, la anterior vuelve a
   `confirmada` y el trigger `solicitud_ninieras_al_confirmar` le manda a la nueva "Gracias por responder, ya quedó cubierto" (es
   cierto, pero sobra). El "No puede" de un cambio de un fijo abre la Agenda sin el fijo a la vista (`?ir=agenda`); solo se ve en el modal del

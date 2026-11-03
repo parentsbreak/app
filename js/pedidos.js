@@ -429,6 +429,7 @@ function pintarElegirNineras(){
           <div class="field"><label>Pago a la niñera</label><div class="moneyfield"><input type="number" id="agenda-asignar-pago" oninput="marcarCampoEditadoManual('agenda-asignar-pago')"></div></div>
           <div id="agenda-asignar-precio-aviso"></div>
           <div id="agenda-asignar-guia-aviso"></div>
+          <div id="agenda-asignar-carsitting-aviso"></div>
           ${st.pideDireccion ? campoDireccionAsignar() : ''}
           <div id="agenda-asignar-warn"></div>
           <button class="btn primary" style="width:100%;margin-top:6px;" onclick="conGuardado(this, ()=>guardarAsignacionDirecta(${argJs(s.id)}))">Guardar asignación</button>
@@ -1444,6 +1445,8 @@ function avisoGuiaElegida(sel){
   const caja = document.getElementById('agenda-asignar-guia-aviso');
   if(!caja) return;
   caja.innerHTML = sel ? htmlAvisoGuiaAsignar(sel.dataset.nombre, pedidoElegir?.datos?.guia?.[sel.value]) : '';
+  // Un traslado a una niñera sin el carsitting aprobado (etapa 10, ninieras.js): aviso sin frenar.
+  if(pedidoElegir?.s?.tipo === 'traslado') pintarAvisoCarsitting('agenda-asignar-carsitting-aviso', sel ? sel.value : null, sel ? sel.dataset.nombre : '');
 }
 // En "Asignar" (Pedidos en curso) se pregunta aparte, sin frenar la pantalla: si falla o la base no tiene la
 // guía, no hay aviso.
