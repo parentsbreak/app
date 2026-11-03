@@ -146,6 +146,16 @@ test.describe('Niñeras y la ficha', () => {
     verificarLimpio(e);
   });
 
+  test('la ficha de una sin app: sin la marca (no lo puede completar), con los mails del formulario de siempre', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datos([]) });
+    await irAModulo(page, 'ninieras');
+    await page.evaluate(id => verNinera(id), ID.nBruno);
+    const sec = page.locator('#vn-carsitting');
+    await expect(sec).toContainText('Hace traslados pero todavía no completó el form de carsitting.');
+    await expect(sec.locator('.cs-marca')).toHaveCount(0);
+    verificarLimpio(e);
+  });
+
   test('la ficha de una con app que no lo completó: lo pide la app, sin los mails del formulario', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos([]) });
     await irAModulo(page, 'ninieras');
@@ -184,8 +194,10 @@ test.describe('asignar un traslado', () => {
     await page.locator('#agenda-ninera-dropdown .autocomplete-item', { hasText: nombre }).click();
   }
 
-  test('"+ Nueva solicitud": a una niñera sin el carsitting aprobado, aviso sin frenar; aprobada, nada', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datos([filaCarla({ revision: 'aprobado', aprobado_en: '2026-10-03T16:00:00Z' })]) });
+  test('"+ Nueva solicitud": a una niñera con app sin el carsitting aprobado, aviso sin frenar; aprobada, nada', async ({ page }) => {
+    const d = datos([filaCarla({ revision: 'aprobado', aprobado_en: '2026-10-03T16:00:00Z' })]);
+    d.ninieras.find(n => n.id === ID.nBruno).user_id = '00000000-0000-4000-8000-0000000000b2';
+    const e = await abrirApp(page, { datos: d });
     await nuevaSolicitudTraslado(page);
     await elegir(page, 'bru', 'Bruno Inventado');
     await expect(page.locator('#agenda-carsitting-aviso')).toHaveText('Bruno Inventado no tiene el carsitting aprobado. La podés asignar igual.');
@@ -194,6 +206,18 @@ test.describe('asignar un traslado', () => {
     await expect(page.locator('#agenda-carsitting-aviso')).toBeEmpty();
     // Un sitting no avisa.
     await page.selectOption('#agenda-tipo', 'sitting');
+    await expect(page.locator('#agenda-carsitting-aviso')).toBeEmpty();
+    verificarLimpio(e);
+  });
+
+  test('a una niñera sin app no le sale el aviso (no lo puede completar)', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datos([]) });
+    await nuevaSolicitudTraslado(page);
+    await elegir(page, 'bru', 'Bruno Inventado');
+    await expect(page.locator('#agenda-ninera')).toHaveValue('Bruno Inventado');
+    // Espera a que terminen las dos lecturas del aviso.
+    await expect.poll(() => page.evaluate(() => document.getElementById('agenda-carsitting-aviso')?.dataset.ninera)).toBeTruthy();
+    await page.waitForTimeout(300);
     await expect(page.locator('#agenda-carsitting-aviso')).toBeEmpty();
     verificarLimpio(e);
   });

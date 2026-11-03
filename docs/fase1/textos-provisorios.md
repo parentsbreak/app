@@ -446,5 +446,5 @@ Panel (voseo, PROVISORIOS):
 - Ficha de la niñera: "Carsitting pendiente" / "Carsitting aprobado"; "Aprobado el [dd/mm]." (y si actualizó: "Actualizó los datos del
   auto: están para revisar en Hoy."), "Le pedimos que corrija algo: [comentario]", "Lo mandó el [dd/mm]: está para revisar en Hoy.",
   "Todavía no completó los datos en la app: se los pide la app."
-- Al asignar un traslado: "[niñera] no tiene el carsitting aprobado. La podés asignar igual."
+- Al asignar un traslado: "[niñera] no tiene el carsitting aprobado. La podés asignar igual." Solo si tiene la app; la marca de la ficha, también.
 - Preferencias: "Carsitting" / "Cuando una niñera completa o actualiza sus datos de carsitting".

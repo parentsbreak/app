@@ -369,7 +369,7 @@ function filtrarNinieras(){
 // contra TODOS los registros de carsitting_datos, sin depender de si ya está en Niñeras o
 // todavía en Candidatas — así aparece sola apenas ella manda el form, esté donde esté.
 // Etapa 10 (02/11/2026): con nineraId (la ficha de la niñera) manda la fila de la app (por id): el estado de la revisión,
-// la marca "Carsitting pendiente" mientras no está aprobado y las 7 fotos con link firmado. Una niñera con app que no lo
+// la marca "Carsitting pendiente" mientras no está aprobado (solo con app) y las 7 fotos con link firmado. Una niñera con app que no lo
 // completó ve "Carsitting pendiente" sin los mails del formulario (lo pide la app).
 async function cargarCarsittingSeccion(nombre, boxId, tipo, mail, nineraId = null, conApp = false){
   const box = document.getElementById(boxId);
@@ -380,7 +380,8 @@ async function cargarCarsittingSeccion(nombre, boxId, tipo, mail, nineraId = nul
   const c = deLaApp || (data||[]).find(r=>!r.enviado_en && normaliza(r.ninera_nombre)===nombreNorm);
   const hace = tipo==='Traslados' || tipo==='Ambas';
   const est = estadoCarsitting(c || null);
-  const marca = hace && nineraId ? `<span class="badge ${est==='aprobado' ? 'good' : 'warn'} cs-marca" style="margin-left:6px;">${ESTADOS_CARSITTING[est==='aprobado' ? 'aprobado' : 'pendiente']}</span>` : '';
+  // La marca, solo a las que tienen la app (orquestador, 02/11/2026): sin app no lo pueden completar.
+  const marca = hace && nineraId && conApp ? `<span class="badge ${est==='aprobado' ? 'good' : 'warn'} cs-marca" style="margin-left:6px;">${ESTADOS_CARSITTING[est==='aprobado' ? 'aprobado' : 'pendiente']}</span>` : '';
   if(c){
     const campos = [
       ['Auto', [c.modelo_auto, c.color_auto].filter(Boolean).join(' · ')],
@@ -2535,16 +2536,20 @@ async function revisarCarsitting(id, revision){
 }
 
 // "Asignar" un traslado a una niñera sin el carsitting aprobado: se avisa y se deja asignar (decisión 2 de Diego,
-// 02/11/2026; el freno va en la etapa 11). cajaId: dónde va el aviso; si mientras se lee se eligió otra, no pinta. Sin
-// la base migrada o si la lectura falla, sin aviso.
+// 02/11/2026; el freno va en la etapa 11). Solo a las que tienen la app (orquestador, 02/11/2026): sin app no lo pueden
+// completar, y el aviso saltaría en cada traslado. cajaId: dónde va el aviso; si mientras se lee se eligió otra, no
+// pinta. Sin la base migrada o si una lectura falla, sin aviso.
 async function pintarAvisoCarsitting(cajaId, nineraId, nombre){
   const caja = document.getElementById(cajaId);
   if(!caja) return;
   caja.dataset.ninera = nineraId || '';
   caja.innerHTML = '';
   if(!nineraId) return;
-  const { data, error } = await sb.from('carsitting_datos').select('id').eq('ninera_id', nineraId).not('aprobado_en', 'is', null).limit(1);
+  const [cs, nin] = await Promise.all([
+    sb.from('carsitting_datos').select('id').eq('ninera_id', nineraId).not('aprobado_en', 'is', null).limit(1),
+    sb.from('ninieras').select('user_id').eq('id', nineraId).maybeSingle(),
+  ]);
   const actual = document.getElementById(cajaId);
-  if(error || !actual || actual.dataset.ninera !== nineraId) return;
-  if(!(data || []).length) actual.innerHTML = `<div class="warnbox aviso-carsitting-asignar">${escaparHtml(`${nombre} no tiene el carsitting aprobado. La podés asignar igual.`)}</div>`;
+  if(cs.error || nin.error || !nin.data?.user_id || !actual || actual.dataset.ninera !== nineraId) return;
+  if(!(cs.data || []).length) actual.innerHTML = `<div class="warnbox aviso-carsitting-asignar">${escaparHtml(`${nombre} no tiene el carsitting aprobado. La podés asignar igual.`)}</div>`;
 }

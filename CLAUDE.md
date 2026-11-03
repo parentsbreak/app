@@ -801,8 +801,8 @@ reporte.
   (lo aprobado no se pisa) y se suben antes de llamar a la base. Las filas de la app tienen `enviado_en`; las del formulario de Google
   no (`filaCarsittingDe`, ninieras.js, prefiere la de la app por id). Revisar es un update de la admin con la condición de `revision`
   = 'pendiente'; el trigger de la base aprueba y avisa, o manda el comentario por el chat. Aprobada una vez, queda aprobada
-  (`aprobado_en`) aunque mande una actualización. Asignar un traslado a una sin aprobar avisa y no frena (`pintarAvisoCarsitting`);
-  el freno es de la etapa 11.
+  (`aprobado_en`) aunque mande una actualización. Asignar un traslado a una con app sin aprobar avisa y no frena
+  (`pintarAvisoCarsitting`); el freno es de la etapa 11. El aviso y la marca "Carsitting pendiente" de la ficha, solo con app.
 - Temporada desde la app (31/10/2026, spec `docs/fase1/etapa9-temporada.md`): la niñera con app marca dónde está
   cada quincena (Punta / Montevideo / La Paloma / Fuera del país / Otro con texto) y se guarda en
   `ninieras.temporada_lugares` + `temporada_lugares_en`; por la RPC `ninera_guardar_temporada` escribe además
@@ -1068,6 +1068,8 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
+- Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel
+  "Car sitting" de Niñeras, que arme los links de una vez.
 - Etapa 10 (02/11/2026, Diego): fechas de vencimiento de la licencia y del seguro del carsitting, con un aviso para renovarlas.
   Hoy no se piden; si cambia algo, la niñera lo actualiza desde "Mi perfil".
 - Etapa 8 (02/11/2026, orquestador): si falla el paso 3 de "Cambiar de niñera" (el registro) y se vuelve atrás, la anterior vuelve a
