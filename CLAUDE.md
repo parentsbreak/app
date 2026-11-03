@@ -1039,7 +1039,10 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   `sitting_eventos.ninera_id` (tablas chicas, INFO). Probar en el iPhone real el campo de la hora y la foto del comprobante.
 - Etapa 8 (02/11/2026): cambiar la niñera desde "Editar este registro" (Sittings) en vez de "Cambiar de niñera" avisa igual a las
   dos (trigger), pero la fila de la anterior sigue `confirmada`: si no había visto sus datos, le queda "¡Quedaste seleccionada!" en el
-  inicio. El "No puede" de un cambio de un fijo abre la Agenda sin el fijo a la vista (`?ir=agenda`); solo se ve en el modal del
+  inicio. OK del orquestador (02/11/2026): que "Editar este registro" use "Cambiar de niñera" cuando el registro sale de un pedido.
+- Etapa 8 (02/11/2026, orquestador): si falla el paso 3 de "Cambiar de niñera" (el registro) y se vuelve atrás, la anterior vuelve a
+  `confirmada` y el trigger `solicitud_ninieras_al_confirmar` le manda a la nueva "Gracias por responder, ya quedó cubierto" (es
+  cierto, pero sobra). El "No puede" de un cambio de un fijo abre la Agenda sin el fijo a la vista (`?ir=agenda`); solo se ve en el modal del
   registro de un día. La ficha de la niñera no guarda borrador (si sale de la pantalla, se pierde lo escrito). Probar en el iPhone
   real el formulario de la ficha con el teclado y la tarjeta del cambio desde un push.
 - Etapa 6 (01/11/2026): el historial de "Ya fue N veces" (`historialPedidosEnCurso`) no tiene tope de filas (PostgREST corta en 1.000) y
