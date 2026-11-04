@@ -1,0 +1,29 @@
+name: Receptor YCloud
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/ycloud-webhook/**'
+      - 'supabase/migraciones/*ycloud*'
+      - 'supabase/pruebas/ycloud*'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - '.github/workflows/ycloud-receptor.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recepcion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - run: deno check --no-config --no-lock supabase/functions/ycloud-webhook/index.ts
+      - run: deno test --no-config --no-lock supabase/functions/ycloud-webhook/recepcion_test.ts
+      - run: npm install --prefix "$RUNNER_TEMP/ycloud-tools" --no-audit --no-fund @electric-sql/pglite@0.3.14
+      - run: PGLITE_DIR="$RUNNER_TEMP/ycloud-tools" node scripts/probar-sql.mjs supabase/pruebas/ycloud_recepcion.sql

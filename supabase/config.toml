@@ -1,0 +1,4 @@
+# Este archivo no publica ni modifica funciones existentes.
+# Solo el receptor nuevo es público sin JWT: exige la firma propia de YCloud.
+[functions.ycloud-webhook]
+verify_jwt = false

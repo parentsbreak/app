@@ -1308,6 +1308,11 @@ El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL 
   27/10/2026): conviene una vista o RPC con los conteos por niñera (30 días, total, última fecha).
 
 ### WhatsApp y automatización de mensajes
+- YCloud W1: receptor nuevo `ycloud-webhook`, migración `20261104194824_ycloud_recepcion` y
+  pruebas de firma/ingreso atómico. Preparado, sin publicar ni aplicar. Pasos y límites en
+  `docs/ycloud-receptor.md`; plan completo en `docs/whatsapp-ycloud-plan-implementacion.md`.
+  Solo guarda eventos y deja trabajos pendientes: no hay transcripción, pedidos ni envíos.
+  No conectar el número operativo ni usar `WHATSAPP_APP_SECRET` para este proveedor.
 - Línea de WhatsApp Business + API de Meta (Coexistence): bloqueado. Es la base del flujo de
   pedidos del proyecto grande. Antes de construir, evaluar opciones (la API oficial, un agente
   que lea y redacte, o plantillas que ellas mandan con un toque), con costos y riesgos.
