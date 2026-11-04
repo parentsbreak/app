@@ -101,7 +101,9 @@ test.describe('estático', () => {
 
   test('la guía (ninera/guia/contenido.json): 11 módulos, 48 lecciones, b2 en Bebés y nada que se ejecute', () => {
     // Etapa 4 (02/11/2026): sale de docs/fase1/guia-original.html con scripts/guia-desde-html.mjs (14 módulos
-    // menos inicio, ficha y recibidas; b2 se mueve de Protocolos a Bebés, no se borra; sin los juegos).
+    // menos inicio, ficha y recibidas; b2 se mueve de Protocolos a Bebés, no se borra). Etapa 12 (03/11/2026): los
+    // juegos del kit van en `juegos` de las cuatro lecciones de actividades (los monta ninera/js/juegos.js), con el
+    // "Para jugar acá" del original; el HTML sigue sin el kit.
     const guia = JSON.parse(leer('ninera/guia/contenido.json'));
     expect(guia.version).toBe('2026.10');
     expect(guia.modulos.map(m => m.id)).toEqual(['protocolos', 'auxilios', 'recien', 'bebes', 'toddlers', 'preescolares',
@@ -122,11 +124,20 @@ test.describe('estático', () => {
     }
     for (const l of lecciones) {
       expect(l.titulo && l.html, l.id).toBeTruthy();
-      expect(l.html, l.id).not.toMatch(/<script|<iframe|<form|<input|<button|\son[a-z]+\s*=|javascript:|style=|class="kit"|Para jugar acá/);
+      expect(l.html, l.id).not.toMatch(/<script|<iframe|<form|<input|<button|\son[a-z]+\s*=|javascript:|style=|class="kit"/);
       expect(l.html, l.id).not.toMatch(/<script|<iframe|\son[a-z]+\s*=|javascript:/i);
       for (const [, href] of l.html.matchAll(/href="([^"]*)"/g)) expect(href, l.id).toMatch(/^https:\/\//);
       expect((l.html.match(/<a /g) || []).length, l.id).toBe((l.html.match(/target="_blank" rel="noopener"/g) || []).length);
+      // "Para jugar acá" solo donde hay juegos.
+      expect(/Para jugar acá/.test(l.html), l.id).toBe(!!l.juegos);
     }
+    const conJuegos = Object.fromEntries(lecciones.filter(l => l.juegos).map(l => [l.id, l.juegos]));
+    expect(conJuegos).toEqual({
+      'act-t': ['emociones'],
+      'act-p': ['tesoro', 'emociones', 'laberinto', 'bingo', 'diario'],
+      'act-s': ['tesoro', 'bingo', 'sopa', 'laberinto', 'tateti', 'diario'],
+      'act-y': ['tateti', 'sopa'],
+    });
   });
 
   test('las lecciones obligatorias de la base son las de Protocolos y RCP del JSON', () => {

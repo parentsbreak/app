@@ -429,7 +429,10 @@
           "id": "act-t",
           "titulo": "Actividades para 1 a 3 años",
           "subtitulo": "Ideas para la casa, la plaza y para calmar",
-          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>¿Dónde está? ¡Acá está!</b> Te tapás la cara y aparecés.</li>\n      <li><b>Adiviná el animal:</b> imitás un animal con el cuerpo y el ruido.</li>\n      <li><b>Bailar y frenar</b> cuando para la música.</li>\n      <li><b>Canciones con gestos</b>, como las de las manitos.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Meter y sacar cosas de una caja o un balde.</li>\n      <li>Torres de bloques o vasos de plástico para tirar.</li>\n      <li>Cuentos con dibujos grandes: señalá y nombrá lo que ven.</li>\n      <li>Cocinita o comidita de juguete.</li>\n      <li>Crayones gruesos en una hoja grande pegada a la mesa.</li>\n      <li>Una caja de cartón que se convierte en auto o casa.</li>\n      <li>Bolos con botellas de plástico vacías.</li>\n      <li>Masa casera (2 tazas de harina, 1 de sal, 1 de agua, un chorrito de aceite), si la familia está de acuerdo.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Burbujas, mirar hormigas y bichos bolita, juntar hojas y piedras.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Cuento con la luz baja, una canción suave, upa tranquila.</li></ul>\n    <p class=\"key\"><b>Seguridad:</b> nada de piezas chicas, botones ni cuentas con menores de 3 años, y la cocina siempre con vos al lado.</p>"
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>¿Dónde está? ¡Acá está!</b> Te tapás la cara y aparecés.</li>\n      <li><b>Adiviná el animal:</b> imitás un animal con el cuerpo y el ruido.</li>\n      <li><b>Bailar y frenar</b> cuando para la música.</li>\n      <li><b>Canciones con gestos</b>, como las de las manitos.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Meter y sacar cosas de una caja o un balde.</li>\n      <li>Torres de bloques o vasos de plástico para tirar.</li>\n      <li>Cuentos con dibujos grandes: señalá y nombrá lo que ven.</li>\n      <li>Cocinita o comidita de juguete.</li>\n      <li>Crayones gruesos en una hoja grande pegada a la mesa.</li>\n      <li>Una caja de cartón que se convierte en auto o casa.</li>\n      <li>Bolos con botellas de plástico vacías.</li>\n      <li>Masa casera (2 tazas de harina, 1 de sal, 1 de agua, un chorrito de aceite), si la familia está de acuerdo.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Burbujas, mirar hormigas y bichos bolita, juntar hojas y piedras.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Cuento con la luz baja, una canción suave, upa tranquila.</li></ul>\n    <p class=\"key\"><b>Seguridad:</b> nada de piezas chicas, botones ni cuentas con menores de 3 años, y la cocina siempre con vos al lado.</p>\n    <h3>Para jugar acá</h3>\n    <p>Tocá \"Emociones\" y que el chico elija cómo se siente.</p>",
+          "juegos": [
+            "emociones"
+          ]
         }
       ],
       "repaso": [
@@ -483,7 +486,14 @@
           "id": "act-p",
           "titulo": "Actividades para 3 a 5 años",
           "subtitulo": "Ideas y juegos para usar desde el celular",
-          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>Simón dice:</b> solo se hace lo que empieza con \"Simón dice\".</li>\n      <li><b>Estatuas:</b> bailan con música y cuando para, todos quietos.</li>\n      <li><b>Veo veo</b> con colores, desde los 4 años.</li>\n      <li><b>Adiviná el animal.</b></li>\n      <li><b>El cuento encadenado:</b> cada uno agrega una frase.</li>\n    </ul>\n    <h3>Día de lluvia</h3>\n    <ul>\n      <li>Cueva con sillas, sábanas y almohadones, y cuentos con linterna adentro.</li>\n      <li>Circuito de obstáculos: almohadones para saltar, una mesa para pasar por abajo, una cinta en el piso.</li>\n      <li>Títeres con medias viejas o dibujos en palitos.</li>\n      <li>Disfraces y juego de roles: el médico, el almacén, la maestra.</li>\n      <li>Rompecabezas simples y recortar con tijera de punta redonda.</li>\n      <li>Cocinar algo simple: ensalada de frutas o decorar galletitas.</li>\n    </ul>\n    <h3>En la plaza</h3>\n    <ul><li>Bingo de la plaza, colección de tesoros, la mancha con límites claros, tiza en la vereda si la familia deja, burbujas.</li></ul>\n    <h3>Para calmar y antes de dormir</h3>\n    <ul>\n      <li><b>Respirar como globo:</b> inflar la panza despacio y desinflarla, juntos.</li>\n      <li><b>Oler la flor y soplar la vela</b> con los dedos.</li>\n      <li>El cuento de siempre, con la luz baja. Una hora antes de dormir, sin pantallas.</li>\n    </ul>"
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li><b>Simón dice:</b> solo se hace lo que empieza con \"Simón dice\".</li>\n      <li><b>Estatuas:</b> bailan con música y cuando para, todos quietos.</li>\n      <li><b>Veo veo</b> con colores, desde los 4 años.</li>\n      <li><b>Adiviná el animal.</b></li>\n      <li><b>El cuento encadenado:</b> cada uno agrega una frase.</li>\n    </ul>\n    <h3>Día de lluvia</h3>\n    <ul>\n      <li>Cueva con sillas, sábanas y almohadones, y cuentos con linterna adentro.</li>\n      <li>Circuito de obstáculos: almohadones para saltar, una mesa para pasar por abajo, una cinta en el piso.</li>\n      <li>Títeres con medias viejas o dibujos en palitos.</li>\n      <li>Disfraces y juego de roles: el médico, el almacén, la maestra.</li>\n      <li>Rompecabezas simples y recortar con tijera de punta redonda.</li>\n      <li>Cocinar algo simple: ensalada de frutas o decorar galletitas.</li>\n    </ul>\n    <h3>En la plaza</h3>\n    <ul><li>Bingo de la plaza, colección de tesoros, la mancha con límites claros, tiza en la vereda si la familia deja, burbujas.</li></ul>\n    <h3>Para calmar y antes de dormir</h3>\n    <ul>\n      <li><b>Respirar como globo:</b> inflar la panza despacio y desinflarla, juntos.</li>\n      <li><b>Oler la flor y soplar la vela</b> con los dedos.</li>\n      <li>El cuento de siempre, con la luz baja. Una hora antes de dormir, sin pantallas.</li>\n    </ul>\n    <h3>Para jugar acá</h3>",
+          "juegos": [
+            "tesoro",
+            "emociones",
+            "laberinto",
+            "bingo",
+            "diario"
+          ]
         }
       ],
       "repaso": [
@@ -523,7 +533,15 @@
           "id": "act-s",
           "titulo": "Actividades para 5 a 8 años",
           "subtitulo": "Ideas y juegos para usar desde el celular",
-          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li>Simón dice, veo veo, el cuento encadenado, adivinanzas y chistes.</li>\n      <li><b>20 preguntas</b>, desde los 7: pensás en algo y adivina con preguntas de sí o no.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Juegos de mesa y cartas (la mosca, memoria), rompecabezas.</li>\n      <li>Construir con bloques o con cajas de cartón.</li>\n      <li>Cocinar juntos midiendo y pesando ingredientes.</li>\n      <li>Hacer la lista de compras o planear algo juntos.</li>\n      <li>Circuito de obstáculos o una cueva de almohadones.</li>\n      <li>Seguir lo que le gusta: si le encantan los dinosaurios, dibujen, lean o inventen un cuento de dinosaurios.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Pelota, la mancha, arenero, juegos con barro o pintura, bingo de la plaza.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Respirar como globo, dibujar con colores tranquilos, leer juntos.</li></ul>"
+          "html": "<h3>Sin materiales</h3>\n    <ul>\n      <li>Simón dice, veo veo, el cuento encadenado, adivinanzas y chistes.</li>\n      <li><b>20 preguntas</b>, desde los 7: pensás en algo y adivina con preguntas de sí o no.</li>\n    </ul>\n    <h3>Con cosas de la casa</h3>\n    <ul>\n      <li>Juegos de mesa y cartas (la mosca, memoria), rompecabezas.</li>\n      <li>Construir con bloques o con cajas de cartón.</li>\n      <li>Cocinar juntos midiendo y pesando ingredientes.</li>\n      <li>Hacer la lista de compras o planear algo juntos.</li>\n      <li>Circuito de obstáculos o una cueva de almohadones.</li>\n      <li>Seguir lo que le gusta: si le encantan los dinosaurios, dibujen, lean o inventen un cuento de dinosaurios.</li>\n    </ul>\n    <h3>Afuera</h3>\n    <ul><li>Pelota, la mancha, arenero, juegos con barro o pintura, bingo de la plaza.</li></ul>\n    <h3>Para calmar</h3>\n    <ul><li>Respirar como globo, dibujar con colores tranquilos, leer juntos.</li></ul>\n    <h3>Para jugar acá</h3>",
+          "juegos": [
+            "tesoro",
+            "bingo",
+            "sopa",
+            "laberinto",
+            "tateti",
+            "diario"
+          ]
         }
       ],
       "repaso": [
@@ -573,7 +591,11 @@
           "id": "act-y",
           "titulo": "Actividades para 9 a 12 años",
           "subtitulo": "Proponer, no imponer",
-          "html": "<p>A esta edad funciona mejor proponer dos o tres opciones y que elijan. Si los dejás decidir, se enganchan.</p>\n    <ul>\n      <li>Juegos de cartas y de mesa, o que te enseñen uno que les guste.</li>\n      <li>Cocinar una receta entera ellos, con vos al lado para el horno y los cuchillos.</li>\n      <li>Manualidades: pulseras, origami, un cómic dibujado entre los dos.</li>\n      <li>Deporte en la plaza: fútbol, básquet, patines con casco.</li>\n      <li>20 preguntas, el cuento encadenado, adivinanzas.</li>\n      <li>Si hay deberes, acompañalos sin hacérselos.</li>\n    </ul>\n    <p>Las pantallas, según las reglas de la casa.</p>"
+          "html": "<p>A esta edad funciona mejor proponer dos o tres opciones y que elijan. Si los dejás decidir, se enganchan.</p>\n    <ul>\n      <li>Juegos de cartas y de mesa, o que te enseñen uno que les guste.</li>\n      <li>Cocinar una receta entera ellos, con vos al lado para el horno y los cuchillos.</li>\n      <li>Manualidades: pulseras, origami, un cómic dibujado entre los dos.</li>\n      <li>Deporte en la plaza: fútbol, básquet, patines con casco.</li>\n      <li>20 preguntas, el cuento encadenado, adivinanzas.</li>\n      <li>Si hay deberes, acompañalos sin hacérselos.</li>\n    </ul>\n    <p>Las pantallas, según las reglas de la casa.</p>\n    <h3>Para jugar acá</h3>",
+          "juegos": [
+            "tateti",
+            "sopa"
+          ]
         }
       ],
       "repaso": [

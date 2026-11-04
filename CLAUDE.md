@@ -50,7 +50,7 @@ sistema o se para?
 marketing → postulantes → ninieras → familias → sittings → intermediaciones → pedidos → bootstrap
 (último).
 - `ninera/index.html`: `../vendor/supabase-js` → `../js/comun.js` → `js/base.js` → `cuenta` →
-  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `ficha` → `carsitting` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
+  `perfil` → `inicio` → `chat` → `temporada` → `pedido` → `guia` → `dia` → `ficha` → `carsitting` → `juegos` → `para-sitting` → `arranque` (último). Cada etapa de la fase 1 suma su archivo antes de `arranque.js`.
   `tests/support/fuentes.js` tiene los dos órdenes (`ORDEN_SCRIPTS`, `ORDEN_SCRIPTS_NINERA`).
 - `js/comun.js` (26/10/2026): lo que usan las dos puertas, sacado de core.js: `SUPABASE_URL` /
   `SUPABASE_KEY`, escape, fechas (`todayISO()`, `currentMonthStr()`, `sumarDiasISO()`...),
@@ -416,6 +416,14 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   sin migrar, escape y 390 px. `tests/simulador-traslados.spec.js`: el simulador contra la regla de la SQL. `abrirApp` /
   `abrirAppNinera(..., { baseSinMigrar: 'etapa11' })`: sin 20261109_traslados_app (la 10 sin migrar también la saca).
   `tests/pedido-pegar.spec.js` cambió con la etapa: un traslado pide la ruta, las zonas y los chicos para mandarlo.
+- `tests/ninera-para-sitting.spec.js` (03/11/2026, etapa 12): "Para este sitting" (botón debajo de "Ficha de la familia" en la tarjeta del
+  día, solo hoy y solo sittings, y en el detalle de "Próximos sittings"; 911 y 1722 con `tel:`; las lecciones por edad, los juegos por
+  rango y autismo / TDAH / discapacidad; lección y juego que vuelven ahí, "Ya lo leí"; los cortes de edad y las reglas puras; sin edades;
+  base sin migrar 'etapa12'; el link `#sitting/<id>/guia`; ajeno; fallas con los teléfonos a la vista; escape; nada guardado; 390 px).
+  `tests/ninera-juegos.spec.js`: los 7 juegos del kit en las lecciones de actividades (pestañas, cada juego, que nada se guarde, 390 px).
+  `abrirAppNinera(..., { baseSinMigrar: 'etapa12' })`: `ninera_mis_sittings` sin las tres columnas; el simulador las arma con
+  `columnasParaSitting` (rpc-ninera.js, la regla de la SQL). En la base: `supabase/pruebas/fase1_guia_sitting.sql` (como niñera: dos
+  chicos nacidos el 1 y el último día del mismo mes dan lo mismo en 61 días seguidos, solo las tres necesidades, textos tramposos).
 - `tests/ninera-carsitting.spec.js` (02/11/2026, etapa 10): el carsitting en la app de niñeras (la tarjeta del inicio sin completar,
   para corregir con el comentario, en revisión y aprobada; `#carsitting` con los campos y las 7 fotos, lo que falta sin subir nada,
   las rutas de las fotos, el cuerpo exacto, corregir una sola foto, "Actualizar los datos del auto" en "Mi perfil", fallas al subir o
@@ -824,6 +832,19 @@ reporte.
   `rechazada`, la de la nueva `confirmada` y después el registro con la condición de la niñera, así la nueva recibe "¡Quedaste
   seleccionada!" y no "Tienes un sitting"; si falla un paso, lo anterior vuelve atrás) y "Cancelar el pedido" (la base cancela el
   registro en $0). `abrirSolicitudDeLink` abre el registro de un pedido ya registrado.
+- La guía según el sitting y los juegos (03/11/2026, etapa 12, decisiones 6.11, `docs/fase1/etapa12-guia-sitting.md`): "Para este
+  sitting" (`ninera/js/para-sitting.js`, `#sitting/<id>/guia`) arma lo de cada chico con `ninera_mis_sittings`: `edades_meses` (por MES
+  calendario, mes del sitting menos mes de nacimiento: así no se deduce el día del cumpleaños mirando días seguidos; nunca devolver la
+  fecha ni una edad por día), `edades_anios` (la edad cargada a mano) y `necesidades` (solo 'autismo', 'tdah', 'discapacidad', por palabras
+  clave en "salud" de la ficha que la niñera ya ve). `chicos_texto` también cuenta los años por mes calendario (con el mes de
+  `edades_meses` y los años por día, en un mes se sabía el día del cumpleaños). Cortes y rangos de los juegos en `modulosDeChico` /
+  `juegosPorEdad` (puras); justo en un corte van los dos módulos (los meses pueden pasarse casi un mes de la edad real). Los
+  juegos (`ninera/js/juegos.js`, `JUEGOS_GUIA`) son los del original, no guardan nada, y van en las lecciones con `juegos` en
+  `contenido.json` (lo arma `scripts/guia-desde-html.mjs`). Un `hidden` dentro del kit necesita `.kit [hidden]{display:none}`: el
+  `display:flex` de la hoja le gana (pasó, 03/11/2026).
+- Constantes de texto arriba de todo (03/11/2026): `declaracionesTopLevel` (tests/support/fuentes.js) corta en las comas, también las de
+  adentro de un texto; dos `const X = '..., escríbenos ...'` en archivos distintos dan una global duplicada falsa ("escr"). Un mensaje con
+  coma que ya existe en otro archivo va adentro de la función.
 - Carsitting desde la app (02/11/2026, etapa 10, decisiones 6.7): los campos y las 7 fotos viven en `js/comun.js` (`GRUPOS_CARSITTING`,
   `FOTOS_CARSITTING`) con las claves de `carsitting_campos()` / `carsitting_fotos()`. La niñera lee y manda solo por RPC
   (`ninera/js/carsitting.js`); las fotos van a `ninieras-privado/carsitting/<su id>/<foto>_<8 hex>.jpg` con un nombre nuevo cada vez
@@ -1079,7 +1100,7 @@ antes de tocar algo de la fase, obligatorio), el alcance en `plan-fase1.md`, los
 propuesta, próximos sittings) hechas; etapa 3 (cola de avisos y chat) hecha, mergeada y en
 producción (migración aplicada y `enviar-avisos` publicada el 31/10/2026); etapa 9 (temporada y avisos obligatorios) hecha y mergeada (PR #91); etapa 5 (pedido: pegar, sugerir, mandar, "Puedo" / "No puedo") hecha, mergeada y en producción (PR #93, migración aplicada y `pedido-whatsapp` publicada el 01/11/2026); etapa 6 (elegir la niñera, avisos y mensajes a la madre) hecha, mergeada y en producción (PR #96); etapa 4 (guía obligatoria y firma anual) hecha, mergeada y en producción (PR #100, 02/11/2026); etapa 7 (el día y el cierre) hecha, mergeada y en producción (PR #101); etapa 8 (ficha de la familia, cambios y cancelaciones) hecha, mergeada y en producción (PR #102); etapa 10 (carsitting en la app) hecha, mergeada y en producción (PR #103); etapa 11 (pedidos de traslado por la app) hecha, mergeada y en
 producción (PR #104, 03/11/2026: migración `20261109_traslados_app` aplicada y `pedido-whatsapp` versión 6 publicada; `decisiones.md` 6.9); etapa 11b
-(el día y el cierre de los traslados) hecha, mergeada y en producción (PR #106, 03/11/2026: migración `20261110_dia_traslados` aplicada; `decisiones.md` 6.10). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). La lista de esa sesión (todo lo de "probar en un iPhone real" de estos Pendientes y de `docs/fase1`, como un recorrido con la niñera y la familia de práctica): `docs/fase1/prueba-iphone.md` (03/11/2026); lo que se pruebe ahí se borra de acá. Orden (27/10/2026): 2, 3, 9
+(el día y el cierre de los traslados) hecha, mergeada y en producción (PR #106, 03/11/2026: migración `20261110_dia_traslados` aplicada; `decisiones.md` 6.10); etapa 12 (la guía según el sitting y los juegos, pedido de Paulina y Delfina) hecha, mergeada y en producción (PR #110, 03/11/2026: migración `20261111_guia_sitting` aplicada; `decisiones.md` 6.11). La prueba con niñeras reales arranca recién con todas las etapas y la sesión final del iPhone, con OK de Diego para apagar `solo_practica` (orquestador, 02/11/2026). La lista de esa sesión (todo lo de "probar en un iPhone real" de estos Pendientes y de `docs/fase1`, como un recorrido con la niñera y la familia de práctica): `docs/fase1/prueba-iphone.md` (03/11/2026); lo que se pruebe ahí se borra de acá. Orden (27/10/2026): 2, 3, 9
 (temporada, adelantada; usa la cola de avisos de la 3), 4, 5, 6, 7, 8, 10, 11. Los textos
 provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 3 (30/10/2026): `avisos` no se limpia nunca (crece sin tope; definir cuándo borrar los viejos).
@@ -1117,6 +1138,10 @@ provisorios para las dueñas están en `textos-provisorios.md`.
   galería) y el envío con datos móviles. Plan de apagado del carsitting viejo, cuando todas las activas que hacen traslados tengan la
   app (con OK de Diego, PR aparte): el formulario de Google "Carsitters datos", su Apps Script, `carsitting-webhook`,
   `carsitting-recordatorio` (pausada), los mails de la ficha de la niñera sin app y `carsitting_mail_enviado_at`.
+- Etapa 12 (03/11/2026, Diego, para después de la prueba con niñeras reales): que el aviso "Tu sitting empieza en 1 hora" le diga a la
+  niñera que tiene "Para este sitting" listo (y que el link abra `#sitting/<id>/guia`).
+- Etapa 12 (03/11/2026): "Para este sitting" no muestra qué lecciones ya leyó (no lee `ninera_estado_guia`). Las palabras clave de
+  "salud" no entienden negaciones ni usos sueltos ("no tiene autismo", "es muy hiperactivo" muestran la lección: sobra, no falta).
 - Etapa 11 (03/11/2026): "Calcular km con el mapa" (TomTom) no está simulado en los tests: probarlo en el iPhone real. La ruta no guarda
   borrador.
 - Etapa 10 (02/11/2026, orquestador, para después de la prueba con niñeras reales): "Invitar a todas las que faltan" en el panel

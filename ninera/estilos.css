@@ -316,3 +316,59 @@ button.aviso-item:hover{border-color:var(--accent);}
 .aviso-carsitting{margin:0 0 18px;}
 .pantalla-carsitting .grupo{margin:18px 0;}
 .cs-foto-ya{margin:0 0 6px;}
+/* Etapa 12: los juegos del kit (juegos.js), con los estilos de la guía original (sin su modo oscuro), dentro de .kit
+   para no chocar con los de la app; y "Para este sitting" (para-sitting.js). */
+.kit{display:flex;flex-direction:column;gap:10px;margin:0 0 18px;}
+.kit .kitnav{display:flex;flex-wrap:wrap;gap:6px;}
+.kit .kitnav button{font:600 14px 'Inter',sans-serif;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer;}
+.kit .kitnav button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff;}
+.kit .sheet{border:1.5px solid var(--accent);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--paper);}
+.kit .sh-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.kit .sh-head h3{color:var(--accent);font-size:24px;margin:0;}
+.kit .sh-head small{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink-soft);}
+.kit .sh-sub{color:var(--ink-soft);font-size:15px;margin:0;}
+.kit .sh-win{font-family:'Baloo 2',sans-serif;font-weight:600;font-size:19px;color:var(--clay);min-height:1.4em;margin:0;}
+.kit .chk{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+.kit .chk button,.kit .words button{font:15px 'Inter',sans-serif;text-align:left;display:flex;gap:10px;align-items:center;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;cursor:pointer;}
+.kit .chk button::before,.kit .words button::before{content:"";flex:none;width:20px;height:20px;border:2px solid var(--accent);border-radius:5px;}
+.kit .chk button.on::before,.kit .words button.on::before{background:var(--accent);box-shadow:inset 0 0 0 3px var(--paper);}
+.kit .words button.on{text-decoration:line-through;color:var(--ink-soft);}
+.kit .bingo{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.kit .bingo button{font:600 13.5px/1.2 'Inter',sans-serif;aspect-ratio:1;min-width:0;border:1.5px solid var(--accent);background:var(--paper);color:var(--ink);border-radius:8px;padding:4px;cursor:pointer;position:relative;overflow:hidden;overflow-wrap:anywhere;}
+.kit .bingo button.on{background:var(--clay-soft);color:var(--ink-soft);}
+.kit .bingo button.on::after{content:"";position:absolute;inset:18%;border:3px solid var(--clay);border-radius:50%;}
+.kit .sopa{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;max-width:420px;}
+.kit .sopa button{font:500 16px ui-monospace,Menlo,monospace;aspect-ratio:1;min-width:0;padding:0;border:none;border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer;}
+.kit .sopa button.on{background:var(--clay);color:#fff;}
+.kit .words{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;}
+.kit .maze{width:100%;max-width:400px;height:auto;touch-action:none;background:var(--bg);border-radius:10px;}
+.kit .mini{align-self:flex-start;font:14px 'Inter',sans-serif;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer;}
+.kit .emos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.kit .emos button,.kit .dfeel button{font:600 14px 'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--bg);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;padding:10px 4px;cursor:pointer;min-width:0;}
+.kit .emos button.on,.kit .dfeel button.on{border-color:var(--clay);background:var(--clay-soft);}
+.kit .emos svg{width:64px;height:64px;}
+.kit .dfeel{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.kit .dfeel svg{width:36px;height:36px;}
+.kit .dfeel button{font-size:12.5px;}
+.kit .ttt{display:grid;grid-template-columns:repeat(3,72px);gap:6px;}
+.kit .ttt button{width:72px;height:72px;font:700 35px 'Baloo 2',sans-serif;border:1.5px solid var(--accent);background:var(--paper);border-radius:10px;cursor:pointer;color:var(--accent);}
+.kit .ttt button.o{color:var(--clay);}
+.kit .diary{display:grid;grid-template-columns:1fr;gap:6px;}
+.kit .diary label{display:flex;flex-direction:column;gap:4px;margin:6px 0 0;}
+.kit .diary label,.kit .dlabel{font-size:13.5px;font-weight:600;color:var(--ink-soft);}
+.kit .dlabel{margin-top:6px;}
+.kit .diary input{min-width:0;}
+.kit button:focus-visible,.kit input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.guia-desde-sitting{margin:0 0 12px;}
+.para-sitting-emergencias{background:var(--clay-soft);border-radius:14px;padding:14px;margin:0 0 18px;}
+.para-sitting-emergencias h2{font-size:19px;margin:0 0 10px;color:var(--clay-text);}
+.para-sitting-emergencias .btn.ancho + .btn.ancho{margin-top:10px;}
+.para-sitting-movil{font-size:14px;color:var(--ink);margin:10px 0;}
+.btn.llamar{background:var(--clay-text);color:#fff;}
+.btn.llamar-ciat{background:var(--paper);color:var(--clay-text);border:1.5px solid var(--clay-text);}
+.para-sitting-bloque{margin:0 0 18px;}
+.para-sitting-bloque h2{font-size:19px;margin:0 0 2px;}
+.para-sitting-bloque > .helper{margin:0 0 10px;}
+.guia-juego-fila .guia-leccion-num{background:var(--clay-soft);color:var(--clay-text);}
+.para-sitting-emergencias .btn.ghost{background:var(--paper);}
+.kit [hidden]{display:none !important;}

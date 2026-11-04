@@ -227,6 +227,7 @@ function abrirDetalleSittingNinera(id, { titulo } = {}){
       ${linea(traslado ? 'Precio' : 'Precio por hora', precio)}
     </div>
     ${comoLlegar}
+    ${traslado ? '' : `<button type="button" class="btn ghost ancho" onclick="cerrarModalNinera(); pantallaParaSitting(${argJs(s.id)})">Para este sitting</button>`}
     <button type="button" class="btn ghost ancho" onclick="descargarIcsSitting(${argJs(s)})">Agregar al calendario</button>
     ${s.tipo !== 'traslado' && !etapa8NineraSinMigrar ? `<section class="detalle-sitting detalle-ficha" id="detalle-ficha" data-sitting="${escaparHtml(s.id)}"><p class="helper">Cargando la ficha de la familia…</p></section>` : ''}`);
   // La ficha de la familia (ficha.js, etapa 8): llega sola, sin frenar el detalle.

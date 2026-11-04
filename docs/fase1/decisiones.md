@@ -740,6 +740,26 @@ cierre de un traslado, con `sitting_cierres_sin_hora_check`); `app_config 'el_di
 p_comentarios, p_gasto_monto, p_gasto_concepto)` es el cierre sin hora (la foto, la misma ruta `comprobantes/ninieras/<id>/<traslado>.jpg`).
 Avisos nuevos: `admin:sitting:<id>:no_estan`, `:no_salio` y `:sin_cierre`, y `sitting:<id>:fin30` para el traslado.
 
+### 6.11 La guía según el sitting y los juegos (etapa 12)
+Pedido de Paulina y Delfina; respuestas de Diego (03/11/2026). Diseño completo: `docs/fase1/etapa12-guia-sitting.md`.
+- "Para este sitting" es un botón con su propia pantalla (`#sitting/<id>/guia`): en la tarjeta del día, debajo de "Ficha de la
+  familia" (solo el sitting de hoy, nunca traslados), y en el detalle de "Próximos sittings" (solo sittings).
+- Arriba y siempre: "Llamar al 911" e "Intoxicaciones, CIAT: 1722" llaman con un toque (`tel:`), "Emergencia móvil: la de la familia,
+  anotada en la ficha." (del recuadro del original) y "Qué hacer: a quién avisar y en qué orden" (lección `x3`).
+- Por edad: un bloque por módulo con chicos, sin nombres ("Para el chico de 8 meses"). Sin fecha de nacimiento vale la edad cargada a
+  mano (en años; 0 años son Recién nacidos y Bebés). Cortes (Claude, aprobados): 0-2 meses Recién nacidos, 3-11 Bebés, 12-35 Toddlers,
+  36-59 Preescolares, 60-107 Edad escolar, 108 o más Preadolescentes. Sin edades: "No tenemos las edades de los chicos."
+- Juegos: los del kit cuyo rango del original incluye la edad en años de algún chico. Están también dentro de las lecciones de
+  actividades, con sus pestañas, iguales al original; no guardan nada, ni en el celular.
+- Autismo, TDAH, discapacidad: por palabras clave en "salud" de la ficha de la familia que la niñera ya ve (la de su sitting, si no la
+  última), sin casilla en el panel. La base devuelve solo esos tres valores, nunca el texto.
+- La base (`20261111_guia_sitting`): `ninera_mis_sittings` suma `edades_meses` (por mes calendario: no deja deducir el día de
+  nacimiento), `edades_anios` y `necesidades`; `ninera_mi_dia` no cambia. `chicos_texto` (el "Chicos" de la niñera) pasa también a
+  contar los años por mes calendario: con los años por día y el mes de `edades_meses`, abriendo la app un mes se sabía el día del
+  cumpleaños (revisión final, 03/11/2026). Puede decir la edad nueva hasta un mes antes.
+- Como los meses por mes calendario pueden pasarse casi un mes de la edad real, justo en un corte (3, 12, 36, 60 y 108 meses) van
+  los dos módulos (revisión final). Un bebé del mismo mes del sitting: "menos de 1 mes".
+
 ### 6.8 Chat (etapa 3)
 Un hilo por niñera, lo leen y contestan las tres admins (cada mensaje con el nombre de quien lo
 escribió). `chat_mensajes (id, ninera_id, de 'ninera' | 'admin', autor text, texto text, creado_en,
