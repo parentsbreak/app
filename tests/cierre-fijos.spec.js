@@ -77,15 +77,16 @@ test.describe('Cierre de los fijos en Hoy', () => {
     verificarLimpio(e);
   });
 
-  test('"Otra hora" con términos: el fin se cobra a la media hora siguiente y se paga la hora real', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datos({ familia: { terminos_aceptados_el: '2026-09-01' } }) });
+  test('"Otra hora" con términos: las horas se cobran redondeadas y se paga la hora real', async ({ page }) => {
+    // El redondeo rige desde el 01/12/2026 (04/11/2026): el día del fijo y "hoy", en diciembre.
+    const e = await abrirApp(page, { datos: datos({ fila: { fecha: '2026-12-02' }, familia: { terminos_aceptados_el: '2026-09-01' } }), ahora: '2026-12-04T12:00:00-03:00' });
     await abrirOtraHora(page);
-    await elegirHora(page, 'autoconf-hf', '19:36');
-    // Se cobra hasta las 20:00 (4 h × 380) y se paga 3,6 h × 250.
-    await expect(page.locator('#autoconf-precio')).toHaveText('Queda: cobro $1.520 · pago $900.');
+    await elegirHora(page, 'autoconf-hf', '19:46');
+    // 3 h 46: se cobran 4 h (× 380) y se pagan 3 h 46 (× 250).
+    await expect(page.locator('#autoconf-precio')).toHaveText('Queda: cobro $1.520 · pago $942.');
     await page.locator('#editmodal button', { hasText: 'Guardar' }).click();
     await expect(page.locator('#editmodal')).toHaveCount(0);
-    expect(patches(e)[0].cuerpo).toMatchObject({ hora_inicio: '16:00', hora_fin: '19:36', cobro_familia: 1520, pago_ninera: 900 });
+    expect(patches(e)[0].cuerpo).toMatchObject({ hora_inicio: '16:00', hora_fin: '19:46', cobro_familia: 1520, pago_ninera: 942 });
     verificarLimpio(e);
   });
 

@@ -1330,21 +1330,34 @@ function textoTotalConGastos(etiqueta, base, gastos){
   const b = Number(base)||0, f = n => '$'+Math.round(n).toLocaleString('es-UY');
   return `${etiqueta} ${f(b)} + gastos ${f(g)} = ${f(b+g)}`;
 }
-/* Términos y condiciones (20/10/2026, regla de Paulina y Delfina). A las familias que los
-   aceptaron (familias.terminos_aceptados_el) el fin de cada sitting se les COBRA redondeado a
-   la media hora siguiente, con 5 minutos de tolerancia: 17:05 → 17:00, 17:06 → 17:30,
-   17:36 → 18:00. El inicio no se redondea y a la niñera se le paga siempre la hora real.
-   Rige para los sittings desde el día que aceptó: las familias de siempre no cambian.
-   Es la misma regla que minutos_fin_cobro() en la base (generar_previstos_fijos): si cambia
-   acá, cambia allá. */
-const TOLERANCIA_FIN_COBRO_MIN = 5;
-function redondearFinCobro(min){
-  const media = Math.floor(min/30)*30;
-  return min - media <= TOLERANCIA_FIN_COBRO_MIN ? media : media + 30;
+/* Términos y condiciones (20/10/2026; regla cambiada el 04/11/2026 por Paulina y Delfina). A las
+   familias que los aceptaron (familias.terminos_aceptados_el) se les COBRA el TOTAL de horas de cada
+   sitting redondeado así: de cada media hora, hasta 15 minutos se cobran exactos y desde el 16 se
+   cobra la media hora entera (3 h 15 → 3 h 15; 3 h 16 → 3 h 30; 3 h 45 → 3 h 45; 3 h 46 → 4 h).
+   El inicio no se mueve (el fin cobrado es inicio + horas cobradas) y a la niñera se le paga
+   siempre la hora real. Rige desde el día que aceptó, pero nunca antes del 01/12/2026
+   (INICIO_REDONDEO_COBRO): hasta esa fecha no se redondea nada. Antes del 04/11 la regla era el fin
+   a la media hora con 5 minutos de tolerancia; ninguna familia la llegó a tener.
+   Es la misma regla que minutos_cobro() y horas_cobro_sitting() en la base (generar_previstos_fijos y
+   precio_sitting): si cambia acá, cambia allá. */
+const INICIO_REDONDEO_COBRO = '2026-12-01';
+const TOLERANCIA_COBRO_MIN = 15;
+// Minutos de un sitting (duración) que se le cobran a la familia.
+function redondearMinutosCobro(min){
+  const resto = min % 30;
+  return resto <= TOLERANCIA_COBRO_MIN ? min : min - resto + 30;
 }
+// Sin fecha (un formulario todavía sin día) cuenta como que rige, si tiene los términos.
 function familiaRedondeaFin(familia, fechaISO){
   const desde = familia?.terminos_aceptados_el;
-  return !!desde && (!fechaISO || fechaISO >= desde);
+  if(!desde) return false;
+  const rige = desde > INICIO_REDONDEO_COBRO ? desde : INICIO_REDONDEO_COBRO;
+  return !fechaISO || fechaISO >= rige;
+}
+// Alta de una familia (04/11/2026): desde el 01/12/2026 toda familia nueva acepta los términos, así
+// que la casilla viene tildada con la fecha de hoy (se puede destildar).
+function terminosTildadosAlAlta(){
+  return todayISO() >= INICIO_REDONDEO_COBRO;
 }
 /* "Termina al día siguiente" con la hora de fin DESPUÉS de la de inicio (20:00 a 22:00) sumaba
    24 h sin avisar y se cobraban 26 horas (auditoría, 21/10/2026). Con la casilla, el fin tiene
@@ -1365,11 +1378,11 @@ function horasSitting(horaIni, horaFin, cruza, familia, fechaISO){
   const mi = agendaMinutos(String(horaIni).slice(0,5));
   const mf = agendaMinutos(String(horaFin).slice(0,5)) + (cruza ? 24*60 : 0);
   if(mf<=mi) return null;
-  const mfCobro = familiaRedondeaFin(familia, fechaISO) ? Math.max(mi, redondearFinCobro(mf)) : mf;
+  const mfCobro = familiaRedondeaFin(familia, fechaISO) ? mi + redondearMinutosCobro(mf - mi) : mf;
   const hhmm = m => `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
   return { real: (mf-mi)/60, cobro: (mfCobro-mi)/60, finCobro: mfCobro!==mf ? hhmm(mfCobro) : null };
 }
-// "Hora real 17:36, se cobra hasta 18:00"; '' si se cobra la hora real.
+// "Hora real 17:46, se cobra hasta 18:00"; '' si se cobra la hora real.
 function textoFinCobrado(horaFin, horas){
   return horas?.finCobro ? `Hora real ${String(horaFin).slice(0,5)}, se cobra hasta ${horas.finCobro}` : '';
 }

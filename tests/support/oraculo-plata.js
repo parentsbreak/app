@@ -1,5 +1,5 @@
 // Oráculo de plata: copia EXACTA de las funciones que calculan plata en js/, tal como estaban el
-// 31/10/2026 (commit 1047c50). La generó scripts/congelar-oraculo-plata.js: no se edita a mano.
+// 05/11/2026 (commit fa1216a). La generó scripts/congelar-oraculo-plata.js: no se edita a mano.
 // tests/red-plata.spec.js compara la app con esta copia en miles de casos (docs/rediseno-panel.md,
 // 4.10). Si una regla cambia a propósito, se vuelve a generar en el mismo PR y el PR lo dice.
 // Lo que no es plata (supabase, normaliza, todayISO, sumarDiasISO...) es el de la app.
@@ -8,7 +8,8 @@ function crearOraculoPlata(){
   let gastosExtraDisponible = true;
   let ajustesSaldoDisponible = true;
   // ---- constantes de js/core.js
-  const TOLERANCIA_FIN_COBRO_MIN = 5;
+  const INICIO_REDONDEO_COBRO = '2026-12-01';
+  const TOLERANCIA_COBRO_MIN = 15;
   // ---- js/agenda.js
   function agendaMinutos(hhmm){
     if(!hhmm) return null;
@@ -34,13 +35,15 @@ function crearOraculoPlata(){
     return true;
   }
   function asignacionTerminada(a, hoyISO){ return !!(a && a.vigente_hasta && a.vigente_hasta < hoyISO); }
-  function redondearFinCobro(min){
-    const media = Math.floor(min/30)*30;
-    return min - media <= TOLERANCIA_FIN_COBRO_MIN ? media : media + 30;
+  function redondearMinutosCobro(min){
+    const resto = min % 30;
+    return resto <= TOLERANCIA_COBRO_MIN ? min : min - resto + 30;
   }
   function familiaRedondeaFin(familia, fechaISO){
     const desde = familia?.terminos_aceptados_el;
-    return !!desde && (!fechaISO || fechaISO >= desde);
+    if(!desde) return false;
+    const rige = desde > INICIO_REDONDEO_COBRO ? desde : INICIO_REDONDEO_COBRO;
+    return !fechaISO || fechaISO >= rige;
   }
   function cruceMedianocheMalMarcado(horaIni, horaFin, cruza){
     if(!cruza || !horaIni || !horaFin) return false;
@@ -52,7 +55,7 @@ function crearOraculoPlata(){
     const mi = agendaMinutos(String(horaIni).slice(0,5));
     const mf = agendaMinutos(String(horaFin).slice(0,5)) + (cruza ? 24*60 : 0);
     if(mf<=mi) return null;
-    const mfCobro = familiaRedondeaFin(familia, fechaISO) ? Math.max(mi, redondearFinCobro(mf)) : mf;
+    const mfCobro = familiaRedondeaFin(familia, fechaISO) ? mi + redondearMinutosCobro(mf - mi) : mf;
     const hhmm = m => `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
     return { real: (mf-mi)/60, cobro: (mfCobro-mi)/60, finCobro: mfCobro!==mf ? hhmm(mfCobro) : null };
   }
@@ -246,7 +249,7 @@ function crearOraculoPlata(){
   function bucketPagoFecha(fechaISO, frecuencia){
     return frecuencia==='semanal' ? inicioSemanaPago(fechaISO) : bucketKeyFecha(fechaISO, frecuencia);
   }
-  async function cargarAjustesSaldo(filtro){
+  async function cargarAjustesSaldo(filtro, estricto=false){
     if(!ajustesSaldoDisponible) return [];
     let q = sb.from('ajustes_saldo').select('*').order('fecha', {ascending:true});
     if(filtro?.familia_id) q = q.eq('familia_id', filtro.familia_id);
@@ -254,6 +257,7 @@ function crearOraculoPlata(){
     const { data, error } = await q;
     if(error){
       if(error.code==='PGRST205' || error.code==='42P01'){ ajustesSaldoDisponible = false; return []; }
+      if(estricto) throw new Error(error.message);
       toast('No se pudieron leer los saldos a favor: '+error.message, 'bad');
       return [];
     }
@@ -451,7 +455,7 @@ function crearOraculoPlata(){
     });
     return mejor;
   }
-  return { agendaMinutos, gastoACargoFamilia, redondearMonto, redondearPago, redondearCobro, asignacionVigenteEn, asignacionTerminada, redondearFinCobro, familiaRedondeaFin, cruceMedianocheMalMarcado, horasSitting, efectoVariantes, aplicarVariantes, precioHoraNinera, precioSegunHorario, construirEsTrabajoFijo, filtrarFijosSemanaIncompleta, resumenFinancieroMes, resumenIntermediaciones, intermediacionesPendientes, lunesDeSemana, inicioSemanaPago, finSemanaPago, finEnMinutos, construirFinUltimoFijo, cierreSemanaFijo, semanaFijoCerrada, construirEsEnCurso, finDeSemanaDesde, bucketKeyFecha, bucketPagoFecha, cargarAjustesSaldo, pendienteAjuste, aplicarAjustesAGrupos, calcularPendientesAgrupados, armarTarjetasPendientes, esFaltaTabla, cargarGastosExtraPendientes, montoGrupo, cuentasDeFicha, montoParaCopiar, totalParcial, combinacionExacta };
+  return { agendaMinutos, gastoACargoFamilia, redondearMonto, redondearPago, redondearCobro, asignacionVigenteEn, asignacionTerminada, redondearMinutosCobro, familiaRedondeaFin, cruceMedianocheMalMarcado, horasSitting, efectoVariantes, aplicarVariantes, precioHoraNinera, precioSegunHorario, construirEsTrabajoFijo, filtrarFijosSemanaIncompleta, resumenFinancieroMes, resumenIntermediaciones, intermediacionesPendientes, lunesDeSemana, inicioSemanaPago, finSemanaPago, finEnMinutos, construirFinUltimoFijo, cierreSemanaFijo, semanaFijoCerrada, construirEsEnCurso, finDeSemanaDesde, bucketKeyFecha, bucketPagoFecha, cargarAjustesSaldo, pendienteAjuste, aplicarAjustesAGrupos, calcularPendientesAgrupados, armarTarjetasPendientes, esFaltaTabla, cargarGastosExtraPendientes, montoGrupo, cuentasDeFicha, montoParaCopiar, totalParcial, combinacionExacta };
 }
-const ORACULO_PLATA_CONGELADO = { fecha: "31/10/2026", commit: "1047c50" };
+const ORACULO_PLATA_CONGELADO = { fecha: "05/11/2026", commit: "fa1216a" };
 if (typeof module !== 'undefined') module.exports = { crearOraculoPlata, ORACULO_PLATA_CONGELADO };

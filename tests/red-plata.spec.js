@@ -38,9 +38,10 @@ const cerca = (a, b) => Math.abs(a - b) < 1e-6;
 // ---------- La regla escrita, armada aparte (no copia el código de la app) ----------
 const minutos = h => { if (!h) return null; const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; };
 // Horas de un sitting (CLAUDE.md, términos y condiciones y "Termina al día siguiente"): la niñera
-// cobra la hora real; a la familia que aceptó los términos, desde ese día, el fin se lleva a la
-// media hora con 5 minutos de tolerancia (17:05 → 17:00, 17:06 → 17:30, 17:36 → 18:00). Con la
-// casilla del día siguiente el fin va antes del inicio (o igual: 24 h).
+// cobra la hora real; a la familia que aceptó los términos, desde ese día y nunca antes del 01/12/2026,
+// se le cobra el total de horas así: los minutos pasados de la última hora o media hora, si son 15 o
+// menos, exactos; si son 16 o más, la media hora entera (3 h 15 → 3 h 15, 3 h 16 → 3 h 30,
+// 3 h 46 → 4 h). Con la casilla del día siguiente el fin va antes del inicio (o igual: 24 h).
 function reglaHoras({ ini, fin, cruza, familia, fecha }) {
   if (!ini || !fin) return null;
   const mi = minutos(ini), finReloj = minutos(fin);
@@ -48,10 +49,13 @@ function reglaHoras({ ini, fin, cruza, familia, fecha }) {
   const mf = finReloj + (cruza ? 1440 : 0);
   if (mf <= mi) return null;
   const desde = familia?.terminos_aceptados_el;
+  const rige = desde && (desde < '2026-12-01' ? '2026-12-01' : desde);
   let mc = mf;
-  if (desde && (!fecha || fecha >= desde)) {
-    const resto = mf % 30;
-    mc = Math.max(mi, resto <= 5 ? mf - resto : mf - resto + 30);
+  if (rige && (!fecha || fecha >= rige)) {
+    const dur = mf - mi;
+    const horasEnteras = Math.floor(dur / 60), pasados = dur % 60;
+    const cobrados = pasados <= 15 ? pasados : pasados <= 30 ? 30 : pasados <= 45 ? pasados : 60;
+    mc = mi + horasEnteras * 60 + cobrados;
   }
   return { real: (mf - mi) / 60, cobro: (mc - mi) / 60, finCobro: mc !== mf ? hhmm(mc) : null };
 }

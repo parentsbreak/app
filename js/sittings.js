@@ -989,8 +989,8 @@ function fichaFamiliaNuevaHtml(pref, { cancelar, crear }){
       <div class="field"><label>Cobro a familia ($/h)</label><input type="number" id="${pref}-cobro"></div>
       <div class="field"><label>Pago a niñera ($/h)</label><input type="number" id="${pref}-pago"></div>
     </div>
-    ${baseTieneTerminos() ? `<label class="chk" style="margin:0 0 8px;"><input type="checkbox" id="${pref}-terminos" onchange="onFamiliaNuevaTerminosChange(${argJs(pref)})"> Aceptó términos y condiciones</label>
-    <div class="field" id="${pref}-terminos-fecha-wrap" style="display:none;"><label>Fecha en que los aceptó</label><input type="date" id="${pref}-terminos-fecha" value="${todayISO()}"></div>` : ''}
+    ${baseTieneTerminos() ? `<label class="chk" style="margin:0 0 8px;"><input type="checkbox" id="${pref}-terminos" ${terminosTildadosAlAlta()?'checked':''} onchange="onFamiliaNuevaTerminosChange(${argJs(pref)})"> Aceptó términos y condiciones</label>
+    <div class="field" id="${pref}-terminos-fecha-wrap" style="display:${terminosTildadosAlAlta()?'':'none'};"><label>Fecha en que los aceptó</label><input type="date" id="${pref}-terminos-fecha" value="${todayISO()}"></div>` : ''}
     <div id="${pref}-warn"></div>
     <div class="confirmbtns">
       <button type="button" class="btn ghost" onclick="${cancelar}">Cancelar</button>
@@ -1629,7 +1629,7 @@ function actualizarCobroPagoPorHorario(){
   }
   const horas = pintarFinCobroSit();
   if(!horas){ pintarSugerenciaPrecioSit({}); return; } // horario todavía inválido/incompleto, no calcula nada raro
-  // Cobro con el fin redondeado si la familia aceptó los términos; pago, con la hora real. Lo
+  // Cobro con las horas redondeadas si la familia aceptó los términos; pago, con la hora real. Lo
   // puesto a mano no se pisa (auditoría, 21/10/2026: al corregir un minuto de la hora, el precio
   // acordado volvía a horas × tarifa sin avisar): se ofrece el calculado con "Usar estos montos".
   const calc = precioSegunHorario(familiaPago, horaIni, horaFin, document.getElementById('sit-cruza-medianoche')?.checked || false, document.getElementById('sit-fecha')?.value);
@@ -1735,7 +1735,7 @@ function onSitFechaChange(){
   if(sitEditId) pintarFinCobroSit();
   else actualizarCobroPagoPorHorario();
 }
-// "Hora real 17:36, se cobra hasta 18:00" debajo del horario (términos y condiciones).
+// "Hora real 17:46, se cobra hasta 18:00" debajo del horario (términos y condiciones).
 function pintarFinCobroSit(){
   const box = document.getElementById('sit-fin-cobro');
   const horaFin = leerHora('sit-horafin');
