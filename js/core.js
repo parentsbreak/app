@@ -1386,6 +1386,15 @@ function horasSitting(horaIni, horaFin, cruza, familia, fechaISO){
 function textoFinCobrado(horaFin, horas){
   return horas?.finCobro ? `Hora real ${String(horaFin).slice(0,5)}, se cobra hasta ${horas.finCobro}` : '';
 }
+// Una duración para leer (05/11/2026): "3 h", "3 h 15", "45 min". Con un decimal ("3.3 h") no se
+// entendía: 3 h 15 aparecía como 3.3 y 3 h 20 también. '' si no hay duración.
+function textoDuracion(horas){
+  const min = Math.round(Number(horas)*60);
+  if(!Number.isFinite(min) || min<=0) return '';
+  const h = Math.floor(min/60), m = min%60;
+  if(!h) return `${m} min`;
+  return m ? `${h} h ${String(m).padStart(2,'0')}` : `${h} h`;
+}
 /* Lee familias con terminos_aceptados_el. Con la base sin migrar la columna no existe y la
    consulta entera fallaría: se reintenta sin ella (nadie redondea) y no se vuelve a pedir.
    `armar` agrega lo que siga a la consulta (order, eq, maybeSingle). */

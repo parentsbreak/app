@@ -69,6 +69,21 @@ async function hora(page, prefijo, hhmm) {
 }
 
 test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
+  // Las horas en el precio (05/11/2026): con un decimal, 3 h 15 se veía "3.3 h" y 20 minutos, "0.3 h".
+  test('el precio esperado muestra las horas como "3 h 15", no con decimales', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    conTicket(e, { hora_inicio: '20:00', hora_fin: '23:15' });
+    await armar(page);
+    await expect(page.locator('#pedido-precio')).toContainText('Precio esperado para la madre: $1.235 (3 h 15 × $380)');
+    await hora(page, 'pedido-hf', '23:20');
+    await expect(page.locator('#pedido-precio')).toContainText('(3 h 20 × $380)');
+    await hora(page, 'pedido-hf', '20:45');
+    await expect(page.locator('#pedido-precio')).toContainText('(45 min × $380)');
+    await hora(page, 'pedido-hf', '23:00');
+    await expect(page.locator('#pedido-precio')).toContainText('(3 h × $380)');
+    verificarLimpio(e, { ignorar: [RUIDO_4XX] });
+  });
+
   test('caso feliz: el cuerpo exacto a la función, el ticket, y la solicitud en la Agenda con "Elegir niñeras" abierto', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     await abrirPegar(page);
@@ -345,12 +360,12 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
     verificarLimpio(e);
   });
 
-  test('cruza la medianoche: precio por 4,5 h, la casilla marcada y mal marcada no deja seguir', async ({ page }) => {
+  test('cruza la medianoche: precio por 4 h 30, la casilla marcada y mal marcada no deja seguir', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     conTicket(e, { hora_fin: '00:30', termina_dia_siguiente: true, horario_aproximado: true, dudas: [] });
     await armar(page);
     await expect(page.locator('#pedido-cruza')).toBeChecked();
-    await expect(page.locator('#pedido-precio')).toContainText('$1.710 (4.5 h × $380)');
+    await expect(page.locator('#pedido-precio')).toContainText('$1.710 (4 h 30 × $380)');
     await esEsta(page);
     // Sin la casilla, el fin queda antes del inicio: no se guarda.
     await page.locator('#pedido-cruza').uncheck();
