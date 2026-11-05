@@ -43,8 +43,8 @@ function abrirModalNuevaFamilia(){
     </div>
     ${htmlHijosFamilia('fam', [])}
     ${htmlCuentasBancarias('fam', [])}
-    ${baseTieneTerminos() ? `<label class="chk" style="margin:4px 0 0;"><input type="checkbox" id="fam-terminos-nueva" onchange="onFamTerminosNuevaChange()"> Aceptó términos y condiciones</label>
-    <div class="field" id="fam-terminos-nueva-fecha-wrap" style="margin:6px 0 10px;display:none;"><label>Fecha en que los aceptó</label><input type="date" id="fam-terminos-nueva-fecha" value="${todayISO()}"></div>` : ''}
+    ${baseTieneTerminos() ? `<label class="chk" style="margin:4px 0 0;"><input type="checkbox" id="fam-terminos-nueva" ${terminosTildadosAlAlta()?'checked':''} onchange="onFamTerminosNuevaChange()"> Aceptó términos y condiciones</label>
+    <div class="field" id="fam-terminos-nueva-fecha-wrap" style="margin:6px 0 10px;display:${terminosTildadosAlAlta()?'':'none'};"><label>Fecha en que los aceptó</label><input type="date" id="fam-terminos-nueva-fecha" value="${todayISO()}"></div>` : ''}
     ${htmlSoloConocidas('fam-solo-conocidas', false)}
     <div class="field"><label>Notas</label><textarea id="fam-notas"></textarea></div>
     <div class="confirmbtns">
@@ -433,17 +433,23 @@ function copiarFichaFamilia(fichaId){
   if(datos) copiarAlPortapapeles(textoFichaFamilia(datos), 'Ficha copiada. Pegala en WhatsApp.');
 }
 /* Términos y condiciones (20/10/2026): la admin marca que la familia los aceptó y desde qué
-   fecha. Desde ese día, el fin de cada sitting se le cobra redondeado (horasSitting, core.js).
+   fecha. Desde ese día (nunca antes del 01/12/2026), las horas de cada sitting se le cobran
+   redondeadas (horasSitting, core.js).
    Con la base sin migrar la columna no viene y la casilla no se muestra. */
 function htmlTerminosFamilia(f){
   const desde = f.terminos_aceptados_el;
-  const fechaTxt = desde ? new Date(desde+'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
   return `<div id="fam-terminos" data-guardado="${escaparHtml(desde||'')}" style="margin:10px 0;">
     <label class="chk" style="margin:0;"><input type="checkbox" id="fam-terminos-chk" ${desde?'checked':''} onchange="onFamTerminosChange()"> Aceptó términos y condiciones</label>
     <div class="field" id="fam-terminos-fecha-wrap" style="margin:6px 0 0;display:${desde?'':'none'};"><label>Fecha en que los aceptó</label><input type="date" id="fam-terminos-fecha" value="${escaparHtml(desde||todayISO())}" onchange="onFamTerminosChange()"></div>
-    <div class="helper" style="margin:4px 0 0;">${desde ? `Desde el ${fechaTxt}, el` : 'Si los aceptó, desde esa fecha el'} fin de cada sitting se le cobra redondeado a la media hora siguiente (con 5 minutos de tolerancia). A la niñera se le paga la hora real.</div>
+    <div class="helper" style="margin:4px 0 0;">${textoReglaTerminos(desde)}</div>
     <button class="smallbtn" id="fam-terminos-guardar" style="display:none;margin-top:6px;" onclick="conGuardado(this, ()=>guardarTerminosFamilia(${argJs(f.id)}))">Guardar</button>
   </div>`;
+}
+// Qué le cambia a la familia (04/11/2026): desde que los aceptó, pero nunca antes del 01/12/2026.
+function textoReglaTerminos(desde){
+  const rige = desde && desde > INICIO_REDONDEO_COBRO ? desde : INICIO_REDONDEO_COBRO;
+  const rigeTxt = new Date(rige+'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'});
+  return `${desde ? `Desde el ${rigeTxt}` : `Si los aceptó, desde esa fecha (nunca antes del ${rigeTxt})`}, las horas de cada sitting se le cobran así: si pasan hasta 15 minutos de la hora o de la media hora, exacto; desde el minuto 16, la media hora entera. Por ejemplo, 3 h 15 se cobran 3 h 15 y 3 h 20 se cobran 3 h 30. A la niñera se le paga la hora real.`;
 }
 function valorTerminosFamilia(){
   if(!document.getElementById('fam-terminos-chk')?.checked) return null;
@@ -466,7 +472,7 @@ async function guardarTerminosFamilia(id){
   // Cambia lo que se le cobra: los previstos de sus fijos y el sitting de hoy se recalculan.
   await sincronizarPrevistosFijos();
   await alinearHoyFijosDeFamilia(id);
-  toast(valor ? 'Listo: aceptó los términos. El fin de sus sittings se cobra redondeado.' : 'Listo: se sacó la marca de los términos.');
+  toast(valor ? 'Listo: aceptó los términos. Sus sittings se cobran redondeados a la media hora.' : 'Listo: se sacó la marca de los términos.');
   if(f && famDetalleAbierta===id && document.getElementById('fam-terminos')) verFamilia(id);
 }
 // Tarifa o términos nuevos: el sitting de hoy de sus fijos, si lo cargó el proceso y nadie lo

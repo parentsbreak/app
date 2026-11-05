@@ -2,7 +2,7 @@
 // del rediseño, docs/rediseno-panel.md 4.10). Con la misma semilla que tests/red-plata.spec.js,
 // arma los casos, calcula con el oráculo (tests/support/oraculo-plata.js) lo que tiene que dar y
 // deja un .sql que lo compara con las funciones de la base:
-//   - minutos_fin_cobro: cada minuto de dos días (la regla de los 5 minutos);
+//   - minutos_cobro: cada duración de 0 a 2879 minutos (la regla de los 15 minutos);
 //   - redondear_pago y redondear_cobro: montos con centavos y bordes de ,5;
 //   - generar_previstos_fijos: fijos inventados de todos los días (horarios cualquiera, algunos
 //     después de medianoche, tarifas con centavos, con y sin términos, algunos con precio propio y
@@ -52,16 +52,16 @@ begin
 end $$;
 `);
 
-  // ---- 1) minutos_fin_cobro: cada minuto de dos días (el fin puede pasar la medianoche).
-  const minutos = Array.from({ length: 2880 }, (_, m) => `(${m}, ${O.redondearFinCobro(m)})`);
-  sql(`-- 1) minutos_fin_cobro = redondearFinCobro (core.js) en los 2880 minutos de dos días.
-create temporary table _fin (m integer, esperado integer);
-insert into _fin values
+  // ---- 1) minutos_cobro: cada duración de 0 a 2879 minutos (un sitting puede pasar la medianoche).
+  const minutos = Array.from({ length: 2880 }, (_, m) => `(${m}, ${O.redondearMinutosCobro(m)})`);
+  sql(`-- 1) minutos_cobro = redondearMinutosCobro (core.js) en 2880 duraciones (0 a 2879 minutos).
+create temporary table _dur (m integer, esperado integer);
+insert into _dur values
 ${valores(minutos)};
-select pg_temp.verificar('minutos_fin_cobro igual a la app en ' || (select count(*) from _fin) || ' minutos'
-  || coalesce(': ' || (select string_agg(m || ' da ' || public.minutos_fin_cobro(m) || ' (app ' || esperado || ')', ', ')
-                     from (select * from _fin where public.minutos_fin_cobro(m) <> esperado limit 5) x), ''),
-  not exists (select 1 from _fin where public.minutos_fin_cobro(m) <> esperado));
+select pg_temp.verificar('minutos_cobro igual a la app en ' || (select count(*) from _dur) || ' duraciones'
+  || coalesce(': ' || (select string_agg(m || ' da ' || public.minutos_cobro(m) || ' (app ' || esperado || ')', ', ')
+                     from (select * from _dur where public.minutos_cobro(m) <> esperado limit 5) x), ''),
+  not exists (select 1 from _dur where public.minutos_cobro(m) <> esperado));
 `);
 
   // ---- 2) redondear_pago / redondear_cobro: los mismos montos que la red de la app.
@@ -88,10 +88,14 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
   // ---- 3) generar_previstos_fijos: un fijo por familia, todos los días; lo que crea tiene que
   // cobrar y pagar lo mismo que la app con ese horario y esa tarifa. Los términos van en una
   // fecha muy vieja (siempre redondea) o muy lejana (nunca), así no depende de qué día se corra.
+  // Por lo mismo, en la base el redondeo rige desde siempre (inicio_redondeo_cobro se pisa dentro
+  // de la transacción) y la app calcula con un día en que ya rige (DIA_APP). El 01/12/2026 en sí
+  // lo prueba supabase/pruebas/terminos_redondeo.sql.
   // El pago por hora (01/11/2026) sale de precioHoraNinera: algunos fijos con precio propio (o en 0
   // o negativo, que es no cargado) y algunas niñeras con precio con esa familia o con la siguiente (que no
   // cuenta). Esas elecciones van con otro azar (azPrecio) para que el resto de los casos, y las
   // secciones 4 y 5, sigan siendo los mismos de antes.
+  const DIA_APP = '2027-01-15';
   const azPrecio = crearAzar(SEMILLA_FIJA + 31);
   const familias = [], ninieras = [], asignaciones = [], esperados = [], tarifas = [], preciosNinera = [];
   let conPrecioPropio = 0;
@@ -104,7 +108,7 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
     const terminos = az.de([null, '2000-01-01', '2100-01-01']);
     const ini = az.entero(0, 1439);
     const fin = az.si(0.15) ? az.entero(0, ini) : (ini + az.entero(1, 600)) % 1440; // a veces termina pasada la medianoche
-    const horas = O.horasSitting(hhmm(ini), hhmm(fin), fin <= ini, { terminos_aceptados_el: terminos }, '2026-10-22');
+    const horas = O.horasSitting(hhmm(ini), hhmm(fin), fin <= ini, { terminos_aceptados_el: terminos }, DIA_APP);
     // null, 0 o negativo (mal cargado) es "no cargado", en la app y en la base.
     const pagoFijo = azPrecio.si(0.25) ? azPrecio.de(TARIFAS.filter(Boolean)) : azPrecio.de([null, 0, -50]);
     if (pagoFijo > 0) conPrecioPropio++;
@@ -114,7 +118,7 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
     preciosNinera.push(...filas);
     const fam = { id: idF, cobro_hora: cobroH, pago_hora: pagoH, terminos_aceptados_el: terminos };
     const pagoHora = O.precioHoraNinera(fam, idN, filas, pagoFijo);
-    const pago = O.precioSegunHorario({ ...fam, pago_hora: pagoHora }, hhmm(ini), hhmm(fin), fin <= ini, '2026-10-22').pago;
+    const pago = O.precioSegunHorario({ ...fam, pago_hora: pagoHora }, hhmm(ini), hhmm(fin), fin <= ini, DIA_APP).pago;
     tarifas.push(fam);
     familias.push(`('${idF}', 'Familia Paridad ${i}', ${cobroH}, ${pagoH}, ${terminos ? `'${terminos}'` : 'null'})`);
     ninieras.push(`('${idN}', 'Niñera Paridad ${i}')`);
@@ -123,6 +127,8 @@ select pg_temp.verificar('redondear_cobro igual a la app en ' || (select count(*
   }
   sql(`-- 3) generar_previstos_fijos: cobro y pago de cada día igual a precioSegunHorario (sittings.js),
 -- con el pago por hora de precioHoraNinera (core.js): ${conPrecioPropio} fijos con precio propio y ${preciosNinera.length} precios de niñeras.
+create or replace function public.inicio_redondeo_cobro() returns date language sql immutable set search_path to ''
+as $f$ select date '2000-01-01' $f$;
 insert into familias (id, nombre, cobro_hora, pago_hora, terminos_aceptados_el) values
 ${valores(familias, 3)};
 insert into ninieras (id, nombre) values
@@ -152,7 +158,7 @@ select pg_temp.verificar('generar_previstos_fijos cobra y paga igual que la app 
     const fam = tarifas[i % tarifas.length];
     const ini = az.entero(0, 1439);
     const fin = az.si(0.15) ? az.entero(0, ini) : (ini + az.entero(1, 600)) % 1440;
-    const p = O.precioSegunHorario(fam, hhmm(ini), hhmm(fin), fin <= ini, '2026-10-22');
+    const p = O.precioSegunHorario(fam, hhmm(ini), hhmm(fin), fin <= ini, DIA_APP);
     precios.push(`('${fam.id}'::uuid, '${hhmm(ini)}'::time, '${hhmm(fin)}'::time, ${p.cobro ?? 'null'}::numeric, ${p.pago ?? 'null'}::numeric)`);
   }
   sql(`-- 4) precio_sitting = precioSegunHorario (sittings.js) en ${PRECIOS} horarios.
@@ -163,11 +169,11 @@ select pg_temp.verificar('precio_sitting igual a la app en ' || (select count(*)
   || coalesce(': ' || (select string_agg(x.ini || '-' || x.fin || ' da ' || coalesce(x.c::text, 'vacío') || '/' || coalesce(x.p::text, 'vacío')
                           || ' (app ' || coalesce(x.cobro::text, 'vacío') || '/' || coalesce(x.pago::text, 'vacío') || ')', ', ')
                      from (select e.ini, e.fin, e.cobro, e.pago, r.cobro c, r.pago p from _precio e
-                           cross join lateral public.precio_sitting(e.familia_id, '2026-10-22', e.ini, e.fin) r
+                           cross join lateral public.precio_sitting(e.familia_id, '${DIA_APP}', e.ini, e.fin) r
                            where r.cobro is distinct from e.cobro or r.pago is distinct from e.pago limit 5) x), ''),
-  not exists (select 1 from _precio e cross join lateral public.precio_sitting(e.familia_id, '2026-10-22', e.ini, e.fin) r
+  not exists (select 1 from _precio e cross join lateral public.precio_sitting(e.familia_id, '${DIA_APP}', e.ini, e.fin) r
               where r.cobro is distinct from e.cobro or r.pago is distinct from e.pago)
-  and (select count(*) from _precio e cross join lateral public.precio_sitting(e.familia_id, '2026-10-22', e.ini, e.fin) r) = ${PRECIOS});
+  and (select count(*) from _precio e cross join lateral public.precio_sitting(e.familia_id, '${DIA_APP}', e.ini, e.fin) r) = ${PRECIOS});
 `);
 
   // ---- 5) precio_con_variantes = aplicarVariantes (core.js): total fijo, porcentajes y sumas.
@@ -203,6 +209,6 @@ rollback;
 
 if (require.main === module) {
   fs.writeFileSync(DESTINO, generarSQL());
-  console.log(`Generada ${path.relative(path.join(__dirname, '..'), DESTINO)}: 2880 minutos, ${MONTOS} montos, ${FIJOS} fijos, ${PRECIOS} precios, ${VARIANTES} variantes.`);
+  console.log(`Generada ${path.relative(path.join(__dirname, '..'), DESTINO)}: 2880 duraciones, ${MONTOS} montos, ${FIJOS} fijos, ${PRECIOS} precios, ${VARIANTES} variantes.`);
 }
 module.exports = { generarSQL };

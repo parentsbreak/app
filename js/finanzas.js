@@ -2225,7 +2225,7 @@ function sospechasDelMes(sits, ctx){
     let esperado = 0, deDonde = '';
     if(r.tipo==='traslado' && Number(asig?.cobro_traslado)>0){ esperado = Number(asig.cobro_traslado); deDonde = 'el fijo'; }
     else if(r.tipo==='sitting'){
-      // Horas que se le cobran (con el fin redondeado si la familia aceptó los términos).
+      // Horas que se le cobran (redondeadas si la familia aceptó los términos).
       const horas = horasSitting(r.hora_inicio, r.hora_fin, r.termina_dia_siguiente, fam, r.fecha)?.cobro || 0;
       const tarifa = Number(asig?.cobro_hora) || Number(fam?.cobro_hora) || 0;
       if(horas && tarifa){ esperado = redondearCobro(horas*tarifa); deDonde = Number(asig?.cobro_hora) ? 'el fijo' : 'la tarifa de la familia'; }

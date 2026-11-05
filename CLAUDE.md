@@ -218,7 +218,7 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   meses de resumen y 400 bases chicas de Por cobrar / Por pagar en miércoles, sábado, domingo y lunes,
   60 pantallas de Finanzas, 400 cobros parciales (lo tildado con saldo y "¿Cuánto pagó?" contra probar
   todas las combinaciones) y 600 casos de variantes de precio. La base, contra el mismo oráculo: `supabase/pruebas/paridad_plata.sql`
-  (2.880 minutos, 800 montos, 450 días de fijos, 300 precios de `precio_sitting` y 400 de
+  (2.880 duraciones, 800 montos, 450 días de fijos, 300 precios de `precio_sitting` y 400 de
   `precio_con_variantes`; Postgres local).
 - `supabase/pruebas/pedidos_whatsapp.sql`: la tabla del pedido desde WhatsApp (estados, límites,
   política), `precio_sitting()` con casos a mano y el tope diario (`reservar_llamada_pedido`: la
@@ -301,8 +301,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   cobrada / pendiente, chips, "+ Nueva" en un modal, base que falla, "Niñeras de Enrique" plegable, 390 y 1280 px).
 - `tests/intermediaciones-finanzas.spec.js`: intermediaciones en el resumen del mes, el balance,
   Movimientos y Por cobrar / Por pagar (confirmación, ya marcado, falla, doble toque, escape, 390px).
-- `tests/terminos.spec.js`: términos y condiciones: casilla en la ficha y en el alta, bordes del redondeo
-  (17:05, 17:06, 17:35, 17:36, medianoche), registro, Agenda, historial y PDF, base sin migrar.
+- `tests/terminos.spec.js`: términos y condiciones: casilla en la ficha y en el alta (tildada desde el 01/12/2026),
+  bordes del redondeo (15 y 16, 45 y 46 minutos, inicio suelto, medianoche, el 01/12), registro, Agenda,
+  historial y PDF, base sin migrar.
   En la base: `supabase/pruebas/terminos_redondeo.sql`.
 - `tests/redondeo-montos.spec.js`: montos sin centavos (,4 ,5 ,6 y enteros para el pago y el cobro)
   en el registro, la Agenda, Por pagar / Por cobrar, "Copiar monto", saldo a favor, PDF y montos
@@ -997,11 +998,13 @@ reporte.
   aparte "Intermediaciones" (`resumenIntermediaciones`, finanzas.js). Se cobran y pagan desde Por
   cobrar / Por pagar con sus columnas `cobrado` / `pagado` (`intermediacionesPendientes`), sin saldo
   a favor ni conciliación; el pago pasa por `confirmarPagoSittings(..., otros)`. No van al margen.
-- Términos y condiciones (20/10/2026): `familias.terminos_aceptados_el` (lo marca la admin en la
-  ficha o en el alta). Desde ese día el fin de cada sitting se COBRA a la media hora siguiente con 5 min de
-  tolerancia (17:05 → 17:00, 17:36 → 18:00); el inicio no se redondea y el pago a la niñera va
+- Términos y condiciones (20/10/2026; regla nueva de Paulina y Delfina, 04/11/2026): `familias.terminos_aceptados_el`
+  (lo marca la admin en la ficha o en el alta; desde el 01/12/2026 el alta viene tildada, `terminosTildadosAlAlta`).
+  Desde ese día, y nunca antes del 01/12/2026 (`INICIO_REDONDEO_COBRO`; en la base `inicio_redondeo_cobro()`), el
+  TOTAL de horas de cada sitting se COBRA así: de cada media hora, hasta 15 minutos exactos y desde el 16 la media
+  hora entera (3 h 15 → 3 h 15, 3 h 16 → 3 h 30, 3 h 46 → 4 h). El inicio no se mueve y el pago a la niñera va
   siempre con la hora real. Todo cobro por hora pasa por `horasSitting()` (core.js); en la base,
-  por `minutos_fin_cobro()` (generar_previstos_fijos y `precio_sitting()`): si cambia la regla,
+  por `horas_cobro_sitting()` y `minutos_cobro()` (generar_previstos_fijos y `precio_sitting()`): si cambia la regla,
   cambian todas (las prueba `supabase/pruebas/paridad_plata.sql`). Las
   familias que se usan para cobrar se leen con `leerFamiliasConTerminos()` (anda sin la columna).
 - Montos sin centavos (21/10/2026): todo pago a una niñera que sale de una cuenta (horas por

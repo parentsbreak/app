@@ -354,7 +354,7 @@ function onHoraSelectChange(){
   actualizarPrecioSugeridoTraslado();
   actualizarCobroPagoPorHorario();
 }
-// "Hora real 17:36, se cobra hasta 18:00" al registrar un día de un fijo o su reemplazo
+// "Hora real 17:46, se cobra hasta 18:00" al registrar un día de un fijo o su reemplazo
 // (términos y condiciones). Cada aviso lleva la familia y la fecha del día que se registra.
 function pintarFinCobroAgenda(){
   [['agenda-fija-fin-cobro', 'agenda-fija-hi', 'agenda-fija-hf', 'agenda-fija-cruza'],
@@ -1983,7 +1983,7 @@ async function filaDeHoySegunFijo(aHoy, r){
     fila.pago_ninera = aHoy.pago_traslado ?? r.pago_ninera;
   } else {
     // Igual que generar_previstos_fijos: horas del fijo por la tarifa de la familia (el
-    // cobro, con el fin redondeado si aceptó los términos) y el pago por hora de un día de fijo
+    // cobro, con las horas redondeadas si aceptó los términos) y el pago por hora de un día de fijo
     // (01/11/2026): el del fijo, si no el de su niñera con esta familia, si no la tarifa.
     const [{ data: fam, error }, precios] = await Promise.all([
       leerFamiliasConTerminos('cobro_hora,pago_hora', q=>q.eq('id', aHoy.familia_id).maybeSingle()),

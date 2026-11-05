@@ -22,7 +22,7 @@ const DESTINO = path.join(RAIZ, 'tests', 'support', 'oraculo-plata.js');
 const FUNCIONES = {
   'js/agenda.js': ['agendaMinutos'],
   'js/core.js': ['gastoACargoFamilia', 'redondearMonto', 'redondearPago', 'redondearCobro', 'asignacionVigenteEn',
-    'asignacionTerminada', 'redondearFinCobro', 'familiaRedondeaFin', 'cruceMedianocheMalMarcado', 'horasSitting', 'efectoVariantes', 'aplicarVariantes',
+    'asignacionTerminada', 'redondearMinutosCobro', 'familiaRedondeaFin', 'cruceMedianocheMalMarcado', 'horasSitting', 'efectoVariantes', 'aplicarVariantes',
     'precioHoraNinera'],
   'js/sittings.js': ['precioSegunHorario'],
   'js/finanzas.js': ['construirEsTrabajoFijo', 'filtrarFijosSemanaIncompleta', 'resumenFinancieroMes',
@@ -34,7 +34,7 @@ const FUNCIONES = {
 
 // Constantes que son regla de plata (se copian como "const NOMBRE = valor;").
 const CONSTANTES = {
-  'js/core.js': ['TOLERANCIA_FIN_COBRO_MIN'],
+  'js/core.js': ['INICIO_REDONDEO_COBRO', 'TOLERANCIA_COBRO_MIN'],
 };
 
 function extraerConstante(lineas, nombre, archivo) {

@@ -36,9 +36,9 @@ const idFicticio = (prefijo, n) => `${prefijo}-0000-4000-8000-${String(n).padSta
 // Tarifas por hora como las reales (enteras) y algunas con centavos, que es donde se equivoca un
 // redondeo. 0 = familia sin tarifa cargada.
 const TARIFAS = [0, 240.2, 250, 260, 280, 300.5, 303, 333.33, 380, 400, 450.75];
-// Familias según los términos y condiciones: sin la casilla, aceptados antes de las fechas de
-// los casos (siempre redondea el fin) o en el medio (redondea solo desde ese día).
-const FAMILIAS_TERMINOS = [null, { terminos_aceptados_el: null }, { terminos_aceptados_el: '2026-10-01' }, { terminos_aceptados_el: '2026-10-24' }];
+// Familias según los términos y condiciones: sin la casilla, aceptados antes del 01/12/2026 (redondea
+// desde el 01/12, que cae en el medio de las fechas de los casos) o después (redondea desde ese día).
+const FAMILIAS_TERMINOS = [null, { terminos_aceptados_el: null }, { terminos_aceptados_el: '2026-10-01' }, { terminos_aceptados_el: '2026-12-08' }];
 
 // Un horario: inicio cualquiera, entre 1 minuto y 16 horas. Si pasa la medianoche, con la casilla
 // del día siguiente; a veces la casilla mal marcada (fin después del inicio) o un horario a medias.
@@ -57,17 +57,21 @@ function casoHorario(az) {
     fin: incompleto === 'fin' ? '' : fmt(fin),
     cruza,
     familia: az.de(FAMILIAS_TERMINOS),
-    fecha: az.si(0.05) ? '' : `2026-10-${dos(az.entero(15, 31))}`,
+    fecha: az.si(0.05) ? '' : sumarDias('2026-11-24', az.entero(0, 16)), // del 24/11 al 10/12
   };
 }
-// Barridos de borde: cada minuto de fin de una tarde (14:01 a 23:59) y cada minuto después de la
-// medianoche (22:00 a 00:00..05:59), con y sin términos. Ahí vive la regla de los 5 minutos.
+// Barridos de borde: cada minuto de fin de una tarde (14:01 a 23:59), lo mismo con un inicio suelto
+// (14:07) y cada minuto después de la medianoche (22:00 a 00:00..05:59), con y sin términos. Ahí vive
+// la regla de los 15 minutos (sobre el total de horas).
 function barridoHorarios() {
   const casos = [];
   const conTerminos = { terminos_aceptados_el: '2026-10-01' };
-  for (let m = 14 * 60 + 1; m < 24 * 60; m++) casos.push({ ini: '14:00', fin: hhmm(m), cruza: false, familia: conTerminos, fecha: '2026-10-21' });
-  for (let m = 0; m < 6 * 60; m++) casos.push({ ini: '22:00', fin: hhmm(m), cruza: true, familia: m % 2 ? conTerminos : null, fecha: '2026-10-21' });
-  casos.push({ ini: '20:00', fin: '20:00', cruza: true, familia: conTerminos, fecha: '2026-10-21' }); // 24 h justas
+  for (let m = 14 * 60 + 1; m < 24 * 60; m++) casos.push({ ini: '14:00', fin: hhmm(m), cruza: false, familia: conTerminos, fecha: '2026-12-21' });
+  for (let m = 14 * 60 + 8; m < 24 * 60; m++) casos.push({ ini: '14:07', fin: hhmm(m), cruza: false, familia: conTerminos, fecha: '2026-12-21' });
+  for (let m = 0; m < 6 * 60; m++) casos.push({ ini: '22:00', fin: hhmm(m), cruza: true, familia: m % 2 ? conTerminos : null, fecha: '2026-12-21' });
+  casos.push({ ini: '20:00', fin: '20:00', cruza: true, familia: conTerminos, fecha: '2026-12-21' }); // 24 h justas
+  // El primer día de la regla y el anterior.
+  for (const fecha of ['2026-11-30', '2026-12-01']) casos.push({ ini: '14:00', fin: '17:46', cruza: false, familia: conTerminos, fecha });
   return casos;
 }
 

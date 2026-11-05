@@ -268,8 +268,9 @@ create table public.familias (
   pago_hora numeric,
   frecuencia_cobro text default 'mensual'::text not null,
   contactada_riesgo_en date,
-  -- Día en que aceptó los términos y condiciones (20/10/2026). Desde ese día el fin de cada
-  -- sitting se le cobra redondeado (minutos_fin_cobro). Vacío = familia de siempre.
+  -- Día en que aceptó los términos y condiciones (20/10/2026). Desde ese día (nunca antes del
+  -- 01/12/2026) las horas de cada sitting se le cobran redondeadas (horas_cobro_sitting). Vacío =
+  -- familia de siempre.
   terminos_aceptados_el date,
   -- "No acepta nuevas" (02/11/2026, etapa 5, decisiones 4.16): la familia solo quiere niñeras que ya
   -- conoce; las sugeridas esconden a las que nunca fueron, con "Mostrar las que nunca fueron".
@@ -1510,20 +1511,52 @@ create trigger precios_ninera_familia_tocar_trg
   for each row execute function public.precios_ninera_familia_tocar();
 
 
--- Términos y condiciones (20/10/2026).
--- Fin de un sitting para el cobro a una familia que aceptó los términos: a la media hora
--- siguiente, con 5 minutos de tolerancia (17:05 -> 17:00, 17:06 -> 17:30, 17:36 -> 18:00).
--- Minutos desde las 00:00 del día del sitting (pasada la medianoche, más de 1440). Es la
--- misma regla que redondearFinCobro() en js/core.js: si cambia una, cambia la otra.
-create or replace function public.minutos_fin_cobro(p_min integer)
+-- Términos y condiciones (20/10/2026; regla nueva de Paulina y Delfina, 04/11/2026).
+-- Desde qué día rige el redondeo del cobro, para toda familia con los términos: antes, nada se
+-- redondea aunque los haya aceptado. La misma fecha que INICIO_REDONDEO_COBRO en js/core.js.
+create or replace function public.inicio_redondeo_cobro()
+returns date
+language sql
+immutable
+set search_path to ''
+as $function$
+  select date '2026-12-01'
+$function$;
+revoke execute on function public.inicio_redondeo_cobro() from public, anon, authenticated;
+
+-- Minutos que se le cobran a la familia por un sitting de p_min minutos: de cada media hora, hasta
+-- 15 minutos se cobran exactos y desde el 16 la media hora entera (195 -> 195, 196 -> 210,
+-- 225 -> 225, 226 -> 240). Va sobre el total, no sobre la hora del reloj. La misma regla que
+-- redondearMinutosCobro() en js/core.js: si cambia una, cambia la otra.
+create or replace function public.minutos_cobro(p_min integer)
 returns integer
 language sql
 immutable
 set search_path to ''
 as $function$
-  select case when p_min % 30 <= 5 then p_min - p_min % 30 else p_min - p_min % 30 + 30 end
+  select case when p_min % 30 <= 15 then p_min else p_min - p_min % 30 + 30 end
 $function$;
-revoke execute on function public.minutos_fin_cobro(integer) from public, anon, authenticated;
+revoke execute on function public.minutos_cobro(integer) from public, anon, authenticated;
+
+-- Horas que se le cobran a una familia por un sitting, o null si se cobran las reales: sin los
+-- términos, sin horario completo o antes del día que rige (el que aceptó, nunca antes de
+-- inicio_redondeo_cobro()). Un fin igual o antes del inicio es al día siguiente. Sin día cuenta
+-- como que rige, como familiaRedondeaFin() en js/core.js.
+create or replace function public.horas_cobro_sitting(p_terminos date, p_dia date, p_hora_inicio time without time zone, p_hora_fin time without time zone)
+returns numeric
+language sql
+immutable
+set search_path to ''
+as $function$
+  select case when p_terminos is null or p_hora_inicio is null or p_hora_fin is null then null
+              when p_dia < greatest(p_terminos, public.inicio_redondeo_cobro()) then null
+              else public.minutos_cobro(
+                     (extract(epoch from p_hora_fin) / 60)::integer
+                     + case when p_hora_fin <= p_hora_inicio then 1440 else 0 end
+                     - (extract(epoch from p_hora_inicio) / 60)::integer) / 60.0
+         end
+$function$;
+revoke execute on function public.horas_cobro_sitting(date, date, time without time zone, time without time zone) from public, anon, authenticated;
 
 
 -- Montos sin centavos (21/10/2026, regla de Paulina y Delfina). Pago a la niñera: ,5 o menos
@@ -1554,7 +1587,7 @@ revoke execute on function public.redondear_cobro(numeric) from public, anon, au
 
 -- Cobro y pago de un sitting según la tarifa de la familia (21/10/2026). Misma cuenta que
 -- generar_previstos_fijos: un fin igual o antes del inicio es al día siguiente; a la familia que
--- aceptó los términos, desde ese día, se le cobra con el fin redondeado (minutos_fin_cobro); a
+-- aceptó los términos, desde ese día, se le cobran las horas redondeadas (horas_cobro_sitting); a
 -- la niñera, la hora real; montos con redondear_cobro / redondear_pago. Sin tarifa, ese monto
 -- va vacío. Es la misma regla que precioSegunHorario() en js/sittings.js (lo prueba
 -- supabase/pruebas/paridad_plata.sql): si cambia una, cambia la otra.
@@ -1587,12 +1620,7 @@ as $function$
     select f.cobro_hora, f.pago_hora,
            (extract(epoch from p_hora_fin) - extract(epoch from p_hora_inicio)) / 3600.0
              + case when p_hora_fin <= p_hora_inicio then 24 else 0 end as horas,
-           case when f.terminos_aceptados_el is null or p_fecha < f.terminos_aceptados_el then null
-                else greatest(public.minutos_fin_cobro(
-                       (extract(epoch from p_hora_fin) / 60)::integer
-                       + case when p_hora_fin <= p_hora_inicio then 1440 else 0 end)
-                     - (extract(epoch from p_hora_inicio) / 60)::integer, 0) / 60.0
-           end as horas_cobro
+           public.horas_cobro_sitting(f.terminos_aceptados_el, p_fecha, p_hora_inicio, p_hora_fin) as horas_cobro
       from public.familias f
      where f.id = p_familia_id and p_hora_inicio is not null and p_hora_fin is not null
   )
@@ -5203,15 +5231,10 @@ begin
                 else (extract(epoch from dias.hora_fin) - extract(epoch from dias.hora_inicio)) / 3600.0
                      + case when dias.hora_fin <= dias.hora_inicio then 24 else 0 end
            end as horas,
-           -- Términos y condiciones (20/10/2026): desde el día que los aceptó, a la familia se
-           -- le cobra con el fin redondeado (minutos_fin_cobro); a la niñera, la hora real.
-           case when dias.hora_fin is null then null
-                when dias.fam_terminos is null or dias.dia < dias.fam_terminos then null
-                else greatest(public.minutos_fin_cobro(
-                       (extract(epoch from dias.hora_fin) / 60)::integer
-                       + case when dias.hora_fin <= dias.hora_inicio then 1440 else 0 end)
-                     - (extract(epoch from dias.hora_inicio) / 60)::integer, 0) / 60.0
-           end as horas_cobro
+           -- Términos y condiciones (regla del 04/11/2026): desde el día que los aceptó, y nunca
+           -- antes del 01/12/2026, a la familia se le cobran las horas redondeadas
+           -- (horas_cobro_sitting); a la niñera, la hora real.
+           public.horas_cobro_sitting(dias.fam_terminos, dias.dia, dias.hora_inicio, dias.hora_fin) as horas_cobro
       from dias
   )
   -- Montos sin centavos (21/10/2026): el cobro con redondear_cobro y el pago con redondear_pago.

@@ -24,19 +24,19 @@ exception when others then
 end $$;
 
 insert into familias (id, nombre, cobro_hora, pago_hora, terminos_aceptados_el) values
-  ('f2000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 400, 260, '2026-10-20'),
+  ('f2000000-0000-4000-8000-000000000001', 'Familia Prueba Uno', 400, 260, '2026-12-20'),
   ('f2000000-0000-4000-8000-000000000002', 'Familia Prueba Dos', 380, 250, null),
   ('f2000000-0000-4000-8000-000000000003', 'Familia Prueba Tres', null, null, null);
 
--- precio_sitting: con términos desde el 20/10, 17:00 a 20:36 se cobra hasta las 21:00.
-select pg_temp.verificar('con términos: cobra 4 h ($1.600) y paga 3,6 h ($936)',
-  (select cobro = 1600 and pago = 936 and horas = 3.6 and horas_cobro = 4 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-10-21', '17:00', '20:36')));
+-- precio_sitting: con términos desde el 20/12, 17:00 a 20:46 (3 h 46) se cobran 4 h (regla del 04/11/2026).
+select pg_temp.verificar('con términos: cobra 4 h ($1.600) y paga 3 h 46 ($979)',
+  (select cobro = 1600 and pago = 979 and horas_cobro = 4 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-12-21', '17:00', '20:46')));
 select pg_temp.verificar('el mismo día que aceptó los términos ya redondea ($1.600)',
-  (select cobro = 1600 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-10-20', '17:00', '20:36')));
-select pg_temp.verificar('el día antes de aceptar los términos: la hora real ($1.440)',
-  (select cobro = 1440 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-10-19', '17:00', '20:36')));
-select pg_temp.verificar('17:05 se cobra hasta las 17:00 (5 minutos de tolerancia)',
-  (select horas_cobro = 2 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-10-21', '15:00', '17:05')));
+  (select cobro = 1600 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-12-20', '17:00', '20:46')));
+select pg_temp.verificar('el día antes de aceptar los términos: la hora real ($1.507)',
+  (select cobro = 1507 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-12-19', '17:00', '20:46')));
+select pg_temp.verificar('2 h 15 se cobran exactas (hasta 15 minutos)',
+  (select horas_cobro = 2.25 from public.precio_sitting('f2000000-0000-4000-8000-000000000001', '2026-12-21', '15:00', '17:15')));
 select pg_temp.verificar('sin términos: 3 h justas ($1.140 y $750)',
   (select cobro = 1140 and pago = 750 from public.precio_sitting('f2000000-0000-4000-8000-000000000002', '2026-10-21', '16:00', '19:00')));
 select pg_temp.verificar('pasada la medianoche: 21:00 a 01:00 son 4 h',
