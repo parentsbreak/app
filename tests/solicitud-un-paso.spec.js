@@ -57,6 +57,10 @@ test('el formulario trae la niñera opcional y los dos precios por hora, precarg
   await expect(page.locator('#agenda-pago-preview')).toHaveText('Pago a la niñera: $780 (3 h)');
   await page.fill('#agenda-pago-hora', '300');
   await expect(page.locator('#agenda-pago-preview')).toHaveText('Pago a la niñera: $900 (3 h)');
+  // Las horas como "3 h 20", no "3.3 h" (05/11/2026).
+  await hora(page, 'agenda-hora-fin', '19:20');
+  await expect(page.locator('#agenda-total-preview')).toHaveText('Total estimado: $1.333 (3 h 20)');
+  await expect(page.locator('#agenda-pago-preview')).toHaveText('Pago a la niñera: $1.000 (3 h 20)');
   verificarLimpio(e);
 });
 

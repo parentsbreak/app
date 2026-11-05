@@ -226,7 +226,7 @@ test.describe('Agenda', () => {
     await page.fill('#agenda-nueva-fecha', '2026-10-08');
     await hora(page, 'agenda-hora-inicio', '14:00');
     await hora(page, 'agenda-hora-fin', '16:30');
-    await expect(page.locator('#agenda-total-preview')).toHaveText('Total estimado: $753 (2.5 h)');
+    await expect(page.locator('#agenda-total-preview')).toHaveText('Total estimado: $753 (2 h 30)');
     await page.locator('#editmodal button', { hasText: /Guardar|Crear|Agregar/ }).last().click();
     await expect.poll(() => escrituras(e, 'solicitudes', 'POST').length).toBe(1);
     expect(escrituras(e, 'solicitudes', 'POST')[0].cuerpo).toMatchObject({ cobro_familia: 753 });

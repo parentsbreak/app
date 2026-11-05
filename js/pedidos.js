@@ -1366,7 +1366,7 @@ function precioTicket(){
   if(!horas) return { cobro: null, texto: '' };
   const cobro = redondearCobro(tarifa * horas.cobro);
   const fin = textoFinCobrado(h.hf, horas);
-  return { cobro, texto: `Precio esperado para la madre: $${cobro.toLocaleString('es-UY')} (${horas.cobro.toFixed(1).replace('.0','')} h × $${tarifa.toLocaleString('es-UY')})${fin ? ' · '+fin : ''}` };
+  return { cobro, texto: `Precio esperado para la madre: $${cobro.toLocaleString('es-UY')} (${textoDuracion(horas.cobro)} × $${tarifa.toLocaleString('es-UY')})${fin ? ' · '+fin : ''}` };
 }
 function actualizarPrecioTicket(){
   const cont = document.getElementById('pedido-precio');

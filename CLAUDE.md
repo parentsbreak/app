@@ -776,6 +776,8 @@ reporte.
   `ninera_marcar_pedido_visto`); "Ya se cubrió" / "Se canceló" llegan una vez y quedan en memoria hasta cerrar sesión o recargar
   (`avisosCierreNinera`). El detalle del sitting muestra "Indicaciones" (solo `notas_para_ninera`), "Precio por hora" y "Cómo llegar"
   con Google Maps, Waze y Mapas (`linksMapaNinera`).
+- Duraciones (05/11/2026): una cantidad de horas se muestra con `textoDuracion` (core.js): "3 h", "3 h 15", "45 min". Nunca
+  con un decimal ("3.3 h" era 3 h 15 o 3 h 20). El historial y el PDF de la familia siguen con "3.6 hs" (lo ven las madres).
 - Textos nuevos sin "·" (Diego, 01/11/2026): en los textos nuevos o cambiados se usan comas, "a las" o renglones aparte; las líneas
   viejas que no se tocaron quedan.
 - CV automático (01/11/2026): "CV de [nombre]" (`abrirCvNinera`, ninieras.js; desde el botón "CV" de la lista y la fila "CV" de la

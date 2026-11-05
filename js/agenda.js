@@ -567,7 +567,7 @@ function actualizarAgendaPagoPreview(){
   const cruza = document.getElementById('agenda-cruza-medianoche')?.checked;
   const horas = document.getElementById('agenda-tipo')?.value==='sitting' && pagoHora && hi && hf && !cruceMedianocheMalMarcado(hi, hf, cruza)
     ? horasSitting(hi, hf, cruza, null, document.getElementById('agenda-nueva-fecha')?.value) : null;
-  el.textContent = horas ? `Pago a la niñera: $${redondearPago(pagoHora*horas.real).toLocaleString('es-UY')} (${horas.real.toFixed(1).replace('.0','')} h)` : '';
+  el.textContent = horas ? `Pago a la niñera: $${redondearPago(pagoHora*horas.real).toLocaleString('es-UY')} (${textoDuracion(horas.real)})` : '';
 }
 function actualizarAgendaTotal(){
   actualizarAgendaPagoPreview();
@@ -585,7 +585,7 @@ function actualizarAgendaTotal(){
   const horas = horasSitting(hi, hf, cruza, familia, document.getElementById('agenda-nueva-fecha')?.value);
   if(!horas){ el.textContent = !cruza ? 'La hora de fin tiene que ser después de la de inicio (o marcá "Termina al día siguiente").' : ''; return; }
   const finCobro = textoFinCobrado(hf, horas);
-  el.textContent = `Total estimado: $${redondearCobro(tarifa*horas.cobro).toLocaleString('es-UY')} (${horas.cobro.toFixed(1).replace('.0','')} h)${finCobro ? ' · '+finCobro : ''}`;
+  el.textContent = `Total estimado: $${redondearCobro(tarifa*horas.cobro).toLocaleString('es-UY')} (${textoDuracion(horas.cobro)})${finCobro ? ' · '+finCobro : ''}`;
 }
 let agendaModoNueva = 'puntual';
 function onAgendaModoChange(modo){
