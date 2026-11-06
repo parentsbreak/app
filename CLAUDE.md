@@ -501,6 +501,10 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   (queda asignada), `solo_practica` con una niñera real, "Quién recibe qué", la confirmación para la madre (Copiar, Abrir WhatsApp,
   sin teléfono, dato faltante), "Guardar como plantilla" (modelo con corchetes, upsert, se usa la próxima vez, falla), escape, base
   sin migrar 'etapa6', 390 y 1280 px.
+- `tests/mensaje-madre.spec.js` (05/11/2026): la confirmación para la madre con la hora de fin, las horas y el total (del registro
+  del pedido, con el redondeo de los términos; sin hora de fin, sin precio, traslado), "Mensaje para la madre" desde el registro en la
+  Agenda y desde la solicitud confirmada sin registro, plantilla vieja, plantilla con un dato que el pedido no tiene, "Guardar como
+  plantilla" con los corchetes nuevos, lecturas que fallan, escape, 390 px y las horas del historial ("3 h 20").
 - `tests/pedidos-en-curso.spec.js` (01/11/2026): "Pedidos en curso" en Hoy y en el modal de la solicitud (textos sin "·", solo
   `pendiente_confirmar` de hoy en adelante con filas de la app, atajo de la pedida, "Asignar" por fila, "Preguntar a más niñeras",
   "Todavía buscando", "No conseguimos", "Cancelar el pedido" con la condición del estado y dos admins), "Perfiles para la madre" (regla
@@ -768,7 +772,11 @@ reporte.
   `app_config 'plantilla_perfiles' | 'plantilla_confirmacion' | 'plantilla_buscando' | 'plantilla_no_conseguimos'` (`valor: {texto}`);
   el texto por defecto está en el código (`PLANTILLAS_PEDIDO`) y "Guardar como plantilla" muestra cómo queda y hace upsert para las tres
   admins. Corchetes que se completan solos: `[madre]` (primera palabra de `familias.nombre`), `[día]`, `[hora inicio]`, `[niñeras]`,
-  `[niñera]`, `[cuándo]`; con un corchete sin completar no se puede copiar ni abrir WhatsApp. Regla del CV en "Perfiles": a las que ya
+  `[niñera]`, `[cuándo]` y, en la confirmación (05/11/2026, Paulina), `[hora fin]`, `[horas]` y `[monto]`; con un corchete sin completar no
+  se puede copiar ni abrir WhatsApp. La confirmación sale del registro del pedido (manda sobre la solicitud): el monto es su cobro a la
+  familia y las horas, las que se cobran (`horasSitting`); sin hora de fin va sin horas ni total, un traslado con "El viaje es $X", y una
+  plantilla guardada que usa un dato que ese pedido no tiene cede a la de siempre con una nota (`confirmacionPorDefecto`, pedidos.js).
+  "Mensaje para la madre" la vuelve a abrir desde el registro del pedido en la Agenda (`botonMensajeMadre`, agenda.js). Regla del CV en "Perfiles": a las que ya
   fueron a esa casa va solo el nombre; una nueva entra recién con "Revisé su perfil" ("(te paso su CV)") y abajo "Adjuntá en WhatsApp el
   CV de [niñera]." si su CV es el viejo de Canva; si tiene el de la app (`cv_url`), "Compartir el CV de [niñeras]" los manda de un toque. "Pedidos en curso" lee todo en una lectura (`cargarPedidosEnCurso`) y el
   historial de "Ya fue N veces" en otra para todos (`historialPedidosEnCurso`).
@@ -777,7 +785,10 @@ reporte.
   (`avisosCierreNinera`). El detalle del sitting muestra "Indicaciones" (solo `notas_para_ninera`), "Precio por hora" y "Cómo llegar"
   con Google Maps, Waze y Mapas (`linksMapaNinera`).
 - Duraciones (05/11/2026): una cantidad de horas se muestra con `textoDuracion` (core.js): "3 h", "3 h 15", "45 min". Nunca
-  con un decimal ("3.3 h" era 3 h 15 o 3 h 20). El historial y el PDF de la familia siguen con "3.6 hs" (lo ven las madres).
+  con un decimal ("3.3 h" era 3 h 15 o 3 h 20). También el historial de Sittings y el PDF de la familia.
+- Buscadores en los tests (05/11/2026): `attachAutocomplete` marca el campo con `data-autocompletar="listo"` cuando ya escucha. El
+  registro de Sittings los conecta en un `setTimeout`: un test espera esa marca antes de escribir (lo escrito antes no elige la
+  familia; era el intermitente de `precio-ninera-familia.spec.js`).
 - Textos nuevos sin "·" (Diego, 01/11/2026): en los textos nuevos o cambiados se usan comas, "a las" o renglones aparte; las líneas
   viejas que no se tocaron quedan.
 - CV automático (01/11/2026): "CV de [nombre]" (`abrirCvNinera`, ninieras.js; desde el botón "CV" de la lista y la fila "CV" de la
@@ -1179,9 +1190,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Push de una elegida que ya vio sus datos (01/11/2026): no puede mostrarlos (`ninera_mis_pedidos` ya no devuelve su fila; hoy sale el
   texto neutro "Si te eligieron, lo ves en Próximos sittings."). Para mostrarlos, que la lectura la siga devolviendo hasta la fecha o
   llevar el id de la solicitud en la URL (migración).
-- `tests/precio-ninera-familia.spec.js` (31/10/2026): los tests de Sittings fallan de a varios, distintos en cada corrida, en local
-  y también sobre `main` limpio (02/11/2026: 8 de 61 en main, 9 en la rama de la etapa 4) y desde el 02/11 también en el CI (4 en
-  el PR #100). No es la fecha: es intermitencia (la casilla "Guardar como precio" todavía oculta al mirarla). Revisar las esperas.
 - Test intermitente (01/11/2026): en local, `ninera-temporada.spec.js:122` con la suite completa; pasa solo. Revisar sus esperas
   fijas (`waitForTimeout`). (El del alta de niñera en el CI era el foco a los 30 ms del modal; arreglado el 03/11/2026.)
 - Cron `enviar-avisos` (30/10/2026): corre cada minuto y deja 1.440 filas por día en

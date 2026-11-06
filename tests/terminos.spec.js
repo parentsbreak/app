@@ -387,7 +387,7 @@ test.describe('historial y PDF de la familia', () => {
     await page.locator('#editmodal button', { hasText: 'Ver vista previa' }).click();
     const fila = page.locator('#exphist-preview tbody tr').first();
     await expect(fila).toContainText('16:00–19:18 (se cobra hasta 19:30)'); // 3 h 18: se cobran 3 h 30
-    await expect(fila).toContainText('3.3 hs'); // horas reales
+    await expect(fila).toContainText('3 h 18'); // horas reales
     await expect(page.locator('#exphist-total-pagar')).toHaveText('Total a pagar: $1.330');
     verificarLimpio(e);
   });

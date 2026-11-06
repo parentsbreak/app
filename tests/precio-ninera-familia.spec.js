@@ -48,6 +48,10 @@ function espiarLecturas(page) {
 async function nuevoSitting(page, { familia = 'Familia Prueba Uno', ninera = 'Carla Ejemplo', ini = '14:00', fin = '17:00' } = {}) {
   await irAModulo(page, 'sittings');
   await page.locator('button[onclick^="abrirModalSitForm"]').first().click();
+  // El formulario conecta los buscadores en un setTimeout: lo escrito antes no elige la familia ni la niñera
+  // (era el intermitente de este archivo, 05/11/2026). Se espera a que escuchen, no un tiempo fijo.
+  await expect(page.locator('#sit-familia')).toHaveAttribute('data-autocompletar', 'listo');
+  await expect(page.locator('#sit-ninera')).toHaveAttribute('data-autocompletar', 'listo');
   await page.fill('#sit-familia', familia);
   await page.fill('#sit-ninera', ninera);
   await page.fill('#sit-fecha', '2026-10-03');
@@ -251,6 +255,7 @@ test.describe('Sittings: "Guardar como precio de [niñera] con esta familia"', (
 async function nuevaSolicitud(page, { familia = 'Familia Prueba Dos', fecha = '2026-10-06', ini = '16:00', fin = '19:00' } = {}) {
   await irAModulo(page, 'agenda');
   await page.locator('button', { hasText: '+ Nueva solicitud' }).click();
+  await expect(page.locator('#agenda-ninera')).toHaveAttribute('data-autocompletar', 'listo');
   await page.fill('#agenda-familia', familia);
   await page.fill('#agenda-nueva-fecha', fecha);
   await hora(page, 'agenda-hora-inicio', ini);
@@ -258,10 +263,12 @@ async function nuevaSolicitud(page, { familia = 'Familia Prueba Dos', fecha = '2
 }
 async function elegirNineraAgenda(page, texto, nombre) {
   // El buscador esconde su lista 150 ms después de perder el foco (attachAutocomplete): al elegir dos
-  // niñeras seguidas, esa espera de la elección anterior escondía la lista nueva.
-  await page.waitForTimeout(200);
-  await page.fill('#agenda-ninera', texto);
-  await page.locator('#agenda-ninera-dropdown .autocomplete-item', { hasText: nombre }).click();
+  // niñeras seguidas, esa espera de la elección anterior podía esconder la lista nueva. Se reintenta hasta que
+  // la lista quede a la vista, en vez de esperar un tiempo fijo.
+  await expect(async () => {
+    await page.fill('#agenda-ninera', texto);
+    await page.locator('#agenda-ninera-dropdown .autocomplete-item', { hasText: nombre }).click({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
   await expect(page.locator('#agenda-ninera')).toHaveValue(nombre);
 }
 const guardarSolicitud = page => page.locator('#editmodal button', { hasText: 'Guardar solicitud' }).click();
@@ -985,8 +992,10 @@ test.describe('"+ Nueva solicitud": la tarifa enseguida, el precio de la niñera
     await page.locator('button', { hasText: '+ Nueva solicitud' }).click();
     await page.fill('#agenda-ninera', 'Ana Ficticia');
     await page.fill('#agenda-familia', 'Familia Prueba Dos');
+    const lectura = page.waitForResponse(r => r.url().includes('/rest/v1/precios_ninera_familia') && r.request().method() === 'GET');
     await page.fill('#agenda-pago-hora', '320');
-    await page.waitForTimeout(1300);
+    await (await lectura).finished(); // llegó la lectura lenta: lo tipeado tiene que seguir
+    await page.evaluate(() => new Promise(r => setTimeout(() => setTimeout(r, 0), 0)));
     await expect(page.locator('#agenda-pago-hora')).toHaveValue('320');
     verificarLimpio(e);
   });
