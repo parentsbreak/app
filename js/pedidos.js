@@ -1547,20 +1547,32 @@ function listaNombresTexto(nombres){
 // Los textos por defecto (textos.md 9 y las respuestas de Diego del 01/11/2026). Los corchetes se completan solos.
 const PLANTILLAS_PEDIDO = {
   perfiles: '¡Hola [madre]! Te paso las niñeras disponibles para el [día] a las [hora inicio]:\n[niñeras]\nAvísame cuál preferís y te la confirmo.',
-  confirmacion: '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio].',
+  confirmacion: '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] de [hora inicio] a [hora fin] ([horas]). El total es $[monto].',
   buscando: '¡Hola [madre]! Estamos viendo quién puede [cuándo]. Te avisamos a la brevedad.',
   no_conseguimos: '¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?',
 };
 const TITULOS_MENSAJE_MADRE = { perfiles: 'Perfiles para la madre', confirmacion: 'Confirmación para la madre', buscando: 'Todavía buscando', no_conseguimos: 'No conseguimos' };
 // Los corchetes que se completan solos, y cómo se nombra cada uno en "Falta [dato] para completar el mensaje."
-const DATOS_PLANTILLA_PEDIDO = { 'madre': 'el nombre de la madre', 'día': 'el día', 'hora inicio': 'la hora de inicio', 'cuándo': 'el día', 'niñera': 'la niñera', 'niñeras': 'las niñeras' };
+const DATOS_PLANTILLA_PEDIDO = { 'madre': 'el nombre de la madre', 'día': 'el día', 'hora inicio': 'la hora de inicio', 'cuándo': 'el día', 'niñera': 'la niñera', 'niñeras': 'las niñeras', 'hora fin': 'la hora de fin', 'horas': 'las horas', 'monto': 'el monto' };
+// Los datos de la confirmación que un pedido puede no tener (sin hora de fin, un traslado, sin precio).
+const DATOS_CONFIRMACION_OPCIONALES = ['hora fin', 'horas', 'monto'];
 
-// El texto de la plantilla: el guardado o, si no hay (o no se pudo leer), el de siempre. Una lectura fallida
-// nunca deja el mensaje sin texto.
-async function leerPlantillaPedido(clave){
+// La plantilla guardada por las admins ('' si no hay o no se pudo leer: una lectura fallida nunca deja el mensaje
+// sin texto, va el de siempre).
+async function leerPlantillaGuardada(clave){
   const { data, error } = await sb.from('app_config').select('valor').eq('id', 'plantilla_'+clave).maybeSingle();
   const guardado = !error && typeof data?.valor?.texto === 'string' ? data.valor.texto : '';
-  return guardado.trim() ? guardado : (PLANTILLAS_PEDIDO[clave] || '');
+  return guardado.trim() ? guardado : '';
+}
+/* La confirmación de siempre según lo que tiene el pedido (Paulina, 05/11/2026: el mensaje con el monto y las
+   horas). Sin hora de fin no hay horas ni total; un traslado lleva el precio del viaje y nunca horas. Así no
+   queda ningún corchete vacío. */
+function confirmacionPorDefecto({ traslado, conFin, conMonto }){
+  if(!traslado && conFin && conMonto) return PLANTILLAS_PEDIDO.confirmacion;
+  const cuando = traslado ? 'para el traslado del [día] a las [hora inicio]'
+    : conFin ? 'el [día] de [hora inicio] a [hora fin] ([horas])' : 'el [día] a las [hora inicio]';
+  const total = !conMonto ? '' : traslado ? ' El viaje es $[monto].' : ' El total es $[monto].';
+  return `¡Hola [madre]! Confirmamos a la niñera [niñera] ${cuando}.${total}`;
 }
 const RE_CORCHETE_PEDIDO = /\[([^[\]\n]+)\]/g;
 function claveCorchete(t){ const c = String(t).trim().toLowerCase(); return c in DATOS_PLANTILLA_PEDIDO ? c : null; }
@@ -1622,8 +1634,8 @@ async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
   const s = solicitud || {};
   abrirModal('<div class="empty"><span class="spinner dark"></span> Armando el mensaje…</div>');
   const token = modalToken;
-  const [plantilla, fam] = await Promise.all([
-    leerPlantillaPedido(clave),
+  const [guardada, fam] = await Promise.all([
+    leerPlantillaGuardada(clave),
     s.familia_id ? sb.from('familias').select('nombre,telefono').eq('id', s.familia_id).maybeSingle() : { data: null },
   ]);
   if(token !== modalToken) return;
@@ -1636,7 +1648,11 @@ async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
     'cuándo': !s.fecha ? '' : s.fecha === todayISO() ? 'hoy' : 'el ' + diaPedidoTexto(s.fecha),
     'niñera': extra.nineraNombre || '',
     'niñeras': extra.ninieras || '',
+    ...(extra.datos || {}),
   };
+  // La confirmación elige su texto según lo que tiene el pedido (armarPlantilla); los demás, el guardado o el de siempre.
+  const { texto: plantilla, nota } = extra.armarPlantilla ? extra.armarPlantilla(guardada, datos)
+    : { texto: guardada || PLANTILLAS_PEDIDO[clave] || '', nota: '' };
   const telefono = String(familia?.telefono || '').trim();
   mensajeMadre = { clave, plantilla, datos, telefono, modelo: null };
   const sinTelefono = fam.error ? 'No se pudo leer el teléfono de la familia: copiá el mensaje.' : 'Falta el teléfono de la familia.';
@@ -1646,6 +1662,7 @@ async function abrirMensajeMadre({ clave, solicitud, extra = {} }){
     <div class="field" style="margin-top:12px;"><label for="mensaje-madre-texto">Mensaje</label>
       <textarea id="mensaje-madre-texto" rows="5" oninput="revisarMensajeMadre()"></textarea>
       <div class="helper">Los datos del pedido se completaron solos. Podés cambiar el texto antes de mandarlo.</div>
+      ${nota ? `<div class="helper mensaje-madre-nota">${escaparHtml(nota)}</div>` : ''}
     </div>
     ${extra.abajo || ''}
     <div id="mensaje-madre-falta"></div>
@@ -1668,7 +1685,7 @@ function revisarMensajeMadre(){
   if(!st || !area) return;
   const faltan = faltanEnMensaje(area.value);
   const caja = document.getElementById('mensaje-madre-falta');
-  if(caja) caja.innerHTML = faltan.map(c => `<div class="warnbox">${escaparHtml(`${c === 'niñeras' ? 'Faltan' : 'Falta'} ${DATOS_PLANTILLA_PEDIDO[c]} para completar el mensaje.`)}</div>`).join('');
+  if(caja) caja.innerHTML = faltan.map(c => `<div class="warnbox">${escaparHtml(`${c === 'niñeras' || c === 'horas' ? 'Faltan' : 'Falta'} ${DATOS_PLANTILLA_PEDIDO[c]} para completar el mensaje.`)}</div>`).join('');
   // "Copiar" gris mientras falte algo (en "Perfiles para la madre", sin ninguna tildada): igual responde con el aviso.
   document.getElementById('mensaje-madre-copiar')?.classList.toggle('apagado', faltan.length > 0);
   const wa = document.getElementById('mensaje-madre-wa');
@@ -1732,23 +1749,64 @@ async function guardarPlantillaPedido(){
 /* Pantalla 5: la confirmación para la madre, después de asignar (desde "Asignar" o desde "Elegir niñeras").
    "Ya le llegó el aviso" solo si la base de verdad lo mandó: el trigger pone seleccionada_en cuando le encola
    "¡Quedaste seleccionada!" (no lo hace sin app, con solo_practica para una niñera real, con un pedido pasado
-   ni con la base sin migrar). Se lee después de escribir, nunca de la respuesta de la escritura. */
-async function abrirConfirmacionMadre(solicitudId, nineraNombre){
+   ni con la base sin migrar). Se lee después de escribir, nunca de la respuesta de la escritura.
+   Desde el 05/11/2026 (Paulina) lleva la hora de fin, las horas y el monto, y se vuelve a abrir cuando quieran con
+   "Mensaje para la madre" (reabrir: sin el aviso de la asignación). Los datos salen del registro del pedido, que
+   manda sobre la solicitud (se pudo editar después): el monto es su cobro a la familia y las horas, las que se le
+   cobran (horasSitting, con el redondeo de los términos). Sin registro (falló al asignar o base sin migrar), los
+   de la solicitud. */
+async function abrirConfirmacionMadre(solicitudId, nineraNombre, { reabrir = false } = {}){
   abrirModal('<div class="empty"><span class="spinner dark"></span> Armando el mensaje…</div>');
   const token = modalToken;
-  const [sol, filas] = await Promise.all([
-    sb.from('solicitudes').select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio').eq('id', solicitudId).maybeSingle(),
-    sb.from('solicitud_ninieras').select('seleccionada_en').eq('solicitud_id', solicitudId).eq('estado', 'confirmada'),
+  const [sol, filas, reg] = await Promise.all([
+    sb.from('solicitudes').select('id,familia_id,familia_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,cobro_familia').eq('id', solicitudId).maybeSingle(),
+    reabrir ? { data: [] } : sb.from('solicitud_ninieras').select('seleccionada_en').eq('solicitud_id', solicitudId).eq('estado', 'confirmada'),
+    sb.from('sittings_traslados').select('ninera_nombre,tipo,fecha,hora_inicio,hora_fin,termina_dia_siguiente,cobro_familia')
+      .eq('solicitud_id', solicitudId).eq('cancelado', false).limit(1),
   ]);
   if(token !== modalToken) return;
-  const nombre = nineraNombre || '';
   const seleccionada = !filas.error && (filas.data || []).some(f => f.seleccionada_en);
-  const ok = nombre ? `<div class="okbox">${escaparHtml(seleccionada ? `${nombre} quedó seleccionada. Ya le llegó el aviso.` : `${nombre} quedó asignada.`)}</div>` : '';
+  const asignada = !reabrir && nineraNombre;
+  const ok = asignada ? `<div class="okbox">${escaparHtml(seleccionada ? `${nineraNombre} quedó seleccionada. Ya le llegó el aviso.` : `${nineraNombre} quedó asignada.`)}</div>` : '';
   if(sol.error || !sol.data){
     abrirModal(`<h2>${escaparHtml(TITULOS_MENSAJE_MADRE.confirmacion)}</h2>${ok}${sol.error ? errBox(sol.error) : '<div class="warnbox">No se encontró el pedido.</div>'}`);
     return;
   }
-  await abrirMensajeMadre({ clave: 'confirmacion', solicitud: sol.data, extra: { nineraNombre: nombre, arriba: ok } });
+  const s = sol.data;
+  const registro = !reg.error && reg.data && reg.data[0] || null;
+  const base = registro || s;
+  const traslado = (base.tipo || s.tipo) === 'traslado';
+  let horas = null;
+  if(!traslado && base.hora_inicio && base.hora_fin){
+    // Las horas que se cobran dependen de los términos de la familia. Si no se pueden leer, el mensaje va sin
+    // horas (nunca con unas que no son las del monto).
+    const fam = s.familia_id ? await leerFamiliasConTerminos('id', q => q.eq('id', s.familia_id).maybeSingle()) : { data: null };
+    if(token !== modalToken) return;
+    horas = fam.error ? null : horasSitting(base.hora_inicio, base.hora_fin, !!base.termina_dia_siguiente, fam.data, base.fecha || s.fecha);
+  }
+  const conFin = !!horas;
+  const cobro = Number(base.cobro_familia);
+  const monto = (traslado || conFin) && cobro > 0 ? redondearCobro(cobro).toLocaleString('es-UY') : '';
+  const forma = { traslado, conFin, conMonto: !!monto };
+  const datos = {
+    'hora fin': conFin ? String(base.hora_fin).slice(0, 5) : '',
+    'horas': conFin ? textoDuracion(horas.cobro) : '',
+    'monto': monto,
+  };
+  // Una plantilla guardada se usa tal cual; si usa un dato que este pedido no tiene (sin hora de fin, un traslado,
+  // sin precio), va la de siempre para este caso, así no le llega a la madre un corchete vacío.
+  const armarPlantilla = (guardada, todos) => {
+    if(!guardada) return { texto: confirmacionPorDefecto(forma), nota: '' };
+    const faltan = completarPlantilla(guardada, todos).faltan.filter(c => DATOS_CONFIRMACION_OPCIONALES.includes(c));
+    if(!faltan.length) return { texto: guardada, nota: '' };
+    const que = listaNombresTexto(faltan.map(c => DATOS_PLANTILLA_PEDIDO[c]));
+    return { texto: confirmacionPorDefecto(forma), nota: `La plantilla guardada usa ${que}, que este pedido no tiene: va el mensaje de siempre.` };
+  };
+  await abrirMensajeMadre({
+    clave: 'confirmacion',
+    solicitud: { ...s, fecha: base.fecha || s.fecha, hora_inicio: base.hora_inicio || s.hora_inicio },
+    extra: { nineraNombre: (registro && registro.ninera_nombre) || nineraNombre || '', arriba: ok, datos, armarPlantilla },
+  });
 }
 
 // "Asignar" a mano no se frena por la guía (decisión de una admin, 02/11/2026): avisa y deja asignar igual.

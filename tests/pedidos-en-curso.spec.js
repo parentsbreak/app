@@ -121,7 +121,7 @@ test.describe('"Pedidos en curso" en Hoy', () => {
     await page.locator('#pedido-asignar-btn').click();
     // Después de asignar sale la confirmación para la madre, y la tarjeta de atrás ya no tiene ese pedido.
     await expect(page.locator('#editmodal .mensaje-madre')).toBeVisible();
-    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Niñera (práctica) el jueves 08/10 a las 18:00.');
+    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Niñera (práctica) el jueves 08/10 de 18:00 a 22:00 (4 h).');
     await expect(tarjeta(page, ID.sPedida)).toHaveCount(0);
     await expect(tarjeta(page)).toBeVisible();
     verificarLimpio(e);

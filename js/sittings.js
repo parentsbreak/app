@@ -154,8 +154,8 @@ function horarioEfectuadoTexto(r){
 }
 function horasEfectuadasTexto(r){
   const horas = horasRegistroSit(r)?.real;
-  if(!horas) return '—';
-  return (Number.isInteger(horas) ? horas : horas.toFixed(1)) + ' hs';
+  // "3 h 15", como en el resto de la app (05/11/2026): "3.3 hs" era 3 h 15 o 3 h 20.
+  return textoDuracion(horas) || '—';
 }
 // Fila compartida entre el historial "Todo/período" y el de rango personalizado -- antes
 // estaba duplicada en los dos lugares, con riesgo real de que se actualice uno y no el otro.
@@ -1319,6 +1319,9 @@ function attachAutocomplete(inputId, dropdownId, getOpciones, onPick, {sinCoinci
   input.addEventListener('input', ()=>{ render(); onPick(null); });
   input.addEventListener('focus', render);
   input.addEventListener('blur', ()=> setTimeout(()=>{ dd.style.display = 'none'; }, 150));
+  // Marca que el buscador ya escucha (05/11/2026): el registro de Sittings lo conecta en un setTimeout, y
+  // un test que escribía antes dejaba la familia sin reconocer (el intermitente de precio-ninera-familia).
+  input.dataset.autocompletar = 'listo';
 }
 
 /* ---- autocomplete de direcciones reales con TomTom (no más "Cremona" = fábrica de pastas) ---- */

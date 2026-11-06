@@ -1139,6 +1139,7 @@ function cuerpoModalSolicitud(s){
   return `${encabezado}
     ${encabezadoEnvioApp(s)}
     <div style="margin:14px 0;">${ninierasHtml || '<div class="empty">Todavía no hay niñeras asignadas.</div>'}</div>
+    ${s.estado==='confirmada' ? botonMensajeMadre(s.id, (s.ninieras||[]).find(n=>n.estado==='confirmada')?.ninera_nombre || '') : ''}
     ${s.estado==='sin_asignar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirModalAsignar(${argJs(s.id)})">Asignar niñera</button>` : ''}
     ${s.estado==='pendiente_confirmar' ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="cerrarModal();abrirElegirNineras(${argJs(s.id)})">Elegir niñeras</button>` : ''}
     ${s.estado!=='cancelada' ? `<button class="btn danger" style="width:100%;" onclick="conGuardado(this, ()=>cancelarSolicitud(${argJs(s.id)}, ${argJs(s.estado)}))">Cancelar solicitud</button>` : `<div class="warnbox">Esta solicitud fue cancelada.</div>`}
@@ -2075,6 +2076,11 @@ async function borrarPrevistosEditados(ids){
   toast(ids.length===1 ? 'Día borrado.' : `${ids.length} días borrados.`);
   if(document.getElementById('agenda-grid-wrap')) await cargarAgendaSolicitudes();
 }
+// "Mensaje para la madre" (05/11/2026, Paulina): la confirmación de un pedido ya asignado, otra vez, con "Copiar" y
+// "Abrir WhatsApp". No manda nada.
+function botonMensajeMadre(solicitudId, nineraNombre){
+  return `<button class="btn" style="width:100%;margin-bottom:8px;" onclick="abrirConfirmacionMadre(${argJs(solicitudId)}, ${argJs(nineraNombre)}, { reabrir: true })">Mensaje para la madre</button>`;
+}
 function abrirModalRegistroDesdeAgenda(s){
   // Un registro que salió de un pedido y no pasó (etapa 8): se puede cambiar la niñera o cancelar el pedido.
   const dePedido = !!s._solicitudId && !s.cancelado && !s._esPrevisto && s.fecha >= todayISO();
@@ -2091,6 +2097,7 @@ function abrirModalRegistroDesdeAgenda(s){
         : (s.cobro_familia ? `<div class="helper">Cobro a la familia: $${Number(s.cobro_familia).toLocaleString('es-UY')}</div>` : '')}
     </div>
     <div id="reg-cambio-horario"></div>
+    ${s._solicitudId && !s.cancelado && !s._esPrevisto ? botonMensajeMadre(s._solicitudId, s.ninieras[0].ninera_nombre) : ''}
     ${s.cancelado ? `<button class="btn primary" style="width:100%;margin-bottom:8px;" onclick="conGuardado(this, ()=>reactivarRegistroDesdeAgenda(${argJs(s._regId)}))">Reactivar este registro</button>` : ''}
     ${s._esPrevisto ? '' : `<button class="btn ${s.cancelado ? '' : 'primary'}" style="width:100%;margin-bottom:8px;" onclick="editarRegistroDesdeAgenda(${argJs(s._regId)})">Editar este registro</button>`}
     ${dePedido && !s._pagado ? `<button class="btn" style="width:100%;margin-bottom:8px;" onclick="conGuardado(this, ()=>abrirCambiarNinera(${argJs(s._regId)}))">Cambiar de niñera</button>` : ''}
