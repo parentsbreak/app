@@ -50,7 +50,7 @@ Primera línea = título; segunda = cuerpo.
 - Esperando confirmación: sección del inicio con los pedidos a los que dijo Puedo y todavía no se eligió (Diego, 31/10/2026).
 - No puedo: ¿Cuál es el motivo? Lo ve solo el equipo. Tengo otro trabajo o sitting / Tengo examen o facultad / Me queda lejos / Es muy tarde para la vuelta / Otro motivo.
 - Marcar días: ¿Quieres marcar otros días en los que no puedes? (Sin explicar el orden.)
-- Quedaste seleccionada: [día], [hora inicio] a [hora fin aproximada]. Dirección. Madre: [nombre + inicial]. Chicos (edades). Notas de la familia. Precio por hora: $[precio hora]. Cómo llegar. Agregar al calendario. Nunca "te pagamos".
+- Quedaste seleccionada: [día], [hora inicio] a [hora fin aproximada]. Dirección. Familia: [nombre + inicial] (antes "Madre:", 06/11/2026). Chicos (edades). Notas de la familia. Precio por hora: $[precio hora]. Cómo llegar. Agregar al calendario. Nunca "te pagamos".
 - Guía por edad: Repasa la guía de [edad] antes de ir. Si hay varias edades, un link por cada edad.
 - Ya se cubrió: Este pedido ya se cubrió. Gracias por responder. ¡Te tendremos en cuenta para el próximo!
 
@@ -112,7 +112,7 @@ Primera línea = título; segunda = cuerpo.
 - Dato faltante: Falta [dato] para completar el mensaje. Complétalo antes de copiar.
 
 ## 9. Mensajes para la madre (plantillas que copian las admins)
-- Confirmación: ¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio]. (sin hora de fin; Diego, 31/10/2026: sin la carita, el código no lleva emojis de color)
+- Confirmación: ¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio], por [horas]. El total es $[monto]. (06/11/2026, Paulina y Delfina: sin la hora de fin; sin hora de fin cargada, sin horas ni total; Diego, 31/10/2026: sin la carita, el código no lleva emojis de color)
 - Todavía buscando: ¡Hola [madre]! Estamos viendo quién puede [hoy / el día]. Te avisamos a la brevedad.
 - No conseguimos: ¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?
 - Cambio de niñera: ¡Hola [madre]! Por un imprevisto voy a tener que mandarte a [niñera] en lugar de [niñera anterior] el [día]. Avísame qué te parece. ¡Disculpa las molestias!

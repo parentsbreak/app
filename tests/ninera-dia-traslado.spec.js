@@ -55,7 +55,7 @@ test.describe('la tarjeta del traslado', () => {
     const e2 = await abrir(page, { hora: '15:00' });
     await expect(tarjeta(page).locator('h2')).toHaveText('Traslado de hoy');
     await expect(tarjeta(page).locator('.dia-cuando')).toHaveText('A las 18:00, de Punta Carretas a Centro');
-    await expect(tarjeta(page).locator('.helper')).toHaveText('Madre: Familia U.');
+    await expect(tarjeta(page).locator('.helper')).toHaveText('Familia: Familia U.');
     await expect(botones(page)).toHaveText(['Estoy saliendo', 'Voy a llegar tarde', 'No están los chicos', 'Ya los busqué']);
     // Sin la ficha de la familia (es de los sittings).
     await expect(tarjeta(page).getByRole('button', { name: 'Ficha de la familia' })).toHaveCount(0);

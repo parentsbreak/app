@@ -21,6 +21,15 @@ const warnTicket = page => page.locator('#pedido-ticket-warn');
 const boton = (page, texto) => page.locator('#editmodal button', { hasText: texto });
 const toastCon = (page, texto, tipo = '') => page.locator(`.toaststack .toast${tipo}`, { hasText: texto });
 
+// Los datos de estos tests ya tienen en la Agenda el pedido del ticket por defecto (Prueba Uno, martes 06/10 a las 20)
+// y uno de Prueba Dos a la misma hora: desde el aviso de pedido repetido (06/11/2026) se pasan al miércoles para que
+// los tests de siempre no lo vean. Los de "pedido repetido" usan datosPedidos() tal cual.
+function datosPegar() {
+  const d = datosPedidos();
+  for (const s of d.solicitudes) if (s.fecha === '2026-10-06' && s.hora_inicio === '20:00:00') s.fecha = '2026-10-07';
+  return d;
+}
+
 function soloPracticaApagado(e) {
   e.db.app_config.find(c => c.id === 'pedidos_app').valor.solo_practica = false;
 }
@@ -71,7 +80,7 @@ async function hora(page, prefijo, hhmm) {
 test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   // Las horas en el precio (05/11/2026): con un decimal, 3 h 15 se veía "3.3 h" y 20 minutos, "0.3 h".
   test('el precio esperado muestra las horas como "3 h 15", no con decimales', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { hora_inicio: '20:00', hora_fin: '23:15' });
     await armar(page);
     await expect(page.locator('#pedido-precio')).toContainText('Precio esperado para la madre: $1.235 (3 h 15 × $380)');
@@ -85,7 +94,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('caso feliz: el cuerpo exacto a la función, el ticket, y la solicitud en la Agenda con "Elegir niñeras" abierto', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await abrirPegar(page);
     await expect(modal(page)).toContainText('Pegá el mensaje de la madre. Podés pegar varios mensajes seguidos.');
     await page.fill('#pedido-texto', TEXTO);
@@ -144,7 +153,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('sin tocar "Es esta" no se pasa a la Agenda; "Otra familia" busca otra y recalcula precio, chicos y dirección', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await armar(page);
     e.escrituras.length = 0;
     await boton(page, 'Revisar y elegir niñeras').click();
@@ -172,7 +181,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('familia nueva: la ficha se completa ahí mismo sin perder el ticket, se cargan los chicos y se crea la solicitud con ella', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: null, familia_texto: 'Familia Nueva Tres', ninera_pedida: null, notas: 'Llevar juegos', dudas: [] });
     await armar(page);
     await expect(page.locator('#pedido-familia')).toHaveValue('Familia Nueva Tres');
@@ -214,7 +223,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('sin chicos cargados "Revisar y elegir niñeras" no sigue hasta agregar uno (con nombre opcional)', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: ID.fDos, familia_texto: 'Prueba Dos', zona: null, dudas: [] });
     await armar(page);
     await esEsta(page);
@@ -249,7 +258,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('si la base falla al guardar el chico, avisa y no lo da por cargado', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: ID.fDos, dudas: [] });
     await armar(page);
     await esEsta(page);
@@ -264,7 +273,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('la dirección: "Guardar" la escribe en la familia y "Después" no bloquea', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: ID.fDos, dudas: [] });
     await armar(page);
     await esEsta(page);
@@ -283,7 +292,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
   });
 
   test('"Guardar sin mandar" crea la solicitud sin chicos ni dirección y no abre "Elegir niñeras"', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: ID.fDos, dudas: [] });
     await armar(page);
     await esEsta(page);
@@ -301,7 +310,7 @@ test.describe('Pegar WhatsApp: del mensaje al ticket', () => {
 
 test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
   test('las dudas se guardan en el pedido: "Enviar" queda en gris en "Elegir niñeras" hasta "Ya lo confirmé"', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     soloPracticaApagado(e);
     await armar(page);
     await esEsta(page);
@@ -318,7 +327,7 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
   });
 
   test('en el ticket, "Ya lo confirmé" saca una duda y "Mandar igual" las vacía (guardado en el pedido)', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { dudas: ['La hora de vuelta.', 'Si hay que dar de cenar.', 'Si va el perro.'] });
     await armar(page);
     const pid = e.db.pedidos_whatsapp[0].id;
@@ -345,7 +354,7 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
   });
 
   test('sin hora de fin: casilla "Horario aproximado" tildada, "Sin total hasta que se sepa la hora de fin" y la solicitud sin fin ni cobro', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { hora_fin: null, horario_aproximado: true, horario_nota: 'sin hora de fin, no antes de las 2', dudas: [] });
     await armar(page);
     await expect(page.locator('#pedido-aprox')).toBeChecked();
@@ -361,7 +370,7 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
   });
 
   test('cruza la medianoche: precio por 4 h 30, la casilla marcada y mal marcada no deja seguir', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { hora_fin: '00:30', termina_dia_siguiente: true, horario_aproximado: true, dudas: [] });
     await armar(page);
     await expect(page.locator('#pedido-cruza')).toBeChecked();
@@ -391,7 +400,7 @@ test.describe('Pegar WhatsApp: dudas, horarios y traslados', () => {
   // Etapa 11 (03/11/2026): un traslado ya se manda por la app, así que pide lo mismo que un sitting (los chicos) y además
   // el recorrido con las dos zonas. Lo demás de la ruta, en tests/traslados-panel.spec.js.
   test('traslado: la ruta con el último viaje de la familia, el precio por km y, para mandar, las zonas y los chicos', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     soloPracticaApagado(e);
     conTicket(e, { familia_id: ID.fDos, servicio: 'traslado', hora_inicio: '08:00', hora_fin: null, dudas: [], ninera_pedida: null, zona: null });
     await armar(page);
@@ -434,7 +443,7 @@ test.describe('Pegar WhatsApp: no es un pedido nuevo', () => {
   });
 
   test('"Descartar" deja el pedido descartado (con la condición de que siga en borrador)', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { tipo: 'cambio', dudas: [] });
     await armar(page);
     await expect(ticket(page)).toContainText('Esto parece un cambio, no un pedido nuevo.');
@@ -449,7 +458,7 @@ test.describe('Pegar WhatsApp: no es un pedido nuevo', () => {
   });
 
   test('otra cosa sin familia reconocida: lo dice y no lista pedidos', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { tipo: 'otra_cosa', familia_id: null, familia_texto: null, dudas: [] });
     await armar(page);
     await expect(ticket(page)).toContainText('Esto parece otra cosa, no un pedido nuevo.');
@@ -471,7 +480,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   ];
   for (const [status, mensaje] of CASOS) {
     test(`la función responde ${status}: se ve su mensaje y el texto pegado sigue ahí`, async ({ page }) => {
-      const e = await abrirApp(page, { datos: datosPedidos() });
+      const e = await abrirApp(page, { datos: datosPegar() });
       errorDeFuncion(e, status, mensaje);
       await abrirPegar(page);
       await page.fill('#pedido-texto', TEXTO);
@@ -485,7 +494,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   }
 
   test('sin conexión o una respuesta sin JSON: aviso claro y el texto sigue ahí', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await abrirPegar(page);
     await page.fill('#pedido-texto', TEXTO);
     await page.route('**/functions/v1/pedido-whatsapp', r => r.abort('failed'));
@@ -501,7 +510,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('sin texto no llama a la función', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await abrirPegar(page);
     await page.fill('#pedido-texto', '   ');
     await boton(page, 'Armar pedido').click();
@@ -511,7 +520,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('doble toque en "Armar pedido" y en "Revisar y elegir niñeras": una sola llamada y una sola solicitud', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     const original = e.funciones['pedido-whatsapp'];
     e.funciones['pedido-whatsapp'] = async c => { await new Promise(r => setTimeout(r, 400)); return original(c); };
     await abrirPegar(page);
@@ -532,7 +541,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('otra admin ya pasó el pedido a la Agenda: avisa y no crea otra solicitud', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await armar(page);
     await esEsta(page);
     e.db.pedidos_whatsapp[0].estado = 'confirmado';
@@ -544,7 +553,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('si la base falla al crear la solicitud, el pedido vuelve a borrador y se puede reintentar', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await armar(page);
     await esEsta(page);
     e.fallar = ({ tabla, metodo }) => (tabla === 'solicitudes' && metodo === 'POST' ? { status: 500, message: 'falla simulada' } : undefined);
@@ -561,7 +570,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('si falla vincular el pedido, la solicitud queda y se avisa que revise las dudas (sin abrir "Elegir niñeras")', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     await armar(page);
     await esEsta(page);
     e.fallar = ({ tabla, metodo, cuerpo }) => (tabla === 'pedidos_whatsapp' && metodo === 'PATCH' && cuerpo && 'solicitud_id' in cuerpo ? { status: 500, message: 'falla simulada' } : undefined);
@@ -573,7 +582,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
   });
 
   test('base sin la migración de la etapa 5: se guarda sin la niñera pedida ni las notas y avisa', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos(), baseSinMigrar: 'etapa5' });
+    const e = await abrirApp(page, { datos: datosPegar(), baseSinMigrar: 'etapa5' });
     await armar(page);
     await esEsta(page);
     await page.fill('#pedido-notas', 'Alergia al maní');
@@ -593,7 +602,7 @@ test.describe('Pegar WhatsApp: fallas y dos admins', () => {
 
 test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => {
   test('el ticket con horario aproximado trae la casilla tildada y la solicitud la guarda', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { horario_aproximado: true, dudas: [] });
     await armar(page);
     await expect(page.locator('label.chk', { hasText: 'Horario aproximado (se puede extender)' })).toBeVisible();
@@ -607,7 +616,7 @@ test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => 
   });
 
   test('el ticket sin la marca la trae destildada; si la admin la tilda o la destilda, se guarda lo que dejó', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { dudas: [] });
     await armar(page);
     await expect(page.locator('#pedido-aprox')).not.toBeChecked();
@@ -622,7 +631,7 @@ test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => 
   });
 
   test('la marca del modelo destildada por la admin se guarda en false', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { horario_aproximado: true, dudas: [] });
     await armar(page);
     await page.locator('#pedido-aprox').uncheck();
@@ -634,7 +643,7 @@ test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => 
   });
 
   test('base sin la migración de la etapa 6: se guarda sin la marca y avisa qué faltó', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos(), baseSinMigrar: 'etapa6' });
+    const e = await abrirApp(page, { datos: datosPegar(), baseSinMigrar: 'etapa6' });
     conTicket(e, { horario_aproximado: true, dudas: [] });
     await armar(page);
     await esEsta(page);
@@ -650,10 +659,151 @@ test.describe('Pegar WhatsApp: horario aproximado (etapa 6, 01/11/2026)', () => 
   });
 });
 
+// Pedido repetido (Paulina y Delfina, 06/11/2026): si la Agenda ya tiene uno de la misma familia, el mismo día y a la
+// misma hora de inicio (no cancelado), avisa antes de crear la solicitud, con "Ver el que ya está" y "Crear igual". No
+// bloquea. La base guarda el mail de quien pegó, no el nombre (sin migración, Diego): "otra admin" o "vos". En
+// datosPedidos(), sUno es justo el pedido del ticket por defecto (Prueba Uno, martes 06/10 a las 20:00).
+test.describe('Pegar WhatsApp: pedido repetido (06/11/2026)', () => {
+  const avisoRepetido = page => page.locator('#pedido-ticket-warn .pedido-repetido');
+  const solUno = e => e.db.solicitudes.find(s => s.id === ID.sUno);
+  // Lo que deja en la base otra admin que ya pegó el mismo pedido y lo pasó a la Agenda.
+  function pegadoPor(e, mail, solicitudId = ID.sUno) {
+    (e.db.pedidos_whatsapp = e.db.pedidos_whatsapp || []).push({ id: '83000000-0000-4000-8000-0000000000aa', creado_el: '2026-10-04T14:30:00Z', creado_por: mail,
+      texto: 'otro mensaje', estado: 'confirmado', tipo: 'pedido_nuevo', familia_id: ID.fUno, fecha: '2026-10-06', hora_inicio: '20:00', dudas: [], solicitud_id: solicitudId });
+  }
+
+  test('dos admins: la otra lo cargó mientras tanto; avisa sin crear nada y "Crear igual" crea la solicitud y abre "Elegir niñeras"', async ({ page }) => {
+    const d = datosPedidos();
+    d.solicitudes = d.solicitudes.filter(s => s.id !== ID.sUno);
+    const e = await abrirApp(page, { datos: d });
+    await armar(page);
+    await esEsta(page);
+    // Mientras esta admin revisa el ticket, la otra pega el mismo pedido y lo pasa a la Agenda (hoy a las 11:32).
+    e.db.solicitudes.push({ id: ID.sUno, familia_id: ID.fUno, familia_nombre: 'Familia Prueba Uno', tipo: 'sitting', zona: 'Pocitos', fecha: '2026-10-06',
+      hora_inicio: '20:00:00', hora_fin: '23:00:00', cobro_familia: null, estado: 'sin_asignar', notas: null, created_at: '2026-10-04T14:32:00Z', termina_dia_siguiente: false });
+    pegadoPor(e, 'otra.admin@ejemplo.test');
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toContainText('Este pedido ya lo cargó otra admin a las 11:32. ¿Crear otro igual?');
+    await expect(avisoRepetido(page).locator('button', { hasText: 'Ver el que ya está' })).toBeVisible();
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(0);
+    expect(escrituras(e, 'pedidos_whatsapp', 'PATCH')).toHaveLength(0);
+    expect(e.db.pedidos_whatsapp[0].estado).toBe('borrador');
+    await avisoRepetido(page).locator('button', { hasText: 'Crear igual' }).click();
+    await expect(modal(page).locator('.pedido-elegir')).toBeVisible();
+    const posts = escrituras(e, 'solicitudes', 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0].cuerpo).toMatchObject({ familia_id: ID.fUno, fecha: '2026-10-06', hora_inicio: '20:00' });
+    expect(e.db.pedidos_whatsapp[0]).toMatchObject({ estado: 'confirmado', solicitud_id: e.db.solicitudes.at(-1).id });
+    verificarLimpio(e);
+  });
+
+  test('si lo cargó la misma cuenta, dice "vos" con el día; "Guardar sin mandar" + "Crear igual" no abre "Elegir niñeras"', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    pegadoPor(e, 'PRUEBA@ejemplo.test');
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Guardar sin mandar').click();
+    // created_at de sUno: 2026-10-01T00:00Z = 30/09 a las 21:00 en Montevideo.
+    await expect(avisoRepetido(page)).toContainText('Este pedido ya lo cargaste vos el 30/09 a las 21:00. ¿Crear otro igual?');
+    await avisoRepetido(page).locator('button', { hasText: 'Crear igual' }).click();
+    await expect(modal(page)).toHaveCount(0);
+    await expect(toastCon(page, 'Solicitud guardada en la Agenda.')).toBeVisible();
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('cargado a mano (sin pegado): "Ya está en la Agenda"; "Ver el que ya está" lo abre y no crea nada', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toContainText('Este pedido ya está en la Agenda, cargado el 30/09 a las 21:00. ¿Crear otro igual?');
+    await avisoRepetido(page).locator('button', { hasText: 'Ver el que ya está' }).click();
+    await expect(modal(page).locator('h2')).toHaveText('Familia Prueba Uno');
+    await expect(modal(page)).toContainText('Cancelar solicitud');
+    await expect(page.locator('#agenda-fecha-label')).toHaveText('6–12 oct');
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(0);
+    expect(e.db.pedidos_whatsapp[0].estado).toBe('borrador');
+    verificarLimpio(e);
+  });
+
+  test('no avisa con el mismo día a otra hora, ni con uno cancelado; cambiar la hora después del aviso vuelve a mirar', async ({ page }) => {
+    const d = datosPedidos();
+    d.solicitudes.push({ ...d.solicitudes.find(s => s.id === ID.sUno), id: '80000000-0000-4000-8000-0000000000c1', hora_inicio: '21:00:00', estado: 'cancelada' });
+    const e = await abrirApp(page, { datos: d });
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    // A las 21 solo está el cancelado: se crea sin preguntar.
+    await hora(page, 'pedido-hi', '21:00');
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(toastCon(page, 'Solicitud guardada en la Agenda.')).toBeVisible();
+    const posts = escrituras(e, 'solicitudes', 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0].cuerpo).toMatchObject({ hora_inicio: '21:00' });
+    verificarLimpio(e);
+  });
+
+  test('si no se puede leer la Agenda para comparar, crea igual que antes (el aviso no frena)', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    await armar(page);
+    await esEsta(page);
+    let fallo = 0;
+    await page.route('**/rest/v1/solicitudes?*', route => {
+      const url = route.request().url();
+      if (route.request().method() === 'GET' && url.includes('familia_id=eq.') && url.includes('fecha=eq.') && !fallo++) {
+        return route.fulfill({ status: 500, json: { code: 'XX000', message: 'falla simulada' } });
+      }
+      return route.fallback();
+    });
+    await boton(page, 'Guardar sin mandar').click();
+    await expect(toastCon(page, 'Solicitud guardada en la Agenda.')).toBeVisible();
+    expect(fallo).toBe(1);
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
+    verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+
+  test('doble toque en "Crear igual": una sola solicitud', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    pegadoPor(e, 'otra.admin@ejemplo.test');
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    e.demoraEscrituras = 300;
+    await avisoRepetido(page).locator('button', { hasText: 'Crear igual' }).dblclick();
+    await expect(modal(page).locator('.pedido-elegir')).toBeVisible();
+    await esperarQuieta(page);
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(1);
+    verificarLimpio(e);
+  });
+
+  test('a 390 px el aviso y sus dos botones entran sin scroll de costado', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    pegadoPor(e, 'otra.admin@ejemplo.test');
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    await avisoRepetido(page).scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    const caja = await avisoRepetido(page).boundingBox();
+    for (const t of ['Ver el que ya está', 'Crear igual']) {
+      const b = await avisoRepetido(page).locator('button', { hasText: t }).boundingBox();
+      expect(b.x).toBeGreaterThanOrEqual(caja.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(caja.x + caja.width + 0.5);
+    }
+    await page.locator('#editmodal .pedido-pie').screenshot({ path: 'test-results/pedido-repetido-390.png' });
+    verificarLimpio(e);
+  });
+});
+
 test.describe('Pegar WhatsApp: pantalla y escape', () => {
   test('a 390 px y a 1280 px el ticket entra sin scroll de costado', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     conTicket(e, { familia_id: ID.fDos, hora_fin: '00:30', termina_dia_siguiente: true, horario_aproximado: true, horario_nota: 'más o menos',
       notas: 'Tomás es alérgico al maní.', dudas: ['La hora de vuelta ("más o menos").'] });
     // Los dos botones de la Agenda entran a 390 px sin empujar la página.
@@ -676,7 +826,7 @@ test.describe('Pegar WhatsApp: pantalla y escape', () => {
   });
 
   test('todo lo que viene del mensaje y del modelo se escapa: nada se ejecuta', async ({ page }) => {
-    const e = await abrirApp(page, { datos: datosPedidos() });
+    const e = await abrirApp(page, { datos: datosPegar() });
     const trampa = n => `<img src=x onerror="window.__xss=${n}">'"\`);window.__xss=${n};//`;
     conTicket(e, {
       tipo: 'pedido_nuevo', familia_id: null, familia_texto: trampa(1), horario_nota: trampa(2), chicos_edades: trampa(3), zona: trampa(4),

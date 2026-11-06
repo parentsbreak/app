@@ -87,7 +87,7 @@ async function pantallaFichaFamilia(id){
       <img src="../logo-simbolo.png" alt="" class="cabecera-simbolo">
       <h1>Ficha de la familia</h1>
     </header>
-    <p class="helper">Repásala con los padres antes de que se vayan.${s.madre ? ` Madre: ${escaparHtml(s.madre)}.` : ''}</p>
+    <p class="helper">Repásala con los padres antes de que se vayan.${s.madre ? ` Familia: ${escaparHtml(s.madre)}.` : ''}</p>
     ${ficha && !propia ? '<p class="aviso-info">Ya viene con lo que sabemos de la familia. Revisa con los padres que siga igual.</p>' : ''}
     ${propia ? `<p class="aviso-info">Ya la guardaste a las ${escaparHtml(horaMvdNinera(Date.parse(ficha.actualizada_en)))}. Puedes corregirla hasta mañana.</p>` : ''}
     ${GRUPOS_FICHA_FAMILIA.map(([titulo, campos]) => `<fieldset class="grupo">
@@ -172,7 +172,7 @@ function htmlTarjetaCambio(c){
     <h2>${c.tipo === 'traslado' ? (c.es_fijo ? 'Cambió el horario de tu fijo de traslados' : 'Cambió el horario de tu traslado')
       : (c.es_fijo ? 'Cambió el horario de tu fijo' : 'Cambió el horario de tu sitting')}</h2>
     <p class="dia-cuando">${escaparHtml(textoCambioNinera(c))}</p>
-    ${c.madre ? `<p class="helper">Madre: ${escaparHtml(c.madre)}${c.zona && c.tipo !== 'traslado' ? `, en ${escaparHtml(c.zona)}` : ''}</p>` : ''}
+    ${c.madre ? `<p class="helper">Familia: ${escaparHtml(c.madre)}${c.zona && c.tipo !== 'traslado' ? `, en ${escaparHtml(c.zona)}` : ''}</p>` : ''}
     <div class="dia-botones">
       <button type="button" class="btn primary ancho" onclick="conGuardado(this, ()=>responderCambioNinera(${id}, true))">Ok</button>
       <button type="button" class="btn ghost ancho" onclick="conGuardado(this, ()=>responderCambioNinera(${id}, false))">A esa hora no puedo</button>

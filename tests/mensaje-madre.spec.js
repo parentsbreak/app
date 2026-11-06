@@ -1,5 +1,5 @@
 // La confirmación para la madre con el monto y las horas (Paulina, 05/11/2026: "un mensaje para copiar en WhatsApp
-// para la madre, con monto y horas"): la hora de fin, las horas que se le cobran (horasSitting, con el redondeo de los
+// para la madre, con monto y horas"; 06/11/2026: sin la hora de fin, "a las 20:00, por 3 h"): las horas que se le cobran (horasSitting, con el redondeo de los
 // términos) y el total del registro del pedido; sin hora de fin, sin horas ni total; un traslado, el precio del viaje.
 // Se vuelve a abrir con "Mensaje para la madre" desde el registro del pedido en la Agenda (o desde la solicitud
 // confirmada sin registro). Nada sale solo: "Copiar" y "Abrir WhatsApp". También: plantilla guardada vieja, plantilla
@@ -18,7 +18,7 @@ const mensaje = page => page.locator('#editmodal .mensaje-madre');
 const texto = page => page.locator('#mensaje-madre-texto');
 const linkWA = page => page.locator('#mensaje-madre-wa');
 const wa = t => 'https://wa.me/59899000001?text=' + encodeURIComponent(t);
-const COMPLETO = '¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el martes 06/10 de 20:00 a 23:00 (3 h). El total es $1.140.';
+const COMPLETO = '¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el martes 06/10 a las 20:00, por 3 h. El total es $1.140.';
 
 // pedido: lo que cambia de la solicitud; registro: lo que cambia del registro (null: sin registro).
 function datos({ pedido = {}, registro = {}, familia = {} } = {}) {
@@ -53,7 +53,7 @@ async function espiarPortapapeles(page) {
 }
 
 test.describe('"Mensaje para la madre" desde el registro del pedido en la Agenda', () => {
-  test('vuelve a abrir la confirmación con la hora de fin, las horas y el total; "Copiar" y "Abrir WhatsApp", sin escribir nada', async ({ page }) => {
+  test('vuelve a abrir la confirmación con la hora de inicio, las horas y el total (sin la hora de fin); "Copiar" y "Abrir WhatsApp", sin escribir nada', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
     await abrirRegistro(page);
     await page.locator('#editmodal button', { hasText: 'Mensaje para la madre' }).click();
@@ -74,7 +74,7 @@ test.describe('"Mensaje para la madre" desde el registro del pedido en la Agenda
     const e = await abrirApp(page, { datos: datos({ registro: { hora_fin: '23:20:00', cobro_familia: 1267, ninera_nombre: 'Ana Ficticia', ninera_id: ID.nAna } }) });
     await abrirRegistro(page);
     await page.locator('#editmodal button', { hasText: 'Mensaje para la madre' }).click();
-    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Ana Ficticia el martes 06/10 de 20:00 a 23:20 (3 h 20). El total es $1.267.');
+    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Ana Ficticia el martes 06/10 a las 20:00, por 3 h 20. El total es $1.267.');
     verificarLimpio(e);
   });
 
@@ -108,7 +108,7 @@ test.describe('lo que dice según el pedido', () => {
     const e = await abrirApp(page, { datos: datos({ familia: { terminos_aceptados_el: '2026-10-01' }, pedido: { fecha: '2026-12-07', hora_fin: '23:20:00', cobro_familia: 1330 },
       registro: { hora_fin: '23:20:00', cobro_familia: 1330 } }) });
     await reabrir(page);
-    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el lunes 07/12 de 20:00 a 23:20 (3 h 30). El total es $1.330.');
+    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el lunes 07/12 a las 20:00, por 3 h 30. El total es $1.330.');
     verificarLimpio(e);
   });
 
@@ -126,7 +126,7 @@ test.describe('lo que dice según el pedido', () => {
   test('con hora de fin y sin precio: las horas sin el total', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos({ pedido: { cobro_familia: null }, registro: { cobro_familia: 0 } }) });
     await reabrir(page);
-    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el martes 06/10 de 20:00 a 23:00 (3 h).');
+    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Carla Ejemplo el martes 06/10 a las 20:00, por 3 h.');
     verificarLimpio(e);
   });
 
@@ -171,7 +171,7 @@ test.describe('plantillas guardadas', () => {
     verificarLimpio(e);
   });
 
-  test('una plantilla con los corchetes nuevos los completa', async ({ page }) => {
+  test('una plantilla guardada con [hora fin] la sigue completando (ya no está en el texto por defecto)', async ({ page }) => {
     const e = await abrirApp(page, { datos: conPlantilla(datos(), '[madre]: [niñera], [día], [hora inicio] a [hora fin], [horas], $[monto].') });
     await reabrir(page);
     await expect(texto(page)).toHaveValue('Familia: Carla Ejemplo, martes 06/10, 20:00 a 23:00, 3 h, $1.140.');
@@ -189,12 +189,12 @@ test.describe('plantillas guardadas', () => {
     verificarLimpio(e);
   });
 
-  test('"Guardar como plantilla" vuelve la hora de fin, las horas y el monto a sus corchetes', async ({ page }) => {
+  test('"Guardar como plantilla" vuelve la hora de inicio, las horas y el monto a sus corchetes', async ({ page }) => {
     const e = await abrirApp(page, { datos: datos() });
     await reabrir(page);
     await texto(page).fill(COMPLETO + '\nCualquier cosa, avisame.');
     await mensaje(page).locator('button', { hasText: 'Guardar como plantilla' }).click();
-    const MODELO = '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] de [hora inicio] a [hora fin] ([horas]). El total es $[monto].\nCualquier cosa, avisame.';
+    const MODELO = '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio], por [horas]. El total es $[monto].\nCualquier cosa, avisame.';
     await expect(page.locator('#mensaje-madre-modelo .mensaje-madre-modelo-texto')).toHaveText(MODELO);
     await page.locator('#mensaje-madre-modelo button', { hasText: 'Guardar plantilla' }).click();
     await expect(page.locator('.toaststack .toast').last()).toContainText('Plantilla guardada');
@@ -213,7 +213,7 @@ test('datos tramposos: el nombre de la niñera en el botón y en el mensaje se v
   await irAModulo(page, 'agenda');
   await page.evaluate(id => abrirModalSolicitud(id), `reg:${REG}`);
   await page.locator('#editmodal button', { hasText: 'Mensaje para la madre' }).click();
-  await expect(texto(page)).toHaveValue(`¡Hola D'Ale"<img! Confirmamos a la niñera ${TRAMPOSA} el martes 06/10 de 20:00 a 23:00 (3 h). El total es $1.140.`);
+  await expect(texto(page)).toHaveValue(`¡Hola D'Ale"<img! Confirmamos a la niñera ${TRAMPOSA} el martes 06/10 a las 20:00, por 3 h. El total es $1.140.`);
   await expect(page.locator('#editmodal img')).toHaveCount(0);
   expect(await page.evaluate(() => window.__xss)).toBeUndefined();
   verificarLimpio(e);

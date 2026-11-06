@@ -159,7 +159,7 @@ function htmlSittingsNinera(filas, hoyISO = todayISO()){
     ${d.filas.map(s => `<button type="button" class="sitting-tarjeta" onclick="abrirDetalleSittingNinera(${argJs(s.id)})">
       <span class="sitting-horas">${escaparHtml(horasSittingNinera(s))}</span>
       <span class="sitting-tipo">${escaparHtml(tipoSittingNinera(s))}${s.zona ? ` · ${escaparHtml(s.tipo === 'traslado' && s.destino_zona ? `${s.zona} a ${s.destino_zona}` : s.zona)}` : ''}</span>
-      ${s.madre ? `<span>Madre: ${escaparHtml(s.madre)}</span>` : ''}
+      ${s.madre ? `<span>Familia: ${escaparHtml(s.madre)}</span>` : ''}
       ${s.chicos ? `<span>Chicos: ${escaparHtml(s.chicos)}</span>` : ''}
     </button>`).join('')}`).join('');
 }
@@ -220,7 +220,7 @@ function abrirDetalleSittingNinera(id, { titulo } = {}){
     <div class="detalle-sitting">
       <p class="detalle-cuando">${escaparHtml(textoDiaNinera(s.fecha, todayISO()))}, ${escaparHtml(horasSittingNinera(s))}${s.horario_aproximado ? ` ${MARCA_APROXIMADA_NINERA}` : ''}</p>
       ${traslado && s.destino_zona ? linea('Zonas', `de ${s.zona || '?'} a ${s.destino_zona}`) : linea('Zona', s.zona)}
-      ${linea('Madre', s.madre)}
+      ${linea('Familia', s.madre)}
       ${linea('Chicos', s.chicos)}
       ${donde}
       ${linea('Indicaciones', s.notas_para_ninera)}
@@ -291,7 +291,7 @@ function armarIcsSitting(s, ahora = new Date()){
     cuando = [`DTSTART;${tz}:${momentoIcsNinera(s.fecha, inicio)}`, `DTEND;${tz}:${momentoIcsNinera(s.fecha, fin)}`];
   }
   const descripcion = [
-    s.madre ? `Madre: ${s.madre}` : '',
+    s.madre ? `Familia: ${s.madre}` : '',
     s.chicos ? `Chicos: ${s.chicos}` : '',
     s.tipo === 'traslado' && s.origen ? `Desde: ${s.origen}` : '',
     s.tipo === 'traslado' && s.destino ? `Hasta: ${s.destino}` : '',

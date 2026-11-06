@@ -485,7 +485,8 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   de guardar, dudas, chicos, práctica y `solo_practica`, "Enviar a N" (cuerpo exacto, `cerrado`, doble toque, errores de la base),
   "Asignar" a una que dijo "Puedo", base sin migrar, escape, 390 y 1280 px.
 - `tests/pedido-pegar.spec.js`: "Pegar WhatsApp" de la Agenda: texto → ticket → solicitud (familia, chicos, dirección, dudas,
-  cambio / cancelación, otra admin que ya lo tomó, falla al crear, errores de la función, base sin migrar, escape, 390 y 1280 px).
+  cambio / cancelación, otra admin que ya lo tomó, pedido repetido con dos admins y "Crear igual" (sus tests usan `datosPedidos()`;
+  los demás, `datosPegar()`, sin el pedido igual en la Agenda), falla al crear, errores de la función, base sin migrar, escape, 390 y 1280 px).
 - `tests/ninera-pedido.spec.js`: app de niñeras: "Pedidos por responder" y "Esperando confirmación", "Puedo", "No puedo" (motivo y
   días), `#pedido/<id>` desde un push, pedido cerrado, doble toque, base sin migrar, sin montos ni familia, 390 y 1280 px.
 - `tests/pedido-respuestas.spec.js`: el modal de la solicitud con Puede / No puede / Sin responder, su Realtime, `?ir=agenda&solicitud=`,
@@ -744,7 +745,10 @@ reporte.
   (en pantalla: "Puedo" / "No puedo"); los "No puedo" seguidos cuentan desde su último "Puedo" en la app. Las dudas del ticket se
   guardan en `pedidos_whatsapp.dudas` y "Elegir niñeras" las lee por `solicitud_id` ("Ya lo confirmé" las saca, "Mandar igual" las
   vacía). Pasar el ticket a la Agenda toma primero el pedido (`.eq('estado','borrador')`), después crea la solicitud y al final le
-  pone `solicitud_id`. Sin la migración, "Asignar" sigue andando con el orden viejo.
+  pone `solicitud_id`. Antes de todo eso (06/11/2026, Paulina y Delfina), si la Agenda ya tiene una solicitud no cancelada de la
+  misma familia, el mismo día y la misma hora de inicio, avisa "Este pedido ya lo cargó otra admin / lo cargaste vos / ya está en la
+  Agenda" con "Ver el que ya está" y "Crear igual" (`buscarPedidoRepetido`, pedidos.js; no bloquea, y si la lectura falla crea como
+  antes). Quién sale del mail de `pedidos_whatsapp.creado_por` comparado con la sesión: la base no tiene el nombre de las otras admins. Sin la migración, "Asignar" sigue andando con el orden viejo.
 - Respuestas del pedido en el panel (02/11/2026): el modal de la solicitud (`abrirModalSolicitud`, agenda.js) abre su propio canal de
   Realtime sobre `solicitud_ninieras` (filtro `solicitud_id`) y lo suelta con `alCerrarModal`; las filas `origen 'app'` dicen Puede / No
   puede: [motivo] / Sin responder y no llevan "Confirmar". `?ir=agenda&solicitud=<id>` (push y campanita) llega a `abrirSolicitudDeLink`.
@@ -776,6 +780,8 @@ reporte.
   se puede copiar ni abrir WhatsApp. La confirmación sale del registro del pedido (manda sobre la solicitud): el monto es su cobro a la
   familia y las horas, las que se cobran (`horasSitting`); sin hora de fin va sin horas ni total, un traslado con "El viaje es $X", y una
   plantilla guardada que usa un dato que ese pedido no tiene cede a la de siempre con una nota (`confirmacionPorDefecto`, pedidos.js).
+  La de siempre (06/11/2026, Paulina y Delfina) dice "el [día] a las [hora inicio], por [horas]", sin la hora de fin; `[hora fin]`
+  sigue andando en una plantilla guardada.
   "Mensaje para la madre" la vuelve a abrir desde el registro del pedido en la Agenda (`botonMensajeMadre`, agenda.js). Regla del CV en "Perfiles": a las que ya
   fueron a esa casa va solo el nombre; una nueva entra recién con "Revisé su perfil" ("(te paso su CV)") y abajo "Adjuntá en WhatsApp el
   CV de [niñera]." si su CV es el viejo de Canva; si tiene el de la app (`cv_url`), "Compartir el CV de [niñeras]" los manda de un toque. "Pedidos en curso" lee todo en una lectura (`cargarPedidosEnCurso`) y el
@@ -1179,8 +1185,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - Etapa 6 (01/11/2026): tildar "Revisé su perfil" en "Perfiles para la madre" rearma el mensaje y pisa lo tipeado a mano. Guardar la
   dirección pisa sin condición la que otra admin acaba de cargar; la pantalla "Asignar" puede precargar $0 si la hora de fin deja las horas
   en null; `plantillaACorchetes` confunde `[madre]` y `[niñera]` si valen lo mismo. "Cómo llegar" no cambia `aria-expanded`.
-- Etapa 5 (02/11/2026): dos admins que pegan el mismo mensaje crean dos solicitudes. Pregunta de producto para Diego: ¿se avisa o se
-  bloquea?
 - Etapa 5 (02/11/2026): un ticket que se cierra sin pasar a la Agenda queda `borrador` y no se puede retomar. Propuesta: "Pedidos sin
   terminar" en "Pegar WhatsApp".
 - Etapa 5 (02/11/2026): si el modelo marca cambio / cancelación y era un pedido nuevo, no hay salida. Propuesta: botón "Es un pedido
@@ -1203,8 +1207,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 - `.ics` de "Próximos sittings" (27/10/2026): falta probar la descarga en la app instalada en un iPhone real.
 - "Editar" en la ficha de la niñera (panel, 27/10/2026) puede pisar un cambio que ella acaba de hacer desde
   la app (cuenta bancaria, zonas, tipo): condicionar el guardado a `perfil_actualizado_en`, como la foto.
-- "Madre:" en los próximos sittings de la niñera (27/10/2026) muestra el nombre del padre en algunas
-  familias: confirmar el texto con las dueñas (¿"Familia:"?).
 - `ninera-cuenta`: con `email_exists` (cuenta huérfana de un alta anterior, por ejemplo si falló
   borrarla) buscar el usuario por mail y vincularlo; hoy da 500 en cada reintento.
 - `ninera-cuenta`: en un reset con dos pedidos en paralelo gana el último `updateUserById`; conviene

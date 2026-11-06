@@ -23,7 +23,7 @@ const texto = page => page.locator('#mensaje-madre-texto');
 const linkWA = page => page.locator('#mensaje-madre-wa');
 const toasts = page => page.locator('.toaststack .toast');
 // Desde el 05/11/2026 lleva la hora de fin y las horas; sin precio del pedido (cobro_familia vacío), sin el total.
-const TEXTO_LOLA = '¡Hola Familia! Confirmamos a la niñera Lola (práctica) el miércoles 07/10 de 18:00 a 22:00 (4 h).';
+const TEXTO_LOLA = '¡Hola Familia! Confirmamos a la niñera Lola (práctica) el miércoles 07/10 a las 18:00, por 4 h.';
 const wa = t => 'https://wa.me/59899000090?text=' + encodeURIComponent(t);
 
 async function abrirAsignar(page, solicitudId = ID.sPendiente, snId = ID.snPendLola) {
@@ -268,7 +268,7 @@ test.describe('"Asignar" desde "Pedidos en curso" (pantalla 4)', () => {
     await botonAsignar(page).click();
     await expect(mensaje(page).locator('.okbox')).toHaveText(`${LOLA} quedó seleccionada. Ya le llegó el aviso.`);
     // La madre es la primera palabra del nombre de la familia, tal cual.
-    const esperado = `¡Hola D'Ale"<img! Confirmamos a la niñera ${LOLA} el miércoles 07/10 de 18:00 a 22:00 (4 h).`;
+    const esperado = `¡Hola D'Ale"<img! Confirmamos a la niñera ${LOLA} el miércoles 07/10 a las 18:00, por 4 h.`;
     await expect(texto(page)).toHaveValue(esperado);
     await expect(linkWA(page)).toHaveAttribute('href', wa(esperado));
     await expect(page.locator('#editmodal img')).toHaveCount(0);
@@ -424,7 +424,7 @@ test.describe('"Guardar asignación" desde "Elegir niñeras": el mismo final', (
     await expect(page.locator('#agenda-asignar-direccion')).toHaveCount(0); // Familia Prueba Uno tiene dirección
     await page.locator('#editmodal button', { hasText: 'Guardar asignación' }).click();
     await expect(mensaje(page).locator('.okbox')).toHaveText('Ana Ficticia quedó asignada.');
-    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Ana Ficticia el martes 06/10 de 20:00 a 23:00 (3 h).');
+    await expect(texto(page)).toHaveValue('¡Hola Familia! Confirmamos a la niñera Ana Ficticia el martes 06/10 a las 20:00, por 3 h.');
     await expect(linkWA(page)).toHaveAttribute('href', /^https:\/\/wa\.me\/59899000001\?text=/);
     expect(escrituras(e, 'solicitud_ninieras', 'POST')[0].cuerpo).toEqual({
       solicitud_id: ID.sUno, ninera_id: ID.nAna, ninera_nombre: 'Ana Ficticia', estado: 'confirmada', pago_ninera: 750, precio_hora: 250,
