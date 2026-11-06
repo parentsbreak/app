@@ -48,12 +48,14 @@ test.describe('próximos sittings en el inicio', () => {
     await expect(hoy).toContainText('18:00 a 22:00');
     await expect(hoy).toContainText('Sitting');
     await expect(hoy).toContainText('Pocitos');
-    await expect(hoy).toContainText('Madre: Familia U.');
+    await expect(hoy).toContainText('Familia: Familia U.');
+    // "Familia:", no "Madre:" (Paulina y Delfina, 06/11/2026: en algunas familias el nombre cargado es el del padre).
+    await expect(hoy).not.toContainText('Madre');
     await expect(hoy).toContainText('Chicos: 2 chicos (3 y 5 años)');
 
     const manana = tarjetas(page).nth(1);
     await expect(manana).toContainText('22:00 a 02:00, termina al día siguiente');
-    await expect(manana).toContainText('Madre: Familia T.');
+    await expect(manana).toContainText('Familia: Familia T.');
     // Sin familia en la lista: ni chicos ni zona.
     await expect(manana).not.toContainText('Chicos:');
 
@@ -73,7 +75,8 @@ test.describe('próximos sittings en el inicio', () => {
     await expect(modal(page)).toContainText('Hoy');
     await expect(modal(page)).toContainText('18:00 a 22:00');
     await expect(modal(page)).toContainText('Calle Falsa 123');
-    await expect(modal(page)).toContainText('Madre: Familia U.');
+    await expect(modal(page)).toContainText('Familia: Familia U.');
+    await expect(modal(page)).not.toContainText('Madre');
     await expect(modal(page)).toContainText('Chicos: 2 chicos (3 y 5 años)');
     // Etapa 6: "Cómo llegar" es un botón que deja elegir Google Maps, Waze o Mapas (ninera-seleccionada.spec.js).
     await modal(page).getByRole('button', { name: 'Cómo llegar' }).click();
@@ -119,7 +122,7 @@ test.describe('próximos sittings en el inicio', () => {
     expect(lineas).toContain('DTSTART;TZID=America/Montevideo:20261005T220000');
     expect(lineas).toContain('DTEND;TZID=America/Montevideo:20261006T020000');
     expect(lineas).toContain("SUMMARY:Sitting Parents' Break");
-    expect(lineas).toContain('DESCRIPTION:Madre: Familia T.');
+    expect(lineas).toContain('DESCRIPTION:Familia: Familia T.');
     // Previsto: sin dirección.
     expect(lineas.some(l => l.startsWith('LOCATION'))).toBe(false);
     expect(lineas[lineas.length - 2]).toBe('END:VCALENDAR');
@@ -142,7 +145,7 @@ test.describe('próximos sittings en el inicio', () => {
     // El de hoy (confirmado) lleva la dirección.
     const icsHoy = await page.evaluate(id => armarIcsSitting(sittingsNineraCargados.find(s => s.id === id)), ID_HOY);
     expect(icsHoy.split('\r\n')).toContain('LOCATION:Calle Falsa 123');
-    expect(icsHoy.split('\r\n')).toContain('DESCRIPTION:Madre: Familia U.\\nChicos: 2 chicos (3 y 5 años)');
+    expect(icsHoy.split('\r\n')).toContain('DESCRIPTION:Familia: Familia U.\\nChicos: 2 chicos (3 y 5 años)');
     verificarLimpio(e);
   });
 
@@ -247,7 +250,7 @@ test.describe('traslados, horarios incompletos y datos raros', () => {
     await expect(traslado).toContainText('desde las 08:00');
     await expect(traslado).toContainText('Traslado');
     await expect(traslado).toContainText('Pocitos<script>window.__xss=2</script>');
-    await expect(traslado).toContainText('Madre: <b>María</b> P.');
+    await expect(traslado).toContainText('Familia: <b>María</b> P.');
     await expect(traslado).toContainText(`Chicos: ${NINOS_RAROS}`);
     await expect(tarjetas(page).nth(1)).toContainText('desde las 18:00');
     await expect(tarjetas(page).nth(2)).toContainText('horario a confirmar');

@@ -116,7 +116,7 @@ function htmlTarjetaDia(s, ahora = Date.now()){
   return `<section class="tarjeta-dia" data-sitting="${escaparHtml(s.id)}">
     <h2>${s.fecha < hoy ? 'Sitting de ayer' : 'Sitting de hoy'}</h2>
     <p class="dia-cuando">${escaparHtml(horario)}${s.zona ? `, en ${escaparHtml(s.zona)}` : ''}</p>
-    ${s.madre ? `<p class="helper">Madre: ${escaparHtml(s.madre)}</p>` : ''}
+    ${s.madre ? `<p class="helper">Familia: ${escaparHtml(s.madre)}</p>` : ''}
     ${lineas.map(l => `<p class="dia-estado">${escaparHtml(l)}</p>`).join('')}
     <div class="dia-botones">${botones.join('')}</div>
     ${htmlBotonFichaDia(s)}
@@ -155,7 +155,7 @@ function htmlTarjetaTraslado(s, ahora = Date.now()){
   return `<section class="tarjeta-dia" data-sitting="${escaparHtml(s.id)}">
     <h2>${s.fecha < hoy ? 'Traslado de ayer' : 'Traslado de hoy'}</h2>
     <p class="dia-cuando">${escaparHtml(cuando + ruta)}</p>
-    ${s.madre ? `<p class="helper">Madre: ${escaparHtml(s.madre)}</p>` : ''}
+    ${s.madre ? `<p class="helper">Familia: ${escaparHtml(s.madre)}</p>` : ''}
     ${lineas.map(l => `<p class="dia-estado">${escaparHtml(l)}</p>`).join('')}
     <div class="dia-botones">${botones.join('')}</div>
     <div class="dia-llegar" data-llegar="${escaparHtml(s.id)}">${htmlComoLlegarDia(s)}</div>

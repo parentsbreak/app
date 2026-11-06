@@ -72,7 +72,7 @@ test.describe('¡Quedaste seleccionada!', () => {
     await expect(modal(page).locator('.modal-titulo')).toHaveText('¡Quedaste seleccionada!');
     await expect(modal(page)).toContainText(`18:00 a 22:00 ${MARCA}`);
     await expect(modal(page)).toContainText('Zona: Pocitos');
-    await expect(modal(page)).toContainText('Madre: Familia U.');
+    await expect(modal(page)).toContainText('Familia: Familia U.');
     await expect(modal(page)).toContainText('Chicos: 2 chicos (3 y 5 años)');
     await expect(modal(page)).toContainText('Dirección: Calle Falsa 123');
     await expect(modal(page)).toContainText('Indicaciones: Hay un perro. Tocar el timbre 5.');

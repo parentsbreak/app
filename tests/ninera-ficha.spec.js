@@ -204,7 +204,7 @@ test.describe('los cambios de horario', () => {
     const e = await abrir(page, { cambios: [cambio()] });
     await expect(tarjetaCambio(page).locator('h2')).toHaveText('Cambió el horario de tu sitting');
     await expect(tarjetaCambio(page).locator('.dia-cuando')).toHaveText('Martes 06/10, de 17:00 a 21:00.');
-    await expect(tarjetaCambio(page).locator('.helper')).toHaveText('Madre: Familia U., en Pocitos');
+    await expect(tarjetaCambio(page).locator('.helper')).toHaveText('Familia: Familia U., en Pocitos');
     const orden = await page.evaluate(() => [...document.querySelectorAll('main > *')].map(x => x.id).filter(Boolean));
     expect(orden.indexOf('inicio-cambios')).toBeLessThan(orden.indexOf('inicio-dia'));
     await tarjetaCambio(page).getByRole('button', { name: 'Ok' }).click();

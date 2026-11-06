@@ -86,13 +86,13 @@ En el inicio, debajo de "No tienes pedidos por ahora.":
 - Los días: "Hoy", "Mañana" o el día abreviado y la fecha ("jue 30/10").
 - Cada sitting: el horario ("18:00 a 22:00"; sin hora de fin, "desde las 18:00"; si termina después
   de medianoche, "22:00 a 02:00, termina al día siguiente"; sin hora, "horario a confirmar"), "Sitting"
-  o "Traslado" con la zona, "Madre: [nombre + inicial]" y "Chicos: [cantidad y edades]".
+  o "Traslado" con la zona, "Familia: [nombre + inicial]" y "Chicos: [cantidad y edades]".
 - Sin sittings: "No tienes sittings próximos."
 - Si no carga: "No pudimos cargar tus sittings. Revisa tu conexión a internet y vuelve a intentar." con
   el botón "Reintentar".
 
 Al tocar un sitting (detalle):
-- Arriba "Sitting" o "Traslado" y "[día], [horario]"; después "Zona:", "Madre:", "Chicos:" y
+- Arriba "Sitting" o "Traslado" y "[día], [horario]"; después "Zona:", "Familia:", "Chicos:" y
   "Dirección:" (en un traslado, "Desde:" y "Hasta:").
 - Si todavía no está confirmado: "La dirección aparece el día del sitting."
 - Botones "Cómo llegar" (abre el mapa con la dirección; en un traslado, con el destino) y "Agregar al
@@ -321,7 +321,7 @@ Panel (voseo, PROVISORIOS):
 
 ## Etapa 7: el día y el cierre (02/11/2026, esperan a las dueñas)
 App de niñeras (tú, PROVISORIOS salvo los de textos.md 5, que van tal cual):
-- Tarjeta del inicio (desde 3 horas antes): "Sitting de hoy" / "Sitting de ayer", "[18:00] a [22:00], en [zona]", "Madre: [nombre e
+- Tarjeta del inicio (desde 3 horas antes): "Sitting de hoy" / "Sitting de ayer", "[18:00] a [22:00], en [zona]", "Familia: [nombre e
   inicial]". Lo marcado: "Saliste a las [hh:mm].", "Avisaste que llegas [20 min] tarde. Le avisamos al equipo.", "Avisaste que no te
   abren. Le avisamos al equipo.", "Avisaste que no encuentras la casa. Le avisamos al equipo.", "Entraste a las [hh:mm]." Botones de
   textos.md 5 y "Llegaron los padres". Falla al leer: "No pudimos cargar tu sitting de hoy. Revisa tu conexión a internet y vuelve a
@@ -381,7 +381,7 @@ App de niñeras (tú, PROVISORIOS salvo "Repásala con los padres antes de que s
   "No pudimos cargar la ficha de la familia. Revisa tu conexión a internet y vuelve a intentar."
 - Detalle del sitting y "¡Quedaste seleccionada!": sección "Ficha de la familia" con los datos cargados (sin las casillas).
 - Tarjeta del cambio: "Cambió el horario de tu sitting" / "[Martes 06/10], de [hi] a [hf]." (fijo: "Cambió el horario de tu fijo"
-  / "Desde el [Martes 06/10], de [hi] a [hf]."), "Madre: [madre], en [zona]", botones "Ok" y "A esa hora no puedo". Después: "Listo,
+  / "Desde el [Martes 06/10], de [hi] a [hf]."), "Familia: [madre], en [zona]", botones "Ok" y "A esa hora no puedo". Después: "Listo,
   gracias por confirmar." / "Le avisamos al equipo. Te escribimos si hace falta." Link de un cambio ya respondido: "Este cambio ya
   no está pendiente." Si falla: "No pudimos enviar tu respuesta. Revisa tu conexión a internet y vuelve a intentar." / "No pudimos
   cargar los cambios de tus sittings. Revisa tu conexión a internet y vuelve a intentar."

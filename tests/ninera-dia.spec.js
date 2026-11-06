@@ -48,7 +48,7 @@ test.describe('la tarjeta del día', () => {
     const e = await abrir(page, { hora: '15:00' });
     await expect(tarjeta(page).locator('h2')).toHaveText('Sitting de hoy');
     await expect(tarjeta(page).locator('.dia-cuando')).toHaveText('18:00 a 22:00, en Pocitos');
-    await expect(tarjeta(page).locator('.helper')).toHaveText('Madre: Familia U.');
+    await expect(tarjeta(page).locator('.helper')).toHaveText('Familia: Familia U.');
     await expect(botones(page)).toHaveText(['Estoy saliendo', 'Voy a llegar tarde', 'Ya entré', 'Estoy afuera y no me abren', 'No encuentro la casa']);
     // La tarjeta va arriba de todo, antes de los pedidos y los sittings.
     const orden = await page.evaluate(() => [...document.querySelectorAll('main > *')].map(x => x.id).filter(Boolean));

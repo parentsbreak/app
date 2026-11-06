@@ -1416,6 +1416,15 @@ async function crearSolicitudDesdeTicket({ mandar }){
   const notas = (document.getElementById('pedido-notas')?.value || '').trim();
   const zona = leerZonasChecklist('pedido') || fam.zona || null;
 
+  // 0) Pedido repetido (Paulina y Delfina, 06/11/2026): si la Agenda ya tiene uno de la misma familia, el mismo día
+  // y a la misma hora de inicio, se avisa antes de crear otro. No bloquea: "Crear igual" sigue con este mismo pedido.
+  const claveRepetido = [fam.id, h.fecha, h.hi].join('|');
+  if(st.crearIgual !== claveRepetido){
+    const repetido = await buscarPedidoRepetido(fam.id, h.fecha, h.hi);
+    if(pedidoTicket !== st) return;
+    if(repetido){ pintarAvisoRepetido(repetido, claveRepetido, mandar); return; }
+  }
+
   // 1) Se toma el pedido: si otra admin ya lo pasó a la Agenda (o lo descartó), no se crea nada.
   const pid = st.pedido.id;
   const { data: tomado, error: e1 } = await sb.from('pedidos_whatsapp').update({ estado: 'confirmado' }).eq('id', pid).eq('estado', 'borrador').select('id');
@@ -1465,6 +1474,55 @@ async function crearSolicitudDesdeTicket({ mandar }){
   if(mandar && agendaSolicitudes.some(x=>x.id===creada.id)) await abrirElegirNineras(creada.id);
   else if(mandar) toast('La solicitud quedó en la Agenda, pero no se pudo abrir "Elegir niñeras": tocala en la Agenda para elegir.', 'bad');
   else toast('Solicitud guardada en la Agenda.');
+}
+
+/* La solicitud de la Agenda igual a la que se va a crear (misma familia, día y hora de inicio, no cancelada), con
+   el mail de quien la pegó si vino de "Pegar WhatsApp" (sin pegado: se cargó a mano). La base guarda el mail y no
+   el nombre de las otras admins (Diego, 06/11/2026: sin migración), así que el aviso dice "otra admin" o "vos".
+   Una lectura que falla no frena: se crea como antes. */
+async function buscarPedidoRepetido(familiaId, fecha, horaInicio){
+  const { data, error } = await sb.from('solicitudes').select('id,fecha,hora_inicio,created_at')
+    .eq('familia_id', familiaId).eq('fecha', fecha).neq('estado', 'cancelada').order('created_at');
+  if(error) return null;
+  const igual = (data || []).find(s => String(s.hora_inicio || '').slice(0, 5) === String(horaInicio).slice(0, 5));
+  if(!igual) return null;
+  const peg = await sb.from('pedidos_whatsapp').select('creado_por').eq('solicitud_id', igual.id).limit(1);
+  return { ...igual, mail: !peg.error && peg.data && peg.data[0] ? peg.data[0].creado_por || null : null };
+}
+// "a las 14:32" si se cargó hoy; si no, "el 04/11 a las 14:32" (hora de Montevideo).
+function cuandoSeCargoTexto(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  const hora = new Intl.DateTimeFormat('es-UY', { timeZone: ZONA_NEGOCIO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+  const fecha = fechaNegocioISO(d);
+  return fecha === todayISO() ? `a las ${hora}` : `el ${fecha.slice(8, 10)}/${fecha.slice(5, 7)} a las ${hora}`;
+}
+function textoPedidoRepetido(rep){
+  const cuando = cuandoSeCargoTexto(rep.created_at);
+  const mio = String(session?.user?.email || '').toLowerCase();
+  const quien = !rep.mail ? null : mio && String(rep.mail).toLowerCase() === mio ? 'vos' : 'otra admin';
+  const base = quien === 'vos' ? 'Este pedido ya lo cargaste vos' : quien ? 'Este pedido ya lo cargó otra admin' : 'Este pedido ya está en la Agenda';
+  const sep = quien ? ' ' : ', cargado ';
+  return `${base}${cuando ? sep + cuando : ''}. ¿Crear otro igual?`;
+}
+function pintarAvisoRepetido(rep, clave, mandar){
+  const st = pedidoTicket;
+  const warn = document.getElementById('pedido-ticket-warn');
+  if(!st || !warn) return;
+  st.repetido = clave;
+  warn.innerHTML = `<div class="warnbox pedido-repetido">${escaparHtml(textoPedidoRepetido(rep))}
+    <div class="pedido-repetido-botones" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      <button type="button" class="smallbtn" onclick="abrirSolicitudDesdeTicket(${argJs(rep.id)}, ${argJs(rep.fecha)})">Ver el que ya está</button>
+      <button type="button" class="smallbtn" onclick="conGuardado(this, ()=>crearIgualTicket(${mandar ? 'true' : 'false'}))">Crear igual</button>
+    </div>
+  </div>`;
+}
+// "Crear igual": vale para esa familia, ese día y esa hora; si la admin cambia alguno, se vuelve a mirar.
+function crearIgualTicket(mandar){
+  const st = pedidoTicket;
+  if(!st || !st.repetido) return;
+  st.crearIgual = st.repetido;
+  return crearSolicitudDesdeTicket({ mandar });
 }
 
 // Un cambio, una cancelación u otra cosa: no se crea nada. Se muestran los pedidos próximos de esa
@@ -1547,7 +1605,7 @@ function listaNombresTexto(nombres){
 // Los textos por defecto (textos.md 9 y las respuestas de Diego del 01/11/2026). Los corchetes se completan solos.
 const PLANTILLAS_PEDIDO = {
   perfiles: '¡Hola [madre]! Te paso las niñeras disponibles para el [día] a las [hora inicio]:\n[niñeras]\nAvísame cuál preferís y te la confirmo.',
-  confirmacion: '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] de [hora inicio] a [hora fin] ([horas]). El total es $[monto].',
+  confirmacion: '¡Hola [madre]! Confirmamos a la niñera [niñera] el [día] a las [hora inicio], por [horas]. El total es $[monto].',
   buscando: '¡Hola [madre]! Estamos viendo quién puede [cuándo]. Te avisamos a la brevedad.',
   no_conseguimos: '¡Hola [madre]! Lamentablemente para el [día] no conseguimos a nadie. ¿Te sirve otro horario?',
 };
@@ -1565,12 +1623,13 @@ async function leerPlantillaGuardada(clave){
   return guardado.trim() ? guardado : '';
 }
 /* La confirmación de siempre según lo que tiene el pedido (Paulina, 05/11/2026: el mensaje con el monto y las
-   horas). Sin hora de fin no hay horas ni total; un traslado lleva el precio del viaje y nunca horas. Así no
-   queda ningún corchete vacío. */
+   horas; Paulina y Delfina, 06/11/2026: la hora de inicio y las horas que se cobran, sin la hora de fin; [hora fin]
+   sigue andando para quien lo use en su plantilla). Sin hora de fin no hay horas ni total; un traslado lleva el
+   precio del viaje y nunca horas. Así no queda ningún corchete vacío. */
 function confirmacionPorDefecto({ traslado, conFin, conMonto }){
   if(!traslado && conFin && conMonto) return PLANTILLAS_PEDIDO.confirmacion;
   const cuando = traslado ? 'para el traslado del [día] a las [hora inicio]'
-    : conFin ? 'el [día] de [hora inicio] a [hora fin] ([horas])' : 'el [día] a las [hora inicio]';
+    : conFin ? 'el [día] a las [hora inicio], por [horas]' : 'el [día] a las [hora inicio]';
   const total = !conMonto ? '' : traslado ? ' El viaje es $[monto].' : ' El total es $[monto].';
   return `¡Hola [madre]! Confirmamos a la niñera [niñera] ${cuando}.${total}`;
 }
