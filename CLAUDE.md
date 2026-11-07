@@ -747,7 +747,7 @@ reporte.
   vacía). Pasar el ticket a la Agenda toma primero el pedido (`.eq('estado','borrador')`), después crea la solicitud y al final le
   pone `solicitud_id`. Antes de todo eso (06/11/2026, Paulina y Delfina), si la Agenda ya tiene una solicitud no cancelada de la
   misma familia, el mismo día y la misma hora de inicio, avisa "Este pedido ya lo cargó otra admin / lo cargaste vos / ya está en la
-  Agenda" con "Ver el que ya está" y "Crear igual" (`buscarPedidoRepetido`, pedidos.js; no bloquea, y si la lectura falla crea como
+  Agenda" con "Ver el que ya está" (descarta el pegado con la condición del borrador; si falla, abre igual y avisa) y "Crear igual" (`buscarPedidoRepetido`, pedidos.js; no bloquea, y si la lectura falla crea como
   antes). Quién sale del mail de `pedidos_whatsapp.creado_por` comparado con la sesión: la base no tiene el nombre de las otras admins. Sin la migración, "Asignar" sigue andando con el orden viejo.
 - Respuestas del pedido en el panel (02/11/2026): el modal de la solicitud (`abrirModalSolicitud`, agenda.js) abre su propio canal de
   Realtime sobre `solicitud_ninieras` (filtro `solicitud_id`) y lo suelta con `alCerrarModal`; las filas `origen 'app'` dicen Puede / No

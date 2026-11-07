@@ -712,7 +712,7 @@ test.describe('Pegar WhatsApp: pedido repetido (06/11/2026)', () => {
     verificarLimpio(e);
   });
 
-  test('cargado a mano (sin pegado): "Ya está en la Agenda"; "Ver el que ya está" lo abre y no crea nada', async ({ page }) => {
+  test('cargado a mano (sin pegado): "Ya está en la Agenda"; "Ver el que ya está" descarta el pegado, lo abre y no crea nada', async ({ page }) => {
     const e = await abrirApp(page, { datos: datosPedidos() });
     await armar(page);
     await esEsta(page);
@@ -723,7 +723,56 @@ test.describe('Pegar WhatsApp: pedido repetido (06/11/2026)', () => {
     await expect(modal(page)).toContainText('Cancelar solicitud');
     await expect(page.locator('#agenda-fecha-label')).toHaveText('6–12 oct');
     expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(0);
-    expect(e.db.pedidos_whatsapp[0].estado).toBe('borrador');
+    // El pegado no queda como borrador suelto (06/11/2026, Diego): se descarta con la condición de que siga en borrador.
+    const w = escrituras(e, 'pedidos_whatsapp', 'PATCH');
+    expect(w).toHaveLength(1);
+    expect(w[0].cuerpo).toEqual({ estado: 'descartado' });
+    expect(w[0].params).toMatchObject({ id: `eq.${e.db.pedidos_whatsapp[0].id}`, estado: 'eq.borrador' });
+    expect(e.db.pedidos_whatsapp[0].estado).toBe('descartado');
+    verificarLimpio(e);
+  });
+
+  test('"Ver el que ya está" con la base que falla al descartar: abre el que ya está igual y avisa', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    pegadoPor(e, 'otra.admin@ejemplo.test');
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    e.fallar = ({ tabla, metodo }) => (tabla === 'pedidos_whatsapp' && metodo === 'PATCH' ? { status: 500, message: 'falla simulada' } : undefined);
+    await avisoRepetido(page).locator('button', { hasText: 'Ver el que ya está' }).click();
+    await expect(modal(page).locator('h2')).toHaveText('Familia Prueba Uno');
+    await expect(toastCon(page, 'No se pudo descartar el mensaje pegado', '.bad')).toContainText('falla simulada');
+    expect(e.db.pedidos_whatsapp.find(p => p.texto !== 'otro mensaje').estado).toBe('borrador');
+    expect(escrituras(e, 'solicitudes', 'POST')).toHaveLength(0);
+    verificarLimpio(e, { ignorar: [/status of 500/] });
+  });
+
+  test('"Ver el que ya está" cuando otra admin ya pasó o descartó el pegado: lo abre sin avisar ni tocar nada más', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    e.db.pedidos_whatsapp[0].estado = 'descartado';
+    await avisoRepetido(page).locator('button', { hasText: 'Ver el que ya está' }).click();
+    await expect(modal(page).locator('h2')).toHaveText('Familia Prueba Uno');
+    expect(escrituras(e, 'pedidos_whatsapp', 'PATCH')).toHaveLength(1);
+    await expect(page.locator('.toaststack .toast.bad')).toHaveCount(0);
+    verificarLimpio(e);
+  });
+
+  test('doble toque en "Ver el que ya está": un solo descarte', async ({ page }) => {
+    const e = await abrirApp(page, { datos: datosPedidos() });
+    await armar(page);
+    await esEsta(page);
+    await boton(page, 'Revisar y elegir niñeras').click();
+    await expect(avisoRepetido(page)).toBeVisible();
+    e.demoraEscrituras = 300;
+    await avisoRepetido(page).locator('button', { hasText: 'Ver el que ya está' }).dblclick();
+    await expect(modal(page).locator('h2')).toHaveText('Familia Prueba Uno');
+    await esperarQuieta(page);
+    expect(escrituras(e, 'pedidos_whatsapp', 'PATCH')).toHaveLength(1);
     verificarLimpio(e);
   });
 

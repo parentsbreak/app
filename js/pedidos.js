@@ -1512,10 +1512,21 @@ function pintarAvisoRepetido(rep, clave, mandar){
   st.repetido = clave;
   warn.innerHTML = `<div class="warnbox pedido-repetido">${escaparHtml(textoPedidoRepetido(rep))}
     <div class="pedido-repetido-botones" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-      <button type="button" class="smallbtn" onclick="abrirSolicitudDesdeTicket(${argJs(rep.id)}, ${argJs(rep.fecha)})">Ver el que ya está</button>
+      <button type="button" class="smallbtn" onclick="conGuardado(this, ()=>verPedidoRepetido(${argJs(rep.id)}, ${argJs(rep.fecha)}))">Ver el que ya está</button>
       <button type="button" class="smallbtn" onclick="conGuardado(this, ()=>crearIgualTicket(${mandar ? 'true' : 'false'}))">Crear igual</button>
     </div>
   </div>`;
+}
+/* "Ver el que ya está" (Diego, 06/11/2026): el mensaje pegado no queda como borrador suelto; se descarta (con la
+   condición de que siga en borrador: si otra admin ya lo pasó o lo descartó, no se toca) y se abre el que ya está.
+   Si el descarte falla, se abre igual y se avisa. */
+async function verPedidoRepetido(id, fecha){
+  const st = pedidoTicket;
+  if(!st || !st.pedido) return;
+  const { error } = await sb.from('pedidos_whatsapp').update({ estado: 'descartado' }).eq('id', st.pedido.id).eq('estado', 'borrador').select('id');
+  if(pedidoTicket !== st) return;
+  await abrirSolicitudDesdeTicket(id, fecha);
+  if(error) toast(`No se pudo descartar el mensaje pegado (${error.message || error}): quedó como borrador.`, 'bad');
 }
 // "Crear igual": vale para esa familia, ese día y esa hora; si la admin cambia alguno, se vuelve a mirar.
 function crearIgualTicket(mandar){
