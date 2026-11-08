@@ -1227,10 +1227,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 ### Mudanza a parentsbreak.github.io/app (27/10/2026)
 El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL en
 `docs/mudanza-pages.md`). Queda para después de la noche de la mudanza:
-- Republicar `ninera-cuenta` con el valor por defecto nuevo de `ORIGENES` (ya está en el repo; mientras
-  tanto manda el secret `ORIGENES_PERMITIDOS`). Con OK de Diego. `pedido-whatsapp` ya se republicó (01/11/2026).
-- A la semana: sacar `https://diegomarin28.github.io` del secret `ORIGENES_PERMITIDOS` (Diego) y
-  del valor por defecto de las dos funciones.
 - Al mes: PR que saque el aviso "La app se mudó" del login y de Hoy (`hayQueAvisarMudanza` y lo
   que lo usa, app-shell.js y auth.js; `tests/mudanza.spec.js`).
 - Cuando las 3 admins activaron los avisos en la dirección nueva: borrar las suscripciones push
