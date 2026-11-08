@@ -313,7 +313,9 @@ npm run test:static               # solo los chequeos estáticos (segundos)
   temporada, temporada por quincenas, "Dijo que no va", Montevideo sin temporada aparte, la zona
   escrita en el buscador, 390 px).
 - `tests/login-alcanzable.spec.js`: el login y sus pantallas (Un paso más, Confirmá que sos vos, contraseña
-  nueva) scrollean y el botón principal se alcanza a 375×560 y 390×664, con y sin el aviso de mudanza.
+  nueva) scrollean y el botón principal se alcanza a 375×560 y 390×664.
+- `tests/redireccion-vieja.spec.js`: las páginas de `docs/mudanza-redireccion/` (publicadas en el repo aparte de la
+  dirección vieja) pasan solas a la nueva con lo que traiga el link, y desde el ícono viejo muestran los pasos.
 - `tests/modo-claro.spec.js`: con el aparato en modo oscuro, Hoy, Postulantes y Finanzas se ven claros.
 - `tests/cierre-fijos.spec.js`: "Cierre de los fijos" en Hoy (Sí, terminó / Otra hora con entrada y fin que
   recalcula con la tarifa y los términos, medianoche, ya cobrado, otra admin, base que falla, traslado, 390 px).
@@ -1227,8 +1229,6 @@ provisorios para las dueñas están en `textos-provisorios.md`.
 ### Mudanza a parentsbreak.github.io/app (27/10/2026)
 El repo pasó a la organización `parentsbreak` con el nombre `app` (plan y SQL en
 `docs/mudanza-pages.md`). Queda para después de la noche de la mudanza:
-- Al mes: PR que saque el aviso "La app se mudó" del login y de Hoy (`hayQueAvisarMudanza` y lo
-  que lo usa, app-shell.js y auth.js; `tests/mudanza.spec.js`).
 - Cuando las 3 admins activaron los avisos en la dirección nueva: borrar las suscripciones push
   viejas (SQL con respaldo en `docs/mudanza-pages.md`, lo corre Diego).
 - Remote local: `git remote set-url origin https://github.com/parentsbreak/app` en el checkout de
