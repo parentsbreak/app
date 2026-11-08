@@ -11,10 +11,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { type Deps, ERROR_PASSWORD_DEBIL, type Invitacion, procesarCuenta } from "./cuenta.ts";
 
-// Solo la app publicada, como pedido-whatsapp (Diego, 21/10/2026). Mudanza a parentsbreak.github.io
-// (27/10/2026): el nuevo primero (es el que se responde a un pedido de otro lado) y el viejo hasta
-// que se saque del secret. Lo publicado sigue con el valor anterior hasta republicar con OK de Diego.
-const ORIGENES = (Deno.env.get("ORIGENES_PERMITIDOS") || "https://parentsbreak.github.io,https://diegomarin28.github.io")
+// Solo la app publicada, como pedido-whatsapp (Diego, 21/10/2026). Desde la mudanza del 27/10/2026 es
+// parentsbreak.github.io; el dominio viejo (diegomarin28.github.io) se sacó el 08/11/2026.
+const ORIGENES = (Deno.env.get("ORIGENES_PERMITIDOS") || "https://parentsbreak.github.io")
   .split(",").map(o => o.trim()).filter(Boolean);
 
 function encabezados(origen: string | null): Record<string, string> {
