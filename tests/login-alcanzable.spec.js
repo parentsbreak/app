@@ -1,11 +1,12 @@
 // Bug en producción (31/10/2026): en el iPhone el botón "Entrar" del login quedaba fuera de la
 // pantalla y no se podía scrollear. .loginstage es position:fixed con inset:0 y no scrolleaba; con el
-// aviso "La app se mudó" el contenido medía más que la pantalla (a 390×664 el botón quedaba en 789).
+// aviso "La app se mudó" (ya sacado, 08/11/2026) el contenido medía más que la pantalla (a 390×664 el
+// botón quedaba en 789), y en un celular chico puede pasar igual.
 // Estos tests scrollean como una persona (la rueda / el dedo, no scrollIntoView, que mueve aunque haya
 // overflow:hidden) y miran que el botón principal de cada pantalla de login quede a la vista, y que lo
 // de arriba no quede cortado. Con pantallas chicas: 375×560 y 390×664.
 const { test, expect } = require('@playwright/test');
-const { abrirApp, verificarLimpio, servirAppEnDireccionPublicada, APP_PUBLICADA } = require('./support/app');
+const { abrirApp, verificarLimpio } = require('./support/app');
 
 const PANTALLAS = [{ width: 375, height: 560 }, { width: 390, height: 664 }];
 
@@ -32,22 +33,13 @@ for (const vp of PANTALLAS) {
   test.describe(`login a ${vp.width}×${vp.height}`, () => {
     test.use({ viewport: vp });
 
-    test('con el aviso "La app se mudó", "Entrar" se alcanza scrolleando y lo de arriba no se corta', async ({ page }) => {
-      await servirAppEnDireccionPublicada(page);
-      const e = await abrirApp(page, { sesion: false, ruta: APP_PUBLICADA });
-      await expect(page.locator('#aviso-mudanza-login')).toBeVisible();
+    test('el login: "Entrar" se alcanza y lo de arriba no se corta', async ({ page }) => {
+      const e = await abrirApp(page, { sesion: false });
       await scrollearHastaAbajo(page, vp);
       await aLaVista(page, '#loginbtn', vp);
       // Se puede tocar de verdad (sin nada encima).
       await page.locator('#loginbtn').click({ trial: true });
       await arribaSinCortar(page, '.loginwrap h2');
-      verificarLimpio(e);
-    });
-
-    test('sin el aviso (localhost), igual se alcanza', async ({ page }) => {
-      const e = await abrirApp(page, { sesion: false });
-      await scrollearHastaAbajo(page, vp);
-      await aLaVista(page, '#loginbtn', vp);
       verificarLimpio(e);
     });
 
